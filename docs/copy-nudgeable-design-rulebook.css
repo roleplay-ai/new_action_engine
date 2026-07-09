@@ -1,0 +1,1280 @@
+/* ============================================================
+   NUDGEABLE DESIGN SYSTEM — CSS RULEBOOK v1.0
+   Brand Theme: Yellow (#F5C518 core)
+   Inspired by: Soft-illustrated, warm, calm, action-oriented UI
+   
+   USAGE: Import this file globally in your application.
+   All component classes reference CSS variables defined in :root.
+   ============================================================ */
+
+
+/* ============================================================
+   1. DESIGN TOKENS — CSS VARIABLES
+   The single source of truth for all visual decisions.
+   NEVER hard-code colors, spacing, or radii outside this block.
+   ============================================================ */
+
+:root {
+
+  /* ── OFFICIAL BRAND PALETTE ── */
+  --white: #FFFFFF;
+  --lemon-chiffon: #FFFDF5;
+  /* page background */
+  --bright-amber: #FFCE00;
+  /* primary CTA — brand yellow */
+  --princeton-orange: #F68A29;
+  /* warm accent */
+  --hot-fuchsia: #ED4551;
+  /* danger / decline / alert */
+  --dodger-blue: #3699FC;
+  /* info / links */
+  --emerald: #23CE6B;
+  /* success / accept */
+  --majorelle-blue: #623CEA;
+  /* secondary / premium */
+  --shadow-grey: #221D23;
+  /* dark text / backgrounds */
+
+  /* ── SEMANTIC ALIASES ── */
+  --color-primary: #FFCE00;
+  --color-primary-dark: #C9A000;
+  --color-primary-light: rgba(255, 206, 0, 0.15);
+
+  /* ── BACKGROUNDS ── */
+  --color-bg-base: #FFFDF5;
+  /* Page background */
+  --color-bg-surface: rgba(255, 255, 255, 0.90);
+  /* Frosted card */
+  --color-bg-overlay: rgba(255, 251, 215, 0.78);
+  /* Inner inset */
+  --color-bg-muted: rgba(255, 206, 0, 0.12);
+  /* Subtle tint */
+  --color-bg-dark: #221D23;
+
+  /* ── TEXT ── */
+  --color-text-primary: #221D23;
+  --color-text-secondary: #4A4047;
+  --color-text-muted: #8A8090;
+  --color-text-inverse: #FFFFFF;
+  --color-text-accent: #C9A000;
+
+  /* ── TAG / CHIP SYSTEM — one per palette color ── */
+  --color-tag-yellow-bg: rgba(255, 206, 0, 0.16);
+  --color-tag-yellow-text: #7A5F00;
+  --color-tag-orange-bg: rgba(246, 138, 41, 0.14);
+  --color-tag-orange-text: #7A3A00;
+  --color-tag-red-bg: rgba(237, 69, 81, 0.12);
+  --color-tag-red-text: #8C1C24;
+  --color-tag-blue-bg: rgba(54, 153, 252, 0.13);
+  --color-tag-blue-text: #0A3D8C;
+  --color-tag-green-bg: rgba(35, 206, 107, 0.13);
+  --color-tag-green-text: #0A6632;
+  --color-tag-purple-bg: rgba(98, 60, 234, 0.12);
+  --color-tag-purple-text: #2D1580;
+
+  /* ── SEMANTIC STATUS ── */
+  --color-success: #23CE6B;
+  --color-warning: #FFCE00;
+  --color-danger: #ED4551;
+  --color-info: #3699FC;
+
+  /* ── BORDER ── */
+  --color-border: rgba(34, 29, 35, 0.10);
+  --color-border-strong: rgba(34, 29, 35, 0.20);
+  --color-border-yellow: rgba(255, 206, 0, 0.45);
+
+  /* --- TYPOGRAPHY --- */
+  --font-display: 'Inter', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --text-xs: 0.70rem;
+  /* 11px */
+  --text-sm: 0.813rem;
+  /* 13px */
+  --text-base: 0.938rem;
+  /* 15px */
+  --text-md: 1.063rem;
+  /* 17px */
+  --text-lg: 1.25rem;
+  /* 20px */
+  --text-xl: 1.5rem;
+  /* 24px */
+  --text-2xl: 1.875rem;
+  /* 30px */
+  --text-3xl: 2.25rem;
+  /* 36px */
+  --text-4xl: 3rem;
+  /* 48px */
+
+  --leading-tight: 1.2;
+  --leading-snug: 1.4;
+  --leading-normal: 1.6;
+  --leading-relaxed: 1.75;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* --- SPACING SCALE --- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  /* --- BORDER RADIUS --- */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-pill: 9999px;
+
+  /* --- SHADOWS --- */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 32px rgba(0, 0, 0, 0.10), 0 4px 8px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 48px rgba(0, 0, 0, 0.12);
+  --shadow-yellow: 0 4px 20px rgba(245, 197, 24, 0.35);
+
+  /* --- TRANSITIONS --- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --duration-slow: 350ms;
+
+  /* --- LAYOUT --- */
+  --max-width-card: 520px;
+  --max-width-content: 760px;
+  --max-width-wide: 1140px;
+  --navbar-height: 60px;
+}
+
+
+/* ============================================================
+   2. RESET & BASE
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-base);
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  color: var(--color-text-primary);
+}
+
+a {
+  color: var(--color-text-accent);
+  text-decoration: none;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+a:hover {
+  opacity: 0.75;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+
+/* ============================================================
+   3. BACKGROUND — ILLUSTRATED SCENE SYSTEM
+   The signature look: soft illustrated landscape behind content.
+   Use .page-bg as the outermost wrapper for any full-page view.
+   ============================================================ */
+
+.page-bg {
+  position: relative;
+  min-height: 100vh;
+  background: #FFFDF5;
+  overflow: hidden;
+}
+
+/* Decorative blobs — include these as children of .page-bg */
+.page-bg__blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+.page-bg__blob--1 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, #FFE566 0%, transparent 70%);
+  top: -100px;
+  right: -100px;
+}
+
+.page-bg__blob--2 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, #FFD700 0%, transparent 70%);
+  bottom: -80px;
+  left: -80px;
+}
+
+.page-bg__blob--3 {
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, #FFF3C2 0%, transparent 70%);
+  top: 40%;
+  left: 40%;
+}
+
+/* Scenic silhouette layer — SVG or img, place at bottom of .page-bg */
+.page-bg__scene {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  /* Adjust per page: 0.12–0.25 */
+  z-index: 0;
+}
+
+/* Content always sits above the background */
+.page-bg>*:not(.page-bg__blob):not(.page-bg__scene) {
+  position: relative;
+  z-index: 1;
+}
+
+
+/* ============================================================
+   4. CARD
+   The primary container for all app content.
+   Frosted glass, generous padding, soft shadow.
+   ============================================================ */
+
+.card {
+  background: var(--color-bg-surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8) var(--space-8);
+  box-shadow: var(--shadow-lg);
+  max-width: var(--max-width-card);
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Inner inset panel (like the course details box within a card) */
+.card__inset {
+  background: var(--color-bg-overlay);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+}
+
+/* Decorative yellow corner accent */
+.card__accent-corner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 56px;
+  height: 56px;
+  background: var(--color-primary-400);
+  border-radius: 0 var(--radius-xl) 0 var(--radius-xl);
+  opacity: 0.85;
+}
+
+/* Wide card variant for multi-column layouts */
+.card--wide {
+  max-width: var(--max-width-content);
+}
+
+/* Flat card — no blur, for nested surfaces */
+.card--flat {
+  background: #FFFFFF;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Card title */
+.card__title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  margin-bottom: var(--space-2);
+}
+
+/* Card subtitle / description */
+.card__subtitle {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+  margin-bottom: var(--space-6);
+}
+
+
+/* ============================================================
+   5. BUTTONS
+   Primary (yellow pill), Secondary (outline), Ghost
+   ============================================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-base);
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  padding: var(--space-4) var(--space-10);
+  line-height: 1;
+  transition:
+    background var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+  white-space: nowrap;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+/* Primary — full yellow, used for main CTA */
+.btn--primary {
+  background: var(--color-primary-400);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-yellow);
+}
+
+.btn--primary:hover {
+  background: var(--color-primary-500);
+  box-shadow: 0 6px 24px rgba(245, 197, 24, 0.45);
+}
+
+/* Primary Dark — dark bg for contrast on light surfaces */
+.btn--primary-dark {
+  background: var(--color-text-primary);
+  color: var(--color-primary-400);
+}
+
+.btn--primary-dark:hover {
+  background: var(--color-bg-dark);
+}
+
+/* Accept / Confirm — brand green */
+.btn--accept {
+  background: var(--emerald);
+  color: var(--white);
+  padding: var(--space-3) var(--space-8);
+  font-size: var(--text-sm);
+  box-shadow: 0 4px 14px rgba(35, 206, 107, 0.30);
+}
+
+.btn--accept:hover {
+  background: #1aad58;
+  box-shadow: 0 6px 20px rgba(35, 206, 107, 0.40);
+}
+
+/* Decline / Secondary — outlined */
+.btn--decline {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1.5px solid var(--color-border-strong);
+  padding: var(--space-3) var(--space-8);
+  font-size: var(--text-sm);
+}
+
+.btn--decline:hover {
+  border-color: var(--color-text-primary);
+  color: var(--color-text-primary);
+}
+
+/* Full width */
+.btn--full {
+  width: 100%;
+}
+
+/* Large — for hero CTA */
+.btn--lg {
+  padding: var(--space-5) var(--space-12);
+  font-size: var(--text-md);
+}
+
+/* Small */
+.btn--sm {
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--text-sm);
+}
+
+/* Icon-only button */
+.btn--icon {
+  padding: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1.5px solid var(--color-border-strong);
+}
+
+.btn--icon:hover {
+  background: var(--color-bg-muted);
+}
+
+
+/* ============================================================
+   6. TAGS / CHIPS
+   Category labels, topic tags, time indicators
+   ============================================================ */
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  padding: 3px var(--space-3);
+  border-radius: var(--radius-pill);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* Yellow (brand primary) */
+.tag--yellow {
+  background: var(--color-tag-primary-bg);
+  color: var(--color-tag-primary-text);
+  border: 1px solid rgba(245, 197, 24, 0.30);
+}
+
+/* Teal (secondary category) */
+.tag--teal {
+  background: var(--color-tag-teal-bg);
+  color: var(--color-tag-teal-text);
+}
+
+/* Blue */
+.tag--blue {
+  background: var(--color-tag-blue-bg);
+  color: var(--color-tag-blue-text);
+}
+
+/* Orange */
+.tag--orange {
+  background: var(--color-tag-orange-bg);
+  color: var(--color-tag-orange-text);
+}
+
+/* Time tag (clock icon + duration) */
+.tag--time {
+  background: transparent;
+  color: var(--color-text-muted);
+  border: none;
+  padding: 0;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+}
+
+/* Top-action badge (highlighted) */
+.tag--featured {
+  background: var(--color-primary-400);
+  color: var(--color-text-primary);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+}
+
+
+/* ============================================================
+   7. FORM ELEMENTS
+   Inputs, selects, checkboxes
+   ============================================================ */
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.form-label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.form-label--required::after {
+  content: ' *';
+  color: var(--color-danger);
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
+  background: var(--color-bg-overlay);
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+  appearance: none;
+}
+
+.form-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.form-input:focus,
+.form-select:focus {
+  border-color: var(--color-primary-400);
+  box-shadow: 0 0 0 3px rgba(245, 197, 24, 0.22);
+}
+
+/* Select custom arrow */
+.form-select-wrapper {
+  position: relative;
+}
+
+.form-select-wrapper::after {
+  content: '';
+  position: absolute;
+  right: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 6px;
+  background: var(--color-text-muted);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  pointer-events: none;
+}
+
+/* Checkbox */
+.form-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.form-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary-400);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+/* Drag-sortable list item */
+.drag-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-tag-teal-bg);
+  color: var(--color-tag-teal-text);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: grab;
+  user-select: none;
+  margin-bottom: var(--space-2);
+  transition: box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.drag-item:active {
+  cursor: grabbing;
+  box-shadow: var(--shadow-md);
+}
+
+.drag-item__handle {
+  color: var(--color-tag-teal-text);
+  opacity: 0.6;
+  font-size: var(--text-md);
+}
+
+
+/* ============================================================
+   8. CHALLENGE CARD
+   The primary content unit — used in grids, lists, detail views
+   ============================================================ */
+
+.challenge-card {
+  position: relative;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5) var(--space-5) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-shadow: var(--shadow-sm);
+  transition:
+    box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
+  overflow: hidden;
+}
+
+.challenge-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+/* Featured card gets a yellow left border */
+.challenge-card--featured {
+  border-left: 4px solid var(--color-primary-400);
+}
+
+.challenge-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.challenge-card__title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-snug);
+  color: var(--color-text-primary);
+  flex: 1;
+}
+
+.challenge-card__read-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.challenge-card__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+
+/* ============================================================
+   9. NAVBAR
+   Top navigation bar
+   ============================================================ */
+
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--navbar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-8);
+  background: rgba(255, 255, 255, 0.80);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-border);
+  z-index: 100;
+}
+
+.navbar__brand {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-lg);
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+}
+
+.navbar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Step progress indicator (e.g. "2/3") in navbar */
+.navbar__progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.navbar__step-label {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  font-weight: var(--weight-medium);
+}
+
+.navbar__step-bar {
+  width: 80px;
+  height: 4px;
+  background: var(--color-bg-muted);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.navbar__step-bar-fill {
+  height: 100%;
+  background: var(--color-primary-400);
+  border-radius: var(--radius-pill);
+  transition: width var(--duration-slow) var(--ease-out);
+}
+
+.navbar__step-count {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+}
+
+
+/* ============================================================
+   10. BACK BUTTON
+   Circular back navigation
+   ============================================================ */
+
+.back-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--color-border-strong);
+  background: var(--color-bg-surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition:
+    background var(--duration-fast),
+    border-color var(--duration-fast);
+}
+
+.back-btn:hover {
+  background: var(--color-bg-muted);
+  border-color: var(--color-text-primary);
+}
+
+
+/* ============================================================
+   11. ICON BADGE
+   Circular icon at top of welcome/intro cards
+   ============================================================ */
+
+.icon-badge {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-100);
+  border: 2px solid var(--color-primary-200);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--space-5);
+  font-size: 32px;
+}
+
+.icon-badge--sm {
+  width: 48px;
+  height: 48px;
+  font-size: 22px;
+  margin-bottom: var(--space-3);
+}
+
+
+/* ============================================================
+   12. LIST — BULLET FEATURE LIST
+   Used on welcome screens to highlight value props
+   ============================================================ */
+
+.feature-list {
+  background: var(--color-bg-overlay);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+  list-style: none;
+}
+
+.feature-list__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-snug);
+}
+
+.feature-list__bullet {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--color-primary-400);
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+
+/* ============================================================
+   13. DETAIL VIEW / MODAL PANEL
+   Full-width panel for challenge detail content
+   ============================================================ */
+
+.detail-panel {
+  background: #FFFFFF;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  padding: var(--space-8);
+  max-width: var(--max-width-content);
+  margin: 0 auto;
+}
+
+.detail-panel__header {
+  margin-bottom: var(--space-6);
+}
+
+.detail-panel__title {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-snug);
+  margin-bottom: var(--space-4);
+}
+
+.detail-panel__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+
+/* Section header with yellow left accent bar */
+.detail-panel__section-title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--color-primary-400);
+  margin-bottom: var(--space-3);
+  margin-top: var(--space-8);
+}
+
+.detail-panel__body {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+.detail-panel__body ul {
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.detail-panel__body li {
+  line-height: var(--leading-snug);
+}
+
+.detail-panel__body ul ul {
+  margin-top: var(--space-2);
+}
+
+
+/* ============================================================
+   14. GRID LAYOUTS
+   ============================================================ */
+
+.grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-5);
+}
+
+.page-content {
+  padding: calc(var(--navbar-height) + var(--space-8)) var(--space-6) var(--space-12);
+  max-width: var(--max-width-wide);
+  margin: 0 auto;
+}
+
+.page-content--centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding-top: var(--navbar-height);
+}
+
+
+/* ============================================================
+   15. DECORATIVE GEOMETRIC ACCENTS
+   Repeatable SVG-style shapes used as visual decoration
+   ============================================================ */
+
+/* Large circle blob (golden, positioned in card backgrounds) */
+.deco-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--color-primary-400);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.deco-circle--lg {
+  width: 120px;
+  height: 120px;
+  top: -20px;
+  right: -20px;
+}
+
+.deco-circle--md {
+  width: 60px;
+  height: 60px;
+}
+
+/* Small diamond */
+.deco-diamond {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-primary-400);
+  transform: rotate(45deg);
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Small triangle */
+.deco-triangle {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 14px solid var(--color-primary-300);
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+
+/* ============================================================
+   16. TYPOGRAPHY UTILITIES
+   ============================================================ */
+
+.text-display {
+  font-family: var(--font-display);
+}
+
+.text-xs {
+  font-size: var(--text-xs);
+}
+
+.text-sm {
+  font-size: var(--text-sm);
+}
+
+.text-base {
+  font-size: var(--text-base);
+}
+
+.text-md {
+  font-size: var(--text-md);
+}
+
+.text-lg {
+  font-size: var(--text-lg);
+}
+
+.text-xl {
+  font-size: var(--text-xl);
+}
+
+.text-2xl {
+  font-size: var(--text-2xl);
+}
+
+.text-primary {
+  color: var(--color-text-primary);
+}
+
+.text-secondary {
+  color: var(--color-text-secondary);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-accent {
+  color: var(--color-text-accent);
+}
+
+.font-medium {
+  font-weight: var(--weight-medium);
+}
+
+.font-semibold {
+  font-weight: var(--weight-semibold);
+}
+
+.font-bold {
+  font-weight: var(--weight-bold);
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-left {
+  text-align: left;
+}
+
+
+/* ============================================================
+   17. SPACING UTILITIES
+   ============================================================ */
+
+.mt-2 {
+  margin-top: var(--space-2);
+}
+
+.mt-4 {
+  margin-top: var(--space-4);
+}
+
+.mt-6 {
+  margin-top: var(--space-6);
+}
+
+.mt-8 {
+  margin-top: var(--space-8);
+}
+
+.mb-2 {
+  margin-bottom: var(--space-2);
+}
+
+.mb-4 {
+  margin-bottom: var(--space-4);
+}
+
+.mb-6 {
+  margin-bottom: var(--space-6);
+}
+
+.mb-8 {
+  margin-bottom: var(--space-8);
+}
+
+.gap-2 {
+  gap: var(--space-2);
+}
+
+.gap-3 {
+  gap: var(--space-3);
+}
+
+.gap-4 {
+  gap: var(--space-4);
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.items-start {
+  align-items: flex-start;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.flex-wrap {
+  flex-wrap: wrap;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+
+/* ============================================================
+   18. ANIMATIONS
+   ============================================================ */
+
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scalePop {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+
+  70% {
+    transform: scale(1.02);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-fade-up {
+  animation: fadeSlideUp var(--duration-slow) var(--ease-out) both;
+}
+
+.animate-pop {
+  animation: scalePop var(--duration-slow) var(--ease-out) both;
+}
+
+/* Stagger helpers */
+.delay-1 {
+  animation-delay: 60ms;
+}
+
+.delay-2 {
+  animation-delay: 120ms;
+}
+
+.delay-3 {
+  animation-delay: 180ms;
+}
+
+.delay-4 {
+  animation-delay: 240ms;
+}
+
+
+/* ============================================================
+   19. RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .card {
+    padding: var(--space-6) var(--space-5);
+    border-radius: var(--radius-lg);
+  }
+
+  .navbar {
+    padding: 0 var(--space-5);
+  }
+
+  .grid-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .page-content {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
+  .detail-panel {
+    padding: var(--space-6) var(--space-5);
+  }
+}
+
+@media (max-width: 480px) {
+  .btn--full-mobile {
+    width: 100%;
+  }
+
+  .card {
+    border-radius: var(--radius-md);
+  }
+}
+
+
+/* ============================================================
+   20. DARK MODE (optional layer)
+   ============================================================ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-base: #1A1906;
+    --color-bg-surface: rgba(35, 33, 10, 0.85);
+    --color-bg-overlay: rgba(50, 47, 15, 0.70);
+    --color-bg-muted: #2A2710;
+    --color-text-primary: #F5F0D8;
+    --color-text-secondary: #C5BFA0;
+    --color-text-muted: #857F60;
+    --color-border: rgba(245, 197, 24, 0.12);
+    --color-border-strong: rgba(245, 197, 24, 0.22);
+  }
+}

@@ -1,0 +1,186 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import '../docs/copy-nudgeable-design-rulebook.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────
+   FORCE LIGHT MODE
+   Nudgeable is a light-first design. Override the dark-mode
+   media query in the rulebook so system dark mode never
+   triggers the olive/dark surface tokens.
+───────────────────────────────────────────────────────── */
+:root {
+  --color-bg-base:        #FFFDF5;
+  --color-bg-surface:     rgba(255, 255, 255, 0.92);
+  --color-bg-overlay:     rgba(255, 253, 245, 0.80);
+  --color-bg-muted:       rgba(255, 206, 0, 0.12);
+  --color-bg-dark:        #221D23;
+  --color-text-primary:   #221D23;
+  --color-text-secondary: #4A4047;
+  --color-text-muted:     #8A8090;
+  --color-text-inverse:   #FFFFFF;
+  --color-text-accent:    #C9A000;
+  --color-border:         rgba(34, 29, 35, 0.10);
+  --color-border-strong:  rgba(34, 29, 35, 0.18);
+  --color-border-yellow:  rgba(255, 206, 0, 0.45);
+  /* tag token aliases used in rulebook */
+  --color-tag-primary-bg:   rgba(255, 206, 0, 0.16);
+  --color-tag-primary-text: #7A5F00;
+  --color-tag-teal-bg:      rgba(35, 206, 107, 0.13);
+  --color-tag-teal-text:    #0A6632;
+  --color-primary-100: rgba(255, 206, 0, 0.15);
+  --color-primary-200: rgba(255, 206, 0, 0.30);
+  --color-primary-300: rgba(255, 206, 0, 0.60);
+  --color-primary-400: #FFCE00;
+  --color-primary-500: #C9A000;
+}
+
+/* Also hard-reset in the dark query so it truly never fires */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-base:        #FFFDF5;
+    --color-bg-surface:     rgba(255, 255, 255, 0.92);
+    --color-bg-overlay:     rgba(255, 253, 245, 0.80);
+    --color-bg-muted:       rgba(255, 206, 0, 0.12);
+    --color-bg-dark:        #221D23;
+    --color-text-primary:   #221D23;
+    --color-text-secondary: #4A4047;
+    --color-text-muted:     #8A8090;
+    --color-text-inverse:   #FFFFFF;
+    --color-text-accent:    #C9A000;
+    --color-border:         rgba(34, 29, 35, 0.10);
+    --color-border-strong:  rgba(34, 29, 35, 0.18);
+    --color-border-yellow:  rgba(255, 206, 0, 0.45);
+  }
+}
+
+/* ── Base body ── */
+html, body {
+  font-family: var(--font-body);
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  line-height: var(--leading-normal);
+  min-height: 100vh;
+}
+
+/* ── Range input accent ── */
+input[type="range"] {
+  accent-color: var(--bright-amber);
+}
+
+/* ── Scrollbar utilities ── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.custom-scrollbar::-webkit-scrollbar { width: 5px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-primary-dark, #C9A000);
+  border-radius: 10px;
+}
+
+/* ─────────────────────────────────────────────────────────
+   CARD SURFACES — solid white, no blur tint
+   The rulebook's backdrop-filter mixes with the warm page
+   background and reads as grey. Override to solid white.
+───────────────────────────────────────────────────────── */
+.card {
+  background: rgba(255, 255, 255, 0.98) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.challenge-card {
+  background: #FFFFFF !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.card__inset {
+  background: rgba(255, 253, 245, 0.90) !important;
+}
+
+/* ── Navbar: sticky (not fixed) so it stays in flow ── */
+.navbar {
+  position: sticky !important;
+  top: 0 !important;
+  /* widen to full viewport width even inside a max-width container */
+  width: 100% !important;
+  z-index: 100;
+}
+
+/* ── page-content: slightly tighter horizontal gutters ── */
+.page-content {
+  padding-top: var(--space-8) !important;
+  padding-left: var(--space-5) !important;
+  padding-right: var(--space-5) !important;
+  max-width: 1240px !important;
+}
+
+/* ── Animate-in shim ── */
+@keyframes slideInFromBottom {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-in              { animation: slideInFromBottom 0.35s cubic-bezier(0.16,1,0.3,1) both; }
+.fade-in                 { animation-name: fadeSlideUp; }
+.zoom-in-95              { animation-name: scalePop; }
+.slide-in-from-bottom-4  { animation-name: slideInFromBottom; }
+.slide-in-from-bottom-8  { animation-name: slideInFromBottom; }
+.duration-300 { animation-duration: 300ms; }
+.duration-500 { animation-duration: 500ms; }
+.duration-700 { animation-duration: 700ms; }
+
+/* ── CommitmentIcon animations ── */
+@keyframes commitPulse {
+  0%   { transform: scale(0.85); opacity: 0.7; }
+  60%  { transform: scale(1.22); opacity: 0.18; }
+  100% { transform: scale(1.38); opacity: 0; }
+}
+
+@keyframes commitDot {
+  0%, 80%, 100% { transform: translateY(0);    opacity: 0.45; }
+  40%           { transform: translateY(-5px); opacity: 1; }
+}
+
+/* ── RocketLaunchIcon animations ── */
+@keyframes starTwinkle {
+  0%, 100% { opacity: 0.2; transform: scale(0.8); }
+  50%      { opacity: 0.9; transform: scale(1.2); }
+}
+
+@keyframes countdownPop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  70%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes rocketPulse {
+  0%, 100% { transform: scale(1)    translateY(0); }
+  50%      { transform: scale(1.08) translateY(-4px); }
+}
+
+@keyframes rocketLaunch {
+  0%   { transform: translateY(0)    scale(1);    opacity: 1; }
+  30%  { transform: translateY(-12px) scale(1.12); opacity: 1; }
+  100% { transform: translateY(-180px) scale(0.6); opacity: 0; }
+}
+
+@keyframes thrustFlame {
+  0%, 100% { transform: translateX(-50%) scaleY(1);    opacity: 0.9; }
+  50%      { transform: translateX(-50%) scaleY(0.75); opacity: 0.6; }
+}
+
+@keyframes launchText {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

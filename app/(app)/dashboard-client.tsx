@@ -6,14 +6,12 @@ import Layout from "@/components/Layout";
 import ActionCard from "@/components/ActionCard";
 import Analytics from "@/components/Analytics";
 import Challenges from "@/components/Challenges";
-import Nudgeboard from "@/components/Nudgeboard";
 import Carousel from "@/components/Carousel";
-import YourNudgeboardCard from "@/components/YourNudgeboardCard";
 import {
-  Zap,
   X,
   Lightbulb,
   ArrowRight,
+  ListChecks,
 } from "lucide-react";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
 import Onboarding from "@/components/Onboarding";
@@ -27,83 +25,77 @@ function DashboardContent() {
     allActions,
     actionIdsInAssignedPackages,
     assignedPackageName,
-    validateAction,
+    completeAction,
     hasCompany,
     selfOnboardingCompletedAt,
     refetch,
   } = useEngine();
   const [activeTab, setActiveTab] = useState<"home" | "challenges" | "progress">("home");
-  const [validatingActionId, setValidatingActionId] = useState<string | null>(null);
+  const [completingActionId, setCompletingActionId] = useState<string | null>(null);
   const [reflection, setReflection] = useState("");
   const [validationStep, setValidationStep] = useState<ValidationStep>("success_prompt");
 
-  const now = new Date().toISOString();
-  const allScheduledInQueue = userActions.filter((ua) => ua.status === "scheduled");
-  const showValidationQueue = allScheduledInQueue.length > 0;
-  const availableActions = allActions.filter(
-    (ad) =>
-      (actionIdsInAssignedPackages.has(ad.id) || ad.isPersonal) &&
-      !userActions.some((ua) => ua.actionId === ad.id)
-  );
+  const myActions = allActions.filter((ad) => {
+    const ua = userActions.find((u) => u.actionId === ad.id);
+    if (ua?.status === "scheduled") return true;
+    if (ua) return false;
+    return actionIdsInAssignedPackages.has(ad.id) || ad.isPersonal;
+  });
 
-  const validatingUA = userActions.find((ua) => ua.id === validatingActionId);
-  const validatingActionTitle = validatingUA
-    ? allActions.find((a) => a.id === validatingUA.actionId)?.title
+  const completingAction = completingActionId
+    ? allActions.find((a) => a.id === completingActionId)
     : undefined;
 
-  const openValidationModal = (userActionId: string) => {
-    setValidatingActionId(userActionId);
+  const openCompleteModal = (actionId: string) => {
+    setCompletingActionId(actionId);
     setValidationStep("success_prompt");
     setReflection("");
   };
 
-  const closeValidationModal = () => {
-    setValidatingActionId(null);
+  const closeCompleteModal = () => {
+    setCompletingActionId(null);
     setValidationStep("success_prompt");
     setReflection("");
   };
 
   const submitValidation = async () => {
-    if (!validatingActionId) return;
+    if (!completingActionId) return;
     setValidationStep("celebration");
-    validateAction(validatingActionId, true, reflection);
+    await completeAction(completingActionId, true, reflection);
   };
 
   const handleDidNotComplete = async () => {
-    if (!validatingActionId) return;
-    await validateAction(validatingActionId, false, reflection);
-    closeValidationModal();
+    if (!completingActionId) return;
+    await completeAction(completingActionId, false, reflection);
+    closeCompleteModal();
   };
+
+  const sectionTitle = assignedPackageName ?? "My Actions";
 
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
 
-      {/* ═══════════════════════════════════════════════════
-          SELF-SERVE AI ONBOARDING
-      ═══════════════════════════════════════════════════ */}
       {hasCompany && !selfOnboardingCompletedAt && (
         <Onboarding onComplete={() => refetch()} />
       )}
 
-      {/* ═══════════════════════════════════════════════════
-          VALIDATION MODAL
-      ═══════════════════════════════════════════════════ */}
-      {validatingActionId && (
+      {completingActionId && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8"
           style={{ background: "rgba(34,29,35,0.65)", backdropFilter: "blur(12px)" }}>
 
-          {/* ── STEP 1: Reflection ── */}
           {validationStep === "success_prompt" && (
             <div className="card card--wide animate-pop w-full overflow-y-auto no-scrollbar" style={{ maxHeight: "90vh" }}>
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <span className="tag tag--yellow mb-3 inline-block">Check In</span>
-                  <h3 className="card__title">What was the result?</h3>
+                  <h3 className="card__title">Mark as complete</h3>
                   <p className="card__subtitle mb-0">
-                    Capture your tactical reflection — this builds the knowing-doing bridge.
+                    {completingAction?.title
+                      ? `How did "${completingAction.title}" go?`
+                      : "Capture your tactical reflection — this builds the knowing-doing bridge."}
                   </p>
                 </div>
-                <button onClick={closeValidationModal} className="btn btn--icon ml-4">
+                <button onClick={closeCompleteModal} className="btn btn--icon ml-4">
                   <X size={20} strokeWidth={2.5} />
                 </button>
               </div>
@@ -135,149 +127,80 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* ── STEP 2: Confetti Celebration ── */}
           {validationStep === "celebration" && (
             <div className="card--wide animate-pop w-full overflow-y-auto no-scrollbar" style={{ maxHeight: "90vh" }}>
               <ConfettiCelebration
-                actionTitle={validatingActionTitle}
-                onContinue={closeValidationModal}
-                onClose={closeValidationModal}
+                actionTitle={completingAction?.title}
+                onContinue={closeCompleteModal}
+                onClose={closeCompleteModal}
               />
             </div>
           )}
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════
-          HOME TAB
-      ═══════════════════════════════════════════════════ */}
       {activeTab === "home" && (
-        <div className="grid grid-cols-12 gap-8 lg:gap-10 animate-in fade-in duration-700">
-          <div className="col-span-12 lg:col-span-7 xl:col-span-8 space-y-14">
+        <div className="animate-in fade-in duration-700 w-full space-y-10">
 
-            {/* Greeting */}
-            <div>
-              {/* <p className="text-xs font-semibold mb-1" style={{ color: "var(--color-text-muted)", letterSpacing: "0.08em" }}>
-                Strategic Mastery Engine
-              </p> */}
-              <div className="flex items-center gap-4">
-                <h1 className="text-4xl font-bold" style={{ color: "var(--color-text-primary)", letterSpacing: "-0.01em" }}>
-                  Hi {profile.name} 👋
-                </h1>
+          <div>
+            <h1 className="text-4xl font-bold" style={{ color: "var(--color-text-primary)", letterSpacing: "-0.01em" }}>
+              Hi {profile.name} 👋
+            </h1>
+            <p className="text-sm font-medium mt-3" style={{ color: "var(--color-text-secondary)" }}>
+              Work through your actions and mark each one complete when you&apos;re done.
+            </p>
+          </div>
+
+          <section>
+            {!hasCompany ? (
+              <div className="card card--flat text-center">
+                <div className="icon-badge">🏢</div>
+                <h3 className="card__title">Not assigned to a company</h3>
+                <p className="card__subtitle mb-0">
+                  Contact your admin to get access to the Action Library.
+                </p>
               </div>
-              <p className="text-sm font-medium mt-3" style={{ color: "var(--color-text-secondary)" }}>
-                Accept the actions you like this week — there&apos;ll be new ones next week!
-              </p>
-            </div>
-
-            {/* Package actions carousel */}
-            <section style={{ marginTop: "2rem" }}>
-              {!hasCompany ? (
-                <div className="card card--flat text-center">
-                  <div className="icon-badge">🏢</div>
-                  <h3 className="card__title">Not assigned to a company</h3>
-                  <p className="card__subtitle mb-0">
-                    Contact your admin to get access to the Action Library.
-                  </p>
-                </div>
-              ) : (
-                <Carousel title={assignedPackageName ?? "My Actions"}>
-                  {availableActions.map((action) => (
-                    <ActionCard
-                      key={action.id}
-                      action={action}
-                    />
-                  ))}
-                </Carousel>
-              )}
-            </section>
-
-            {/* Validation Queue */}
-            {showValidationQueue && (
-              <section>
-                {/* Heading */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <div style={{
-                      width: 38, height: 38, borderRadius: "50%",
-                      background: "var(--color-primary-light)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      flexShrink: 0,
+            ) : (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
+                  <div style={{
+                    width: 42, height: 42, borderRadius: "50%",
+                    background: "var(--color-primary-light)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    flexShrink: 0,
+                  }}>
+                    <ListChecks size={20} style={{ color: "var(--bright-amber)" }} strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h2 style={{
+                      fontSize: "var(--text-2xl)", fontWeight: "var(--weight-bold)",
+                      color: "var(--color-text-primary)", letterSpacing: "-0.02em",
+                      lineHeight: 1.2, marginBottom: "4px",
                     }}>
-                      <Zap size={18} style={{ color: "var(--bright-amber)" }} strokeWidth={2.5} />
-                    </div>
-                    <div>
-                      <h2 style={{
-                        fontSize: "var(--text-xl)", fontWeight: "var(--weight-bold)",
-                        color: "var(--color-text-primary)", letterSpacing: "-0.01em",
-                        lineHeight: 1.2, marginBottom: "2px",
-                      }}>
-                        Validation Queue
-                      </h2>
-                      <p style={{ fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
-                        Verify your impact to bridge the gap
-                      </p>
-                    </div>
+                      {sectionTitle}
+                    </h2>
+                    <p style={{ fontSize: "var(--text-sm)", color: "var(--color-text-muted)" }}>
+                      {myActions.length > 0
+                        ? `${myActions.length} action${myActions.length === 1 ? "" : "s"} ready — mark complete when done`
+                        : "New actions will appear here on your sprint cadence"}
+                    </p>
                   </div>
                 </div>
 
-                <div className="card" style={{ maxWidth: "none" }}>
-                  <div className="max-h-[520px] overflow-y-auto custom-scrollbar space-y-3 pr-1">
-                    {allScheduledInQueue.map((ua) => {
-                      const action = allActions.find((a) => a.id === ua.actionId);
-                      const canVerify =
-                        (ua.scheduledAt && ua.scheduledAt <= now) ||
-                        (!ua.scheduledAt && !!ua.acceptedAt);
-
-                      return (
-                        <div key={ua.id} className="card__inset flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                          <div className="flex-1 min-w-0 space-y-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`tag ${canVerify ? "tag--blue" : "tag--yellow"}`}>
-                                {canVerify ? "Commitment" : "Planned"}
-                              </span>
-                              {action?.theme && (
-                                <span className="tag tag--orange">{action.theme}</span>
-                              )}
-                            </div>
-                            <p className="text-sm font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>
-                              {action?.title}
-                            </p>
-                            {ua.scheduledAt ? (
-                              <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                                Scheduled for {ua.scheduledDate} at {ua.scheduledTime} IST
-                              </p>
-                            ) : ua.acceptedAt ? (
-                              <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                                Accepted on {ua.acceptedDate} at {ua.acceptedTime} IST
-                              </p>
-                            ) : null}
-                          </div>
-                          {canVerify ? (
-                            <button
-                              onClick={() => openValidationModal(ua.id)}
-                              className="btn btn--primary btn--sm shrink-0"
-                            >
-                              Verify
-                            </button>
-                          ) : (
-                            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                              Verify at scheduled time
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                <div className="my-actions-bleed">
+                  <Carousel wideSlides>
+                    {myActions.map((action) => (
+                      <ActionCard
+                        key={action.id}
+                        action={action}
+                        onMarkComplete={openCompleteModal}
+                      />
+                    ))}
+                  </Carousel>
                 </div>
-              </section>
+              </>
             )}
-          </div>
-
-          {/* Sidebar */}
-          <div className="hidden lg:block lg:col-span-5 xl:col-span-4">
-            <YourNudgeboardCard onSeeProgress={() => setActiveTab("progress")} />
-          </div>
+          </section>
         </div>
       )}
 

@@ -11,9 +11,8 @@ import React, {
 import { createClient } from "@/lib/supabase/client";
 import { UserProfile, UserAction, FeedItem, ActionCard } from "./types";
 import {
-  scheduleAction as scheduleActionServer,
   declineAction as declineActionServer,
-  acceptActionWithoutSchedule as acceptActionWithoutScheduleServer,
+  completeAction as completeActionServer,
 } from "@/app/actions/user-actions";
 import { validateAction as validateActionServer } from "@/app/actions/validate-action";
 import { syncMyTotalPointsFromHistory } from "@/app/actions/points";
@@ -87,8 +86,7 @@ interface EngineContextType {
   refetch: () => Promise<void>;
   completeOnboarding: (importance: number, goal: number) => Promise<void>;
   updatePoints: (amount: number) => Promise<void>;
-  acceptAction: (actionId: string, date: string, time: string, sync: boolean) => Promise<{ error?: string }>;
-  acceptActionWithoutSchedule: (actionId: string) => Promise<{ error?: string }>;
+  completeAction: (actionId: string, success: boolean, reflection?: string) => Promise<{ error?: string }>;
   declineAction: (actionId: string) => Promise<void>;
   retryAction: (actionId: string) => Promise<void>;
   validateAction: (userActionId: string, success: boolean, reflection?: string) => Promise<void>;
@@ -345,16 +343,8 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
     // Implemented in AdminDashboard via createAction server action
   };
 
-  const acceptAction = async (actionId: string, date: string, time: string, sync: boolean) => {
-    const result = await scheduleActionServer({ actionId, day: date, time, sync });
-    if (result.error) return { error: result.error };
-
-    await refetch();
-    return {};
-  };
-
-  const acceptActionWithoutSchedule = async (actionId: string) => {
-    const result = await acceptActionWithoutScheduleServer(actionId);
+  const completeAction = async (actionId: string, success: boolean, reflection?: string) => {
+    const result = await completeActionServer({ actionId, success, reflection });
     if (!result.error) await refetch();
     return result;
   };
@@ -386,8 +376,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       refetch,
       completeOnboarding,
       updatePoints,
-      acceptAction,
-      acceptActionWithoutSchedule,
+      completeAction,
       declineAction,
       retryAction,
       validateAction,

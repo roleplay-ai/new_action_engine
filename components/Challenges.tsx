@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { useEngine } from '../lib/store';
 import ActionCard from './ActionCard';
 import Carousel from './Carousel';
-import { Search, LayoutGrid } from 'lucide-react';
+import { Search, LayoutGrid, X, Lightbulb, ArrowRight } from 'lucide-react';
 
 const Challenges: React.FC = () => {
-  const { userActions, allActions, hasCompany } = useEngine();
+  const { userActions, allActions, hasCompany, completeAction } = useEngine();
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
+  const [completingActionId, setCompletingActionId] = useState<string | null>(null);
+  const [reflection, setReflection] = useState('');
 
   const getStatus = (actionId: string) => {
     const ua = userActions.find((u) => u.actionId === actionId);
@@ -19,7 +21,6 @@ const Challenges: React.FC = () => {
     return 'Available';
   };
 
-  // Library should only surface actions the user has skipped or explicitly marked as "Didn't complete".
   const filteredActions = allActions.filter((action) => {
     const status = getStatus(action.id);
     if (status !== 'Skipped' && status !== "Didn't complete") return false;
@@ -30,15 +31,66 @@ const Challenges: React.FC = () => {
     return matchesSearch && matchesFilter;
   });
 
+  const completingAction = completingActionId
+    ? allActions.find((a) => a.id === completingActionId)
+    : undefined;
+
+  const handleSubmit = async (success: boolean) => {
+    if (!completingActionId) return;
+    await completeAction(completingActionId, success, reflection);
+    setCompletingActionId(null);
+    setReflection('');
+  };
+
   const filterOptions = ['All', 'Skipped', "Didn't complete"];
 
   return (
     <div className="space-y-10 pb-20">
+      {completingActionId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ background: 'rgba(34,29,35,0.65)', backdropFilter: 'blur(12px)' }}>
+          <div className="card card--wide animate-pop w-full" style={{ maxWidth: '520px' }}>
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <span className="tag tag--yellow mb-3 inline-block">Try again</span>
+                <h3 className="card__title">Mark as complete</h3>
+                <p className="card__subtitle mb-0">{completingAction?.title}</p>
+              </div>
+              <button onClick={() => setCompletingActionId(null)} className="btn btn--icon">
+                <X size={20} strokeWidth={2.5} />
+              </button>
+            </div>
+            <div className="card__inset mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <Lightbulb size={16} style={{ color: 'var(--bright-amber)' }} />
+                <span className="text-xs font-semibold" style={{ color: 'var(--color-text-muted)' }}>
+                  What was the result?
+                </span>
+              </div>
+              <textarea
+                className="form-input"
+                style={{ minHeight: '120px', resize: 'vertical' }}
+                value={reflection}
+                onChange={(e) => setReflection(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button onClick={() => handleSubmit(true)} className="btn btn--accept flex-1">
+                Verify <ArrowRight size={18} strokeWidth={2.5} />
+              </button>
+              <button onClick={() => handleSubmit(false)} className="btn btn--decline flex-1">
+                Didn&apos;t Complete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h2 className="detail-panel__title mb-2">Challenge library</h2>
           <p className="text-sm text-secondary">
-            Explore behavioral shifts designed for high‑performance teams.
+            Revisit skipped or incomplete actions and mark them complete when ready.
           </p>
         </div>
 
@@ -81,20 +133,19 @@ const Challenges: React.FC = () => {
             {filteredActions.map(action => {
               const status = getStatus(action.id);
               const statusBadge =
-                status === 'Completed'
-                  ? { label: 'Completed', className: 'bg-[#2ecc71] text-white' }
-                  : status === 'Active'
-                    ? { label: 'Active Mission', className: 'bg-[#3699FC] text-white' }
-                    : status === 'Skipped'
-                      ? { label: 'Skipped', className: 'bg-slate-500 text-white' }
-                      : status === "Didn't complete"
-                        ? { label: "Didn't complete", className: 'bg-amber-500 text-white' }
-                        : undefined;
+                status === 'Skipped'
+                  ? { label: 'Skipped', className: 'bg-slate-500 text-white' }
+                  : status === "Didn't complete"
+                    ? { label: "Didn't complete", className: 'bg-amber-500 text-white' }
+                    : undefined;
               return (
                 <ActionCard
                   key={action.id}
                   action={action}
-                  planButtonLabel={status === 'Skipped' || status === "Didn't complete" ? 'Plan again' : undefined}
+                  onMarkComplete={(id) => {
+                    setCompletingActionId(id);
+                    setReflection('');
+                  }}
                   statusBadge={statusBadge}
                 />
               );

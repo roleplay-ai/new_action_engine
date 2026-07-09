@@ -1,21 +1,24 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { istToUTCTime } from "@/lib/timezone-utils";
 import type { ActionTheme } from "@/lib/types";
 import {
   generateDraftActions,
   computeNextDeliveryAt,
   draftsToActionRows,
-  BATCH_SIZE,
+  DEFAULT_BATCH_SIZE,
+  buildTrainingContext,
   type DraftAction,
   type DeliveryTrack,
 } from "@/lib/personal-action-generation";
+import { istToUTCTime } from "@/lib/timezone-utils";
 
 /** Generate a fresh batch of draft personal actions from the user's training answers. Does not persist anything. */
 export async function generatePersonalActions(params: {
   trainingText: string;
   focusThemes: ActionTheme[];
+  focusCustomText?: string;
 }): Promise<{ drafts?: DraftAction[]; error?: string }> {
   const supabase = await createClient();
   const {
@@ -26,29 +29,31 @@ export async function generatePersonalActions(params: {
     return { error: "Not authenticated" };
   }
 
+  const contextText = buildTrainingContext(params.trainingText, params.focusThemes, params.focusCustomText);
+
   return generateDraftActions({
-    trainingText: params.trainingText,
+    trainingText: contextText,
     focusThemes: params.focusThemes,
-    count: BATCH_SIZE,
+    count: DEFAULT_BATCH_SIZE,
   });
 }
 
 /**
- * Persist accepted/edited drafts as personal actions. Only the first BATCH_SIZE
- * land in the user's library today (available same as any other unaccepted action,
- * not auto-scheduled) — any extras the user kept from "Generate more" are staged in
- * their backlog and consumed by future deliveries before generating fresh ones.
- * Also sets up the recurring delivery subscription (Daily/Weekly Sprint + time) and
- * marks onboarding complete.
+ * Persist accepted/edited drafts as personal actions. Only the first `dailyActionCount`
+ * land in the user's library today — extras go to backlog for future deliveries.
+ * Also sets up the recurring delivery subscription and marks onboarding complete.
  */
 export async function saveGeneratedActions(params: {
   drafts: DraftAction[];
   trainingText: string;
   focusThemes: ActionTheme[];
+  focusCustomText?: string;
   track: DeliveryTrack;
-  timeIST: string;
+  dailyActionCount: 1 | 2 | 3;
+  /** IST time (HH:MM) when the next batch should arrive. */
+  deliveryTime: string;
   /** Required when track === "weekly". 0 = Sunday, ... 6 = Saturday. */
-  dayOfWeek?: number;
+  daysOfWeek?: number[];
 }): Promise<{ error?: string; savedCount?: number; backlogCount?: number }> {
   try {
     const supabase = await createClient();
@@ -73,12 +78,24 @@ export async function saveGeneratedActions(params: {
     if (params.track !== "daily" && params.track !== "weekly") {
       return { error: "Invalid track" };
     }
-    if (params.track === "weekly" && (params.dayOfWeek == null || params.dayOfWeek < 0 || params.dayOfWeek > 6)) {
-      return { error: "Day of week is required for a weekly sprint" };
+    if (
+      params.track === "weekly" &&
+      (!params.daysOfWeek?.length || params.daysOfWeek.some((d) => d < 0 || d > 6))
+    ) {
+      return { error: "Select at least one day for a weekly sprint" };
+    }
+    if (![1, 2, 3].includes(params.dailyActionCount)) {
+      return { error: "Daily action count must be 1, 2, or 3" };
+    }
+    if (!params.deliveryTime?.trim()) {
+      return { error: "Select a delivery time" };
     }
 
-    const toDeliverNow = params.drafts.slice(0, BATCH_SIZE);
-    const toBacklog = params.drafts.slice(BATCH_SIZE);
+    const contextText = buildTrainingContext(params.trainingText, params.focusThemes, params.focusCustomText);
+    const batchSize = params.dailyActionCount;
+    const timeOfDayUtc = istToUTCTime(params.deliveryTime);
+    const toDeliverNow = params.drafts.slice(0, batchSize);
+    const toBacklog = params.drafts.slice(batchSize);
 
     if (toDeliverNow.length) {
       const rows = draftsToActionRows(toDeliverNow, companyId, user.id);
@@ -103,17 +120,22 @@ export async function saveGeneratedActions(params: {
       }
     }
 
-    const dayOfWeek = params.track === "weekly" ? params.dayOfWeek! : null;
+    const daysOfWeek =
+      params.track === "weekly"
+        ? [...new Set(params.daysOfWeek!)].sort((a, b) => a - b)
+        : null;
     const { error: subError } = await supabase.from("personal_action_subscriptions").upsert(
       {
         user_id: user.id,
-        training_text: params.trainingText,
+        training_text: contextText,
         focus_themes: params.focusThemes,
         track: params.track,
-        day_of_week: dayOfWeek,
-        time_of_day_utc: istToUTCTime(params.timeIST),
+        day_of_week: daysOfWeek?.[0] ?? null,
+        days_of_week: daysOfWeek,
+        daily_action_count: batchSize,
+        time_of_day_utc: timeOfDayUtc,
         is_active: true,
-        next_delivery_at: computeNextDeliveryAt(params.track, dayOfWeek),
+        next_delivery_at: computeNextDeliveryAt(params.track, daysOfWeek, timeOfDayUtc),
       },
       { onConflict: "user_id" }
     );

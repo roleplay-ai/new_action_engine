@@ -6,9 +6,10 @@ interface CarouselProps {
   children: React.ReactNode;
   title?: string;
   narrowSlides?: boolean;
+  wideSlides?: boolean;
 }
 
-const Carousel: React.FC<CarouselProps> = ({ children, title, narrowSlides }) => {
+const Carousel: React.FC<CarouselProps> = ({ children, title, narrowSlides, wideSlides }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const childrenArray = React.Children.toArray(children);
 
@@ -66,10 +67,10 @@ const Carousel: React.FC<CarouselProps> = ({ children, title, narrowSlides }) =>
       {childrenArray.length > 0 ? (
         <div
           ref={scrollRef}
-          className="no-scrollbar"
+          className={`no-scrollbar${wideSlides ? ' carousel-track--wide' : ''}`}
           style={{
             display: 'flex',
-            gap: '20px',
+            gap: wideSlides ? '16px' : '20px',
             overflowX: 'auto',
             /* Extra padding on all sides so card box-shadow isn't clipped by the overflow container */
             padding: '6px 4px 18px 4px',
@@ -81,13 +82,17 @@ const Carousel: React.FC<CarouselProps> = ({ children, title, narrowSlides }) =>
           {childrenArray.map((child, idx) => (
             <div
               key={idx}
-              style={{
-                flexShrink: 0,
-                scrollSnapAlign: 'start',
-                // Mobile: 88% | tablet (≥640px): 2 per row | desktop (≥1024px): still 2 per row for better proportions
-                width: narrowSlides ? 'min(340px, 82vw)' : 'min(360px, 82vw)',
-                height: '380px',
-              }}
+              className={wideSlides ? 'carousel-slide--wide' : undefined}
+              style={
+                wideSlides
+                  ? undefined
+                  : {
+                      flexShrink: 0,
+                      scrollSnapAlign: 'start',
+                      width: narrowSlides ? 'min(340px, 82vw)' : 'min(360px, 82vw)',
+                      height: '380px',
+                    }
+              }
             >
               {child}
             </div>
@@ -96,9 +101,9 @@ const Carousel: React.FC<CarouselProps> = ({ children, title, narrowSlides }) =>
       ) : (
         <div className="card card--flat" style={{ textAlign: 'center', padding: '48px 32px' }}>
           <div className="icon-badge">⚡</div>
-          <h3 className="card__title">All actions planned!</h3>
+          <h3 className="card__title">All caught up!</h3>
           <p className="card__subtitle" style={{ marginBottom: 0 }}>
-            Check your queue or the library for more.
+            Check the library or wait for your next sprint batch.
           </p>
         </div>
       )}

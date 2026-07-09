@@ -3,7 +3,7 @@ import { getGeminiClient, isGeminiConfigured, GEMINI_MODEL } from "@/lib/gemini"
 import { ACTION_DECK } from "@/lib/constants";
 import type { ActionTheme } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { IST_OFFSET_MINUTES, getCurrentISTDate } from "@/lib/timezone-utils";
+import { IST_OFFSET_MINUTES, getCurrentISTDate, getCurrentISTTime, utcToISTDate, utcToISTTime, istToUTCDateTime } from "@/lib/timezone-utils";
 
 export type DraftAction = {
   theme: ActionTheme;
@@ -15,8 +15,10 @@ export type DraftAction = {
 
 export const THEMES: ActionTheme[] = ["Collaboration", "Feedback", "Accountability", "Connection", "Coaching"];
 
-/** Size of each generated batch — the initial onboarding batch and every recurring delivery. */
-export const BATCH_SIZE = 3;
+/** Default batch size when no user preference is stored yet. */
+export const DEFAULT_BATCH_SIZE = 3;
+/** @deprecated Use daily_action_count from subscription; kept for generation preview batches. */
+export const BATCH_SIZE = DEFAULT_BATCH_SIZE;
 
 const draftSchema = {
   type: Type.OBJECT,
@@ -38,6 +40,24 @@ const draftSchema = {
   },
   required: ["actions"],
 };
+
+export function buildTrainingContext(
+  trainingText: string,
+  focusThemes: ActionTheme[],
+  focusCustomText?: string
+): string {
+  const parts: string[] = [];
+  const base = trainingText.trim();
+  if (base) parts.push(base);
+  if (focusThemes.length) {
+    parts.push(`Focus areas: ${focusThemes.join(", ")}`);
+  }
+  const custom = focusCustomText?.trim();
+  if (custom) {
+    parts.push(`Additional focus: ${custom}`);
+  }
+  return parts.join("\n\n");
+}
 
 function buildPrompt(trainingText: string, focusThemes: ActionTheme[], count: number): string {
   const examples = ACTION_DECK.filter(
@@ -80,7 +100,7 @@ export async function generateDraftActions(params: {
       return { error: "AI generation is not configured (GEMINI_API_KEY missing)" };
     }
 
-    const count = params.count ?? BATCH_SIZE;
+    const count = params.count ?? DEFAULT_BATCH_SIZE;
     const ai = getGeminiClient();
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
@@ -148,37 +168,84 @@ function getWeekdayIST(dateStr: string): number {
   return (utcDay + 1) % 7;
 }
 
-/** Midnight IST of a given YYYY-MM-DD, as a UTC ISO timestamp. */
-function istMidnightAsUtcIso(dateStr: string): string {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const istMidnightUtcMs = Date.UTC(y, m - 1, d, 0, 0, 0) - IST_OFFSET_MINUTES * 60 * 1000;
-  return new Date(istMidnightUtcMs).toISOString();
+export type DeliveryTrack = "daily" | "weekly";
+
+function normaliseDaysOfWeek(days: number[] | null | undefined): number[] {
+  const unique = [...new Set((days ?? []).filter((d) => d >= 0 && d <= 6))].sort((a, b) => a - b);
+  return unique.length ? unique : [1];
 }
 
-export type DeliveryTrack = "daily" | "weekly";
+/** Days until the next selected weekday strictly after `fromDate` (IST). */
+function daysUntilNextWeeklyDayAfter(fromDate: string, daysOfWeek: number[]): number {
+  const sorted = normaliseDaysOfWeek(daysOfWeek);
+  const fromDow = getWeekdayIST(fromDate);
+  for (const target of sorted) {
+    if (target > fromDow) return target - fromDow;
+  }
+  return 7 - fromDow + sorted[0];
+}
+
+/** Days until the next selected weekday on or after `fromDate` (IST), if time still allows today. */
+function daysUntilNextWeeklyDay(
+  fromDate: string,
+  daysOfWeek: number[],
+  istTime: string,
+  fromTime?: string
+): number {
+  const sorted = normaliseDaysOfWeek(daysOfWeek);
+  const fromDow = getWeekdayIST(fromDate);
+  const nowTime = fromTime ?? getCurrentISTTime();
+
+  if (sorted.includes(fromDow) && istTime > nowTime) {
+    return 0;
+  }
+
+  for (const target of sorted) {
+    if (target > fromDow) return target - fromDow;
+  }
+  return 7 - fromDow + sorted[0];
+}
 
 /**
  * First next_delivery_at for a new subscription.
- * - daily: tomorrow (IST midnight as UTC ISO) — the day after signup, so today's
- *   initial batch isn't immediately followed by another one on the same cron pass.
- * - weekly: next occurrence of `dayOfWeek` (0=Sun..6=Sat, IST) strictly after today.
+ * - daily: next day at the chosen IST time (today if that time is still ahead).
+ * - weekly: next occurrence of any selected day at the chosen IST time.
  */
-export function computeNextDeliveryAt(track: DeliveryTrack, dayOfWeek: number | null): string {
+export function computeNextDeliveryAt(
+  track: DeliveryTrack,
+  daysOfWeek: number[] | null,
+  timeOfDayUtc?: string
+): string {
   const today = getCurrentISTDate();
+  const istTime = utcToISTTime(timeOfDayUtc);
+  const nowTime = getCurrentISTTime();
+
   if (track === "daily") {
-    return istMidnightAsUtcIso(addDaysToISTDate(today, 1));
+    const targetDate = istTime > nowTime ? today : addDaysToISTDate(today, 1);
+    return istToUTCDateTime(targetDate, istTime);
   }
-  const todayDow = getWeekdayIST(today);
-  const target = dayOfWeek ?? todayDow;
-  const daysToAdd = ((target - todayDow + 7) % 7) || 7; // always in the future, never today
-  return istMidnightAsUtcIso(addDaysToISTDate(today, daysToAdd));
+
+  const daysToAdd = daysUntilNextWeeklyDay(today, daysOfWeek ?? [], istTime, nowTime);
+  const targetDate = addDaysToISTDate(today, daysToAdd);
+  return istToUTCDateTime(targetDate, istTime);
 }
 
-/** Advance a previous next_delivery_at by one cycle (1 day for daily, 7 days for weekly). */
-export function advanceNextDeliveryAt(previousIso: string, track: DeliveryTrack): string {
-  const d = new Date(previousIso);
-  d.setUTCDate(d.getUTCDate() + (track === "daily" ? 1 : 7));
-  return d.toISOString();
+/** Advance next_delivery_at by one cycle (1 day for daily, next selected weekday for weekly). */
+export function advanceNextDeliveryAt(
+  previousIso: string,
+  track: DeliveryTrack,
+  daysOfWeek?: number[] | null,
+  timeOfDayUtc?: string
+): string {
+  const prevDate = utcToISTDate(previousIso) || getCurrentISTDate();
+  const istTime = utcToISTTime(timeOfDayUtc) || utcToISTDateTime(previousIso).time;
+
+  if (track === "daily") {
+    return istToUTCDateTime(addDaysToISTDate(prevDate, 1), istTime);
+  }
+
+  const daysToAdd = daysUntilNextWeeklyDayAfter(prevDate, daysOfWeek ?? []);
+  return istToUTCDateTime(addDaysToISTDate(prevDate, daysToAdd), istTime);
 }
 
 /** Shape a batch of drafts into `actions` insert rows. */
@@ -203,6 +270,8 @@ export type PersonalActionSubscriptionRow = {
   focus_themes: ActionTheme[];
   track: DeliveryTrack;
   day_of_week: number | null;
+  days_of_week: number[] | null;
+  daily_action_count: number;
   time_of_day_utc: string;
   next_delivery_at: string;
 };
@@ -212,7 +281,7 @@ export async function getDueSubscriptions(nowIso: string): Promise<PersonalActio
   const admin = createAdminClient();
   const { data } = await admin
     .from("personal_action_subscriptions")
-    .select("id, user_id, training_text, focus_themes, track, day_of_week, time_of_day_utc, next_delivery_at")
+    .select("id, user_id, training_text, focus_themes, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at")
     .eq("is_active", true)
     .lte("next_delivery_at", nowIso);
   return (data ?? []) as PersonalActionSubscriptionRow[];
@@ -241,13 +310,15 @@ export async function deliverNewBatch(sub: PersonalActionSubscriptionRow): Promi
   let inserted = 0;
   let error: string | undefined;
 
+  const batchSize = sub.daily_action_count ?? DEFAULT_BATCH_SIZE;
+
   if (companyId) {
     const { data: backlogRows } = await admin
       .from("personal_action_backlog")
       .select("id, theme, title, how, why, time_estimate")
       .eq("user_id", sub.user_id)
       .order("created_at", { ascending: true })
-      .limit(BATCH_SIZE);
+      .limit(batchSize);
 
     const fromBacklog: DraftAction[] = (backlogRows ?? []).map((r) => ({
       theme: r.theme,
@@ -258,7 +329,7 @@ export async function deliverNewBatch(sub: PersonalActionSubscriptionRow): Promi
     }));
 
     let drafts: DraftAction[] = fromBacklog;
-    const shortfall = BATCH_SIZE - fromBacklog.length;
+    const shortfall = batchSize - fromBacklog.length;
     if (shortfall > 0) {
       const { drafts: generated, error: genError } = await generateDraftActions({
         trainingText: sub.training_text,
@@ -293,7 +364,12 @@ export async function deliverNewBatch(sub: PersonalActionSubscriptionRow): Promi
     .from("personal_action_subscriptions")
     .update({
       last_delivered_at: nowIso,
-      next_delivery_at: advanceNextDeliveryAt(sub.next_delivery_at, sub.track),
+      next_delivery_at: advanceNextDeliveryAt(
+        sub.next_delivery_at,
+        sub.track,
+        sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
+        sub.time_of_day_utc
+      ),
       updated_at: nowIso,
     })
     .eq("id", sub.id);

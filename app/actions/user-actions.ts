@@ -349,3 +349,83 @@ export async function declineAction(actionId: string): Promise<{ error?: string 
   revalidatePath("/");
   return {};
 }
+
+/** Mark an action complete in one step — no scheduling. Creates or updates user_actions with success/failed. */
+export async function completeAction(params: {
+  actionId: string;
+  success: boolean;
+  reflection?: string;
+}): Promise<{ error?: string }> {
+  const { actionId, success, reflection } = params;
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return { error: "Not authenticated" };
+  }
+
+  const { data: actionRow } = await supabase
+    .from("actions")
+    .select("title")
+    .eq("id", actionId)
+    .single();
+
+  const { data: existingUa } = await supabase
+    .from("user_actions")
+    .select("status")
+    .eq("user_id", user.id)
+    .eq("action_id", actionId)
+    .maybeSingle();
+
+  const acceptedAt = new Date().toISOString();
+  const newStatus = success ? "success" : "failed";
+
+  const { error: upsertError } = await supabase.from("user_actions").upsert(
+    {
+      user_id: user.id,
+      action_id: actionId,
+      status: newStatus,
+      scheduled_at: null,
+      accepted_at: acceptedAt,
+      reflection: reflection || null,
+      is_calendar_synced: false,
+    },
+    { onConflict: "user_id,action_id" }
+  );
+
+  if (upsertError) {
+    return { error: upsertError.message };
+  }
+
+  const alreadyAccepted =
+    existingUa?.status === "scheduled" ||
+    existingUa?.status === "success" ||
+    existingUa?.status === "failed";
+
+  if (!existingUa) {
+    await addPointsToProfile(user.id, getPointsForEvent("read"));
+    await addPointsToProfile(user.id, getPointsForEvent("accept", false));
+  } else if (!alreadyAccepted) {
+    await addPointsToProfile(user.id, getPointsForEvent("accept", false));
+  }
+
+  if (success) {
+    await addPointsToProfile(user.id, getPointsForEvent("success"));
+    if (actionRow?.title) {
+      await supabase.from("feed_events").insert({
+        user_id: user.id,
+        action_title: actionRow.title,
+        type: "SUCCESS",
+      });
+    }
+  } else if (existingUa?.status !== "failed") {
+    await addPointsToProfile(user.id, getPointsForEvent("inaction"));
+  }
+
+  revalidatePath("/");
+  return {};
+}

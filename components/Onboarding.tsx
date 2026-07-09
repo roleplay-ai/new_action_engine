@@ -317,84 +317,6 @@ const Onboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
               )}
             </div>
 
-            {editingIndex !== null && drafts[editingIndex] && (
-              <div
-                className="fixed inset-0 z-[110] flex items-center justify-center p-4"
-                style={{ background: "rgba(34,29,35,0.5)" }}
-                onClick={() => setEditingIndex(null)}
-              >
-                <div
-                  className="card animate-pop w-full"
-                  style={{ maxWidth: "480px" }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex justify-between items-center mb-4">
-                    <h4 className="font-bold" style={{ color: "var(--color-text-primary)" }}>Edit action</h4>
-                    <button onClick={() => setEditingIndex(null)} className="btn btn--icon">
-                      <X size={18} strokeWidth={2.5} />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <div className="form-group mb-0">
-                      <label className="form-label">Theme</label>
-                      <select
-                        className="form-input"
-                        style={{ fontSize: "var(--text-sm)" }}
-                        value={drafts[editingIndex].theme}
-                        onChange={(e) => updateDraft(editingIndex, { theme: e.target.value as ActionTheme })}
-                      >
-                        {THEMES.map((t) => (
-                          <option key={t} value={t}>{t}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-group mb-0">
-                      <label className="form-label">Est. Time</label>
-                      <select
-                        className="form-input"
-                        style={{ fontSize: "var(--text-sm)" }}
-                        value={drafts[editingIndex].timeEstimate}
-                        onChange={(e) => updateDraft(editingIndex, { timeEstimate: e.target.value })}
-                      >
-                        {["2 mins", "5 mins", "15 mins", "30 mins"].map((t) => (
-                          <option key={t} value={t}>{t}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="form-group mb-3">
-                    <label className="form-label">What</label>
-                    <input
-                      className="form-input"
-                      value={drafts[editingIndex].title}
-                      onChange={(e) => updateDraft(editingIndex, { title: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group mb-3">
-                    <label className="form-label">How</label>
-                    <textarea
-                      className="form-input"
-                      style={{ minHeight: "70px" }}
-                      value={drafts[editingIndex].how}
-                      onChange={(e) => updateDraft(editingIndex, { how: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group mb-4">
-                    <label className="form-label">Why</label>
-                    <textarea
-                      className="form-input"
-                      style={{ minHeight: "60px" }}
-                      value={drafts[editingIndex].why}
-                      onChange={(e) => updateDraft(editingIndex, { why: e.target.value })}
-                    />
-                  </div>
-                  <button onClick={() => setEditingIndex(null)} className="btn btn--primary btn--full">
-                    Done
-                  </button>
-                </div>
-              </div>
-            )}
-
             {errorMsg && (
               <p className="text-sm font-semibold mb-4" style={{ color: "var(--color-danger)" }}>{errorMsg}</p>
             )}
@@ -537,6 +459,94 @@ const Onboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
           </>
         )}
       </div>
+
+      {step === "review" && editingIndex !== null && drafts[editingIndex] && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6"
+          style={{ background: "rgba(34,29,35,0.55)" }}
+          onClick={() => setEditingIndex(null)}
+        >
+          <div
+            className="card animate-pop w-full flex flex-col"
+            style={{ maxWidth: "520px", maxHeight: "min(90vh, 680px)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4 shrink-0">
+              <h4 className="font-bold" style={{ color: "var(--color-text-primary)" }}>Edit action</h4>
+              <button onClick={() => setEditingIndex(null)} className="btn btn--icon">
+                <X size={18} strokeWidth={2.5} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto no-scrollbar flex flex-col gap-4 min-h-0 flex-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="form-group mb-0">
+                  <label className="form-label">Theme</label>
+                  <select
+                    className="form-input"
+                    style={{ fontSize: "var(--text-sm)" }}
+                    value={drafts[editingIndex].theme}
+                    onChange={(e) => updateDraft(editingIndex, { theme: e.target.value as ActionTheme })}
+                  >
+                    {THEMES.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group mb-0">
+                  <label className="form-label">Est. Time</label>
+                  <select
+                    className="form-input"
+                    style={{ fontSize: "var(--text-sm)" }}
+                    value={drafts[editingIndex].timeEstimate}
+                    onChange={(e) => updateDraft(editingIndex, { timeEstimate: e.target.value })}
+                  >
+                    {["2 mins", "5 mins", "15 mins", "30 mins"].map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group mb-0">
+                <label className="form-label">What</label>
+                <input
+                  className="form-input"
+                  value={drafts[editingIndex].title}
+                  onChange={(e) => updateDraft(editingIndex, { title: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group mb-0">
+                <label className="form-label">How</label>
+                <textarea
+                  className="form-input"
+                  style={{ minHeight: "96px", resize: "vertical" }}
+                  value={drafts[editingIndex].how}
+                  onChange={(e) => updateDraft(editingIndex, { how: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group mb-0">
+                <label className="form-label">Why</label>
+                <textarea
+                  className="form-input"
+                  style={{ minHeight: "80px", resize: "vertical" }}
+                  value={drafts[editingIndex].why}
+                  onChange={(e) => updateDraft(editingIndex, { why: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={() => setEditingIndex(null)}
+              className="btn btn--primary btn--full shrink-0 mt-4"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

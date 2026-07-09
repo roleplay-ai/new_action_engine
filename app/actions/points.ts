@@ -28,11 +28,6 @@ export async function syncMyTotalPointsFromHistory(): Promise<{ error?: string; 
     return { error: actionsError.message };
   }
 
-  const { count: reminderCompletions } = await supabase
-    .from("action_reminder_completions")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id);
-
   let total = 0;
   for (const ua of (userActions ?? []) as UserActionRow[]) {
     const status = ua.status;
@@ -62,9 +57,6 @@ export async function syncMyTotalPointsFromHistory(): Promise<{ error?: string; 
       total += getPointsForEvent("success");
     }
   }
-
-  // Weekly reminder "mark done" check-ins, one success-equivalent each.
-  total += (reminderCompletions ?? 0) * getPointsForEvent("success");
 
   total = Math.max(0, total);
 

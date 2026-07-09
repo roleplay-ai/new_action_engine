@@ -1,32 +1,39 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, ArrowRight, Sparkles, Loader2, Trash2 } from "lucide-react";
+import { X, ArrowRight, Sparkles, Loader2, Trash2, Zap, CalendarDays, PlusCircle } from "lucide-react";
 import type { ActionTheme } from "@/lib/types";
 import {
   generatePersonalActions,
   saveGeneratedActions,
   skipSelfOnboarding,
-  type DraftAction,
 } from "@/app/actions/ai-actions";
+import type { DraftAction, DeliveryTrack } from "@/lib/personal-action-generation";
 import { ACTION_DECK } from "@/lib/constants";
-import { getCurrentISTDate } from "@/lib/timezone-utils";
 
 type Step = "qna" | "examples" | "generating" | "review" | "commit" | "error";
 
-type EditableDraft = DraftAction & {
-  day: string;
-  time: string;
-  timesPerWeek: number;
-};
-
 const THEMES: ActionTheme[] = ["Collaboration", "Feedback", "Accountability", "Connection", "Coaching"];
+
+const WEEKDAYS = [
+  { value: 0, label: "Sun" },
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+];
 
 const Onboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   const [step, setStep] = useState<Step>("qna");
   const [trainingText, setTrainingText] = useState("");
   const [focusThemes, setFocusThemes] = useState<ActionTheme[]>([]);
-  const [drafts, setDrafts] = useState<EditableDraft[]>([]);
+  const [drafts, setDrafts] = useState<DraftAction[]>([]);
+  const [generatingMore, setGeneratingMore] = useState(false);
+  const [track, setTrack] = useState<DeliveryTrack>("daily");
+  const [timeIST, setTimeIST] = useState("09:00");
+  const [dayOfWeek, setDayOfWeek] = useState(1);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -45,19 +52,25 @@ const Onboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
       setStep("error");
       return;
     }
-    const today = getCurrentISTDate();
-    setDrafts(
-      result.map((d) => ({
-        ...d,
-        day: today,
-        time: "09:00",
-        timesPerWeek: 3,
-      }))
-    );
+    setDrafts(result);
     setStep("review");
   };
 
-  const updateDraft = (index: number, patch: Partial<EditableDraft>) => {
+  const generateMore = async () => {
+    setGeneratingMore(true);
+    const { drafts: result, error } = await generatePersonalActions({ trainingText, focusThemes });
+    setGeneratingMore(false);
+    if (error || !result) {
+      setErrorMsg(error ?? "Couldn't generate more actions right now.");
+      return;
+    }
+    setErrorMsg(null);
+    // Append — the user can browse as many as they want; only the first
+    // BATCH_SIZE kept drafts land in "My Actions" today, the rest go to backlog.
+    setDrafts((prev) => [...prev, ...result]);
+  };
+
+  const updateDraft = (index: number, patch: Partial<DraftAction>) => {
     setDrafts((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
   };
 
@@ -74,7 +87,14 @@ const Onboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
 
   const handleFinish = async () => {
     setSaving(true);
-    const { error } = await saveGeneratedActions(drafts);
+    const { error } = await saveGeneratedActions({
+      drafts,
+      trainingText,
+      focusThemes,
+      track,
+      timeIST,
+      dayOfWeek: track === "weekly" ? dayOfWeek : undefined,
+    });
     setSaving(false);
     if (error) {
       setErrorMsg(error);
@@ -89,10 +109,15 @@ const Onboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
       : ACTION_DECK
   ).slice(0, 3);
 
+  const isWideStep = step === "review" || step === "commit";
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8"
       style={{ background: "rgba(34,29,35,0.65)", backdropFilter: "blur(12px)" }}>
-      <div className="card card--wide animate-pop w-full overflow-y-auto no-scrollbar" style={{ maxHeight: "90vh" }}>
+      <div
+        className="card card--wide animate-pop w-full overflow-y-auto no-scrollbar"
+        style={{ maxHeight: "90vh", maxWidth: isWideStep ? "var(--max-width-wide)" : undefined }}
+      >
 
         {step === "qna" && (
           <>
@@ -209,60 +234,106 @@ const Onboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
               </button>
             </div>
 
-            <div className="space-y-4 mb-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
               {drafts.map((draft, i) => (
-                <div key={i} className="card__inset">
-                  <div className="flex justify-between items-start mb-3">
-                    <select
-                      className="form-input"
-                      style={{ width: "auto" }}
-                      value={draft.theme}
-                      onChange={(e) => updateDraft(i, { theme: e.target.value as ActionTheme })}
-                    >
-                      {THEMES.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                    <button onClick={() => removeDraft(i)} className="btn btn--icon" aria-label="Remove">
+                <div key={i} className="card" style={{ maxWidth: "none" }}>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="grid grid-cols-2 gap-2 flex-1 mr-3">
+                      <div className="form-group mb-0">
+                        <label className="form-label">Theme</label>
+                        <select
+                          className="form-input"
+                          style={{ fontSize: "var(--text-sm)" }}
+                          value={draft.theme}
+                          onChange={(e) => updateDraft(i, { theme: e.target.value as ActionTheme })}
+                        >
+                          {THEMES.map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group mb-0">
+                        <label className="form-label">Est. Time</label>
+                        <select
+                          className="form-input"
+                          style={{ fontSize: "var(--text-sm)" }}
+                          value={draft.timeEstimate}
+                          onChange={(e) => updateDraft(i, { timeEstimate: e.target.value })}
+                        >
+                          {["2 mins", "5 mins", "15 mins", "30 mins"].map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <button onClick={() => removeDraft(i)} className="btn btn--icon shrink-0" aria-label="Remove action">
                       <Trash2 size={16} strokeWidth={2.5} />
                     </button>
                   </div>
-                  <input
-                    className="form-input mb-2"
-                    value={draft.title}
-                    onChange={(e) => updateDraft(i, { title: e.target.value })}
-                    placeholder="Title"
-                  />
-                  <textarea
-                    className="form-input mb-2"
-                    style={{ minHeight: "60px" }}
-                    value={draft.how}
-                    onChange={(e) => updateDraft(i, { how: e.target.value })}
-                    placeholder="How"
-                  />
-                  <textarea
-                    className="form-input"
-                    style={{ minHeight: "50px" }}
-                    value={draft.why}
-                    onChange={(e) => updateDraft(i, { why: e.target.value })}
-                    placeholder="Why"
-                  />
+
+                  <div className="form-group mb-3">
+                    <label className="form-label">What (Objective Headline)</label>
+                    <input
+                      className="form-input"
+                      value={draft.title}
+                      onChange={(e) => updateDraft(i, { title: e.target.value })}
+                      placeholder="e.g. End meetings with a summary…"
+                    />
+                  </div>
+                  <div className="form-group mb-3">
+                    <label className="form-label">How (Tactical Step)</label>
+                    <textarea
+                      className="form-input"
+                      style={{ minHeight: "70px" }}
+                      value={draft.how}
+                      onChange={(e) => updateDraft(i, { how: e.target.value })}
+                      placeholder="Specify the exact verbal or digital cue…"
+                    />
+                  </div>
+                  <div className="form-group mb-0">
+                    <label className="form-label">Why (Behavioral Logic)</label>
+                    <textarea
+                      className="form-input"
+                      style={{ minHeight: "60px" }}
+                      value={draft.why}
+                      onChange={(e) => updateDraft(i, { why: e.target.value })}
+                      placeholder="Explain the cognitive impact…"
+                    />
+                  </div>
                 </div>
               ))}
               {drafts.length === 0 && (
                 <p className="text-sm text-center" style={{ color: "var(--color-text-muted)" }}>
-                  No actions left. Go back and regenerate, or skip for now.
+                  No actions left. Generate more, or skip for now.
                 </p>
               )}
             </div>
 
-            <button
-              onClick={() => setStep("commit")}
-              disabled={drafts.length === 0}
-              className="btn btn--primary btn--full"
-            >
-              Continue <ArrowRight size={18} strokeWidth={2.5} />
-            </button>
+            {errorMsg && (
+              <p className="text-sm font-semibold mb-4" style={{ color: "var(--color-danger)" }}>{errorMsg}</p>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={generateMore}
+                disabled={generatingMore}
+                className="btn btn--decline flex-1"
+              >
+                {generatingMore ? (
+                  <Loader2 size={16} className="animate-spin" strokeWidth={2.5} />
+                ) : (
+                  <PlusCircle size={16} strokeWidth={2.5} />
+                )}
+                Generate more
+              </button>
+              <button
+                onClick={() => setStep("commit")}
+                disabled={drafts.length === 0}
+                className="btn btn--primary flex-1"
+              >
+                Continue <ArrowRight size={18} strokeWidth={2.5} />
+              </button>
+            </div>
           </>
         )}
 
@@ -270,10 +341,11 @@ const Onboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
           <>
             <div className="flex justify-between items-start mb-6">
               <div>
-                <span className="tag tag--yellow mb-3 inline-block">Set Reminders</span>
-                <h3 className="card__title">When do you want to do these?</h3>
+                <span className="tag tag--yellow mb-3 inline-block">When do you want this?</span>
+                <h3 className="card__title">Pick a sprint and a time</h3>
                 <p className="card__subtitle mb-0">
-                  We&apos;ll send one reminder email every Monday for each action.
+                  These {drafts.length} action{drafts.length === 1 ? "" : "s"} are yours to act on right away.
+                  On this cadence, we&apos;ll drop a fresh batch into your queue.
                 </p>
               </div>
               <button onClick={handleSkip} disabled={saving} className="btn btn--icon ml-4">
@@ -281,47 +353,85 @@ const Onboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
               </button>
             </div>
 
-            <div className="space-y-4 mb-6">
+            <div className="space-y-3 mb-6">
               {drafts.map((draft, i) => (
                 <div key={i} className="card__inset">
-                  <p className="text-sm font-semibold mb-3" style={{ color: "var(--color-text-primary)" }}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="tag tag--orange">{draft.theme}</span>
+                  </div>
+                  <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
                     {draft.title}
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="form-group mb-0">
-                      <label className="form-label">Start date</label>
-                      <input
-                        type="date"
-                        className="form-input"
-                        value={draft.day}
-                        onChange={(e) => updateDraft(i, { day: e.target.value })}
-                      />
-                    </div>
-                    <div className="form-group mb-0">
-                      <label className="form-label">Time (IST)</label>
-                      <input
-                        type="time"
-                        className="form-input"
-                        value={draft.time}
-                        onChange={(e) => updateDraft(i, { time: e.target.value })}
-                      />
-                    </div>
-                    <div className="form-group mb-0">
-                      <label className="form-label">Times / week</label>
-                      <select
-                        className="form-input"
-                        value={draft.timesPerWeek}
-                        onChange={(e) => updateDraft(i, { timesPerWeek: parseInt(e.target.value, 10) })}
-                      >
-                        {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                          <option key={n} value={n}>{n}x / week</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
                 </div>
               ))}
             </div>
+
+            {/* Track cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+              <button
+                type="button"
+                onClick={() => setTrack("daily")}
+                className={`card__inset text-left transition-all ${track === "daily" ? "ring-2 ring-offset-2" : "opacity-70 hover:opacity-100"}`}
+                style={track === "daily" ? { borderColor: "var(--color-border-yellow)" } as React.CSSProperties : {}}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="icon-badge icon-badge--sm" style={{ marginBottom: 0 }}>
+                    <Zap size={20} style={{ color: track === "daily" ? "var(--bright-amber)" : "var(--color-text-muted)" }} />
+                  </div>
+                  {track === "daily" && <span className="tag tag--featured">Selected</span>}
+                </div>
+                <h5 className="font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>Daily Sprint</h5>
+                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                  A fresh batch of actions every day.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTrack("weekly")}
+                className={`card__inset text-left transition-all ${track === "weekly" ? "ring-2 ring-offset-2" : "opacity-70 hover:opacity-100"}`}
+                style={track === "weekly" ? { borderColor: "var(--color-border-yellow)" } : {}}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="icon-badge icon-badge--sm" style={{ marginBottom: 0 }}>
+                    <CalendarDays size={20} style={{ color: track === "weekly" ? "var(--majorelle-blue)" : "var(--color-text-muted)" }} />
+                  </div>
+                  {track === "weekly" && <span className="tag tag--featured">Selected</span>}
+                </div>
+                <h5 className="font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>Weekly Sprint</h5>
+                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                  A fresh batch once a week, on a day you pick.
+                </p>
+              </button>
+            </div>
+
+            <div className="form-group mb-5">
+              <label className="form-label">What time? (IST)</label>
+              <input
+                type="time"
+                className="form-input"
+                value={timeIST}
+                onChange={(e) => setTimeIST(e.target.value || "09:00")}
+              />
+            </div>
+
+            {track === "weekly" && (
+              <div className="form-group mb-6">
+                <label className="form-label">Which day of the week?</label>
+                <div className="flex flex-wrap gap-2">
+                  {WEEKDAYS.map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setDayOfWeek(value)}
+                      className={`btn btn--sm ${dayOfWeek === value ? "btn--primary" : "btn--decline"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {errorMsg && (
               <p className="text-sm font-semibold mb-4" style={{ color: "var(--color-danger)" }}>{errorMsg}</p>

@@ -8,6 +8,8 @@ export interface ActionCard {
   how: string;
   why: string;
   timeEstimate: string;
+  /** True for AI-generated personal actions (visible only to their creator). */
+  isPersonal?: boolean;
 }
 
 export interface UserAction {
@@ -23,20 +25,6 @@ export interface UserAction {
   acceptedTime?: string;
   isCalendarSynced?: boolean;
   reflection?: string;
-}
-
-/** A user's weekly reminder cadence for one accepted action. */
-export interface ActionReminder {
-  id: string;
-  userActionId: string;
-  actionId: string;
-  timesPerWeek: number;
-  /** Intended time of day (IST, HH:MM) shown in the reminder email as display copy. */
-  timeOfDayIST: string;
-  isActive: boolean;
-  lastSentAt?: string;
-  /** True if the current ISO week (IST) has already been marked done. */
-  doneThisWeek: boolean;
 }
 
 export interface FeedItem {

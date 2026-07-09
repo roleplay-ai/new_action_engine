@@ -16,7 +16,6 @@ import {
   ArrowRight,
 } from "lucide-react";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
-import RemindersPanel from "@/components/RemindersPanel";
 import Onboarding from "@/components/Onboarding";
 
 type ValidationStep = "success_prompt" | "celebration";
@@ -43,7 +42,7 @@ function DashboardContent() {
   const showValidationQueue = allScheduledInQueue.length > 0;
   const availableActions = allActions.filter(
     (ad) =>
-      actionIdsInAssignedPackages.has(ad.id) &&
+      (actionIdsInAssignedPackages.has(ad.id) || ad.isPersonal) &&
       !userActions.some((ua) => ua.actionId === ad.id)
   );
 
@@ -273,9 +272,6 @@ function DashboardContent() {
                 </div>
               </section>
             )}
-
-            {/* This Week's Reminders */}
-            <RemindersPanel />
           </div>
 
           {/* Sidebar */}

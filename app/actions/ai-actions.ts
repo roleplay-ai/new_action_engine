@@ -1,147 +1,55 @@
 "use server";
 
-import { Type } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
-import { getGeminiClient, isGeminiConfigured, GEMINI_MODEL } from "@/lib/gemini";
-import { ACTION_DECK } from "@/lib/constants";
+import { istToUTCTime } from "@/lib/timezone-utils";
 import type { ActionTheme } from "@/lib/types";
-import { scheduleAction } from "@/app/actions/user-actions";
-import { createActionReminder } from "@/app/actions/action-reminders";
+import {
+  generateDraftActions,
+  computeNextDeliveryAt,
+  draftsToActionRows,
+  BATCH_SIZE,
+  type DraftAction,
+  type DeliveryTrack,
+} from "@/lib/personal-action-generation";
 
-export type DraftAction = {
-  theme: ActionTheme;
-  title: string;
-  how: string;
-  why: string;
-  timeEstimate: string;
-};
-
-const THEMES: ActionTheme[] = ["Collaboration", "Feedback", "Accountability", "Connection", "Coaching"];
-
-const draftSchema = {
-  type: Type.OBJECT,
-  properties: {
-    actions: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          theme: { type: Type.STRING, enum: THEMES },
-          title: { type: Type.STRING },
-          how: { type: Type.STRING },
-          why: { type: Type.STRING },
-          timeEstimate: { type: Type.STRING },
-        },
-        required: ["theme", "title", "how", "why", "timeEstimate"],
-      },
-    },
-  },
-  required: ["actions"],
-};
-
-function buildPrompt(trainingText: string, focusThemes: ActionTheme[]): string {
-  const examples = ACTION_DECK.filter(
-    (a) => focusThemes.length === 0 || focusThemes.includes(a.theme)
-  ).slice(0, 4);
-  const exampleBlock = (examples.length ? examples : ACTION_DECK.slice(0, 3))
-    .map(
-      (a) =>
-        `- Theme: ${a.theme}\n  Title: ${a.title}\n  How: ${a.how}\n  Why: ${a.why}\n  Time: ${a.timeEstimate}`
-    )
-    .join("\n\n");
-
-  return `You are the Nudgeable Action Engine, a behavioral science coach that turns training into small, concrete on-the-job micro-actions.
-
-A user just completed training and answered:
-- What training did you do: "${trainingText.trim() || "(not specified)"}"
-- Focus areas they want to work on: ${focusThemes.length ? focusThemes.join(", ") : "(no preference)"}
-
-Here are examples of the format and tone we use for micro-actions:
-
-${exampleBlock}
-
-Generate 4 NEW micro-actions tailored to this user's training and focus areas. Each action must:
-- Have a "title" that is a concrete, specific behavior (not vague advice).
-- Have a "how" that is a literal, tactical script or step the user can do today.
-- Have a "why" that is a single sentence of behavioral-science rationale.
-- Have a "timeEstimate" like "2 mins", "5 mins", "15 mins", or "30 mins".
-- Have a "theme" that is exactly one of: ${THEMES.join(", ")}.
-Prefer themes from the user's stated focus areas when possible.`;
-}
-
-/** Generate draft personal actions from the user's training answers. Does not persist anything. */
+/** Generate a fresh batch of draft personal actions from the user's training answers. Does not persist anything. */
 export async function generatePersonalActions(params: {
   trainingText: string;
   focusThemes: ActionTheme[];
 }): Promise<{ drafts?: DraftAction[]; error?: string }> {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return { error: "Not authenticated" };
-    }
-
-    if (!isGeminiConfigured()) {
-      return { error: "AI generation is not configured (GEMINI_API_KEY missing)" };
-    }
-
-    const ai = getGeminiClient();
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: buildPrompt(params.trainingText, params.focusThemes),
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: draftSchema,
-      },
-    });
-
-    const text = response.text;
-    if (!text) {
-      return { error: "AI returned an empty response" };
-    }
-
-    let parsed: { actions?: DraftAction[] };
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      return { error: "AI returned malformed output" };
-    }
-
-    const drafts = (parsed.actions ?? []).filter(
-      (a) => a && a.title && a.how && a.why && a.theme
-    );
-    if (!drafts.length) {
-      return { error: "AI did not return any actions" };
-    }
-
-    return {
-      drafts: drafts.map((a) => ({
-        theme: a.theme,
-        title: a.title.trim(),
-        how: a.how.trim(),
-        why: a.why.trim(),
-        timeEstimate: a.timeEstimate?.trim() || "5 mins",
-      })),
-    };
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Failed to generate actions" };
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return { error: "Not authenticated" };
   }
+
+  return generateDraftActions({
+    trainingText: params.trainingText,
+    focusThemes: params.focusThemes,
+    count: BATCH_SIZE,
+  });
 }
 
 /**
- * Persist accepted/edited drafts as personal actions, schedule each one, and set up its
- * weekly reminder. Marks the user's self-serve onboarding as complete.
+ * Persist accepted/edited drafts as personal actions. Only the first BATCH_SIZE
+ * land in the user's library today (available same as any other unaccepted action,
+ * not auto-scheduled) — any extras the user kept from "Generate more" are staged in
+ * their backlog and consumed by future deliveries before generating fresh ones.
+ * Also sets up the recurring delivery subscription (Daily/Weekly Sprint + time) and
+ * marks onboarding complete.
  */
-export async function saveGeneratedActions(
-  drafts: (DraftAction & {
-    day: string;
-    time: string;
-    timesPerWeek: number;
-  })[]
-): Promise<{ error?: string; savedCount?: number }> {
+export async function saveGeneratedActions(params: {
+  drafts: DraftAction[];
+  trainingText: string;
+  focusThemes: ActionTheme[];
+  track: DeliveryTrack;
+  timeIST: string;
+  /** Required when track === "weekly". 0 = Sunday, ... 6 = Saturday. */
+  dayOfWeek?: number;
+}): Promise<{ error?: string; savedCount?: number; backlogCount?: number }> {
   try {
     const supabase = await createClient();
     const {
@@ -162,58 +70,55 @@ export async function saveGeneratedActions(
       return { error: "You must be assigned to a company first" };
     }
 
-    let savedCount = 0;
-    for (const draft of drafts) {
-      const { data: actionRow, error: insertError } = await supabase
-        .from("actions")
-        .insert({
-          company_id: companyId,
-          created_by: user.id,
-          is_personal: true,
-          theme: draft.theme,
-          title: draft.title.trim(),
-          how: draft.how.trim(),
-          why: draft.why.trim(),
-          time_estimate: draft.timeEstimate || "5 mins",
-          is_system_action: false,
-        })
-        .select("id")
-        .single();
+    if (params.track !== "daily" && params.track !== "weekly") {
+      return { error: "Invalid track" };
+    }
+    if (params.track === "weekly" && (params.dayOfWeek == null || params.dayOfWeek < 0 || params.dayOfWeek > 6)) {
+      return { error: "Day of week is required for a weekly sprint" };
+    }
 
-      if (insertError || !actionRow) {
-        return { error: insertError?.message ?? "Failed to save action" };
+    const toDeliverNow = params.drafts.slice(0, BATCH_SIZE);
+    const toBacklog = params.drafts.slice(BATCH_SIZE);
+
+    if (toDeliverNow.length) {
+      const rows = draftsToActionRows(toDeliverNow, companyId, user.id);
+      const { error: insertError } = await supabase.from("actions").insert(rows);
+      if (insertError) {
+        return { error: insertError.message };
       }
+    }
 
-      const scheduleResult = await scheduleAction({
-        actionId: actionRow.id,
-        day: draft.day,
-        time: draft.time,
-        sync: false,
-      });
-      if (scheduleResult.error) {
-        return { error: scheduleResult.error };
+    if (toBacklog.length) {
+      const backlogRows = toBacklog.map((d) => ({
+        user_id: user.id,
+        theme: d.theme,
+        title: d.title.trim(),
+        how: d.how.trim(),
+        why: d.why.trim(),
+        time_estimate: d.timeEstimate || "5 mins",
+      }));
+      const { error: backlogError } = await supabase.from("personal_action_backlog").insert(backlogRows);
+      if (backlogError) {
+        return { error: backlogError.message };
       }
+    }
 
-      const { data: ua } = await supabase
-        .from("user_actions")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("action_id", actionRow.id)
-        .single();
-
-      if (ua) {
-        const reminderResult = await createActionReminder({
-          userActionId: ua.id,
-          actionId: actionRow.id,
-          timesPerWeek: draft.timesPerWeek,
-          timeOfDayIST: draft.time,
-        });
-        if (reminderResult.error) {
-          return { error: reminderResult.error };
-        }
-      }
-
-      savedCount += 1;
+    const dayOfWeek = params.track === "weekly" ? params.dayOfWeek! : null;
+    const { error: subError } = await supabase.from("personal_action_subscriptions").upsert(
+      {
+        user_id: user.id,
+        training_text: params.trainingText,
+        focus_themes: params.focusThemes,
+        track: params.track,
+        day_of_week: dayOfWeek,
+        time_of_day_utc: istToUTCTime(params.timeIST),
+        is_active: true,
+        next_delivery_at: computeNextDeliveryAt(params.track, dayOfWeek),
+      },
+      { onConflict: "user_id" }
+    );
+    if (subError) {
+      return { error: subError.message };
     }
 
     await supabase
@@ -221,7 +126,7 @@ export async function saveGeneratedActions(
       .update({ self_onboarding_completed_at: new Date().toISOString() })
       .eq("id", user.id);
 
-    return { savedCount };
+    return { savedCount: toDeliverNow.length, backlogCount: toBacklog.length };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to save actions" };
   }

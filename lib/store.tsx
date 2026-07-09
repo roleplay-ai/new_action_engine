@@ -99,7 +99,7 @@ interface EngineContextType {
 
 const EngineContext = createContext<EngineContextType | undefined>(undefined);
 
-function mapDbAction(row: { id: string; theme: string; title: string; how: string; why: string; time_estimate: string }): ActionCard {
+function mapDbAction(row: { id: string; theme: string; title: string; how: string; why: string; time_estimate: string; is_personal?: boolean | null }): ActionCard {
   return {
     id: row.id,
     theme: row.theme as ActionCard["theme"],
@@ -107,6 +107,7 @@ function mapDbAction(row: { id: string; theme: string; title: string; how: strin
     how: row.how,
     why: row.why,
     timeEstimate: row.time_estimate ?? "5 mins",
+    isPersonal: row.is_personal ?? false,
   };
 }
 
@@ -218,7 +219,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
     if (companyId) {
       const { data: actions } = await supabase
         .from("actions")
-        .select("id, theme, title, how, why, time_estimate")
+        .select("id, theme, title, how, why, time_estimate, is_personal")
         .eq("company_id", companyId);
       setAllActions((actions ?? []).map(mapDbAction));
     } else {

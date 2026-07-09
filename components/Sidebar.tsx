@@ -4,7 +4,7 @@
 import React, { useMemo } from 'react';
 import { useEngine } from '@/lib/store';
 import { getLeague } from '@/lib/constants';
-import { BookOpen, CheckCircle2, RefreshCw, Award, Trophy, TrendingUp, TrendingDown, MousePointer2, ChevronRight } from 'lucide-react';
+import { BookOpen, CheckCircle2, RefreshCw, Trophy, TrendingUp, TrendingDown, MousePointer2, ChevronRight } from 'lucide-react';
 
 interface SidebarProps {
   onViewMore: () => void;
@@ -16,18 +16,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onViewMore }) => {
   const stats = useMemo(() => {
     const received = actionIdsInAssignedPackages.size;
     const read = userActions.filter((ua) => actionIdsInAssignedPackages.has(ua.actionId)).length;
-    const accepted = userActions.filter((ua) =>
-      ua.status === "success" || ua.status === "habit_started" || ua.status === "scheduled" || ua.status === "cemented"
-    ).length;
-    const validatedSuccess = userActions.reduce((sum, ua) => sum + (ua.completedReps ?? 0), 0);
+    const accepted = userActions.filter((ua) => ua.status === "success" || ua.status === "scheduled").length;
+    const validatedSuccess = userActions.filter((ua) => ua.status === "success").length;
 
     return {
       received,
       read,
       accepted,
       validated: validatedSuccess,
-      habitsStarted: userActions.filter(a => a.status === 'habit_started').length,
-      habitsCompleted: userActions.filter(a => a.status === 'cemented').length
     };
   }, [userActions, actionIdsInAssignedPackages]);
 
@@ -75,9 +71,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onViewMore }) => {
               { icon: BookOpen, label: "Received", val: stats.received, color: "text-slate-400" },
               { icon: MousePointer2, label: "Read", val: stats.read, color: "text-blue-500" },
               { icon: CheckCircle2, label: "Accepted", val: stats.accepted, color: "text-emerald-500" },
-              { icon: RefreshCw, label: "Success reps", val: stats.validated, color: "text-amber-500" },
-              { icon: RefreshCw, label: "Habits", val: stats.habitsStarted, color: "text-purple-500" },
-              { icon: Award, label: "Mastery", val: stats.habitsCompleted, color: "text-amber-500" }
+              { icon: RefreshCw, label: "Validated", val: stats.validated, color: "text-amber-500" },
             ].map((s, idx) => (
               <div key={idx} className="flex justify-between items-center">
                 <div className="flex items-center gap-2">

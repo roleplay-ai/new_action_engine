@@ -14,7 +14,7 @@ There is no self-serve signup. An account is created for a user by a [company ad
 
 On every visit, `app/(app)/page.tsx:5-27` looks up the caller's `profiles.role` and routes them: `superadmin` → `/superadmin`, `admin` → `/admin`, anything else → the regular dashboard described below.
 
-**There is no onboarding flow.** `components/Onboarding.tsx` exists in the codebase but is never rendered, and its submit handler is a no-op — a brand-new user lands straight on the dashboard with default profile values (0 points, Starter league, 0 streak) until real data loads.
+**Self-serve AI onboarding.** The first time a user with a company reaches the dashboard (`profiles.self_onboarding_completed_at` is `null`), `components/Onboarding.tsx` opens as a full-screen wizard: two questions (what training they did, and which focus themes they want to work on), a preview of a few example actions, an AI-generated batch of 3-5 draft actions (Gemini Flash via `app/actions/ai-actions.ts::generatePersonalActions`), an edit/accept step, and a final step to set a start date/time and weekly frequency per action. Accepting persists each kept draft as a personal action (`actions.is_personal = true`, visible only to that user) and sets up a weekly reminder (see §5). A user can skip at any point; skipping still marks onboarding complete so it won't nag again.
 
 **No company yet**: if a user's `profiles.company_id` is null (created but not yet assigned to a company), the dashboard and challenge library show a "Not assigned to a company — contact your admin" placeholder instead of content.
 
@@ -28,7 +28,7 @@ The app shell (`components/Layout.tsx`) exposes exactly three tabs:
 
 | Tab | Content |
 |---|---|
-| **Dashboard** (`home`) | Today's queue, habit tracker, action carousels — see §3 |
+| **Dashboard** (`home`) | Today's queue, weekly reminders, action carousels — see §3 |
 | **Challenges** (`challenges`) | Retry queue for skipped/failed actions — see §4 |
 | **Progress** (`progress`) | Personal analytics + leaderboard — see §8 |
 
@@ -42,8 +42,7 @@ The dashboard (`app/(app)/dashboard-client.tsx`) pulls together every action ass
 
 - **Available actions carousel** — actions from an *activated* package assignment that the user hasn't yet interacted with. A package action is "activated" once its scheduled delivery date/time has passed by at least one minute (a small grace window baked into the query in `lib/store.tsx`).
 - **Validation queue** — actions the user scheduled whose time has arrived, waiting to be marked done or not.
-- **Habit rep queue** — due `habit_occurrences` for actions currently in an active habit loop.
-- **Habit carousel** — actions in `habit_started` or `cemented` status, shown with a 5-segment progress bar.
+- **This Week's Reminders** — the user's active weekly reminders (`action_reminders`), each with a one-click "Mark done" for the current week (see §5).
 
 ### Accepting / declining an action (`components/ActionCard.tsx`)
 
@@ -59,15 +58,12 @@ Each action card shows its **theme** tag (Collaboration / Feedback / Accountabil
 
 ### Validating an action
 
-Once a scheduled/accepted action's time has passed, it shows up in the validation queue. Tapping it opens a modal that walks through a small state machine:
+Once a scheduled/accepted action's time has passed, it shows up in the validation queue. Tapping it opens a modal:
 
-1. **Reflection prompt** — a free-text box ("What was the tactical result or friction point?"), then either **Verify Rep** (success) or **Didn't Complete** (failure).
+1. **Reflection prompt** — a free-text box ("What was the tactical result or friction point?"), then either **Verify** (success) or **Didn't Complete** (failure).
 2. **Celebration screen** (success only) — confetti animation. Note: the on-screen "+50 XP" badge here is decorative copy, not the real point award (see §7).
-3. **Habit nudge** (first-ever success on this action only) — "1 success down, 4 reps to cement," with the option to **Start Habit Loop** or finish for today without committing to reps.
-4. **Habit scheduling** (if starting the loop) — choose a cadence, **Daily** (next 4 consecutive days) or **Weekly** (same weekday, next 4 weeks), and a time of day.
-5. **Confirmation screen** — a closing celebratory animation.
 
-Both success and failure are recorded via the `validateAction` server action.
+Both success and failure are recorded via the `validateAction` server action, which just sets `status` to `success`/`failed` — there is no rep-tracking or cementing threshold (that mechanic was replaced by weekly reminders, see §5).
 
 ---
 
@@ -77,18 +73,15 @@ Despite the "library" framing, the Challenges tab (`components/Challenges.tsx`) 
 
 ---
 
-## 5. Habit loop ("Rule of 5")
+## 5. Weekly reminders (replaces the old Habit Loop)
 
-An action becomes a repeatable habit the first time it's successfully validated. From there:
+There is no more in-app rep-tracking or "Rule of 5" cementing. Instead, any accepted action (admin-assigned or self-generated) can have a standing weekly reminder (`action_reminders`, one row per `user_actions` row):
 
-| Event | Status becomes | Reps remaining |
-|---|---|---|
-| First success from `scheduled` | `habit_started` | 4 |
-| Each subsequent success | stays `habit_started` | −1 each time |
-| 5th total success | `cemented` | 0 (habit "locked in") |
-| Any failed validation, at any point | `failed` | unchanged |
+- The user picks how many **times per week** they intend to do the action (1–7) and an intended **time of day** (IST, shown as display copy in the email — not a literal send time).
+- Every Monday, the cron job (`app/api/cron/email-scheduler/route.ts`, same daily trigger as the rest of the email scheduler) sends **one summary email per user** listing all of their due reminders for the week, via `lib/action-reminder-email.ts` + `lib/email-send.ts`.
+- In-app, the dashboard's "This Week's Reminders" panel lets the user mark a reminder done for the current ISO week (`action_reminder_completions`, one row per reminder per week) — a lightweight check-in, not a multi-rep counter.
 
-Starting a habit loop schedules exactly **4 upcoming reps** (`habit_occurrences` rows) — daily (next 4 consecutive days) or weekly (same weekday, next 4 weeks) — at the time the user chose. Each due occurrence surfaces in the dashboard's habit rep queue; validating it advances the counter above. Once `cemented`, the action's progress bar shows "5/5 complete — Habit acquired."
+Today, reminders are created as part of the self-serve onboarding wizard (§1) via `app/actions/action-reminders.ts::createActionReminder`; the regular `ActionCard` accept/schedule flow does not yet prompt for a reminder.
 
 ---
 
@@ -101,9 +94,8 @@ All points are computed and written **server-side only** — nothing on the clie
 | Reading (first time an action gets a `user_actions` row) | +1 | One-time per action |
 | Accept / schedule | +3 (or +5 with calendar sync) | One-time per action |
 | Decline ("honesty skip") | +1 | One-time per action |
-| Successful validation | +5 | Every success, including habit reps |
-| First success (starts habit loop) | +7 extra | On top of the +5 above, so the first success nets +12 |
-| Cementing success (5th rep) | +10 extra | On top of the +5 above, so the cementing success nets +15 |
+| Successful validation | +5 | One-time per action (status becomes `success`) |
+| Weekly reminder marked done | +5 | Once per reminder per ISO week (`action_reminder_completions`) |
 | Failed validation (first time only) | −1 | Floored so total points never go below 0 |
 | Weekly streak bonus | +0 | Present in code as a constant but explicitly disabled by product decision |
 
@@ -131,10 +123,10 @@ The league is recomputed alongside the points sync described above, so it always
 
 `components/Analytics.tsx` — entirely client-derived from data already loaded for the dashboard (no separate server action for the user's own view):
 
-- **Behavioral Transition Funnel** — Knowledge / Intention / Action / Habit percentages, derived from how many of the user's assigned actions have reached each stage.
+- **Behavioral Transition Funnel** — Knowledge / Intention / Action percentages, derived from how many of the user's assigned actions have reached each stage.
 - **Current Level card** — league badge, points, and how many points away from the next league.
 - **Achievement Wall** — the five league badges, current one highlighted.
-- **Phase breakdown** — counts of Received / Read / Accepted / Skipped / Validated / Failed / Ongoing (habit) / Acquired (cemented) actions.
+- **Phase breakdown** — counts of Received / Read / Accepted / Skipped / Validated / Failed / Ongoing actions.
 - **Leaderboard** (embedded) — see below.
 
 ### Leaderboard
@@ -159,7 +151,7 @@ Treat this as a retired/unshipped feature rather than something to point users t
 
 ## 10. Timezone handling
 
-All user-facing scheduling (accept times, habit rep times, package delivery windows) operates in a **fixed IST offset (UTC+5:30)** — there is no per-user timezone setting and no daylight-saving handling. Times a user enters are always interpreted as IST and converted to UTC for storage.
+All user-facing scheduling (accept times, reminder times, package delivery windows) operates in a **fixed IST offset (UTC+5:30)** — there is no per-user timezone setting and no daylight-saving handling. Times a user enters are always interpreted as IST and converted to UTC for storage. Note the weekly reminder's "time of day" is display copy only — the reminder email itself always sends on the daily cron's single run (see §5), not at the user's literal chosen time.
 
 ---
 

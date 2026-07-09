@@ -68,120 +68,6 @@ function toScheduledAt(dateIST: string, timeIST: string): string {
   return istToUTCDateTime(safeDate, timeIST);
 }
 
-/** Add N days to YYYY-MM-DD, return YYYY-MM-DD (for IST date arithmetic). */
-function addDaysToISTDate(dateStr: string, days: number): string {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  if ([y, m, d].some(Number.isNaN)) return dateStr;
-  const d0 = new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
-  d0.setUTCDate(d0.getUTCDate() + days);
-  const yy = d0.getUTCFullYear();
-  const mm = String(d0.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(d0.getUTCDate()).padStart(2, "0");
-  return `${yy}-${mm}-${dd}`;
-}
-
-/** Weekday in IST for date YYYY-MM-DD (0 = Sunday, 1 = Monday, ... 6 = Saturday). */
-function getWeekdayIST(dateStr: string): number {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  if ([y, m, d].some(Number.isNaN)) return 0;
-  const utcMidnight = Date.UTC(y, m - 1, d, 0, 0, 0);
-  const istMidnight = utcMidnight - IST_OFFSET_MINUTES * 60 * 1000;
-  const utcDay = new Date(istMidnight).getUTCDay();
-  return (utcDay + 1) % 7; // IST date's weekday: 0=Sun, 1=Mon, ..., 6=Sat
-}
-
-/** Next occurrence of weekday (0–6) on or after dateStr. Returns YYYY-MM-DD. */
-function getNextOrSameWeekday(dateStr: string, weekday: number): string {
-  const cur = getWeekdayIST(dateStr);
-  const daysToAdd = (weekday - cur + 7) % 7;
-  return addDaysToISTDate(dateStr, daysToAdd);
-}
-
-/**
- * Schedule habit loop: insert 4 habit_occurrences for the next 4 reps.
- * - daily: next 4 days at chosen time each day.
- * - weekly: next 4 occurrences of chosen weekday at chosen time.
- */
-export async function scheduleHabitLoop(params: {
-  userActionId: string;
-  track: "daily" | "weekly";
-  timeIST?: string;
-  /** For weekly: 0 = Sunday, 1 = Monday, ... 6 = Saturday. */
-  weekdayIST?: number;
-}): Promise<{ error?: string }> {
-  const { userActionId, track, timeIST: timeISTParam, weekdayIST } = params;
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return { error: "Not authenticated" };
-  }
-
-  const { data: ua, error: fetchError } = await supabase
-    .from("user_actions")
-    .select("id, user_id, action_id, status, scheduled_at, accepted_at")
-    .eq("id", userActionId)
-    .eq("user_id", user.id)
-    .single();
-
-  if (fetchError || !ua) {
-    return { error: "User action not found" };
-  }
-
-  if (ua.status !== "habit_started") {
-    return { error: "Action is not in habit loop" };
-  }
-
-  // Prefer passed time; else from scheduled_at or accepted_at (IST); else 09:00 IST
-  let timeIST = timeISTParam ?? "09:00";
-  if (!timeISTParam && (ua.scheduled_at || ua.accepted_at)) {
-    const ref = ua.scheduled_at ?? ua.accepted_at;
-    const date = new Date(ref);
-    const ist = new Date(date.getTime() + IST_OFFSET_MINUTES * 60 * 1000);
-    const h = String(ist.getUTCHours()).padStart(2, "0");
-    const m = String(ist.getUTCMinutes()).padStart(2, "0");
-    timeIST = `${h}:${m}`;
-  }
-  if (!timeIST.includes(":")) timeIST = "09:00";
-
-  const todayIST = getCurrentISTDate();
-  const scheduledAts: string[] = [];
-
-  if (track === "daily") {
-    for (let i = 1; i <= 4; i++) {
-      const dateStr = addDaysToISTDate(todayIST, i);
-      scheduledAts.push(istToUTCDateTime(dateStr, timeIST));
-    }
-  } else {
-    const w = typeof weekdayIST === "number" && weekdayIST >= 0 && weekdayIST <= 6 ? weekdayIST : getWeekdayIST(todayIST);
-    const firstDate = getNextOrSameWeekday(todayIST, w);
-    for (let i = 0; i < 4; i++) {
-      const dateStr = addDaysToISTDate(firstDate, i * 7);
-      scheduledAts.push(istToUTCDateTime(dateStr, timeIST));
-    }
-  }
-
-  for (const scheduledAt of scheduledAts) {
-    const { error: insertError } = await supabase.from("habit_occurrences").insert({
-      user_id: user.id,
-      action_id: ua.action_id,
-      user_action_id: ua.id,
-      scheduled_at: scheduledAt,
-    });
-    if (insertError) {
-      console.error(insertError);
-      return { error: insertError.message };
-    }
-  }
-
-  revalidatePath("/");
-  return {};
-}
-
 export async function scheduleAction(params: {
   actionId: string;
   /** IST date in YYYY-MM-DD (from date picker). */
@@ -235,8 +121,6 @@ export async function scheduleAction(params: {
       status: "scheduled",
       scheduled_at: scheduledAt,
       accepted_at: acceptedAt,
-      completed_reps: 0,
-      reps_remaining: null,
       is_calendar_synced: sync,
     },
     { onConflict: "user_id,action_id" }
@@ -251,8 +135,6 @@ export async function scheduleAction(params: {
   const alreadyAccepted =
     existingUa?.status === "scheduled" ||
     existingUa?.status === "success" ||
-    existingUa?.status === "habit_started" ||
-    existingUa?.status === "cemented" ||
     existingUa?.status === "failed";
   if (!alreadyAccepted) {
     await addPointsToProfile(user.id, getPointsForEvent("accept", sync));
@@ -380,8 +262,6 @@ export async function acceptActionWithoutSchedule(actionId: string): Promise<{ e
       status: "scheduled",
       scheduled_at: null,
       accepted_at: acceptedAt,
-      completed_reps: 0,
-      reps_remaining: null,
       is_calendar_synced: false,
     },
     { onConflict: "user_id,action_id" }
@@ -396,8 +276,6 @@ export async function acceptActionWithoutSchedule(actionId: string): Promise<{ e
   const alreadyAccepted =
     existingUa?.status === "scheduled" ||
     existingUa?.status === "success" ||
-    existingUa?.status === "habit_started" ||
-    existingUa?.status === "cemented" ||
     existingUa?.status === "failed";
   if (!alreadyAccepted) {
     await addPointsToProfile(user.id, getPointsForEvent("accept", false));
@@ -443,8 +321,6 @@ export async function declineAction(actionId: string): Promise<{ error?: string 
       user_id: user.id,
       action_id: actionId,
       status: "skipped",
-      completed_reps: 0,
-      reps_remaining: null,
     },
     { onConflict: "user_id,action_id" }
   );

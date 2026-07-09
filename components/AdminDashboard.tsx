@@ -6,7 +6,6 @@ import {
   Eye,
   MousePointer2,
   CheckCircle2,
-  RefreshCw,
   Download,
   Filter,
   ChevronDown,
@@ -66,8 +65,6 @@ import {
   ResponsiveContainer,
   Legend,
   Cell,
-  PieChart,
-  Pie
 } from 'recharts';
 import { League, ActionTheme } from '../lib/types';
 import { useEngine } from '../lib/store';
@@ -94,7 +91,6 @@ interface UserEngagementRow {
   streak: number;
   acceptedCount: number;
   validatedCount: number;
-  habitStartedCount: number;
   league: League;
 }
 
@@ -276,7 +272,6 @@ const UserEngagementView: React.FC<{ companyId: string | null }> = ({ companyId 
             streak: e.streak,
             acceptedCount: e.acceptedCount,
             validatedCount: e.validatedCount,
-            habitStartedCount: e.habitStartedCount,
             league: e.league,
           })
         );
@@ -351,9 +346,6 @@ const UserEngagementView: React.FC<{ companyId: string | null }> = ({ companyId 
                     Validated
                   </th>
                   <th className="px-2 py-2.5 text-[9px] font-black uppercase tracking-widest text-center">
-                    Habits Started
-                  </th>
-                  <th className="px-2 py-2.5 text-[9px] font-black uppercase tracking-widest text-center">
                     Streak
                   </th>
                   <th className="px-2 py-2.5 text-[9px] font-black uppercase tracking-widest text-center">
@@ -390,11 +382,6 @@ const UserEngagementView: React.FC<{ companyId: string | null }> = ({ companyId 
                     <td className="px-2 py-2.5 text-center">
                       <span className="text-xs font-black text-green-600">
                         {user.validatedCount}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2.5 text-center">
-                      <span className="text-[11px] font-black text-purple-600">
-                        {user.habitStartedCount}
                       </span>
                     </td>
                     <td className="px-2 py-2.5 text-center">
@@ -1326,18 +1313,11 @@ interface FunnelData {
   totalActionsDelivered: number;
   averageActionsPerUser: number;
   intentionTotal: number;
-  intentionIncludingHabits: number;
   actionsValidated: number;
-  actionsValidatedIncludingHabits: number;
-  habitsTotal: number;
-  habitsOngoing: number;
-  habitsCemented: number;
   consistentlyActivePct: number;
   consistentlyActiveUsersCount: number;
   actionReadersCount: number;
   actionReadersPct: number;
-  habitStartersCount: number;
-  habitStartersPct: number;
   actionTakersCount: number;
   actionTakersPct: number;
   inactiveUsersCount: number;
@@ -1363,12 +1343,6 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
         sub: '(≥1 USER ACTION)',
         value: `${funnel.actionReadersPct}%`,
         color: '#2ecc71',
-      },
-      {
-        label: 'HABIT STARTERS',
-        sub: '(HABIT STARTED)',
-        value: `${funnel.habitStartersPct}%`,
-        color: '#FFCE00',
       },
       {
         label: 'ACTION TAKERS',
@@ -1405,18 +1379,11 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
             totalActionsDelivered: res.totalActionsDelivered ?? 0,
             averageActionsPerUser: res.averageActionsPerUser ?? 0,
             intentionTotal: res.intentionTotal ?? 0,
-            intentionIncludingHabits: res.intentionIncludingHabits ?? 0,
             actionsValidated: res.actionsValidated ?? 0,
-            actionsValidatedIncludingHabits: res.actionsValidatedIncludingHabits ?? 0,
-            habitsTotal: res.habitsTotal ?? 0,
-            habitsOngoing: res.habitsOngoing ?? 0,
-            habitsCemented: res.habitsCemented ?? 0,
             consistentlyActivePct: res.consistentlyActivePct ?? 0,
             consistentlyActiveUsersCount: res.consistentlyActiveUsersCount ?? 0,
             actionReadersCount: res.actionReadersCount ?? 0,
             actionReadersPct: res.actionReadersPct ?? 0,
-            habitStartersCount: res.habitStartersCount ?? 0,
-            habitStartersPct: res.habitStartersPct ?? 0,
             actionTakersCount: res.actionTakersCount ?? 0,
             actionTakersPct: res.actionTakersPct ?? 0,
             inactiveUsersCount: res.inactiveUsersCount ?? 0,
@@ -1491,12 +1458,6 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
 
   const top3Adoption = adoptionIndexMetrics.slice(0, 3);
   const bottom3Resistance = adoptionIndexMetrics.slice(-3).reverse();
-  const habitPieData = funnel
-    ? [
-      { name: 'Ongoing', value: funnel.habitsOngoing, color: '#FFCE00' },
-      { name: 'Cemented', value: funnel.habitsCemented, color: '#22C55E' },
-    ].filter((d) => d.value > 0)
-    : [];
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
@@ -1522,7 +1483,7 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
           </div>
           <div className="flex-1 space-y-2 min-w-0">
             <h3 className="text-base sm:text-xl md:text-2xl font-black leading-tight heading-font uppercase italic">CONSISTENTLY ACTIVE USERS</h3>
-            <p className="text-[10px] sm:text-xs font-bold text-black/60 uppercase tracking-widest">YOUR BEHAVIORAL CHAMPIONS BUILDING CORE HABITS</p>
+            <p className="text-[10px] sm:text-xs font-bold text-black/60 uppercase tracking-widest">YOUR BEHAVIORAL CHAMPIONS STAYING ENGAGED</p>
             <div className="flex items-center gap-4 flex-wrap">
               {funnel && funnel.usersCount > 0 ? (
                 <span className="text-2xl sm:text-4xl font-black">
@@ -1572,7 +1533,7 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
           <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 text-red-700 text-sm font-bold">{funnelError}</div>
         )}
         {funnel && !funnelLoading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {/* 1. Knowledge: total actions delivered; show average per user in card */}
             <div className="bg-white border-2 border-black rounded-xl p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               <div className="flex justify-between items-center mb-4">
@@ -1585,7 +1546,7 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
               <span className="text-[9px] font-black uppercase text-slate-400 mb-1 block tracking-widest">VIEW RATE</span>
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Average {funnel.averageActionsPerUser} actions per user</p>
             </div>
-            {/* 2. Intention: actions accepted; bottom = including habits */}
+            {/* 2. Intention: actions accepted */}
             <div className="bg-white border-2 border-black rounded-xl p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               <div className="flex justify-between items-center mb-4">
                 <div className="w-10 h-10 border-2 border-black rounded-xl flex items-center justify-center text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]" style={{ backgroundColor: '#F97316' }}>
@@ -1595,9 +1556,9 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
               </div>
               <span className="text-2xl sm:text-3xl font-black block leading-none mb-0.5">{funnel.intentionTotal.toLocaleString()}</span>
               <span className="text-[9px] font-black uppercase text-slate-400 mb-1 block tracking-widest">ACCEPTED</span>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{funnel.intentionIncludingHabits.toLocaleString()} including habits</p>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{funnel.actionTakersCount.toLocaleString()} action takers</p>
             </div>
-            {/* 3. Actions: validated/completed; bottom = including habits */}
+            {/* 3. Actions: validated/completed */}
             <div className="bg-white border-2 border-black rounded-xl p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               <div className="flex justify-between items-center mb-4">
                 <div className="w-10 h-10 border-2 border-black rounded-xl flex items-center justify-center text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]" style={{ backgroundColor: '#3B82F6' }}>
@@ -1607,19 +1568,7 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
               </div>
               <span className="text-2xl sm:text-3xl font-black block leading-none mb-0.5">{funnel.actionsValidated.toLocaleString()}</span>
               <span className="text-[9px] font-black uppercase text-slate-400 mb-1 block tracking-widest">VALIDATED</span>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{funnel.actionsValidatedIncludingHabits.toLocaleString()} including habits</p>
-            </div>
-            {/* 4. Habits: converted to habits; bottom = ongoing + cemented */}
-            <div className="bg-white border-2 border-black rounded-xl p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-              <div className="flex justify-between items-center mb-4">
-                <div className="w-10 h-10 border-2 border-black rounded-xl flex items-center justify-center text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]" style={{ backgroundColor: '#22C55E' }}>
-                  <RefreshCw size={20} strokeWidth={3} />
-                </div>
-                <span className="text-[8px] font-black uppercase text-slate-500 tracking-widest">HABITS</span>
-              </div>
-              <span className="text-2xl sm:text-3xl font-black block leading-none mb-0.5">{funnel.habitsTotal.toLocaleString()}</span>
-              <span className="text-[9px] font-black uppercase text-slate-400 mb-1 block tracking-widest">REPETITIONS</span>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ongoing: {funnel.habitsOngoing} · Cemented: {funnel.habitsCemented}</p>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{funnel.actionReadersCount.toLocaleString()} readers</p>
             </div>
           </div>
         )}
@@ -1684,7 +1633,7 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
       </div>
 
       {/* CHARTS SECTION */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <section className="bg-white border-4 border-black rounded-2xl p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
           <h3 className="text-base font-black heading-font uppercase italic mb-4">WEEKLY ACTIONS</h3>
           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3">Per delivery (actions × users)</p>
@@ -1705,39 +1654,6 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
                   <Bar dataKey="Skipped" fill="#FFCE00" barSize={8} radius={[2, 2, 0, 0]} stroke="black" strokeWidth={1} />
                   <Bar dataKey="Successful" fill="#3699FC" barSize={8} radius={[2, 2, 0, 0]} stroke="black" strokeWidth={1} />
                 </ReBarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </section>
-        <section className="bg-white border-4 border-black rounded-2xl p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-          <h3 className="text-base font-black heading-font uppercase italic mb-4">HABITS BY PHASE</h3>
-          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3">Ongoing vs cemented</p>
-          <div className="h-[280px] w-full">
-            {funnelLoading ? (
-              <div className="h-full flex items-center justify-center text-slate-500 font-bold uppercase text-sm">Loading…</div>
-            ) : habitPieData.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-slate-500 font-bold uppercase text-sm">No habit data yet</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={habitPieData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    stroke="black"
-                    strokeWidth={2}
-                    label={({ name, value }) => `${name}: ${value}`}
-                  >
-                    {habitPieData.map((entry, i) => (
-                      <Cell key={`cell-${i}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ borderRadius: '16px', border: '3px solid black', fontWeight: 900 }} />
-                  <Legend />
-                </PieChart>
               </ResponsiveContainer>
             )}
           </div>

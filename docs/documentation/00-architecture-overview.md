@@ -8,7 +8,7 @@
 
 ## 1. What the app is
 
-Nudgeable Action Engine is a B2B behavior-change platform. Companies (tenants) enroll their employees ("users"); a **company admin** curates a library of "micro-actions" and bundles them into scheduled **packages**; end users accept, schedule, and validate those actions, building toward "cemented" habits through a 5-repetition loop. A **superadmin** manages the companies and users across the whole platform and operates the email/login infrastructure.
+Nudgeable Action Engine is a B2B behavior-change platform. Companies (tenants) enroll their employees ("users"); a **company admin** curates a library of "micro-actions" and bundles them into scheduled **packages**; end users accept, schedule, and validate those actions. Separately, a user can self-generate their own personal actions via an AI onboarding wizard (Gemini Flash, based on two questions about their training) and opt into a standing weekly reminder email instead of the old in-app "habit loop" rep-tracking. A **superadmin** manages the companies and users across the whole platform and operates the email/login infrastructure.
 
 ## 2. Tech stack
 
@@ -57,8 +57,9 @@ companies
         └─ package_actions (which actions, which week / delivery date+time)
    └─ packages (curated, scheduled programs)
         └─ package_assignments (which users are enrolled, start date)
-             └─ user_actions (one row per user × action: status, reps, reflection)
-                   └─ habit_occurrences (individual rep schedule/completion rows, "Rule of 5")
+             └─ user_actions (one row per user × action: status, reflection)
+                   └─ action_reminders (weekly reminder cadence, one row per user_actions row)
+                         └─ action_reminder_completions ("mark done" per ISO week)
    └─ feed_events (per-user activity log; realtime-enabled at the DB level, not used by any live UI today)
 ```
 
@@ -81,7 +82,7 @@ The codebase contains several components and functions that exist, compile, and 
 | Item | State |
 |---|---|
 | Root `store.tsx`, `App.tsx`, `index.tsx`, `index.html`, `vite.config.ts`, root `constants.tsx`, root `types.ts` | Entire legacy Vite prototype; not run by `next dev/build/start`. |
-| `components/Onboarding.tsx` | Never rendered anywhere; its handler (`completeOnboarding`) is a no-op in the real store. **There is no onboarding flow for new users** in the shipped app. |
+| ~~`components/Onboarding.tsx`~~ | **No longer dead** — this is now the self-serve AI action onboarding wizard, shown once per user (gated on `profiles.self_onboarding_completed_at`). |
 | `components/Sidebar.tsx` | Never rendered in the real dashboard; contains hardcoded fake competitor names. |
 | `components/Nudgeboard.tsx` | Imported by the dashboard but never actually rendered in JSX — unreachable. Also, even if rendered, its data would only ever contain the *current user's own* events (see below), not a team feed. |
 | `lib/google-calendar.ts` | Unused. Real "calendar sync" is an emailed `.ics` attachment + a Google Calendar template link, not a live OAuth calendar integration. |
@@ -94,7 +95,7 @@ The codebase contains several components and functions that exist, compile, and 
 | `addActionsToPackage()` (`app/actions/packages.ts`) | Superseded by `configurePackageDeliveries()`, which is what the current package wizard actually calls. |
 | `app/api/cron/package-activation` | Explicit no-op, kept only for compatibility; not registered in `vercel.json`, so nothing invokes it. |
 | "Download Report" (admin dashboard) and "Nudge Strategy" (inactive-users card) buttons | No handler wired — decorative. |
-| "Rule of five" / `actions_per_week` fields on packages | Described in the old planning doc as package columns; **do not exist** in the schema. The "Rule of 5" that *is* real lives in the validation/habit-loop logic (`REP_GOAL = 5`), not on the package. |
+| "Rule of five" / `actions_per_week` fields on packages | Described in the old planning doc as package columns; **do not exist** in the schema. The in-app "Rule of 5" rep-loop/cementing mechanic itself has also been removed from the codebase (replaced by weekly `action_reminders`); the `action_status` enum still contains unused `habit_started`/`cemented` values for historical-data compatibility, but the app never produces them anymore. |
 | `components/AdminDashboard.tsx`, `components/Analytics.tsx` (root-level, imported only by the legacy `App.tsx`) | Not part of the live admin panel — the real admin UI is `components/admin/views/*`. Note: `components/Analytics.tsx` in the **user-facing** "Progress" tab is a *different* real, live component — only the root-import path via `App.tsx` is dead. |
 
 ## 7. Document index

@@ -81,7 +81,7 @@ export async function getCompanyAnalytics(companyId?: string): Promise<{
     }
 
     const total = (userActionRows ?? []).length;
-    const successful = (statusCounts["success"] ?? 0) + (statusCounts["cemented"] ?? 0) + (statusCounts["habit_started"] ?? 0);
+    const successful = statusCounts["success"] ?? 0;
     const adoptionRate = total > 0 ? Math.round((successful / total) * 100) : 0;
 
     return {
@@ -95,7 +95,7 @@ export async function getCompanyAnalytics(companyId?: string): Promise<{
   }
 }
 
-/** Behavioural journey funnel for Analytics tab. Uses admin client to read company users' user_actions and habit_occurrences. */
+/** Behavioural journey funnel for Analytics tab. Uses admin client to read company users' user_actions. */
 export async function getBehaviouralJourneyFunnel(companyId?: string): Promise<{
   error?: string;
   usersCount?: number;
@@ -105,18 +105,8 @@ export async function getBehaviouralJourneyFunnel(companyId?: string): Promise<{
   averageActionsPerUser?: number;
   /** Actions accepted by users (user_actions count). */
   intentionTotal?: number;
-  /** Accepted + habit occurrences (intention including habit loop accepts). */
-  intentionIncludingHabits?: number;
-  /** Actions validated (user_actions with status success/habit_started/cemented). */
+  /** Actions validated (user_actions with status success). */
   actionsValidated?: number;
-  /** Validated + completed habit_occurrences. */
-  actionsValidatedIncludingHabits?: number;
-  /** User actions converted to habits (habit_started + cemented). */
-  habitsTotal?: number;
-  /** Ongoing habits (habit_started). */
-  habitsOngoing?: number;
-  /** Cemented habits. */
-  habitsCemented?: number;
   /** Average percentage of deliveries per user that have at least one user_action row. */
   consistentlyActivePct?: number;
   /** Users whose deliveries are all active (at least one user_action for every delivered action). */
@@ -125,11 +115,7 @@ export async function getBehaviouralJourneyFunnel(companyId?: string): Promise<{
   actionReadersCount?: number;
   /** Percentage of users with at least one user_action row. */
   actionReadersPct?: number;
-  /** Users who have started a habit (habit_started or cemented). */
-  habitStartersCount?: number;
-  /** Percentage of users who have started a habit. */
-  habitStartersPct?: number;
-  /** Users who have validated an action (success or cemented). */
+  /** Users who have validated an action (success). */
   actionTakersCount?: number;
   /** Percentage of users who have validated an action. */
   actionTakersPct?: number;
@@ -162,8 +148,6 @@ export async function getBehaviouralJourneyFunnel(companyId?: string): Promise<{
     let consistentlyActiveUsersCount = 0;
     let actionReadersCount = 0;
     let actionReadersPct = 0;
-    let habitStartersCount = 0;
-    let habitStartersPct = 0;
     let actionTakersCount = 0;
     let actionTakersPct = 0;
     let inactiveUsersCount = 0;
@@ -212,8 +196,6 @@ export async function getBehaviouralJourneyFunnel(companyId?: string): Promise<{
 
     let intentionTotal = 0;
     let actionsValidated = 0;
-    let habitsOngoing = 0;
-    let habitsCemented = 0;
     if (userIds.length > 0) {
       const { data: uaRows } = await admin
         .from("user_actions")
@@ -224,7 +206,6 @@ export async function getBehaviouralJourneyFunnel(companyId?: string): Promise<{
       // Build per-user user_action aggregates for engagement analytics.
       const userActionIdsByUser = new Map<string, Set<string>>();
       const usersWithAnyAction = new Set<string>();
-      const habitStartersUsers = new Set<string>();
       const actionTakersUsers = new Set<string>();
 
       for (const row of uaRows ?? []) {
@@ -233,19 +214,8 @@ export async function getBehaviouralJourneyFunnel(companyId?: string): Promise<{
         existing.add(row.action_id);
         userActionIdsByUser.set(row.user_id, existing);
 
-        if (["success", "habit_started", "cemented"].includes(row.status)) {
-          actionsValidated += 1;
-        }
-        if (row.status === "habit_started") {
-          habitsOngoing += 1;
-          habitStartersUsers.add(row.user_id);
-        }
-        if (row.status === "cemented") {
-          habitsCemented += 1;
-          habitStartersUsers.add(row.user_id);
-          actionTakersUsers.add(row.user_id);
-        }
         if (row.status === "success") {
+          actionsValidated += 1;
           actionTakersUsers.add(row.user_id);
         }
       }
@@ -313,7 +283,6 @@ export async function getBehaviouralJourneyFunnel(companyId?: string): Promise<{
 
       actionReadersCount = usersWithAnyAction.size;
       inactiveUsersCount = Math.max(0, usersCount - actionReadersCount);
-      habitStartersCount = habitStartersUsers.size;
       actionTakersCount = actionTakersUsers.size;
 
       actionReadersPct =
@@ -324,48 +293,22 @@ export async function getBehaviouralJourneyFunnel(companyId?: string): Promise<{
         usersCount > 0
           ? Math.round((inactiveUsersCount / usersCount) * 100)
           : 0;
-      habitStartersPct =
-        usersCount > 0
-          ? Math.round((habitStartersCount / usersCount) * 100)
-          : 0;
       actionTakersPct =
         usersCount > 0
           ? Math.round((actionTakersCount / usersCount) * 100)
           : 0;
     }
 
-    let habitOccurrencesCount = 0;
-    let habitOccurrencesCompletedCount = 0;
-    if (userIds.length > 0) {
-      const { data: hoRows } = await admin
-        .from("habit_occurrences")
-        .select("id, completed_at")
-        .in("user_id", userIds);
-      habitOccurrencesCount = (hoRows ?? []).length;
-      habitOccurrencesCompletedCount = (hoRows ?? []).filter((r) => r.completed_at != null).length;
-    }
-
-    const intentionIncludingHabits = intentionTotal + habitOccurrencesCount;
-    const actionsValidatedIncludingHabits = actionsValidated + habitOccurrencesCompletedCount;
-    const habitsTotal = habitsOngoing + habitsCemented;
-
     return {
       usersCount,
       totalActionsDelivered,
       averageActionsPerUser,
       intentionTotal,
-      intentionIncludingHabits,
       actionsValidated,
-      actionsValidatedIncludingHabits,
-      habitsTotal,
-      habitsOngoing,
-      habitsCemented,
       consistentlyActivePct,
       consistentlyActiveUsersCount,
       actionReadersCount,
       actionReadersPct,
-      habitStartersCount,
-      habitStartersPct,
       actionTakersCount,
       actionTakersPct,
       inactiveUsersCount,
@@ -383,7 +326,6 @@ export interface EngagementLeaderboardEntry {
   streak: number;
   acceptedCount: number;
   validatedCount: number;
-  habitStartedCount: number;
   league: League;
 }
 
@@ -432,7 +374,6 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
     type Counters = {
       acceptedCount: number;
       validatedCount: number;
-      habitStartedCount: number;
     };
 
     const countersByUser = new Map<string, Counters>();
@@ -442,7 +383,6 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
       countersByUser.set(p.id, {
         acceptedCount: 0,
         validatedCount: 0,
-        habitStartedCount: 0,
       });
     }
 
@@ -459,31 +399,18 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
           {
             acceptedCount: 0,
             validatedCount: 0,
-            habitStartedCount: 0,
           };
 
         const status = row.status;
         const wasAccepted =
-          status === "scheduled" ||
-          status === "success" ||
-          status === "habit_started" ||
-          status === "cemented" ||
-          status === "failed";
+          status === "scheduled" || status === "success" || status === "failed";
 
         if (wasAccepted) {
           counters.acceptedCount += 1;
         }
 
-        if (
-          status === "success" ||
-          status === "habit_started" ||
-          status === "cemented"
-        ) {
+        if (status === "success") {
           counters.validatedCount += 1;
-        }
-
-        if (status === "habit_started" || status === "cemented") {
-          counters.habitStartedCount += 1;
         }
 
         countersByUser.set(row.user_id, counters);
@@ -502,7 +429,6 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
         ({
           acceptedCount: 0,
           validatedCount: 0,
-          habitStartedCount: 0,
         } as Counters);
 
       return {
@@ -512,7 +438,6 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
         streak: p.streak ?? 0,
         acceptedCount: counters.acceptedCount,
         validatedCount: counters.validatedCount,
-        habitStartedCount: counters.habitStartedCount,
         league: leagueFromIndex(p.league_index ?? 0),
       };
     });
@@ -529,9 +454,9 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
   }
 }
 
-const VALIDATED_STATUSES = ["success", "habit_started", "cemented"];
-const ACTION_ACCEPTED_STATUSES = ["scheduled", "success", "habit_started", "cemented", "failed"];
-const DRIVER_ACCEPTED_STATUSES = ["scheduled", "success", "habit_started", "cemented"];
+const VALIDATED_STATUSES = ["success"];
+const ACTION_ACCEPTED_STATUSES = ["scheduled", "success", "failed"];
+const DRIVER_ACCEPTED_STATUSES = ["scheduled", "success"];
 
 /** Per-action metrics for Action Performance table: accepted count, validated count, conversion %. */
 export interface ActionMetricEntry {
@@ -638,9 +563,9 @@ export interface DriversEffectivenessEntry {
 const THEME_ORDER: string[] = ["Collaboration", "Accountability", "Feedback", "Connection", "Coaching"];
 
 /** Statuses for weekly action chart: accepted = engaged (did not skip). */
-const WEEKLY_ACCEPTED_STATUSES = ["scheduled", "success", "habit_started", "cemented", "failed"];
+const WEEKLY_ACCEPTED_STATUSES = ["scheduled", "success", "failed"];
 /** Statuses for weekly action chart: successful = validated/completed. */
-const WEEKLY_SUCCESSFUL_STATUSES = ["success", "habit_started", "cemented"];
+const WEEKLY_SUCCESSFUL_STATUSES = ["success"];
 
 export interface WeeklyActionChartEntry {
   weekNumber: number;
@@ -767,7 +692,7 @@ export interface WeeklyPointsChartEntry {
 }
 
 /** Per-week total points earned by all users from actions delivered in that week.
- * Points are computed from user_actions (read, accept, success, habit, etc.) and attributed
+ * Points are computed from user_actions (read, accept, success, etc.) and attributed
  * to the earliest delivery week for each (user, action) slot to avoid double-counting. */
 export async function getWeeklyPointsChartData(companyId?: string): Promise<{
   entries: WeeklyPointsChartEntry[];
@@ -837,17 +762,13 @@ export async function getWeeklyPointsChartData(companyId?: string): Promise<{
 
     const { data: uaRows } = await admin
       .from("user_actions")
-      .select("user_id, action_id, status, completed_reps, is_calendar_synced")
+      .select("user_id, action_id, status, is_calendar_synced")
       .in("user_id", endUserIds);
 
-    const uaMap = new Map<
-      string,
-      { status: string; completed_reps: number; is_calendar_synced: boolean }
-    >();
+    const uaMap = new Map<string, { status: string; is_calendar_synced: boolean }>();
     for (const ua of uaRows ?? []) {
       uaMap.set(`${ua.user_id}|${ua.action_id}`, {
         status: ua.status,
-        completed_reps: ua.completed_reps ?? 0,
         is_calendar_synced: !!ua.is_calendar_synced,
       });
     }
@@ -857,18 +778,12 @@ export async function getWeeklyPointsChartData(companyId?: string): Promise<{
       const ua = uaMap.get(slotKey);
       if (!ua) continue;
 
-      const reps = Math.max(0, ua.completed_reps);
       const status = ua.status;
       const synced = ua.is_calendar_synced;
 
       let pts = 0;
       pts += getPointsForEvent("read");
-      const wasAccepted =
-        status === "scheduled" ||
-        status === "success" ||
-        status === "habit_started" ||
-        status === "cemented" ||
-        status === "failed";
+      const wasAccepted = status === "scheduled" || status === "success" || status === "failed";
       if (wasAccepted) {
         pts += getPointsForEvent("accept", synced);
       }
@@ -878,12 +793,8 @@ export async function getWeeklyPointsChartData(companyId?: string): Promise<{
       if (status === "failed") {
         pts += getPointsForEvent("inaction");
       }
-      pts += reps * getPointsForEvent("success");
-      if (reps > 0) {
-        pts += getPointsForEvent("start_habit");
-      }
-      if (status === "cemented") {
-        pts += getPointsForEvent("cemented_habit");
+      if (status === "success") {
+        pts += getPointsForEvent("success");
       }
 
       pointsByWeek.set(weekNum, (pointsByWeek.get(weekNum) ?? 0) + pts);

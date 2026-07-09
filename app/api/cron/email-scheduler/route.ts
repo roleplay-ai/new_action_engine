@@ -5,11 +5,14 @@ import { sendTemplateToUsers } from "@/lib/email-send";
 import { type ScheduleType } from "@/app/actions/email-schedule";
 import { computeNextRunAt } from "@/lib/schedule-utils";
 import { buildWeeklyEmailTemplateDataForUser } from "@/lib/weekly-email";
+import { getDueRemindersByUser, buildActionReminderTemplateData } from "@/lib/action-reminder-email";
 
 /**
- * Vercel Cron handler — runs every hour (see vercel.json).
- * Picks up all active email_schedules where next_run_at <= now,
- * sends via SendGrid, then advances (or deactivates) each schedule.
+ * Vercel Cron handler — runs once daily (see vercel.json for the exact cron expression).
+ * Picks up all active email_schedules where next_run_at <= now, sends via SendGrid,
+ * then advances (or deactivates) each schedule. Also picks up due personal
+ * action_reminders (one summary email per user, grouping all their due reminders),
+ * then advances each reminder's next_run_at by 7 days.
  *
  * Auth: checks Authorization: Bearer <CRON_SECRET> header (set by Vercel
  * automatically when CRON_SECRET env var is present) or ?secret= query param
@@ -52,10 +55,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: fetchError.message }, { status: 500 });
   }
 
-  if (!schedules || schedules.length === 0) {
-    return NextResponse.json({ ok: true, message: "No schedules due", processed: 0 });
-  }
-
   const summary: {
     scheduleId: string;
     name: string;
@@ -64,7 +63,7 @@ export async function GET(request: Request) {
     nextRunAt: string | null;
   }[] = [];
 
-  for (const schedule of schedules) {
+  for (const schedule of schedules ?? []) {
     const userIds: string[] = schedule.user_ids ?? [];
     const scheduleType = String(schedule.schedule_type ?? "").toLowerCase();
 
@@ -142,9 +141,48 @@ export async function GET(request: Request) {
     });
   }
 
+  // ── Personal action reminders (weekly, one email per user) ─────────────────
+  const reminderTemplateId = process.env.SENDGRID_ACTION_REMINDER_TEMPLATE_ID;
+  let remindersProcessed = 0;
+  if (reminderTemplateId) {
+    const dueByUser = await getDueRemindersByUser(nowIso);
+
+    for (const [userId, dueRows] of dueByUser) {
+      const templateData = await buildActionReminderTemplateData(userId, dueRows, { baseUrl });
+      if (!templateData.actions.length) continue;
+
+      const results = await sendTemplateToUsers({
+        userIds: [userId],
+        templateId: reminderTemplateId,
+        fromEmail,
+        baseUrl,
+        sentBy: null,
+        extraTemplateData: templateData as unknown as Record<string, unknown>,
+      });
+
+      const sent = results.some((r) => r.success);
+
+      for (const row of dueRows) {
+        const nextRunAt = new Date(row.next_run_at);
+        nextRunAt.setUTCDate(nextRunAt.getUTCDate() + 7);
+        await admin
+          .from("action_reminders")
+          .update({
+            last_sent_at: nowIso,
+            next_run_at: nextRunAt.toISOString(),
+            updated_at: nowIso,
+          })
+          .eq("id", row.id);
+      }
+
+      if (sent) remindersProcessed += 1;
+    }
+  }
+
   return NextResponse.json({
     ok: true,
-    processed: schedules.length,
+    processed: (schedules ?? []).length,
     results: summary,
+    remindersProcessed,
   });
 }

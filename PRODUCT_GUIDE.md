@@ -22,28 +22,28 @@ Once an action's scheduled time has passed, it enters the Validation Queue.
 *   **Verify Impact**: Users must confirm if they actually performed the action.
 *   **Impact Notes**: An optional reflection field to document the qualitative results of the nudge.
 
-### 4. The Habit Loop (Repetition Engine)
-The engine identifies actions that shouldn't be one-offs.
-*   **Rep Loops**: Upon successful validation, users can be prompted to start a "Habit Loop."
-*   **Cementing**: An action must be successfully validated 5 times (configurable) before it is marked as "Cemented"—turning a behavior into a permanent trait.
+### 4. Self-Serve AI Onboarding & Weekly Reminders
+Instead of only receiving admin-assigned actions, a user can generate their own.
+*   **Two Questions**: A short wizard asks what training the user completed and which focus areas they want to work on.
+*   **AI-Generated Drafts**: Gemini Flash proposes a handful of tailored micro-actions, shown alongside example actions for context; the user can edit or discard each one before accepting.
+*   **Weekly Reminders**: Instead of the old multi-rep "Habit Loop," an accepted action gets a standing weekly reminder — pick how many times a week you intend to do it, and get one summary email every Monday with a one-click "mark done" for that week.
 
 ---
 
 ## 📊 Behavioral Analytics
 
 ### The Engagement Funnel
-The platform tracks users across four distinct behavioral phases:
+The platform tracks users across three distinct behavioral phases:
 1.  **Knowledge**: The user has read the action.
 2.  **Intention**: The user has scheduled the action.
-3.  **Action**: The user has successfully validated the first completion.
-4.  **Habit**: The user has completed the full "Rep Loop."
+3.  **Action**: The user has successfully validated the completion.
 
 ### The Effort Ledger
 A transparent breakdown of how "Behavioral Points" (XP) are earned:
 *   **Acceptance**: 3 XP
 *   **Honesty Skip**: 1 XP (Encourages engagement even when not acting)
 *   **Successful Validation**: 5 XP
-*   **Habit Cementing**: 10 XP
+*   **Weekly Reminder Check-In**: 5 XP (marking a standing reminder done for the week)
 *   **Streaks**: Points are multiplied by the user's weekly consistency.
 
 ---

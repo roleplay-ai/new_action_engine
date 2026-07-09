@@ -3,7 +3,7 @@ import React, { useEffect } from 'react';
 import { useEngine } from '../lib/store';
 import {
   BookOpen, ThumbsUp, XCircle, CheckCircle2,
-  Flag, RefreshCw, AlertCircle,
+  Flag, AlertCircle,
   Shield, Medal, Star, Crown, Gem, Mail,
 } from 'lucide-react';
 import Leaderboard from './Leaderboard';
@@ -19,23 +19,17 @@ const Analytics: React.FC = () => {
 
   const received = actionIdsInAssignedPackages.size;
   const read = userActions.filter((ua) => actionIdsInAssignedPackages.has(ua.actionId)).length;
-  const accepted = userActions.filter((ua) =>
-    ['success', 'habit_started', 'scheduled', 'cemented'].includes(ua.status)
-  ).length;
+  const accepted = userActions.filter((ua) => ['success', 'scheduled'].includes(ua.status)).length;
   const skipped = userActions.filter((ua) => ua.status === 'skipped').length;
-  const validatedSuccess = userActions.reduce((sum, ua) => sum + (ua.completedReps ?? 0), 0);
+  const validatedSuccess = userActions.filter((ua) => ua.status === 'success').length;
   const attemptFailure = userActions.filter((ua) => ua.status === 'failed').length;
   const ongoingQuest = userActions.filter((ua) => ua.status === 'scheduled').length;
-  const acquiredHabits = userActions.filter((ua) => ua.status === 'cemented').length;
-  const habitLoopActive = userActions.filter((ua) => ua.status === 'habit_started').length;
 
-  const stats = { received, read, accepted, skipped, validatedSuccess, attemptFailure, ongoingQuest, acquiredHabits, habitLoopActive, streak: profile.streak };
+  const stats = { received, read, accepted, skipped, validatedSuccess, attemptFailure, ongoingQuest, streak: profile.streak };
 
   const knowledgePct = stats.received > 0 ? Math.round((stats.read / stats.received) * 100) : 0;
   const intentionPct = stats.received > 0 ? Math.round((stats.accepted / stats.received) * 100) : 0;
-  const actionsWithAnySuccess = userActions.filter((ua) => (ua.completedReps ?? 0) > 0 || ua.status === 'success').length;
-  const actionPct = stats.accepted > 0 ? Math.round((actionsWithAnySuccess / stats.accepted) * 100) : 0;
-  const habitPct = actionsWithAnySuccess > 0 ? Math.round((stats.acquiredHabits / actionsWithAnySuccess) * 100) : 0;
+  const actionPct = stats.accepted > 0 ? Math.round((validatedSuccess / stats.accepted) * 100) : 0;
 
   const currentLeague = getLeague(profile.totalPoints);
   const leagueThresholds = [
@@ -185,7 +179,6 @@ const Analytics: React.FC = () => {
             <FunnelRow label="Knowledge" percentage={knowledgePct} color="var(--color-text-muted)" />
             <FunnelRow label="Intention" percentage={intentionPct} color="var(--dodger-blue)" />
             <FunnelRow label="Action" percentage={actionPct} color="var(--bright-amber)" />
-            <FunnelRow label="Habit" percentage={habitPct} color="var(--majorelle-blue)" />
           </div>
         </div>
 
@@ -288,7 +281,7 @@ const Analytics: React.FC = () => {
       </section>
 
       {/* ── Phase breakdown ── */}
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
         <PhaseCard title="Phase 1: Knowledge" percentage={knowledgePct} tagVariant="tag--yellow">
           <StatItem icon={Mail} label="Received Actions" value={stats.received} iconColor="var(--color-text-muted)" />
           <StatItem icon={BookOpen} label="Read Actions" value={stats.read} iconColor="var(--dodger-blue)" />
@@ -303,11 +296,6 @@ const Analytics: React.FC = () => {
           <StatItem icon={CheckCircle2} label="Validated Success" value={stats.validatedSuccess} iconColor="var(--emerald)" />
           <StatItem icon={AlertCircle} label="Attempt Failure" value={stats.attemptFailure} iconColor="var(--hot-fuchsia)" />
           <StatItem icon={Flag} label="Ongoing Quest" value={stats.ongoingQuest} iconColor="var(--dodger-blue)" />
-        </PhaseCard>
-
-        <PhaseCard title="Phase 4: Habit" percentage={habitPct} tagVariant="tag--purple">
-          <StatItem icon={Flag} label="Acquired Habits" value={stats.acquiredHabits} iconColor="var(--emerald)" />
-          <StatItem icon={RefreshCw} label="Habit Loop Active" value={stats.habitLoopActive} iconColor="var(--majorelle-blue)" />
         </PhaseCard>
       </section>
 

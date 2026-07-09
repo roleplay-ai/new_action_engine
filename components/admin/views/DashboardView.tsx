@@ -5,7 +5,6 @@ import {
   Eye,
   MousePointer2,
   CheckCircle2,
-  RefreshCw,
   Download,
   Trophy,
   AlertCircle,
@@ -22,9 +21,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
-  Cell,
-  PieChart,
-  Pie,
 } from "recharts";
 import SkillProgressBars from "@/components/admin/SkillProgressBars";
 import {
@@ -49,18 +45,11 @@ interface FunnelData {
   totalActionsDelivered: number;
   averageActionsPerUser: number;
   intentionTotal: number;
-  intentionIncludingHabits: number;
   actionsValidated: number;
-  actionsValidatedIncludingHabits: number;
-  habitsTotal: number;
-  habitsOngoing: number;
-  habitsCemented: number;
   consistentlyActivePct: number;
   consistentlyActiveUsersCount: number;
   actionReadersCount: number;
   actionReadersPct: number;
-  habitStartersCount: number;
-  habitStartersPct: number;
   actionTakersCount: number;
   actionTakersPct: number;
   inactiveUsersCount: number;
@@ -98,12 +87,6 @@ export function DashboardView({ companyId }: DashboardViewProps) {
           color: "#2ecc71",
         },
         {
-          label: "HABIT STARTERS",
-          sub: "(HABIT STARTED)",
-          value: `${funnel.habitStartersPct}%`,
-          color: "#FFCE00",
-        },
-        {
           label: "ACTION TAKERS",
           sub: "(VALIDATED)",
           value: `${funnel.actionTakersPct}%`,
@@ -138,19 +121,11 @@ export function DashboardView({ companyId }: DashboardViewProps) {
             totalActionsDelivered: res.totalActionsDelivered ?? 0,
             averageActionsPerUser: res.averageActionsPerUser ?? 0,
             intentionTotal: res.intentionTotal ?? 0,
-            intentionIncludingHabits: res.intentionIncludingHabits ?? 0,
             actionsValidated: res.actionsValidated ?? 0,
-            actionsValidatedIncludingHabits:
-              res.actionsValidatedIncludingHabits ?? 0,
-            habitsTotal: res.habitsTotal ?? 0,
-            habitsOngoing: res.habitsOngoing ?? 0,
-            habitsCemented: res.habitsCemented ?? 0,
             consistentlyActivePct: res.consistentlyActivePct ?? 0,
             consistentlyActiveUsersCount: res.consistentlyActiveUsersCount ?? 0,
             actionReadersCount: res.actionReadersCount ?? 0,
             actionReadersPct: res.actionReadersPct ?? 0,
-            habitStartersCount: res.habitStartersCount ?? 0,
-            habitStartersPct: res.habitStartersPct ?? 0,
             actionTakersCount: res.actionTakersCount ?? 0,
             actionTakersPct: res.actionTakersPct ?? 0,
             inactiveUsersCount: res.inactiveUsersCount ?? 0,
@@ -225,12 +200,6 @@ export function DashboardView({ companyId }: DashboardViewProps) {
 
   const top3Adoption = adoptionIndexMetrics.slice(0, 3);
   const bottom3Resistance = adoptionIndexMetrics.slice(-3).reverse();
-  const habitPieData = funnel
-    ? [
-        { name: "Ongoing", value: funnel.habitsOngoing, color: "#FFCE00" },
-        { name: "Cemented", value: funnel.habitsCemented, color: "#22C55E" },
-      ].filter((d) => d.value > 0)
-    : [];
 
   const tooltipStyle = {
     borderRadius: "12px",
@@ -301,7 +270,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               </span>
             </div>
             <p className="text-xs mt-2 font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>
-              Behavioral champions building core habits
+              Behavioral champions staying engaged with their actions
             </p>
           </div>
 
@@ -359,12 +328,11 @@ export function DashboardView({ companyId }: DashboardViewProps) {
         )}
 
         {funnel && !funnelLoading && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             {[
               { icon: <Eye size={18} strokeWidth={2} />, color: "#A855F7", label: "Knowledge", sublabel: "View rate", value: funnel.totalActionsDelivered.toLocaleString(), detail: `Avg ${funnel.averageActionsPerUser} actions/user` },
-              { icon: <MousePointer2 size={18} strokeWidth={2} />, color: "#F97316", label: "Intention", sublabel: "Accepted", value: funnel.intentionTotal.toLocaleString(), detail: `${funnel.intentionIncludingHabits.toLocaleString()} incl. habits` },
-              { icon: <CheckCircle2 size={18} strokeWidth={2} />, color: "#3B82F6", label: "Actions", sublabel: "Validated", value: funnel.actionsValidated.toLocaleString(), detail: `${funnel.actionsValidatedIncludingHabits.toLocaleString()} incl. habits` },
-              { icon: <RefreshCw size={18} strokeWidth={2} />, color: "#22C55E", label: "Habits", sublabel: "Repetitions", value: funnel.habitsTotal.toLocaleString(), detail: `Ongoing: ${funnel.habitsOngoing} · Cemented: ${funnel.habitsCemented}` },
+              { icon: <MousePointer2 size={18} strokeWidth={2} />, color: "#F97316", label: "Intention", sublabel: "Accepted", value: funnel.intentionTotal.toLocaleString(), detail: `${funnel.actionTakersCount.toLocaleString()} action takers` },
+              { icon: <CheckCircle2 size={18} strokeWidth={2} />, color: "#3B82F6", label: "Actions", sublabel: "Validated", value: funnel.actionsValidated.toLocaleString(), detail: `${funnel.actionReadersCount.toLocaleString()} readers` },
             ].map((card) => (
               <div key={card.label} className="bg-white rounded-xl p-4 flex flex-col gap-3" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
                 <div className="flex items-center justify-between">
@@ -454,7 +422,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
       </div>
 
       {/* ── CHARTS SECTION ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
 
         {/* Weekly Actions bar chart */}
         <section className="bg-white rounded-2xl p-5" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)" }}>
@@ -492,48 +460,6 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                   <Bar dataKey="Skipped" fill="#FFCE00" barSize={10} radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Successful" fill="#3699FC" barSize={10} radius={[4, 4, 0, 0]} />
                 </ReBarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </section>
-
-        {/* Habits by Phase pie chart */}
-        <section className="bg-white rounded-2xl p-5" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)" }}>
-          <h3 className="text-base font-semibold" style={{ color: "var(--color-text-primary)" }}>
-            Habits by Phase
-          </h3>
-          <p className="text-xs font-medium mt-0.5 mb-4" style={{ color: "var(--color-text-muted)" }}>
-            Ongoing vs cemented
-          </p>
-          <div className="h-[260px] w-full">
-            {funnelLoading ? emptyState("Loading…")
-              : habitPieData.length === 0 ? emptyState("No habit data yet")
-              : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={habitPieData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={95}
-                    innerRadius={45}
-                    strokeWidth={2}
-                    stroke="white"
-                    paddingAngle={3}
-                    label={({ name, percent }) => `${name} ${Math.round((percent ?? 0) * 100)}%`}
-                    labelLine={{ stroke: "var(--color-border)", strokeWidth: 1 }}
-                  >
-                    {habitPieData.map((entry, i) => (
-                      <Cell key={`cell-${i}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend
-                    wrapperStyle={{ fontSize: "12px", fontWeight: 600 }}
-                  />
-                </PieChart>
               </ResponsiveContainer>
             )}
           </div>

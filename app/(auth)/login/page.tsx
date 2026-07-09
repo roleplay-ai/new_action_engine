@@ -58,14 +58,14 @@ export default function LoginPage() {
             className="text-lg font-medium max-w-sm"
             style={{ color: "rgba(255,255,255,0.5)", lineHeight: "var(--leading-relaxed)" }}
           >
-            Turn behavioral insights into repeatable micro-actions. Schedule, validate, and cement habits.
+            Turn behavioral insights into repeatable micro-actions. Schedule, validate, and stay on track with reminders.
           </p>
 
           {/* Feature list */}
           <ul className="feature-list mt-10" style={{ background: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.1)" }}>
             {[
               "Develop skills through concrete micro-actions",
-              "Accept challenges and build proven habits",
+              "Get AI-generated actions tailored to your training",
               "Track progress with the behavioral funnel",
             ].map((text) => (
               <li key={text} className="feature-list__item">

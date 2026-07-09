@@ -52,18 +52,6 @@ export const ACTION_DECK: ActionCard[] = [
   }
 ];
 
-export const POINT_VALUES = {
-  READ: 1,
-  ACCEPT: 3,
-  HONESTY_SKIP: 1,
-  CALENDAR_SYNC: 2,
-  SUCCESS: 5,
-  START_HABIT: 7,
-  CEMENTED_HABIT: 10,
-  WEEKLY_STREAK: 10,
-  INACTION_DEDUCTION: -1,
-};
-
 export const getLeague = (points: number): League => {
   if (points >= 200) return League.Diamond;
   if (points >= 100) return League.Gold;

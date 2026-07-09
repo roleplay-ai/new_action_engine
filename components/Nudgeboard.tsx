@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useEngine } from '../lib/store';
-import { Heart, User, CheckCircle, Zap, AlertCircle, Award, Repeat, Share2 } from 'lucide-react';
+import { Heart, User, CheckCircle, Zap, AlertCircle, Share2 } from 'lucide-react';
 
 const Nudgeboard: React.FC = () => {
   const { feed, likeFeedItem, profile } = useEngine();
@@ -24,23 +24,7 @@ const Nudgeboard: React.FC = () => {
           icon: <Zap size={12} strokeWidth={3} />,
           prefix: 'committed to'
         };
-      case 'CEMENTED': 
-        return { 
-          label: 'Mastered', 
-          color: 'text-orange-600', 
-          bg: 'bg-orange-50',
-          icon: <Award size={12} strokeWidth={3} />,
-          prefix: 'cemented'
-        };
-      case 'HABIT_STARTED': 
-        return { 
-          label: 'Building', 
-          color: 'text-purple-600', 
-          bg: 'bg-purple-50',
-          icon: <Repeat size={12} strokeWidth={3} />,
-          prefix: 'started building'
-        };
-      case 'DECLINED': 
+      case 'DECLINED':
         return { 
           label: 'Skip', 
           color: 'text-gray-400', 

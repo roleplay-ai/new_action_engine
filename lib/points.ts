@@ -1,7 +1,7 @@
 /**
  * Effort Ledger - Point rules (Product Guide)
- * Acceptance 3 XP, Honesty Skip 1 XP, Success 5 XP, Habit Cementing 10 XP,
- * Calendar Sync +2 XP, Start Habit 7 XP, Streaks (weekly), Inaction -1 XP
+ * Acceptance 3 XP, Honesty Skip 1 XP, Success 5 XP,
+ * Calendar Sync +2 XP, Streaks (weekly), Inaction -1 XP
  */
 
 export const POINT_VALUES = {
@@ -9,9 +9,7 @@ export const POINT_VALUES = {
   ACCEPT: 3,
   HONESTY_SKIP: 1,
   SUCCESS: 5,
-  CEMENTED_HABIT: 10,
   CALENDAR_SYNC: 2,
-  START_HABIT: 7,
   // Weekly streak is disabled for now by product decision.
   WEEKLY_STREAK: 0,
   INACTION_DEDUCTION: -1,
@@ -22,9 +20,7 @@ export type PointEvent =
   | "accept"
   | "honesty_skip"
   | "success"
-  | "cemented_habit"
   | "calendar_sync"
-  | "start_habit"
   | "weekly_streak"
   | "inaction";
 
@@ -39,12 +35,8 @@ export function getPointsForEvent(event: PointEvent, hasCalendarSync = false): n
       return POINT_VALUES.HONESTY_SKIP;
     case "success":
       return POINT_VALUES.SUCCESS;
-    case "cemented_habit":
-      return POINT_VALUES.CEMENTED_HABIT;
     case "calendar_sync":
       return POINT_VALUES.CALENDAR_SYNC;
-    case "start_habit":
-      return POINT_VALUES.START_HABIT;
     case "weekly_streak":
       return POINT_VALUES.WEEKLY_STREAK;
     case "inaction":

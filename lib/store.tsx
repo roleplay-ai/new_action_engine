@@ -9,12 +9,11 @@ import React, {
   useMemo,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { UserProfile, UserAction, FeedItem, ActionCard, HabitOccurrence } from "./types";
+import { UserProfile, UserAction, FeedItem, ActionCard } from "./types";
 import {
   scheduleAction as scheduleActionServer,
   declineAction as declineActionServer,
   acceptActionWithoutSchedule as acceptActionWithoutScheduleServer,
-  scheduleHabitLoop as scheduleHabitLoopServer,
 } from "@/app/actions/user-actions";
 import { validateAction as validateActionServer } from "@/app/actions/validate-action";
 import { syncMyTotalPointsFromHistory } from "@/app/actions/points";
@@ -80,7 +79,8 @@ interface EngineContextType {
   actionIdsInAssignedPackages: Set<string>;
   /** Name of the first currently-active package assigned to the user. */
   assignedPackageName: string | null;
-  habitOccurrences: HabitOccurrence[];
+  /** Null until the user completes the self-serve AI action onboarding wizard. */
+  selfOnboardingCompletedAt: string | null;
   feed: FeedItem[];
   isLoading: boolean;
   hasCompany: boolean;
@@ -91,9 +91,7 @@ interface EngineContextType {
   acceptActionWithoutSchedule: (actionId: string) => Promise<{ error?: string }>;
   declineAction: (actionId: string) => Promise<void>;
   retryAction: (actionId: string) => Promise<void>;
-  markHabit: (userActionId: string) => Promise<void>;
   validateAction: (userActionId: string, success: boolean, reflection?: string) => Promise<void>;
-  scheduleHabitLoop: (userActionId: string, track: "daily" | "weekly", timeIST?: string, weekdayIST?: number) => Promise<void>;
   addFeedItem: (type: FeedItem["type"], actionTitle: string) => Promise<void>;
   likeFeedItem: (id: string) => Promise<void>;
   addNewAction: (action: Omit<ActionCard, "id">) => Promise<void>;
@@ -118,15 +116,13 @@ function mapDbUserAction(row: {
   status: string;
   scheduled_at: string | null;
   accepted_at: string | null;
-  completed_reps: number;
-  reps_remaining: number | null;
   reflection: string | null;
   is_calendar_synced: boolean;
 }): UserAction {
   // Convert UTC timestamps to IST for display
   const scheduledIST = row.scheduled_at ? utcToISTDateTime(row.scheduled_at) : null;
   const acceptedIST = row.accepted_at ? utcToISTDateTime(row.accepted_at) : null;
-  
+
   return {
     id: row.id,
     actionId: row.action_id,
@@ -138,28 +134,7 @@ function mapDbUserAction(row: {
     acceptedDate: acceptedIST?.date,
     acceptedTime: acceptedIST?.time,
     isCalendarSynced: row.is_calendar_synced ?? false,
-    habitRepsRemaining: row.reps_remaining ?? undefined,
-    completedReps: row.completed_reps ?? 0,
     reflection: row.reflection ?? undefined,
-  };
-}
-
-function mapDbHabitOccurrence(row: {
-  id: string;
-  action_id: string;
-  user_action_id: string;
-  scheduled_at: string;
-  completed_at: string | null;
-}): HabitOccurrence {
-  const ist = utcToISTDateTime(row.scheduled_at);
-  return {
-    id: row.id,
-    actionId: row.action_id,
-    userActionId: row.user_action_id,
-    scheduledAt: row.scheduled_at,
-    scheduledDate: ist.date,
-    scheduledTime: ist.time,
-    completedAt: row.completed_at ?? undefined,
   };
 }
 
@@ -190,7 +165,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
   const [actionIdsInFuturePackages, setActionIdsInFuturePackages] = useState<Set<string>>(new Set());
   const [actionIdsInAssignedPackages, setActionIdsInAssignedPackages] = useState<Set<string>>(new Set());
   const [assignedPackageName, setAssignedPackageName] = useState<string | null>(null);
-  const [habitOccurrences, setHabitOccurrences] = useState<HabitOccurrence[]>([]);
+  const [selfOnboardingCompletedAt, setSelfOnboardingCompletedAt] = useState<string | null>(null);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [hasCompany, setHasCompany] = useState(false);
 
@@ -223,6 +198,16 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       });
     }
 
+    // Separate, best-effort query: self_onboarding_completed_at is a newer column
+    // (migration 021) — kept isolated so a not-yet-migrated DB doesn't break the
+    // core profile fetch above.
+    const { data: onboardingRow } = await supabase
+      .from("profiles")
+      .select("self_onboarding_completed_at")
+      .eq("id", user.id)
+      .maybeSingle();
+    setSelfOnboardingCompletedAt((onboardingRow as any)?.self_onboarding_completed_at ?? null);
+
     const { data: profRow } = await supabase
       .from("profiles")
       .select("company_id")
@@ -245,13 +230,6 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       .select("*")
       .eq("user_id", user.id);
     setUserActions((uas ?? []).map(mapDbUserAction));
-
-    const { data: occs } = await supabase
-      .from("habit_occurrences")
-      .select("id, action_id, user_action_id, scheduled_at, completed_at")
-      .eq("user_id", user.id)
-      .is("completed_at", null);
-    setHabitOccurrences((occs ?? []).map(mapDbHabitOccurrence));
 
     const futureIds = new Set<string>();
     const assignedIds = new Set<string>();
@@ -387,15 +365,8 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
 
   const retryAction = async () => { };
 
-  const markHabit = async () => { };
-
   const validateAction = async (userActionId: string, success: boolean, reflection?: string) => {
     const { error } = await validateActionServer(userActionId, success, reflection);
-    if (!error) await refetch();
-  };
-
-  const scheduleHabitLoop = async (userActionId: string, track: "daily" | "weekly", timeIST?: string, weekdayIST?: number) => {
-    const { error } = await scheduleHabitLoopServer({ userActionId, track, timeIST, weekdayIST });
     if (!error) await refetch();
   };
 
@@ -407,7 +378,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       actionIdsInFuturePackages,
       actionIdsInAssignedPackages,
       assignedPackageName,
-      habitOccurrences,
+      selfOnboardingCompletedAt,
       feed,
       isLoading,
       hasCompany,
@@ -418,14 +389,12 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       acceptActionWithoutSchedule,
       declineAction,
       retryAction,
-      markHabit,
       validateAction,
-      scheduleHabitLoop,
       addFeedItem,
       likeFeedItem,
       addNewAction,
     }),
-    [profile, userActions, allActions, actionIdsInFuturePackages, actionIdsInAssignedPackages, habitOccurrences, feed, isLoading, hasCompany, refetch]
+    [profile, userActions, allActions, actionIdsInFuturePackages, actionIdsInAssignedPackages, selfOnboardingCompletedAt, feed, isLoading, hasCompany, refetch]
   );
 
   return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;

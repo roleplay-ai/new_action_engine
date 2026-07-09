@@ -5,7 +5,6 @@ import { getPointsForEvent, getLeagueIndexFromPoints } from "@/lib/points";
 
 type UserActionRow = {
   status: string;
-  completed_reps: number | null;
   is_calendar_synced: boolean | null;
 };
 
@@ -22,16 +21,20 @@ export async function syncMyTotalPointsFromHistory(): Promise<{ error?: string; 
 
   const { data: userActions, error: actionsError } = await supabase
     .from("user_actions")
-    .select("status, completed_reps, is_calendar_synced")
+    .select("status, is_calendar_synced")
     .eq("user_id", user.id);
 
   if (actionsError) {
     return { error: actionsError.message };
   }
 
+  const { count: reminderCompletions } = await supabase
+    .from("action_reminder_completions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id);
+
   let total = 0;
   for (const ua of (userActions ?? []) as UserActionRow[]) {
-    const reps = Math.max(0, ua.completed_reps ?? 0);
     const status = ua.status;
     const synced = !!ua.is_calendar_synced;
 
@@ -39,12 +42,7 @@ export async function syncMyTotalPointsFromHistory(): Promise<{ error?: string; 
     total += getPointsForEvent("read");
 
     // Accept is one-time if action was accepted at any point.
-    const wasAccepted =
-      status === "scheduled" ||
-      status === "success" ||
-      status === "habit_started" ||
-      status === "cemented" ||
-      status === "failed";
+    const wasAccepted = status === "scheduled" || status === "success" || status === "failed";
     if (wasAccepted) {
       total += getPointsForEvent("accept", synced);
     }
@@ -59,19 +57,14 @@ export async function syncMyTotalPointsFromHistory(): Promise<{ error?: string; 
       total += getPointsForEvent("inaction");
     }
 
-    // Each validated success adds +5.
-    total += reps * getPointsForEvent("success");
-
-    // Habit started bonus is one-time if user has at least one success.
-    if (reps > 0) {
-      total += getPointsForEvent("start_habit");
-    }
-
-    // Habit acquired bonus on cemented status.
-    if (status === "cemented") {
-      total += getPointsForEvent("cemented_habit");
+    // Validated success is one-time per action.
+    if (status === "success") {
+      total += getPointsForEvent("success");
     }
   }
+
+  // Weekly reminder "mark done" check-ins, one success-equivalent each.
+  total += (reminderCompletions ?? 0) * getPointsForEvent("success");
 
   total = Math.max(0, total);
 

@@ -15,7 +15,6 @@ interface UserEngagementRow {
   streak: number;
   acceptedCount: number;
   validatedCount: number;
-  habitStartedCount: number;
   league: League;
 }
 
@@ -58,7 +57,6 @@ export function EngagementView({ companyId }: EngagementViewProps) {
             streak: e.streak,
             acceptedCount: e.acceptedCount,
             validatedCount: e.validatedCount,
-            habitStartedCount: e.habitStartedCount,
             league: e.league,
           })
         );
@@ -151,7 +149,6 @@ export function EngagementView({ companyId }: EngagementViewProps) {
                   </th>
                   <th className="px-2 py-3 text-xs font-semibold text-center">Accepted</th>
                   <th className="px-2 py-3 text-xs font-semibold text-center">Validated</th>
-                  <th className="px-2 py-3 text-xs font-semibold text-center">Habits Started</th>
                   <th className="px-2 py-3 text-xs font-semibold text-center">Streak</th>
                   <th className="px-2 py-3 text-xs font-semibold text-center">League / Pts</th>
                 </tr>
@@ -186,9 +183,6 @@ export function EngagementView({ companyId }: EngagementViewProps) {
                     </td>
                     <td className="px-2 py-2.5 text-center">
                       <span className="text-xs font-semibold text-green-600">{user.validatedCount}</span>
-                    </td>
-                    <td className="px-2 py-2.5 text-center">
-                      <span className="text-xs font-semibold text-purple-600">{user.habitStartedCount}</span>
                     </td>
                     <td className="px-2 py-2.5 text-center">
                       <div className="flex items-center gap-1 justify-center">

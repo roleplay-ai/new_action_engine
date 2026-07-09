@@ -4,8 +4,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getPointsForEvent } from "@/lib/points";
 
-const REP_GOAL = 5; // Rule of 5
-
 async function addPointsToProfile(userId: string, delta: number): Promise<void> {
   if (!delta) return;
   const supabase = await createClient();
@@ -38,7 +36,7 @@ export async function validateAction(
 
   const { data: ua, error: fetchError } = await supabase
     .from("user_actions")
-    .select("id, action_id, status, completed_reps, reps_remaining")
+    .select("id, action_id, status")
     .eq("id", userActionId)
     .eq("user_id", user.id)
     .single();
@@ -70,62 +68,21 @@ export async function validateAction(
     return {};
   }
 
-  // Success path - Habit Loop (Rule of 5)
-  const isHabit = ua.status === "habit_started";
-  const completedReps = (ua.completed_reps ?? 0) + 1;
-  // reps_remaining = how many more validations until cement (start 5, decrement each success)
-  const currentRepsRemaining = ua.reps_remaining ?? REP_GOAL;
-  const newRepsRemaining = isHabit ? Math.max(0, currentRepsRemaining - 1) : REP_GOAL - 1;
-  const isCemented = newRepsRemaining <= 0;
-
-  const newStatus = isCemented ? "cemented" : "habit_started";
-  const isFirstHabit = !isHabit; // transitioning from scheduled to habit_started
-
-  let points = getPointsForEvent("success");
-  if (isCemented) {
-    points += getPointsForEvent("cemented_habit");
-  } else if (isFirstHabit) {
-    points += getPointsForEvent("start_habit");
-  }
-
   await supabase
     .from("user_actions")
     .update({
-      status: newStatus,
+      status: "success",
       reflection: reflection || null,
-      completed_reps: completedReps,
-      reps_remaining: isCemented ? null : newRepsRemaining,
       updated_at: new Date().toISOString(),
     })
     .eq("id", userActionId);
 
-  // Mark the due habit occurrence as completed (so it drops from the queue)
-  if (success && isHabit) {
-    const nowISO = new Date().toISOString();
-    const { data: dueOcc } = await supabase
-      .from("habit_occurrences")
-      .select("id")
-      .eq("user_action_id", userActionId)
-      .is("completed_at", null)
-      .lte("scheduled_at", nowISO)
-      .order("scheduled_at", { ascending: true })
-      .limit(1)
-      .single();
-    if (dueOcc?.id) {
-      await supabase
-        .from("habit_occurrences")
-        .update({ completed_at: nowISO })
-        .eq("id", dueOcc.id);
-    }
-  }
+  await addPointsToProfile(user.id, getPointsForEvent("success"));
 
-  await addPointsToProfile(user.id, points);
-
-  const feedType = isCemented ? "CEMENTED" : isFirstHabit ? "HABIT_STARTED" : "SUCCESS";
   await supabase.from("feed_events").insert({
     user_id: user.id,
     action_title: actionTitle,
-    type: feedType,
+    type: "SUCCESS",
   });
 
   revalidatePath("/");

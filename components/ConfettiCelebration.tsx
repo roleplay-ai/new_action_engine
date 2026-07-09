@@ -29,7 +29,6 @@ interface ConfettiCelebrationProps {
   actionTitle?: string;
   onContinue: () => void;
   onClose: () => void;
-  isHabitFlow?: boolean;
 }
 
 function makeParticles(): Particle[] {
@@ -51,7 +50,6 @@ export default function ConfettiCelebration({
   actionTitle,
   onContinue,
   onClose,
-  isHabitFlow = false,
 }: ConfettiCelebrationProps) {
   const [particles, setParticles] = useState<Particle[]>([]);
 
@@ -152,7 +150,7 @@ export default function ConfettiCelebration({
           letterSpacing: "-0.01em",
         }}
       >
-        Rep Verified!
+        Action Verified!
       </h3>
 
       {/* Persuasive body copy */}
@@ -163,24 +161,12 @@ export default function ConfettiCelebration({
           lineHeight: 1.6,
           maxWidth: 280,
           marginTop: 0,
-          marginBottom: 8,
+          marginBottom: 24,
           marginLeft: "auto",
           marginRight: "auto",
         }}
       >
-        One rep logged. Science says it takes 5 consistent reps to wire a new behaviour into your brain — you&apos;re on your way.
-      </p>
-      <p
-        style={{
-          color: C.amber,
-          fontSize: 12,
-          fontWeight: 700,
-          marginBottom: 24,
-          marginTop: 8,
-          letterSpacing: "0.01em",
-        }}
-      >
-        4 more reps to cement this habit.
+        Nice work closing the knowing-doing gap. Keep the momentum going with a weekly reminder.
       </p>
 
       {/* Badges row */}
@@ -232,7 +218,7 @@ export default function ConfettiCelebration({
             width: "100%",
           }}
         >
-          {isHabitFlow ? "Start Habit Loop" : "Turn this into a Habit"}
+          Done
         </button>
 
         <button
@@ -248,7 +234,7 @@ export default function ConfettiCelebration({
             width: "100%",
           }}
         >
-          Done for today
+          Close
         </button>
       </div>
     </div>

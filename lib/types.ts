@@ -13,7 +13,7 @@ export interface ActionCard {
 export interface UserAction {
   id: string;
   actionId: string;
-  status: 'pending' | 'scheduled' | 'success' | 'failed' | 'skipped' | 'habit_started' | 'cemented';
+  status: 'scheduled' | 'success' | 'failed' | 'skipped';
   scheduledDate?: string;
   scheduledTime?: string;
   scheduledAt?: string; // ISO string for validation queue filter
@@ -22,20 +22,21 @@ export interface UserAction {
   acceptedDate?: string;
   acceptedTime?: string;
   isCalendarSynced?: boolean;
-  habitRepsRemaining?: number;
-  completedReps: number;
   reflection?: string;
 }
 
-/** One committed rep slot for habit loop (daily = next 4 days; weekly = same weekday next 4 weeks). */
-export interface HabitOccurrence {
+/** A user's weekly reminder cadence for one accepted action. */
+export interface ActionReminder {
   id: string;
-  actionId: string;
   userActionId: string;
-  scheduledAt: string;
-  scheduledDate?: string;
-  scheduledTime?: string;
-  completedAt?: string | null;
+  actionId: string;
+  timesPerWeek: number;
+  /** Intended time of day (IST, HH:MM) shown in the reminder email as display copy. */
+  timeOfDayIST: string;
+  isActive: boolean;
+  lastSentAt?: string;
+  /** True if the current ISO week (IST) has already been marked done. */
+  doneThisWeek: boolean;
 }
 
 export interface FeedItem {
@@ -43,7 +44,7 @@ export interface FeedItem {
   userId: string;
   userName: string;
   actionTitle: string;
-  type: 'READ' | 'ACCEPTED' | 'SCHEDULED' | 'DECLINED' | 'SUCCESS' | 'HABIT_STARTED' | 'CEMENTED';
+  type: 'READ' | 'ACCEPTED' | 'SCHEDULED' | 'DECLINED' | 'SUCCESS';
   timestamp: number;
   likes: number;
 }

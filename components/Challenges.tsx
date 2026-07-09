@@ -12,7 +12,7 @@ const Challenges: React.FC = () => {
   const getStatus = (actionId: string) => {
     const ua = userActions.find((u) => u.actionId === actionId);
     if (!ua) return 'Available';
-    if (ua.status === 'success' || ua.status === 'habit_started' || ua.status === 'cemented') return 'Completed';
+    if (ua.status === 'success') return 'Completed';
     if (ua.status === 'skipped') return 'Skipped';
     if (ua.status === 'failed') return "Didn't complete";
     if (ua.status === 'scheduled') return 'Active';

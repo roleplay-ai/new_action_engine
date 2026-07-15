@@ -10,15 +10,24 @@ import Leaderboard from './Leaderboard';
 import { getLeague } from '@/lib/constants';
 import { syncMyLeagueIndexFromPoints } from '@/app/actions/points';
 
-const Analytics: React.FC = () => {
-  const { profile, userActions, actionIdsInAssignedPackages } = useEngine();
+interface AnalyticsProps {
+  /** When provided, the embedded leaderboard ranks only this cohort instead of the whole company. */
+  cohortId?: string | null;
+}
+
+const Analytics: React.FC<AnalyticsProps> = ({ cohortId }) => {
+  const { profile, userActions, allActions } = useEngine();
 
   useEffect(() => {
     syncMyLeagueIndexFromPoints().catch(() => {});
   }, [profile.totalPoints]);
 
-  const received = actionIdsInAssignedPackages.size;
-  const read = userActions.filter((ua) => actionIdsInAssignedPackages.has(ua.actionId)).length;
+  // All actions are now self-generated (no admin-curated package delivery):
+  // "received" = every personal action ever generated, "read" = the ones the
+  // user has actually engaged with (any status in user_actions).
+  const personalActionIds = new Set(allActions.filter((a) => a.isPersonal).map((a) => a.id));
+  const received = personalActionIds.size;
+  const read = userActions.filter((ua) => personalActionIds.has(ua.actionId)).length;
   const accepted = userActions.filter((ua) => ['success', 'scheduled'].includes(ua.status)).length;
   const skipped = userActions.filter((ua) => ua.status === 'skipped').length;
   const validatedSuccess = userActions.filter((ua) => ua.status === 'success').length;
@@ -301,7 +310,7 @@ const Analytics: React.FC = () => {
 
       {/* ── Leaderboard ── */}
       <section>
-        <Leaderboard />
+        <Leaderboard cohortId={cohortId} />
       </section>
     </div>
   );

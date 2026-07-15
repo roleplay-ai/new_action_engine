@@ -13,7 +13,8 @@ import {
   EngagementView,
   ActionMetricsView,
   ActionManagementView,
-  PackageManagementView,
+  CohortManagementView,
+  ContentManagementView,
   UserManagementView,
   EmailManagementView,
 } from "@/components/admin/views";
@@ -29,7 +30,8 @@ type ViewType =
   | "engagement"
   | "action-metrics"
   | "action-management"
-  | "package-management"
+  | "cohort-management"
+  | "content-management"
   | "user-management"
   | "email-management";
 
@@ -63,8 +65,11 @@ function AdminContent({ view }: { view: ViewType }) {
       {view === "action-management" && (
         <ActionManagementView companyId={effectiveCompanyId} role={role} />
       )}
-      {view === "package-management" && (
-        <PackageManagementView companyId={effectiveCompanyId} role={role} />
+      {view === "cohort-management" && (
+        <CohortManagementView companyId={effectiveCompanyId} role={role} />
+      )}
+      {view === "content-management" && (
+        <ContentManagementView companyId={effectiveCompanyId} role={role} />
       )}
       {view === "user-management" && (
         <UserManagementView companyId={effectiveCompanyId} role={role} />

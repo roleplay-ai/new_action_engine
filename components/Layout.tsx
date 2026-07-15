@@ -1,28 +1,34 @@
 "use client";
 
 import React, { useMemo } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEngine } from '@/lib/store';
-import { LayoutDashboard, Bookmark, PieChart, Bell } from 'lucide-react';
+import { ClipboardList, ListChecks, PieChart, Bell, ShieldCheck } from 'lucide-react';
 import { LogoutButton } from '@/app/(app)/logout-button';
 
 interface LayoutProps {
   children: React.ReactNode;
-  activeTab: 'home' | 'challenges' | 'progress';
-  setActiveTab: (tab: 'home' | 'challenges' | 'progress') => void;
+  role: string;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) => {
-  const { profile, userActions } = useEngine();
+const Layout: React.FC<LayoutProps> = ({ children, role }) => {
+  const { profile } = useEngine();
+  const pathname = usePathname();
 
-  const counts = useMemo(() => ({
-    toValidate: userActions.filter(a => a.status === 'scheduled').length,
-  }), [userActions]);
+  const navItems = useMemo(() => {
+    const items = [
+      { href: '/prepare', label: 'Prepare', icon: ClipboardList },
+      { href: '/action-plan', label: 'Action Plan', icon: ListChecks },
+      { href: '/progress', label: 'Progress', icon: PieChart },
+    ];
+    if (role !== 'user') {
+      items.push({ href: '/admin', label: 'Admin', icon: ShieldCheck });
+    }
+    return items;
+  }, [role]);
 
-  const navItems = [
-    { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'challenges', label: 'Library', icon: Bookmark },
-    { id: 'progress', label: 'Analytics', icon: PieChart },
-  ];
+  const isActive = (href: string) => pathname?.startsWith(href);
 
   return (
     <>
@@ -31,26 +37,26 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
         {/* Left: brand + nav tabs */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
           {/* Brand */}
-          <button
-            onClick={() => setActiveTab('home')}
+          <Link
+            href="/action-plan"
             className="navbar__brand"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '10px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
           >
             <img src="/icon.png" alt="Nudgeable logo" style={{ height: 36, width: 'auto', display: 'block' }} />
             <span style={{ color: 'var(--bright-amber)', fontWeight: 800, fontSize: '1rem', letterSpacing: '-0.01em' }}>Action Engine</span>
-          </button>
+          </Link>
 
           {/* Navigation tabs */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id as 'home' | 'challenges' | 'progress')}
-                className={`btn btn--sm ${activeTab === item.id ? 'btn--primary' : 'btn--decline'}`}
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`btn btn--sm ${isActive(item.href) ? 'btn--primary' : 'btn--decline'}`}
               >
                 <item.icon size={13} strokeWidth={2.5} />
                 {item.label}
-              </button>
+              </Link>
             ))}
           </div>
         </div>
@@ -62,19 +68,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
             🔥 {profile.streak}
           </span>
 
-          {/* Validate badge */}
-          {/* {counts.toValidate > 0 && (
-            <span className="tag tag--blue">
-              {counts.toValidate} to verify
-            </span>
-          )} */}
-
           {/* Bell */}
-          <button
-            className="btn btn--icon"
-            onClick={() => setActiveTab('home')}
-            aria-label="Notifications"
-          >
+          <button className="btn btn--icon" aria-label="Notifications">
             <Bell size={16} strokeWidth={2} />
           </button>
 

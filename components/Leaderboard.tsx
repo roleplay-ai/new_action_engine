@@ -4,9 +4,14 @@ import React, { useEffect, useState } from 'react';
 import { useEngine } from '../lib/store';
 import { Trophy, Medal } from 'lucide-react';
 import { getLeague } from '../lib/constants';
-import { getLeaderboard, type LeaderboardEntry } from '@/app/actions/leaderboard';
+import { getLeaderboard, getCohortLeaderboard, type LeaderboardEntry } from '@/app/actions/leaderboard';
 
-const Leaderboard: React.FC = () => {
+interface LeaderboardProps {
+  /** When provided, ranks only members of this cohort instead of the whole company. */
+  cohortId?: string | null;
+}
+
+const Leaderboard: React.FC<LeaderboardProps> = ({ cohortId }) => {
   const { profile } = useEngine();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -16,7 +21,8 @@ const Leaderboard: React.FC = () => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getLeaderboard()
+    const fetchEntries = cohortId ? getCohortLeaderboard(cohortId) : getLeaderboard();
+    fetchEntries
       .then(({ entries: data, error: err }) => {
         if (cancelled) return;
         if (err) setError(err);
@@ -26,7 +32,7 @@ const Leaderboard: React.FC = () => {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [profile.totalPoints]); // refetch when current user's points change
+  }, [profile.totalPoints, cohortId]); // refetch when current user's points change
 
   const competitors = entries.map((e) => ({
     id: e.id,

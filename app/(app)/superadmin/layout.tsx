@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { LogoutButton } from "../logout-button";
-import { Building2, Mail, Users, Zap } from "lucide-react";
+import { Building2, Mail, Users, Zap, Library, GraduationCap } from "lucide-react";
 
 export default async function SuperadminLayout({
   children,
@@ -65,6 +65,20 @@ export default async function SuperadminLayout({
                 >
                   <Mail size={16} />
                   <span className="hidden sm:inline">Emails</span>
+                </Link>
+                <Link
+                  href="/superadmin/content-library"
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-100 hover:text-black transition-colors flex items-center gap-1.5"
+                >
+                  <Library size={16} />
+                  <span className="hidden sm:inline">Content Library</span>
+                </Link>
+                <Link
+                  href="/admin/control-panel/cohorts"
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-100 hover:text-black transition-colors flex items-center gap-1.5"
+                >
+                  <GraduationCap size={16} />
+                  <span className="hidden sm:inline">Cohorts</span>
                 </Link>
               </nav>
             </div>

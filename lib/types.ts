@@ -70,3 +70,54 @@ export enum League {
   Gold = 'Gold',
   Diamond = 'Diamond'
 }
+
+/** A group of users within a company sharing Prepare content and an action plan. */
+export interface Cohort {
+  id: string;
+  name: string;
+  description?: string | null;
+  startDate?: string | null;
+  memberCount: number;
+}
+
+export interface CohortMember {
+  id: string;
+  fullName: string | null;
+}
+
+export type PrepareContentType = 'video' | 'quiz' | 'preread';
+
+export interface QuizOption {
+  id: string;
+  optionText: string;
+  /** Only ever populated server-side for the authoring UI; never sent to a regular user's browser. */
+  isCorrect?: boolean;
+}
+
+export interface QuizQuestion {
+  id: string;
+  questionText: string;
+  options: QuizOption[];
+}
+
+export interface PrepareContentItem {
+  id: string;
+  type: PrepareContentType;
+  title: string;
+  description: string | null;
+  isActive: boolean;
+  videoUrl?: string | null;
+  videoDurationSeconds?: number | null;
+  prereadUrl?: string | null;
+  prereadBody?: string | null;
+  questions?: QuizQuestion[];
+}
+
+export interface UserPrepareProgress {
+  contentItemId: string;
+  status: 'not_started' | 'in_progress' | 'completed';
+  completedAt?: string | null;
+  /** Only present for quiz items with at least one attempt. */
+  lastScore?: number | null;
+  lastTotalQuestions?: number | null;
+}

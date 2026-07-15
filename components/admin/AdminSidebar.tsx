@@ -43,7 +43,8 @@ const navItems: NavItem[] = [
     icon: Settings2,
     children: [
       { id: "action-management", label: "Action Management", href: "/admin/control-panel/actions" },
-      { id: "package-management", label: "Package Management", href: "/admin/control-panel/packages" },
+      { id: "cohort-management", label: "Cohort Management", href: "/admin/control-panel/cohorts" },
+      { id: "content-management", label: "Content Management", href: "/admin/control-panel/content" },
       { id: "user-management", label: "User Management", href: "/admin/control-panel/users" },
       { id: "email-management", label: "Email Management", href: "/admin/control-panel/email" },
     ],

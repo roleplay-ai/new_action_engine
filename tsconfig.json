@@ -42,6 +42,8 @@
     "store.tsx",
     "vite.config.ts",
     "constants.tsx",
-    "types.ts"
+    "types.ts",
+    "components/AdminDashboard.tsx",
+    "components/Sidebar.tsx"
   ]
 }

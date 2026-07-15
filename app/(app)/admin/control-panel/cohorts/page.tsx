@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AdminPageClient } from "../../admin-page-client";
 
-export default async function PackageManagementPage() {
+export default async function CohortManagementPage() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -29,7 +29,7 @@ export default async function PackageManagementPage() {
       companies={companies ?? []}
       role={profile?.role ?? "user"}
       companyId={profile?.company_id ?? null}
-      view="package-management"
+      view="cohort-management"
     />
   );
 }

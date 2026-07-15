@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import DashboardClient from "./dashboard-client";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -23,5 +22,5 @@ export default async function HomePage() {
   if (effectiveRole === "superadmin") redirect("/superadmin");
   if (effectiveRole === "admin") redirect("/admin");
 
-  return <DashboardClient />;
+  redirect("/action-plan");
 }

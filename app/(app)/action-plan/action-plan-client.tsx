@@ -1,45 +1,38 @@
 "use client";
 
 import React, { useState } from "react";
-import { EngineProvider, useEngine } from "@/lib/store";
-import Layout from "@/components/Layout";
+import { useEngine } from "@/lib/store";
 import ActionCard from "@/components/ActionCard";
-import Analytics from "@/components/Analytics";
 import Challenges from "@/components/Challenges";
 import Carousel from "@/components/Carousel";
-import {
-  X,
-  Lightbulb,
-  ArrowRight,
-  ListChecks,
-} from "lucide-react";
+import { X, Lightbulb, ArrowRight, ListChecks, ChevronDown, ChevronRight } from "lucide-react";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
 import Onboarding from "@/components/Onboarding";
 
 type ValidationStep = "success_prompt" | "celebration";
 
-function DashboardContent() {
+export default function ActionPlanClient() {
   const {
     profile,
     userActions,
     allActions,
-    actionIdsInAssignedPackages,
-    assignedPackageName,
     completeAction,
     hasCompany,
     selfOnboardingCompletedAt,
     refetch,
   } = useEngine();
-  const [activeTab, setActiveTab] = useState<"home" | "challenges" | "progress">("home");
   const [completingActionId, setCompletingActionId] = useState<string | null>(null);
   const [reflection, setReflection] = useState("");
   const [validationStep, setValidationStep] = useState<ValidationStep>("success_prompt");
+  const [showLibrary, setShowLibrary] = useState(false);
 
+  // Actions are entirely self-generated (via the AI onboarding wizard) — no
+  // admin-curated package delivery.
   const myActions = allActions.filter((ad) => {
     const ua = userActions.find((u) => u.actionId === ad.id);
     if (ua?.status === "scheduled") return true;
     if (ua) return false;
-    return actionIdsInAssignedPackages.has(ad.id) || ad.isPersonal;
+    return ad.isPersonal;
   });
 
   const completingAction = completingActionId
@@ -70,19 +63,17 @@ function DashboardContent() {
     closeCompleteModal();
   };
 
-  const sectionTitle = assignedPackageName ?? "My Actions";
+  const sectionTitle = "My Actions";
 
   return (
-    <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
-
-      {hasCompany && !selfOnboardingCompletedAt && (
-        <Onboarding onComplete={() => refetch()} />
-      )}
+    <>
+      {hasCompany && !selfOnboardingCompletedAt && <Onboarding onComplete={() => refetch()} />}
 
       {completingActionId && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8"
-          style={{ background: "rgba(34,29,35,0.65)", backdropFilter: "blur(12px)" }}>
-
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8"
+          style={{ background: "rgba(34,29,35,0.65)", backdropFilter: "blur(12px)" }}
+        >
           {validationStep === "success_prompt" && (
             <div className="card card--wide animate-pop w-full overflow-y-auto no-scrollbar" style={{ maxHeight: "90vh" }}>
               <div className="flex justify-between items-start mb-6">
@@ -139,81 +130,83 @@ function DashboardContent() {
         </div>
       )}
 
-      {activeTab === "home" && (
-        <div className="animate-in fade-in duration-700 w-full space-y-10">
+      <div className="animate-in fade-in duration-700 w-full space-y-10">
+        <div>
+          <h1 className="text-4xl font-bold" style={{ color: "var(--color-text-primary)", letterSpacing: "-0.01em" }}>
+            Hi {profile.name} 👋
+          </h1>
+          <p className="text-sm font-medium mt-3" style={{ color: "var(--color-text-secondary)" }}>
+            Work through your actions and mark each one complete when you&apos;re done.
+          </p>
+        </div>
 
-          <div>
-            <h1 className="text-4xl font-bold" style={{ color: "var(--color-text-primary)", letterSpacing: "-0.01em" }}>
-              Hi {profile.name} 👋
-            </h1>
-            <p className="text-sm font-medium mt-3" style={{ color: "var(--color-text-secondary)" }}>
-              Work through your actions and mark each one complete when you&apos;re done.
-            </p>
-          </div>
-
-          <section>
-            {!hasCompany ? (
-              <div className="card card--flat text-center">
-                <div className="icon-badge">🏢</div>
-                <h3 className="card__title">Not assigned to a company</h3>
-                <p className="card__subtitle mb-0">
-                  Contact your admin to get access to the Action Library.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
-                  <div style={{
+        <section>
+          {!hasCompany ? (
+            <div className="card card--flat text-center">
+              <div className="icon-badge">🏢</div>
+              <h3 className="card__title">Not assigned to a company</h3>
+              <p className="card__subtitle mb-0">Contact your admin to get access to the Action Library.</p>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
+                <div
+                  style={{
                     width: 42, height: 42, borderRadius: "50%",
                     background: "var(--color-primary-light)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     flexShrink: 0,
-                  }}>
-                    <ListChecks size={20} style={{ color: "var(--bright-amber)" }} strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <h2 style={{
+                  }}
+                >
+                  <ListChecks size={20} style={{ color: "var(--bright-amber)" }} strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h2
+                    style={{
                       fontSize: "var(--text-2xl)", fontWeight: "var(--weight-bold)",
                       color: "var(--color-text-primary)", letterSpacing: "-0.02em",
                       lineHeight: 1.2, marginBottom: "4px",
-                    }}>
-                      {sectionTitle}
-                    </h2>
-                    <p style={{ fontSize: "var(--text-sm)", color: "var(--color-text-muted)" }}>
-                      {myActions.length > 0
-                        ? `${myActions.length} action${myActions.length === 1 ? "" : "s"} ready — mark complete when done`
-                        : "New actions will appear here on your sprint cadence"}
-                    </p>
-                  </div>
+                    }}
+                  >
+                    {sectionTitle}
+                  </h2>
+                  <p style={{ fontSize: "var(--text-sm)", color: "var(--color-text-muted)" }}>
+                    {myActions.length > 0
+                      ? `${myActions.length} action${myActions.length === 1 ? "" : "s"} ready — mark complete when done`
+                      : "New actions will appear here on your sprint cadence"}
+                  </p>
                 </div>
+              </div>
 
-                <div className="my-actions-bleed">
-                  <Carousel wideSlides>
-                    {myActions.map((action) => (
-                      <ActionCard
-                        key={action.id}
-                        action={action}
-                        onMarkComplete={openCompleteModal}
-                      />
-                    ))}
-                  </Carousel>
-                </div>
-              </>
+              <div className="my-actions-bleed">
+                <Carousel wideSlides>
+                  {myActions.map((action) => (
+                    <ActionCard key={action.id} action={action} onMarkComplete={openCompleteModal} />
+                  ))}
+                </Carousel>
+              </div>
+            </>
+          )}
+        </section>
+
+        {hasCompany && (
+          <section>
+            <button
+              onClick={() => setShowLibrary((v) => !v)}
+              className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              {showLibrary ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              Full action library
+            </button>
+            {showLibrary && (
+              <div className="mt-6">
+                <Challenges />
+              </div>
             )}
           </section>
-        </div>
-      )}
-
-      {activeTab === "challenges" && <Challenges />}
-      {activeTab === "progress" && <Analytics />}
-    </Layout>
-  );
-}
-
-export default function DashboardClient() {
-  return (
-    <EngineProvider>
-      <DashboardContent />
-    </EngineProvider>
+        )}
+      </div>
+    </>
   );
 }

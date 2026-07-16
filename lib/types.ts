@@ -105,12 +105,16 @@ export interface PrepareContentItem {
   type: PrepareContentType;
   title: string;
   description: string | null;
+  /** Short eyebrow pill shown above the title (e.g. "CEO WELCOME"). Falls back to a type-based default when unset. */
+  badgeLabel?: string | null;
   isActive: boolean;
   videoUrl?: string | null;
   videoDurationSeconds?: number | null;
   prereadUrl?: string | null;
   prereadBody?: string | null;
   questions?: QuizQuestion[];
+  /** Number of questions in a quiz item, populated by listCohortContent for the Prepare page. */
+  questionCount?: number;
 }
 
 export interface UserPrepareProgress {

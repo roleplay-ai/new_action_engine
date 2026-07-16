@@ -56,27 +56,49 @@ export default function QuizCard({
   }
 
   return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-3">
-        <span className="tag tag--purple flex items-center gap-1.5">
-          <HelpCircle size={13} strokeWidth={2.5} /> Self-Assessment
-        </span>
+    <div
+      className="card card--flat"
+      style={{ background: "rgba(255, 206, 0, 0.10)", border: "1px solid var(--color-border-yellow)", maxWidth: "none" }}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div
+          style={{
+            width: 36, height: 36, borderRadius: "50%", background: "var(--bright-amber)",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}
+        >
+          <HelpCircle size={17} style={{ color: "var(--color-text-primary)" }} strokeWidth={2.5} />
+        </div>
         {completed && (
           <span className="tag tag--featured flex items-center gap-1">
             <CheckCircle2 size={13} strokeWidth={2.5} /> Done
           </span>
         )}
       </div>
-      <h3 className="card__title">{item.title}</h3>
-      {item.description && <p className="card__subtitle">{item.description}</p>}
+      <p className="text-xs font-black uppercase tracking-wider mb-1" style={{ color: "var(--color-text-accent)" }}>
+        {item.badgeLabel || "Self-assessment"}
+      </p>
+      <h3 style={{ fontSize: "var(--text-lg)", fontWeight: "var(--weight-bold)", color: "var(--color-text-primary)", marginBottom: 4 }}>
+        {item.title}
+      </h3>
+      {item.description && <p className="text-sm mb-2" style={{ color: "var(--color-text-secondary)" }}>{item.description}</p>}
+      {!item.description && item.questionCount != null && (
+        <p className="text-sm mb-2" style={{ color: "var(--color-text-secondary)" }}>
+          {item.questionCount} question{item.questionCount === 1 ? "" : "s"} to complete.
+        </p>
+      )}
       {completed && lastScore != null && lastTotalQuestions != null && (
-        <p className="text-sm font-semibold mt-2" style={{ color: "var(--color-text-secondary)" }}>
+        <p className="text-sm font-semibold mt-1 mb-2" style={{ color: "var(--color-text-secondary)" }}>
           Last score: {lastScore}/{lastTotalQuestions}
         </p>
       )}
 
-      <button onClick={handleOpen} className={`btn btn--sm ${completed ? "btn--decline" : "btn--accept"} mt-4`}>
-        {completed ? "Retake assessment" : "Begin assessment"}
+      <button
+        onClick={handleOpen}
+        className="text-sm font-bold mt-2"
+        style={{ color: "var(--color-text-primary)" }}
+      >
+        {completed ? "Retake assessment →" : "Begin assessment →"}
       </button>
 
       {open && (

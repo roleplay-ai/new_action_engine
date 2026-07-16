@@ -38,7 +38,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
           {/* Brand */}
           <Link
-            href="/action-plan"
+            href="/prepare"
             className="navbar__brand"
             style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
           >

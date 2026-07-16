@@ -157,6 +157,12 @@ input[type="range"] {
   }
 }
 
+/* Purple tag variant — token existed in the rulebook but no .tag--purple rule did */
+.tag--purple {
+  background: var(--color-tag-purple-bg);
+  color: var(--color-tag-purple-text);
+}
+
 /* ── Animate-in shim ── */
 @keyframes slideInFromBottom {
   from { opacity: 0; transform: translateY(16px); }

@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { PrepareContentItem, PrepareContentType } from "@/lib/types";
+
+const CONTENT_VIDEOS_BUCKET = "content-videos";
 
 const SUPERADMIN_EMAIL = (process.env.SUPERADMIN_EMAIL || "admin@actionengine").toLowerCase();
 
@@ -43,9 +46,38 @@ async function getAdminContext(): Promise<{
 
 type QuizQuestionInput = { questionText: string; options: { optionText: string; isCorrect: boolean }[] };
 
+/** Prepares a direct browser-to-storage upload: the file's bytes never pass through
+ * our server (avoids Server Action / serverless request-body size limits). Returns a
+ * signed upload token the browser uses with supabase-js's uploadToSignedUrl(), plus
+ * the public URL the object will be reachable at once uploaded. */
+export async function createSignedVideoUploadUrl(fileExtension: string): Promise<{
+  error?: string;
+  path?: string;
+  token?: string;
+  publicUrl?: string;
+}> {
+  try {
+    await ensureSuperadmin();
+    const admin = createAdminClient();
+
+    const safeExt = fileExtension.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "mp4";
+    const path = `${crypto.randomUUID()}.${safeExt}`;
+
+    const { data, error } = await admin.storage.from(CONTENT_VIDEOS_BUCKET).createSignedUploadUrl(path);
+    if (error || !data) return { error: error?.message ?? "Failed to prepare upload" };
+
+    const { data: publicUrlData } = admin.storage.from(CONTENT_VIDEOS_BUCKET).getPublicUrl(path);
+
+    return { path, token: data.token, publicUrl: publicUrlData.publicUrl };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
 export async function createVideoContentItem(params: {
   title: string;
   description?: string;
+  badgeLabel?: string;
   videoUrl: string;
   videoDurationSeconds?: number;
 }): Promise<{ error?: string; id?: string }> {
@@ -58,6 +90,7 @@ export async function createVideoContentItem(params: {
         type: "video",
         title: params.title.trim(),
         description: params.description?.trim() || null,
+        badge_label: params.badgeLabel?.trim() || null,
         video_url: params.videoUrl.trim(),
         video_duration_seconds: params.videoDurationSeconds ?? null,
       })
@@ -74,6 +107,7 @@ export async function createVideoContentItem(params: {
 export async function createPrereadContentItem(params: {
   title: string;
   description?: string;
+  badgeLabel?: string;
   prereadUrl?: string;
   prereadBody?: string;
 }): Promise<{ error?: string; id?: string }> {
@@ -86,6 +120,7 @@ export async function createPrereadContentItem(params: {
         type: "preread",
         title: params.title.trim(),
         description: params.description?.trim() || null,
+        badge_label: params.badgeLabel?.trim() || null,
         preread_url: params.prereadUrl?.trim() || null,
         preread_body: params.prereadBody?.trim() || null,
       })
@@ -102,6 +137,7 @@ export async function createPrereadContentItem(params: {
 export async function createQuizContentItem(params: {
   title: string;
   description?: string;
+  badgeLabel?: string;
   questions: QuizQuestionInput[];
 }): Promise<{ error?: string; id?: string }> {
   try {
@@ -120,6 +156,7 @@ export async function createQuizContentItem(params: {
         type: "quiz",
         title: params.title.trim(),
         description: params.description?.trim() || null,
+        badge_label: params.badgeLabel?.trim() || null,
       })
       .select("id")
       .single();
@@ -153,13 +190,14 @@ export async function createQuizContentItem(params: {
 
 export async function updateContentItem(
   id: string,
-  params: { title?: string; description?: string; isActive?: boolean; videoUrl?: string; prereadUrl?: string; prereadBody?: string }
+  params: { title?: string; description?: string; badgeLabel?: string; isActive?: boolean; videoUrl?: string; prereadUrl?: string; prereadBody?: string }
 ): Promise<{ error?: string }> {
   try {
     const { supabase } = await ensureSuperadmin();
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (params.title != null) updates.title = params.title.trim();
     if (params.description != null) updates.description = params.description.trim() || null;
+    if (params.badgeLabel != null) updates.badge_label = params.badgeLabel.trim() || null;
     if (params.isActive != null) updates.is_active = params.isActive;
     if (params.videoUrl != null) updates.video_url = params.videoUrl.trim();
     if (params.prereadUrl != null) updates.preread_url = params.prereadUrl.trim() || null;
@@ -215,7 +253,7 @@ export async function listContentItems(type?: PrepareContentType): Promise<{
     const { supabase } = await ensureSuperadmin();
     let query = supabase
       .from("prepare_content_items")
-      .select("id, type, title, description, is_active, video_url, video_duration_seconds, preread_url, preread_body")
+      .select("id, type, title, description, badge_label, is_active, video_url, video_duration_seconds, preread_url, preread_body")
       .order("created_at", { ascending: false });
     if (type) query = query.eq("type", type);
     const { data, error } = await query;
@@ -227,6 +265,7 @@ export async function listContentItems(type?: PrepareContentType): Promise<{
         type: row.type as PrepareContentType,
         title: row.title,
         description: row.description,
+        badgeLabel: row.badge_label,
         isActive: row.is_active,
         videoUrl: row.video_url,
         videoDurationSeconds: row.video_duration_seconds,
@@ -244,7 +283,7 @@ export async function getContentItemDetail(id: string): Promise<{ error?: string
     const { supabase } = await ensureSuperadmin();
     const { data: row, error } = await supabase
       .from("prepare_content_items")
-      .select("id, type, title, description, is_active, video_url, video_duration_seconds, preread_url, preread_body")
+      .select("id, type, title, description, badge_label, is_active, video_url, video_duration_seconds, preread_url, preread_body")
       .eq("id", id)
       .single();
     if (error || !row) return { error: error?.message ?? "Not found" };
@@ -271,6 +310,7 @@ export async function getContentItemDetail(id: string): Promise<{ error?: string
         type: row.type as PrepareContentType,
         title: row.title,
         description: row.description,
+        badgeLabel: row.badge_label,
         isActive: row.is_active,
         videoUrl: row.video_url,
         videoDurationSeconds: row.video_duration_seconds,
@@ -297,7 +337,7 @@ export async function listActiveLibraryItems(): Promise<{ error?: string; items?
 
     const { data, error } = await supabase
       .from("prepare_content_items")
-      .select("id, type, title, description, is_active, video_url, video_duration_seconds, preread_url, preread_body")
+      .select("id, type, title, description, badge_label, is_active, video_url, video_duration_seconds, preread_url, preread_body")
       .eq("is_active", true)
       .order("created_at", { ascending: false });
     if (error) return { error: error.message };
@@ -308,6 +348,7 @@ export async function listActiveLibraryItems(): Promise<{ error?: string; items?
         type: row.type as PrepareContentType,
         title: row.title,
         description: row.description,
+        badgeLabel: row.badge_label,
         isActive: row.is_active,
         videoUrl: row.video_url,
         videoDurationSeconds: row.video_duration_seconds,
@@ -328,15 +369,19 @@ export async function assignContentToCohort(cohortId: string, contentItemIds: st
     if (!cohort) return { error: "Cohort not found" };
     if (role === "admin" && cohort.company_id !== myCompanyId) return { error: "Access denied" };
 
-    for (const contentItemId of contentItemIds) {
-      const { error } = await supabase
-        .from("cohort_prepare_assignments")
-        .upsert(
-          { cohort_id: cohortId, content_item_id: contentItemId, assigned_by: userId },
-          { onConflict: "cohort_id,content_item_id" }
-        );
-      if (error) return { error: error.message };
-    }
+    // Idempotent assign: ON CONFLICT DO NOTHING (needs INSERT policy only).
+    // Plain upsert uses DO UPDATE and failed without an UPDATE RLS policy
+    // ("new row violates row-level security policy (USING expression)").
+    const rows = contentItemIds.map((contentItemId) => ({
+      cohort_id: cohortId,
+      content_item_id: contentItemId,
+      assigned_by: userId,
+    }));
+    const { error } = await supabase.from("cohort_prepare_assignments").upsert(rows, {
+      onConflict: "cohort_id,content_item_id",
+      ignoreDuplicates: true,
+    });
+    if (error) return { error: error.message };
     revalidatePath("/admin");
     return {};
   } catch (e) {
@@ -384,10 +429,24 @@ export async function listCohortContent(cohortId: string): Promise<{ error?: str
     const ids = assignments.map((a: { content_item_id: string }) => a.content_item_id);
     const { data: rows, error } = await supabase
       .from("prepare_content_items")
-      .select("id, type, title, description, is_active, video_url, video_duration_seconds, preread_url, preread_body")
+      .select("id, type, title, description, badge_label, is_active, video_url, video_duration_seconds, preread_url, preread_body")
       .in("id", ids)
       .eq("is_active", true);
     if (error) return { error: error.message };
+
+    // Admin client: quiz_questions RLS is superadmin-only (protects is_correct
+    // via quiz_options), so a regular user can't even count their own quiz's
+    // questions through the normal client. Only a count is read here, never
+    // question text or answers.
+    const quizIds = (rows ?? []).filter((r) => r.type === "quiz").map((r) => r.id);
+    const questionCounts = new Map<string, number>();
+    if (quizIds.length) {
+      const admin = createAdminClient();
+      const { data: qRows } = await admin.from("quiz_questions").select("content_item_id").in("content_item_id", quizIds);
+      for (const q of (qRows ?? []) as { content_item_id: string }[]) {
+        questionCounts.set(q.content_item_id, (questionCounts.get(q.content_item_id) ?? 0) + 1);
+      }
+    }
 
     const order = new Map(ids.map((id: string, i: number) => [id, i]));
     const items = (rows ?? [])
@@ -398,11 +457,13 @@ export async function listCohortContent(cohortId: string): Promise<{ error?: str
         type: row.type as PrepareContentType,
         title: row.title,
         description: row.description,
+        badgeLabel: row.badge_label,
         isActive: row.is_active,
         videoUrl: row.video_url,
         videoDurationSeconds: row.video_duration_seconds,
         prereadUrl: row.preread_url,
         prereadBody: row.preread_body,
+        questionCount: questionCounts.get(row.id),
       }));
     return { items };
   } catch (e) {

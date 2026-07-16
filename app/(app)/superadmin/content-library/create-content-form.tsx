@@ -8,6 +8,7 @@ import {
   createPrereadContentItem,
   createQuizContentItem,
 } from "@/app/actions/prepare-content";
+import { VideoUploadField } from "@/components/admin/content/VideoUploadField";
 import type { PrepareContentType } from "@/lib/types";
 
 type DraftOption = { optionText: string; isCorrect: boolean };
@@ -29,7 +30,10 @@ export default function CreateContentForm() {
   const [type, setType] = useState<PrepareContentType>("video");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [badgeLabel, setBadgeLabel] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
+  const [videoDurationSeconds, setVideoDurationSeconds] = useState<number | undefined>(undefined);
+  const [videoInputMode, setVideoInputMode] = useState<"upload" | "url">("upload");
   const [prereadUrl, setPrereadUrl] = useState("");
   const [prereadBody, setPrereadBody] = useState("");
   const [questions, setQuestions] = useState<DraftQuestion[]>([emptyQuestion()]);
@@ -39,7 +43,9 @@ export default function CreateContentForm() {
   function reset() {
     setTitle("");
     setDescription("");
+    setBadgeLabel("");
     setVideoUrl("");
+    setVideoDurationSeconds(undefined);
     setPrereadUrl("");
     setPrereadBody("");
     setQuestions([emptyQuestion()]);
@@ -89,21 +95,35 @@ export default function CreateContentForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (type === "video" && !videoUrl) {
+      setError(videoInputMode === "upload" ? "Upload a video file first" : "Enter a video URL");
+      return;
+    }
+
     setLoading(true);
 
     let result: { error?: string };
     if (type === "video") {
-      result = await createVideoContentItem({ title, description: description || undefined, videoUrl });
+      result = await createVideoContentItem({
+        title,
+        description: description || undefined,
+        badgeLabel: badgeLabel || undefined,
+        videoUrl,
+        videoDurationSeconds,
+      });
     } else if (type === "preread") {
       result = await createPrereadContentItem({
         title,
         description: description || undefined,
+        badgeLabel: badgeLabel || undefined,
         prereadUrl: prereadUrl || undefined,
         prereadBody: prereadBody || undefined,
       });
     } else {
       result = await createQuizContentItem({
         title,
+        badgeLabel: badgeLabel || undefined,
         description: description || undefined,
         questions: questions.map((q) => ({
           questionText: q.questionText,
@@ -181,16 +201,61 @@ export default function CreateContentForm() {
         className="w-full px-4 py-2 border-2 border-black rounded-lg text-sm outline-none focus:border-[#3699FC]"
         rows={2}
       />
+      <input
+        type="text"
+        placeholder="Badge label (optional, e.g. CEO WELCOME)"
+        value={badgeLabel}
+        onChange={(e) => setBadgeLabel(e.target.value)}
+        className="w-full px-4 py-2 border-2 border-black rounded-lg text-sm outline-none focus:border-[#3699FC]"
+      />
 
       {type === "video" && (
-        <input
-          type="url"
-          placeholder="Video URL (e.g. YouTube/Vimeo embed link)"
-          value={videoUrl}
-          onChange={(e) => setVideoUrl(e.target.value)}
-          required
-          className="w-full px-4 py-2 border-2 border-black rounded-lg text-sm outline-none focus:border-[#3699FC]"
-        />
+        <div className="space-y-2">
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => setVideoInputMode("upload")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border-2 border-black ${
+                videoInputMode === "upload" ? "bg-[#3699FC] text-white" : "bg-white hover:bg-slate-50"
+              }`}
+            >
+              Upload file
+            </button>
+            <button
+              type="button"
+              onClick={() => setVideoInputMode("url")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border-2 border-black ${
+                videoInputMode === "url" ? "bg-[#3699FC] text-white" : "bg-white hover:bg-slate-50"
+              }`}
+            >
+              Paste URL
+            </button>
+          </div>
+
+          {videoInputMode === "upload" ? (
+            <>
+              <VideoUploadField
+                onUploaded={({ videoUrl: uploadedUrl, videoDurationSeconds: duration }) => {
+                  setVideoUrl(uploadedUrl);
+                  setVideoDurationSeconds(duration);
+                }}
+              />
+              {videoUrl && (
+                <p className="text-xs font-bold text-emerald-600">
+                  Uploaded ✓ {videoDurationSeconds ? `(${Math.round(videoDurationSeconds / 60)} min)` : ""}
+                </p>
+              )}
+            </>
+          ) : (
+            <input
+              type="url"
+              placeholder="Video URL (e.g. YouTube/Vimeo embed link)"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              className="w-full px-4 py-2 border-2 border-black rounded-lg text-sm outline-none focus:border-[#3699FC]"
+            />
+          )}
+        </div>
       )}
 
       {type === "preread" && (

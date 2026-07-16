@@ -13,6 +13,7 @@ import {
   deleteContentItem,
 } from "@/app/actions/prepare-content";
 import type { PrepareContentItem, PrepareContentType } from "@/lib/types";
+import { VideoUploadField } from "@/components/admin/content/VideoUploadField";
 
 interface ContentManagementViewProps {
   companyId: string | null;
@@ -191,7 +192,10 @@ function CreateContentForm({ onCreated, onCancel }: { onCreated: () => void; onC
   const [type, setType] = useState<PrepareContentType>("video");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [badgeLabel, setBadgeLabel] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
+  const [videoDurationSeconds, setVideoDurationSeconds] = useState<number | undefined>(undefined);
+  const [videoInputMode, setVideoInputMode] = useState<"upload" | "url">("upload");
   const [prereadUrl, setPrereadUrl] = useState("");
   const [prereadBody, setPrereadBody] = useState("");
   const [questions, setQuestions] = useState<DraftQuestion[]>([emptyQuestion()]);
@@ -227,15 +231,28 @@ function CreateContentForm({ onCreated, onCancel }: { onCreated: () => void; onC
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (type === "video" && !videoUrl) {
+      setError(videoInputMode === "upload" ? "Upload a video file first" : "Enter a video URL");
+      return;
+    }
+
     setLoading(true);
 
     let result: { error?: string };
     if (type === "video") {
-      result = await createVideoContentItem({ title, description: description || undefined, videoUrl });
+      result = await createVideoContentItem({
+        title,
+        description: description || undefined,
+        badgeLabel: badgeLabel || undefined,
+        videoUrl,
+        videoDurationSeconds,
+      });
     } else if (type === "preread") {
       result = await createPrereadContentItem({
         title,
         description: description || undefined,
+        badgeLabel: badgeLabel || undefined,
         prereadUrl: prereadUrl || undefined,
         prereadBody: prereadBody || undefined,
       });
@@ -243,6 +260,7 @@ function CreateContentForm({ onCreated, onCancel }: { onCreated: () => void; onC
       result = await createQuizContentItem({
         title,
         description: description || undefined,
+        badgeLabel: badgeLabel || undefined,
         questions: questions.map((q) => ({
           questionText: q.questionText,
           options: q.options.map((o) => ({ optionText: o.optionText, isCorrect: o.isCorrect })),
@@ -288,16 +306,57 @@ function CreateContentForm({ onCreated, onCancel }: { onCreated: () => void; onC
         className="form-input"
         rows={2}
       />
+      <input
+        type="text"
+        placeholder="Badge label (optional, e.g. CEO WELCOME)"
+        value={badgeLabel}
+        onChange={(e) => setBadgeLabel(e.target.value)}
+        className="form-input"
+      />
 
       {type === "video" && (
-        <input
-          type="url"
-          placeholder="Video URL (e.g. YouTube/Vimeo embed link)"
-          value={videoUrl}
-          onChange={(e) => setVideoUrl(e.target.value)}
-          required
-          className="form-input"
-        />
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setVideoInputMode("upload")}
+              className={`btn btn--sm ${videoInputMode === "upload" ? "btn--primary" : "btn--decline"}`}
+            >
+              Upload file
+            </button>
+            <button
+              type="button"
+              onClick={() => setVideoInputMode("url")}
+              className={`btn btn--sm ${videoInputMode === "url" ? "btn--primary" : "btn--decline"}`}
+            >
+              Paste URL
+            </button>
+          </div>
+
+          {videoInputMode === "upload" ? (
+            <>
+              <VideoUploadField
+                onUploaded={({ videoUrl: uploadedUrl, videoDurationSeconds: duration }) => {
+                  setVideoUrl(uploadedUrl);
+                  setVideoDurationSeconds(duration);
+                }}
+              />
+              {videoUrl && videoInputMode === "upload" && (
+                <p className="text-xs font-semibold" style={{ color: "var(--emerald, #059669)" }}>
+                  Uploaded ✓ {videoDurationSeconds ? `(${Math.round(videoDurationSeconds / 60)} min)` : ""}
+                </p>
+              )}
+            </>
+          ) : (
+            <input
+              type="url"
+              placeholder="Video URL (e.g. YouTube/Vimeo embed link)"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              className="form-input"
+            />
+          )}
+        </div>
       )}
 
       {type === "preread" && (

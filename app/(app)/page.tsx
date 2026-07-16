@@ -22,5 +22,5 @@ export default async function HomePage() {
   if (effectiveRole === "superadmin") redirect("/superadmin");
   if (effectiveRole === "admin") redirect("/admin");
 
-  redirect("/action-plan");
+  redirect("/prepare");
 }

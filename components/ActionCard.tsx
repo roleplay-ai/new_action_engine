@@ -2,18 +2,22 @@
 import React, { useState } from 'react';
 import { ActionCard as ActionCardType } from '../lib/types';
 import { useEngine } from '../lib/store';
-import { Lightbulb, Clock, ChevronDown, X, CheckCircle2 } from 'lucide-react';
+import { Lightbulb, Clock, ChevronDown, X, CheckCircle2, Pencil, Trash2 } from 'lucide-react';
 
 interface Props {
   action: ActionCardType;
   onMarkComplete?: (actionId: string) => void;
   statusBadge?: { label: string; className: string };
+  onEdit?: (actionId: string) => void;
+  onDelete?: (actionId: string) => void;
 }
 
 const ActionCard: React.FC<Props> = ({
   action,
   onMarkComplete,
   statusBadge,
+  onEdit,
+  onDelete,
 }) => {
   const { declineAction } = useEngine();
   const [showFullDetail, setShowFullDetail] = useState(false);
@@ -23,13 +27,41 @@ const ActionCard: React.FC<Props> = ({
       className="challenge-card challenge-card--featured"
       style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column' }}
     >
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minHeight: 0 }}>
 
-        <div className="challenge-card__meta">
-          {statusBadge && (
-            <span className="tag tag--featured">{statusBadge.label}</span>
+        <div className="challenge-card__meta" style={{ justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+            {statusBadge && (
+              <span className="tag tag--featured">{statusBadge.label}</span>
+            )}
+            <span className="tag tag--orange">{action.theme}</span>
+          </div>
+          {(onEdit || onDelete) && (
+            <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+              {onEdit && (
+                <button
+                  onClick={() => onEdit(action.id)}
+                  className="btn btn--icon"
+                  aria-label="Edit action"
+                  title="Edit"
+                  style={{ width: 26, height: 26 }}
+                >
+                  <Pencil size={12} strokeWidth={2.5} />
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={() => onDelete(action.id)}
+                  className="btn btn--icon"
+                  aria-label="Delete action"
+                  title="Delete"
+                  style={{ width: 26, height: 26 }}
+                >
+                  <Trash2 size={12} strokeWidth={2.5} />
+                </button>
+              )}
+            </div>
           )}
-          <span className="tag tag--orange">{action.theme}</span>
         </div>
 
         <p
@@ -39,7 +71,7 @@ const ActionCard: React.FC<Props> = ({
             flex: 1,
             overflow: 'hidden',
             display: '-webkit-box',
-            WebkitLineClamp: 5,
+            WebkitLineClamp: 3,
             WebkitBoxOrient: 'vertical',
           }}
         >
@@ -48,9 +80,10 @@ const ActionCard: React.FC<Props> = ({
 
         <div style={{
           display: 'flex',
-          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'space-between',
           gap: '6px',
-          paddingTop: '10px',
+          paddingTop: '8px',
           borderTop: '1px solid var(--color-border)',
         }}>
           <button
@@ -86,18 +119,20 @@ const ActionCard: React.FC<Props> = ({
         </div>
       </div>
 
-      <div className="challenge-card__actions" style={{ paddingTop: '10px' }}>
-        <button
-          onClick={() => onMarkComplete?.(action.id)}
-          className="btn btn--accept btn--sm"
-        >
-          <CheckCircle2 size={14} strokeWidth={2.5} style={{ marginRight: 4 }} />
-          Mark as complete
-        </button>
-        <button onClick={() => declineAction(action.id)} className="btn btn--decline btn--sm">
-          Decline <ChevronDown size={14} strokeWidth={2.5} />
-        </button>
-      </div>
+      {onMarkComplete && (
+        <div className="challenge-card__actions" style={{ paddingTop: '8px' }}>
+          <button
+            onClick={() => onMarkComplete(action.id)}
+            className="btn btn--accept btn--sm"
+          >
+            <CheckCircle2 size={14} strokeWidth={2.5} style={{ marginRight: 4 }} />
+            Mark as complete
+          </button>
+          <button onClick={() => declineAction(action.id)} className="btn btn--decline btn--sm">
+            Decline <ChevronDown size={14} strokeWidth={2.5} />
+          </button>
+        </div>
+      )}
 
       <div
         style={{

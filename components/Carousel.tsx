@@ -89,8 +89,8 @@ const Carousel: React.FC<CarouselProps> = ({ children, title, narrowSlides, wide
                   : {
                       flexShrink: 0,
                       scrollSnapAlign: 'start',
-                      width: narrowSlides ? 'min(340px, 82vw)' : 'min(360px, 82vw)',
-                      height: '380px',
+                      width: narrowSlides ? 'min(300px, 82vw)' : 'min(360px, 82vw)',
+                      height: '260px',
                     }
               }
             >

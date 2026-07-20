@@ -15,10 +15,12 @@ export type DraftAction = {
 
 export const THEMES: ActionTheme[] = ["Collaboration", "Feedback", "Accountability", "Connection", "Coaching"];
 
-/** Default batch size when no user preference is stored yet. */
+/** Default batch size for the interactive onboarding preview (before a plan duration is chosen). */
 export const DEFAULT_BATCH_SIZE = 3;
 /** @deprecated Use daily_action_count from subscription; kept for generation preview batches. */
 export const BATCH_SIZE = DEFAULT_BATCH_SIZE;
+/** Actions generated per call when background-filling a full multi-week plan. */
+export const BACKGROUND_BATCH_SIZE = 12;
 
 const draftSchema = {
   type: Type.OBJECT,
@@ -41,6 +43,17 @@ const draftSchema = {
   required: ["actions"],
 };
 
+/** Total actions needed for a full plan: duration x actions/delivery x active delivery days/week. */
+export function computeTotalActionsNeeded(
+  durationWeeks: number,
+  dailyActionCount: number,
+  track: DeliveryTrack,
+  daysOfWeek?: number[] | null
+): number {
+  const activeDaysPerWeek = daysOfWeek?.length ? daysOfWeek.length : track === "daily" ? 7 : 1;
+  return durationWeeks * dailyActionCount * activeDaysPerWeek;
+}
+
 export function buildTrainingContext(
   trainingText: string,
   focusThemes: ActionTheme[],
@@ -59,7 +72,12 @@ export function buildTrainingContext(
   return parts.join("\n\n");
 }
 
-function buildPrompt(trainingText: string, focusThemes: ActionTheme[], count: number): string {
+function buildPrompt(
+  trainingText: string,
+  focusThemes: ActionTheme[],
+  count: number,
+  avoidTitles?: string[]
+): string {
   const examples = ACTION_DECK.filter(
     (a) => focusThemes.length === 0 || focusThemes.includes(a.theme)
   ).slice(0, 4);
@@ -69,6 +87,10 @@ function buildPrompt(trainingText: string, focusThemes: ActionTheme[], count: nu
         `- Theme: ${a.theme}\n  Title: ${a.title}\n  How: ${a.how}\n  Why: ${a.why}\n  Time: ${a.timeEstimate}`
     )
     .join("\n\n");
+
+  const avoidBlock = avoidTitles?.length
+    ? `\n\nActions already suggested to this user — do NOT repeat these or close variants of them:\n${avoidTitles.map((t) => `- ${t}`).join("\n")}`
+    : "";
 
   return `You are the Nudgeable Action Engine, a behavioral science coach that turns training into small, concrete on-the-job micro-actions.
 
@@ -86,7 +108,7 @@ Generate ${count} NEW micro-actions tailored to this user's training and focus a
 - Have a "why" that is a single sentence of behavioral-science rationale.
 - Have a "timeEstimate" like "2 mins", "5 mins", "15 mins", or "30 mins".
 - Have a "theme" that is exactly one of: ${THEMES.join(", ")}.
-Prefer themes from the user's stated focus areas when possible. Do not repeat actions already suggested before.`;
+Prefer themes from the user's stated focus areas when possible. Do not repeat actions already suggested before.${avoidBlock}`;
 }
 
 /** Calls Gemini to draft `count` new personal actions. Does not persist anything. */
@@ -94,6 +116,7 @@ export async function generateDraftActions(params: {
   trainingText: string;
   focusThemes: ActionTheme[];
   count?: number;
+  avoidTitles?: string[];
 }): Promise<{ drafts?: DraftAction[]; error?: string }> {
   try {
     if (!isGeminiConfigured()) {
@@ -104,7 +127,7 @@ export async function generateDraftActions(params: {
     const ai = getGeminiClient();
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
-      contents: buildPrompt(params.trainingText, params.focusThemes, count),
+      contents: buildPrompt(params.trainingText, params.focusThemes, count, params.avoidTitles),
       config: {
         responseMimeType: "application/json",
         responseSchema: draftSchema,
@@ -207,9 +230,11 @@ function daysUntilNextWeeklyDay(
 }
 
 /**
- * First next_delivery_at for a new subscription.
- * - daily: next day at the chosen IST time (today if that time is still ahead).
- * - weekly: next occurrence of any selected day at the chosen IST time.
+ * First next_delivery_at for a new subscription — next occurrence of any
+ * selected weekday at the chosen IST time. Both tracks now carry an explicit
+ * daysOfWeek selection (daily = user-chosen subset of days, weekly = exactly
+ * one day), so they share the same scheduling math; only a legacy
+ * subscription with no daysOfWeek at all falls back to pure "every day".
  */
 export function computeNextDeliveryAt(
   track: DeliveryTrack,
@@ -220,17 +245,17 @@ export function computeNextDeliveryAt(
   const istTime = utcToISTTime(timeOfDayUtc);
   const nowTime = getCurrentISTTime();
 
-  if (track === "daily") {
+  if (!daysOfWeek?.length) {
     const targetDate = istTime > nowTime ? today : addDaysToISTDate(today, 1);
     return istToUTCDateTime(targetDate, istTime);
   }
 
-  const daysToAdd = daysUntilNextWeeklyDay(today, daysOfWeek ?? [], istTime, nowTime);
+  const daysToAdd = daysUntilNextWeeklyDay(today, daysOfWeek, istTime, nowTime);
   const targetDate = addDaysToISTDate(today, daysToAdd);
   return istToUTCDateTime(targetDate, istTime);
 }
 
-/** Advance next_delivery_at by one cycle (1 day for daily, next selected weekday for weekly). */
+/** Advance next_delivery_at by one cycle (next selected weekday; legacy fallback: +1 day). */
 export function advanceNextDeliveryAt(
   previousIso: string,
   track: DeliveryTrack,
@@ -240,11 +265,11 @@ export function advanceNextDeliveryAt(
   const prevDate = utcToISTDate(previousIso) || getCurrentISTDate();
   const istTime = utcToISTTime(timeOfDayUtc) || utcToISTDateTime(previousIso).time;
 
-  if (track === "daily") {
+  if (!daysOfWeek?.length) {
     return istToUTCDateTime(addDaysToISTDate(prevDate, 1), istTime);
   }
 
-  const daysToAdd = daysUntilNextWeeklyDayAfter(prevDate, daysOfWeek ?? []);
+  const daysToAdd = daysUntilNextWeeklyDayAfter(prevDate, daysOfWeek);
   return istToUTCDateTime(addDaysToISTDate(prevDate, daysToAdd), istTime);
 }
 
@@ -274,6 +299,7 @@ export type PersonalActionSubscriptionRow = {
   daily_action_count: number;
   time_of_day_utc: string;
   next_delivery_at: string;
+  last_delivered_at?: string | null;
 };
 
 /** Fetch all active subscriptions due at or before `nowIso`. */
@@ -281,98 +307,71 @@ export async function getDueSubscriptions(nowIso: string): Promise<PersonalActio
   const admin = createAdminClient();
   const { data } = await admin
     .from("personal_action_subscriptions")
-    .select("id, user_id, training_text, focus_themes, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at")
+    .select("id, user_id, training_text, focus_themes, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at, last_delivered_at")
     .eq("is_active", true)
     .lte("next_delivery_at", nowIso);
   return (data ?? []) as PersonalActionSubscriptionRow[];
 }
 
 /**
- * Generate a fresh batch of personal actions for a subscription and insert them
- * directly into the user's library (available in their carousel, not pre-accepted).
- * Pulls from the user's backlog (oldest first, from earlier "Generate more" clicks)
- * before topping up with freshly-generated ones via Gemini, so at most BATCH_SIZE
- * new actions land per delivery regardless of how many the user generated up front.
- * Advances the subscription's next_delivery_at on success (even on partial failure,
- * to avoid retry storms — the next cycle will try again).
+ * Assign up to `daily_action_count` already-generated personal actions (ones
+ * with no existing user_actions row yet, oldest first) into the user's
+ * "My Actions" for this delivery cycle. Unlike the old deliverNewBatch, this
+ * never generates new actions itself — the whole plan is generated upfront in
+ * the background (see app/api/generate-actions-batch/route.ts); this just
+ * paces how many of those already-generated actions are active at once, so
+ * completing one doesn't pull in a replacement until the next delivery.
+ * Only advances next_delivery_at when something was actually assigned, so a
+ * pool that's temporarily empty (background generation still catching up)
+ * retries next cycle instead of silently skipping ahead.
  */
-export async function deliverNewBatch(sub: PersonalActionSubscriptionRow): Promise<{ inserted: number; error?: string }> {
+export async function assignScheduledBatch(
+  sub: Pick<PersonalActionSubscriptionRow, "id" | "user_id" | "track" | "day_of_week" | "days_of_week" | "daily_action_count" | "time_of_day_utc" | "next_delivery_at">
+): Promise<{ assigned: number }> {
   const admin = createAdminClient();
   const nowIso = new Date().toISOString();
-
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("company_id")
-    .eq("id", sub.user_id)
-    .single();
-  const companyId = profile?.company_id;
-
-  let inserted = 0;
-  let error: string | undefined;
-
   const batchSize = sub.daily_action_count ?? DEFAULT_BATCH_SIZE;
 
-  if (companyId) {
-    const { data: backlogRows } = await admin
-      .from("personal_action_backlog")
-      .select("id, theme, title, how, why, time_estimate")
-      .eq("user_id", sub.user_id)
-      .order("created_at", { ascending: true })
-      .limit(batchSize);
+  const [{ data: candidateActions }, { data: existingUA }] = await Promise.all([
+    admin
+      .from("actions")
+      .select("id")
+      .eq("created_by", sub.user_id)
+      .eq("is_personal", true)
+      .order("created_at", { ascending: true }),
+    admin
+      .from("user_actions")
+      .select("action_id")
+      .eq("user_id", sub.user_id),
+  ]);
 
-    const fromBacklog: DraftAction[] = (backlogRows ?? []).map((r) => ({
-      theme: r.theme,
-      title: r.title,
-      how: r.how,
-      why: r.why,
-      timeEstimate: r.time_estimate,
+  const assignedIds = new Set((existingUA ?? []).map((r) => r.action_id));
+  const unassigned = (candidateActions ?? []).filter((a) => !assignedIds.has(a.id));
+  const batch = unassigned.slice(0, batchSize);
+
+  if (batch.length) {
+    const rows = batch.map((a) => ({
+      user_id: sub.user_id,
+      action_id: a.id,
+      status: "scheduled",
+      scheduled_at: nowIso,
     }));
+    await admin.from("user_actions").insert(rows);
 
-    let drafts: DraftAction[] = fromBacklog;
-    const shortfall = batchSize - fromBacklog.length;
-    if (shortfall > 0) {
-      const { drafts: generated, error: genError } = await generateDraftActions({
-        trainingText: sub.training_text,
-        focusThemes: sub.focus_themes,
-        count: shortfall,
-      });
-      if (generated) {
-        drafts = [...drafts, ...generated];
-      } else if (!fromBacklog.length) {
-        error = genError ?? "No drafts generated";
-      }
-    }
-
-    if (drafts.length) {
-      const rows = draftsToActionRows(drafts, companyId, sub.user_id);
-      const { error: insertError, count } = await admin.from("actions").insert(rows, { count: "exact" });
-      if (insertError) {
-        error = insertError.message;
-      } else {
-        inserted = count ?? rows.length;
-        const backlogIds = (backlogRows ?? []).map((r) => r.id);
-        if (backlogIds.length) {
-          await admin.from("personal_action_backlog").delete().in("id", backlogIds);
-        }
-      }
-    }
-  } else {
-    error = "User has no company";
+    await admin
+      .from("personal_action_subscriptions")
+      .update({
+        last_delivered_at: nowIso,
+        next_delivery_at: advanceNextDeliveryAt(
+          sub.next_delivery_at,
+          sub.track,
+          sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
+          sub.time_of_day_utc
+        ),
+        updated_at: nowIso,
+      })
+      .eq("id", sub.id);
   }
 
-  await admin
-    .from("personal_action_subscriptions")
-    .update({
-      last_delivered_at: nowIso,
-      next_delivery_at: advanceNextDeliveryAt(
-        sub.next_delivery_at,
-        sub.track,
-        sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
-        sub.time_of_day_utc
-      ),
-      updated_at: nowIso,
-    })
-    .eq("id", sub.id);
-
-  return { inserted, error };
+  return { assigned: batch.length };
 }

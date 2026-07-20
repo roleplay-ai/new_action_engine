@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useEngine } from '@/lib/store';
 import { ClipboardList, ListChecks, PieChart, Bell, ShieldCheck } from 'lucide-react';
 import { LogoutButton } from '@/app/(app)/logout-button';
+import GenerationStatus from '@/components/GenerationStatus';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -13,7 +14,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, role }) => {
-  const { profile } = useEngine();
+  const { profile, generationJob } = useEngine();
   const pathname = usePathname();
 
   const navItems = useMemo(() => {
@@ -69,9 +70,17 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
           </span>
 
           {/* Bell */}
-          <button className="btn btn--icon" aria-label="Notifications">
-            <Bell size={16} strokeWidth={2} />
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button className="btn btn--icon" aria-label="Notifications">
+              <Bell size={16} strokeWidth={2} />
+              {generationJob && <span className="bell-badge" />}
+            </button>
+            {generationJob && (
+              <div className="bell-status-popover">
+                <GenerationStatus job={generationJob} />
+              </div>
+            )}
+          </div>
 
           {/* Avatar */}
           <div

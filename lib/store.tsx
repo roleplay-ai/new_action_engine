@@ -16,7 +16,14 @@ import {
 } from "@/app/actions/user-actions";
 import { validateAction as validateActionServer } from "@/app/actions/validate-action";
 import { syncMyTotalPointsFromHistory } from "@/app/actions/points";
+import { getActiveGenerationJob } from "@/app/actions/ai-actions";
 import { utcToISTDateTime } from "@/lib/timezone-utils";
+
+export type GenerationJobStatus = {
+  totalNeeded: number;
+  totalGenerated: number;
+  status: string;
+};
 
 interface EngineContextType {
   profile: UserProfile;
@@ -29,6 +36,8 @@ interface EngineContextType {
   feed: FeedItem[];
   isLoading: boolean;
   hasCompany: boolean;
+  /** Live progress of the background action-plan generation job, while one is running. */
+  generationJob: GenerationJobStatus | null;
   refetch: () => Promise<void>;
   completeOnboarding: (importance: number, goal: number) => Promise<void>;
   updatePoints: (amount: number) => Promise<void>;
@@ -111,6 +120,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
   const [cohort, setCohort] = useState<{ id: string; name: string; memberCount: number } | null>(null);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [hasCompany, setHasCompany] = useState(false);
+  const [generationJob, setGenerationJob] = useState<GenerationJobStatus | null>(null);
 
   const refetch = useCallback(async () => {
     const supabase = createClient();
@@ -187,7 +197,8 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       const { data: actions } = await supabase
         .from("actions")
         .select("id, theme, title, how, why, time_estimate, is_personal")
-        .eq("company_id", companyId);
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: true });
       setAllActions((actions ?? []).map(mapDbAction));
     } else {
       setAllActions([]);
@@ -217,6 +228,30 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
   useEffect(() => {
     refetch().finally(() => setIsLoading(false));
   }, [refetch, adminCompanyId]);
+
+  // Poll for background action-plan generation progress. Only surfaces the job
+  // while it's actively generating — the bell badge disappears on its own once
+  // it completes or fails. Also re-pulls allActions/userActions while a job is
+  // running so newly generated actions show up in the library live, not just
+  // the progress counter.
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      const { job } = await getActiveGenerationJob();
+      if (cancelled) return;
+      const isGenerating = job?.status === "generating";
+      setGenerationJob(isGenerating ? job : null);
+      if (isGenerating) {
+        await refetch();
+      }
+    };
+    poll();
+    const interval = setInterval(poll, 6000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [refetch]);
 
   const updatePoints = async () => { };
   const addFeedItem = async () => { };
@@ -254,6 +289,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       feed,
       isLoading,
       hasCompany,
+      generationJob,
       refetch,
       completeOnboarding,
       updatePoints,
@@ -265,7 +301,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       likeFeedItem,
       addNewAction,
     }),
-    [profile, userActions, allActions, selfOnboardingCompletedAt, cohort, feed, isLoading, hasCompany, refetch]
+    [profile, userActions, allActions, selfOnboardingCompletedAt, cohort, feed, isLoading, hasCompany, generationJob, refetch]
   );
 
   return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;

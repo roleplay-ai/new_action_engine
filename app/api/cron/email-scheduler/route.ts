@@ -5,14 +5,14 @@ import { sendTemplateToUsers } from "@/lib/email-send";
 import { type ScheduleType } from "@/app/actions/email-schedule";
 import { computeNextRunAt } from "@/lib/schedule-utils";
 import { buildWeeklyEmailTemplateDataForUser } from "@/lib/weekly-email";
-import { getDueSubscriptions, deliverNewBatch } from "@/lib/personal-action-generation";
+import { getDueSubscriptions, assignScheduledBatch } from "@/lib/personal-action-generation";
 
 /**
  * Vercel Cron handler — runs once daily (see vercel.json for the exact cron expression).
  * Picks up all active email_schedules where next_run_at <= now, sends via Resend,
  * then advances (or deactivates) each schedule. Also picks up due
- * personal_action_subscriptions and generates + inserts a fresh batch of AI actions
- * directly into each user's library (in-app only, no email), then advances
+ * personal_action_subscriptions and assigns the next batch of already-generated
+ * personal actions into "My Actions" (in-app only, no email), then advances
  * next_delivery_at by the subscription's frequency.
  *
  * Auth: checks Authorization: Bearer <CRON_SECRET> header (set by Vercel
@@ -39,11 +39,9 @@ export async function GET(request: Request) {
   // ── Personal action delivery (in-app, no email required) ───────────────────
   const dueSubscriptions = await getDueSubscriptions(nowIso);
   let subscriptionsDelivered = 0;
-  let subscriptionsFailed = 0;
   for (const sub of dueSubscriptions) {
-    const { inserted, error } = await deliverNewBatch(sub);
-    if (error) subscriptionsFailed += 1;
-    else if (inserted > 0) subscriptionsDelivered += 1;
+    const { assigned } = await assignScheduledBatch(sub);
+    if (assigned > 0) subscriptionsDelivered += 1;
   }
 
   // ── Email schedules (require Resend) ────────────────────────────────────────
@@ -54,7 +52,6 @@ export async function GET(request: Request) {
       processed: 0,
       results: [],
       subscriptionsDelivered,
-      subscriptionsFailed,
     });
   }
   const fromEmail = process.env.RESEND_FROM_EMAIL!;
@@ -161,6 +158,5 @@ export async function GET(request: Request) {
     processed: (schedules ?? []).length,
     results: summary,
     subscriptionsDelivered,
-    subscriptionsFailed,
   });
 }

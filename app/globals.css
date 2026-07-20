@@ -127,11 +127,18 @@ input[type="range"] {
   box-sizing: border-box;
 }
 
-/* My Actions carousel — bleed into page gutters for more visible cards */
+/* Action Plan — full viewport width with balanced side gutters */
+.page-content--full {
+  max-width: none !important;
+  padding-left: clamp(var(--space-5), 4vw, var(--space-16)) !important;
+  padding-right: clamp(var(--space-5), 4vw, var(--space-16)) !important;
+}
+
+/* My Actions carousel — align with page gutters */
 .my-actions-bleed {
-  margin-left: calc(-1 * var(--space-3));
-  margin-right: calc(-1 * var(--space-3));
-  width: calc(100% + 2 * var(--space-3));
+  margin-left: 0;
+  margin-right: 0;
+  width: 100%;
 }
 
 .carousel-slide--wide {
@@ -174,14 +181,13 @@ input[type="range"] {
   .carousel-slide--wide {
     width: calc((100% - 32px) / 3);
     min-width: 240px;
-    max-width: 320px;
   }
 }
 
 @media (min-width: 1280px) {
   .carousel-slide--wide {
     width: calc((100% - 48px) / 4);
-    max-width: 300px;
+    min-width: 0;
   }
 }
 

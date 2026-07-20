@@ -6,6 +6,7 @@ import { type ScheduleType } from "@/app/actions/email-schedule";
 import { computeNextRunAt } from "@/lib/schedule-utils";
 import { buildWeeklyEmailTemplateDataForUser } from "@/lib/weekly-email";
 import { getDueSubscriptions, assignScheduledBatch } from "@/lib/personal-action-generation";
+import { sendDailyActionReminders } from "@/lib/action-reminders";
 
 /**
  * Vercel Cron handler — runs once daily (see vercel.json for the exact cron expression).
@@ -13,7 +14,10 @@ import { getDueSubscriptions, assignScheduledBatch } from "@/lib/personal-action
  * then advances (or deactivates) each schedule. Also picks up due
  * personal_action_subscriptions and assigns the next batch of already-generated
  * personal actions into "My Actions" (in-app only, no email), then advances
- * next_delivery_at by the subscription's frequency.
+ * next_delivery_at by the subscription's frequency. Finally sends per-user
+ * action-reminder emails on whichever day(s) each user's own plan cadence
+ * says (see lib/action-reminders.ts) — a separate concept from email_schedules,
+ * which is admin-configured broadcasts to explicitly chosen recipients.
  *
  * Auth: checks Authorization: Bearer <CRON_SECRET> header (set by Vercel
  * automatically when CRON_SECRET env var is present) or ?secret= query param
@@ -48,13 +52,17 @@ export async function GET(request: Request) {
   if (!isResendConfigured()) {
     return NextResponse.json({
       ok: true,
-      message: "Resend not configured — skipped email_schedules, personal actions still processed",
+      message: "Resend not configured — skipped email_schedules and reminders, personal actions still processed",
       processed: 0,
       results: [],
       subscriptionsDelivered,
+      reminders: { sent: 0, failed: 0, skippedEmpty: 0 },
     });
   }
   const fromEmail = process.env.RESEND_FROM_EMAIL!;
+
+  // ── Per-user action-reminder emails (own plan cadence, not admin-scheduled) ─
+  const reminderSummary = await sendDailyActionReminders(baseUrl, fromEmail);
 
   // ── Fetch due schedules ─────────────────────────────────────────────────────
   const { data: schedules, error: fetchError } = await admin
@@ -158,5 +166,6 @@ export async function GET(request: Request) {
     processed: (schedules ?? []).length,
     results: summary,
     subscriptionsDelivered,
+    reminders: reminderSummary,
   });
 }

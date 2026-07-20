@@ -30,6 +30,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   }, [role]);
 
   const isActive = (href: string) => pathname?.startsWith(href);
+  const isActionPlan = pathname?.startsWith('/action-plan');
 
   return (
     <>
@@ -106,7 +107,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       </nav>
 
       {/* ── Page content — top padding accounts for sticky navbar ── */}
-      <main className="page-content">
+      <main className={`page-content${isActionPlan ? ' page-content--full' : ''}`}>
         {children}
       </main>
     </>

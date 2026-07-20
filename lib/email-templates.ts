@@ -212,6 +212,52 @@ function renderCalendarInviteHtml(data: EmailTemplateData): string {
     ${footerHtml()}`);
 }
 
+// ─── Daily/weekly action reminder ──────────────────────────────────────────
+
+type ReminderAction = {
+  theme?: string;
+  title?: string;
+  how?: string;
+  timeEstimate?: string;
+};
+
+function renderDailyReminderHtml(data: EmailTemplateData): string {
+  const firstName = str(data, "first_name", "there");
+  const loginUrl = str(data, "login_url", "#");
+  const actions = Array.isArray(data.actions) ? (data.actions as ReminderAction[]) : [];
+  const count = actions.length;
+
+  const actionsHtml = actions.length
+    ? actions
+        .map(
+          (a) => `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;border:1px solid #e5e7eb;border-radius:8px;">
+      <tr>
+        <td style="padding:14px 16px;">
+          ${a.theme ? `<p style="margin:0 0 4px;color:#6b7280;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">${esc(a.theme)}</p>` : ""}
+          <p style="margin:0 0 6px;color:#111827;font-size:15px;font-weight:bold;">${esc(a.title)}</p>
+          ${a.how ? `<p style="margin:0;color:#374151;font-size:13px;">${esc(a.how)}</p>` : ""}
+          ${a.timeEstimate ? `<p style="margin:8px 0 0;color:#9ca3af;font-size:11px;">⏱ ${esc(a.timeEstimate)}</p>` : ""}
+        </td>
+      </tr>
+    </table>`
+        )
+        .join("")
+    : `<p style="margin:0;color:#6b7280;font-size:13px;">Nothing pending right now — nice work staying on top of it.</p>`;
+
+  return emailShell(`
+    ${headerHtml(data)}
+    <tr>
+      <td style="padding:28px 32px 8px;">
+        <p style="margin:0 0 4px;color:#111827;font-size:18px;font-weight:bold;">Hey ${esc(firstName)},</p>
+        <p style="margin:0 0 16px;color:#374151;font-size:13px;">${count} action${count === 1 ? "" : "s"} waiting for you — here's a quick reminder.</p>
+        ${actionsHtml}
+        ${ctaButtonHtml(loginUrl, "Open My Actions")}
+      </td>
+    </tr>
+    ${footerHtml()}`);
+}
+
 // ─── Registry ───────────────────────────────────────────────────────────────
 
 export const EMAIL_TEMPLATES = {
@@ -233,6 +279,14 @@ export const EMAIL_TEMPLATES = {
     label: "Calendar Invite",
     subject: (data: EmailTemplateData) => `Calendar invite: ${str(data, "what", "Your action")}`,
     render: renderCalendarInviteHtml,
+  },
+  daily_reminder: {
+    label: "Action Reminder",
+    subject: (data: EmailTemplateData) => {
+      const n = Array.isArray(data.actions) ? data.actions.length : 0;
+      return `${n} action${n === 1 ? "" : "s"} waiting for you today`;
+    },
+    render: renderDailyReminderHtml,
   },
 } as const;
 

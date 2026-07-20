@@ -623,7 +623,7 @@ export default function EmailSchedulerPanel({ users }: { users: User[] }) {
           {/* Info bar */}
           <div className="px-4 py-2 bg-sky-100 border-b border-sky-200 flex flex-wrap items-center justify-between gap-2">
             <p className="text-[10px] font-bold text-sky-800 uppercase tracking-wider">
-              Vercel cron fires daily at 8:30 PM IST (15:00 UTC) ·{" "}
+              Vercel cron fires daily at 11:30 AM IST (06:00 UTC) ·{" "}
               <code className="bg-sky-200 px-1 rounded">next_run_at &le; now</code>{" "}
               triggers send
             </p>

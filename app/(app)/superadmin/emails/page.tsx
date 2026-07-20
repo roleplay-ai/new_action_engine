@@ -4,6 +4,7 @@ import { getUsersWithProfiles } from "@/app/actions/superadmin";
 import AutoLoginTestingPanel from "../auto-login-testing-panel";
 import AutoLoginEmailPanel from "../auto-login-email-panel";
 import EmailSchedulerPanel from "../email-scheduler-panel";
+import ActionReminderLogsPanel from "../action-reminder-logs-panel";
 
 export default async function SuperadminEmailsPage() {
   const supabase = await createClient();
@@ -51,6 +52,8 @@ export default async function SuperadminEmailsPage() {
       <AutoLoginTestingPanel users={users} />
 
       <EmailSchedulerPanel users={users} />
+
+      <ActionReminderLogsPanel />
     </div>
   );
 }

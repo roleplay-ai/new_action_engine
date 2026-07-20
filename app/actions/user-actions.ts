@@ -315,6 +315,7 @@ export async function declineAction(actionId: string): Promise<{ error?: string 
       user_id: user.id,
       action_id: actionId,
       status: "skipped",
+      scheduled_at: null,
     },
     { onConflict: "user_id,action_id" }
   );

@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { istToUTCDateTime, IST_OFFSET_MINUTES, getCurrentISTDate } from "@/lib/timezone-utils";
 import { getPointsForEvent } from "@/lib/points";
-import { sgMail, isSendGridConfigured } from "@/lib/sendgrid";
+import { isResendConfigured, resend } from "@/lib/resend";
+import { renderEmailTemplate } from "@/lib/email-templates";
 import { buildMeetingInviteIcs } from "@/lib/ics-invite";
 
 function toGoogleCalendarTemplateUrl(params: {
@@ -151,10 +152,9 @@ export async function scheduleAction(params: {
   });
 
   // Email calendar invite (bypasses Google Calendar OAuth; user can add in Gmail/Calendar).
-  if (sync && isSendGridConfigured() && user.email) {
+  if (sync && isResendConfigured() && user.email) {
     try {
-      const fromEmail = process.env.SENDGRID_FROM_EMAIL!;
-      const templateId = "d-31fc8012ccbd42fda00234ed3c3445df";
+      const fromEmail = process.env.RESEND_FROM_EMAIL!;
       const summary = actionRow.title;
       const description = `How:\n${actionRow.how}\n\nWhy:\n${actionRow.why}`;
       const addToCalendarUrl = toGoogleCalendarTemplateUrl({
@@ -193,39 +193,33 @@ export async function scheduleAction(params: {
         endUtcIso: scheduledEndAt,
       });
 
-      const baseMessage = {
+      const { subject, html } = renderEmailTemplate("calendar_invite", {
+        company_name: companyName ?? "",
+        first_name: firstName,
+        skill: actionRow.theme ?? "",
+        what: summary,
+        how: actionRow.how,
+        why: actionRow.why,
+        add_to_calendar_url: addToCalendarUrl,
+      });
+
+      const { error: sendError } = await resend.emails.send({
         to: user.email,
-        from: { email: fromEmail, name: "Nudgeable" },
+        from: `Nudgeable <${fromEmail}>`,
+        subject,
+        html,
         attachments: [
           {
-            content: Buffer.from(ics, "utf8").toString("base64"),
             filename: "invite.ics",
-            type: "text/calendar",
-            disposition: "attachment",
+            content: Buffer.from(ics, "utf8"),
           },
         ],
-      } as const;
-
-      await sgMail.send({
-        ...baseMessage,
-        templateId,
-        dynamicTemplateData: {
-          company_name: companyName ?? "",
-          first_name: firstName,
-          skill: actionRow.theme ?? "",
-          what: summary,
-          how: actionRow.how,
-          why: actionRow.why,
-          add_to_calendar_url: addToCalendarUrl,
-        },
-      } as any);
+      });
+      if (sendError) throw new Error(sendError.message);
     } catch (e) {
       const err = e as any;
       console.error("[scheduleAction] failed sending invite email", {
         message: err?.message,
-        code: err?.code,
-        sendgridErrors: err?.response?.body?.errors,
-        responseBody: err?.response?.body,
       });
     }
   }

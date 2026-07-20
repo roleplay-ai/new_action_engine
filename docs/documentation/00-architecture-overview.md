@@ -17,7 +17,7 @@ Nudgeable Action Engine is a B2B behavior-change platform. Companies (tenants) e
 | Framework | Next.js 15 (App Router), TypeScript |
 | Auth & DB | Supabase (Postgres + Supabase Auth), `@supabase/ssr` cookie sessions |
 | Styling | Tailwind CSS ("Neo-Brutalist" visual language — bold borders, high contrast) |
-| Email | SendGrid (`@sendgrid/mail`), dynamic templates |
+| Email | Resend (`resend`), code-defined HTML templates ([lib/email-templates.ts](../../lib/email-templates.ts)) |
 | Scheduling | Vercel Cron (one job — see [04-data-model.md](./04-data-model.md#cron-jobs)) |
 | Charts | Recharts (admin analytics) |
 

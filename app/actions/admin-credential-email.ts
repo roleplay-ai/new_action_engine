@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isSendGridConfigured } from "@/lib/sendgrid";
+import { isResendConfigured } from "@/lib/resend";
 import { sendTemplateToUsers } from "@/lib/email-send";
 import { buildWeeklyEmailTemplateDataForUser } from "@/lib/weekly-email";
 
-/** SendGrid dynamic template for Admin → Email Management (credential) sends only. */
-const CREDENTIAL_EMAIL_TEMPLATE_ID = "d-b01c0c8996d745a39f604a686913a5c1";
+/** Template key (lib/email-templates.ts) for Admin → Email Management (credential) sends only. */
+const CREDENTIAL_EMAIL_TEMPLATE_ID = "credentials";
 
 export type CredentialEmailUserRow = {
   id: string;
@@ -46,7 +46,7 @@ async function getCallerAdminForCompany(companyId: string): Promise<{ userId: st
 }
 
 /**
- * Company users with flag for stored id/password (for SendGrid credential sends).
+ * Company users with flag for stored id/password (for credential email sends).
  */
 export async function listUsersForCredentialEmail(
   companyId: string
@@ -105,7 +105,7 @@ export type SendCredentialEmailResult = {
 };
 
 /**
- * Sends the credential SendGrid template with weekly template data plus:
+ * Sends the credential email template with weekly template data plus:
  * login_email, temporary_password, app_login_url (and standard login_url, first_name, company_logo).
  * Does not delete rows in user_credential_delivery.
  */
@@ -119,10 +119,10 @@ export async function sendLoginCredentialsEmails(
 
     const { userId: sentBy } = await getCallerAdminForCompany(companyId);
 
-    if (!isSendGridConfigured()) {
+    if (!isResendConfigured()) {
       return {
         results: [],
-        error: "SendGrid not configured. Set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL.",
+        error: "Resend not configured. Set RESEND_API_KEY and RESEND_FROM_EMAIL.",
       };
     }
 
@@ -143,7 +143,7 @@ export async function sendLoginCredentialsEmails(
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const fromEmail = process.env.SENDGRID_FROM_EMAIL!;
+    const fromEmail = process.env.RESEND_FROM_EMAIL!;
 
     const results = await sendTemplateToUsers({
       userIds,

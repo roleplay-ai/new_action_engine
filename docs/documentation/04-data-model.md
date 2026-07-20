@@ -247,7 +247,7 @@ This `persistent_login_key`-based URL is what gets embedded as the `login_url` i
 That's **once daily at 04:30 UTC (10:00 AM IST)**. (Some in-app UI copy and a code comment describe a different cadence — those are stale; trust this config, not the copy.)
 
 - **`/api/cron/email-scheduler`** — the only cron doing real work, now with two phases. Auth via `Authorization: Bearer <CRON_SECRET>` or a `?secret=` query param (skipped if `CRON_SECRET` isn't set).
-  1. Finds due `email_schedules` rows, sends via the shared SendGrid helper (logging each send to `email_campaign_logs`), advances `next_run_at`, and deactivates one-time (`specific_date`) schedules after they fire.
+  1. Finds due `email_schedules` rows, sends via the shared Resend helper (logging each send to `email_campaign_logs`), advances `next_run_at`, and deactivates one-time (`specific_date`) schedules after they fire.
   2. Finds due `action_reminders` rows (added in 021), groups them by user, sends **one summary email per user** via `SENDGRID_ACTION_REMINDER_TEMPLATE_ID` (only if that env var is set), and advances each reminder's `next_run_at` by 7 days. Since this cron only fires once daily, "weekly on Monday" is achieved by anchoring `next_run_at` to Monday 00:00 IST — the reminder's user-chosen "time of day" is display copy in the email, not a literal send time.
 - **`/api/cron/package-activation`** — present in the codebase but an explicit no-op, and not even registered in `vercel.json`. Package delivery/visibility is computed client-side at query time (see [00-architecture-overview.md](./00-architecture-overview.md#4-high-level-data-flow)), so nothing needs to run on a schedule to "activate" a package action — this route is a historical leftover.
 

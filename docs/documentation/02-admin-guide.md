@@ -95,7 +95,7 @@ There is no per-user detail/progress drill-down and no "assign package to this u
 Route: `/admin/control-panel/email`. This screen does exactly one thing: **send login credential emails to users the admin created**, nothing more.
 
 - Lists company users, flagging which ones have a stored password on file (i.e., were created via the User Management "Create" flow and haven't had it deleted).
-- Admin selects one or more eligible users and clicks "Send" — each gets a SendGrid email containing their actual login email, the plaintext password on file, and a link to the normal `/login` page.
+- Admin selects one or more eligible users and clicks "Send" — each gets a Resend email containing their actual login email, the plaintext password on file, and a link to the normal `/login` page.
 - Every send (success or failure) is logged; a "Last send results" panel shows per-user outcomes after sending.
 - Credentials are **not** deleted after sending, so an admin can resend as many times as needed if a user loses the email.
 

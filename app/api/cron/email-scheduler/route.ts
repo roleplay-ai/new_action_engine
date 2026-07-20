@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isSendGridConfigured } from "@/lib/sendgrid";
+import { isResendConfigured } from "@/lib/resend";
 import { sendTemplateToUsers } from "@/lib/email-send";
 import { type ScheduleType } from "@/app/actions/email-schedule";
 import { computeNextRunAt } from "@/lib/schedule-utils";
@@ -9,7 +9,7 @@ import { getDueSubscriptions, deliverNewBatch } from "@/lib/personal-action-gene
 
 /**
  * Vercel Cron handler — runs once daily (see vercel.json for the exact cron expression).
- * Picks up all active email_schedules where next_run_at <= now, sends via SendGrid,
+ * Picks up all active email_schedules where next_run_at <= now, sends via Resend,
  * then advances (or deactivates) each schedule. Also picks up due
  * personal_action_subscriptions and generates + inserts a fresh batch of AI actions
  * directly into each user's library (in-app only, no email), then advances
@@ -46,18 +46,18 @@ export async function GET(request: Request) {
     else if (inserted > 0) subscriptionsDelivered += 1;
   }
 
-  // ── Email schedules (require SendGrid) ──────────────────────────────────────
-  if (!isSendGridConfigured()) {
+  // ── Email schedules (require Resend) ────────────────────────────────────────
+  if (!isResendConfigured()) {
     return NextResponse.json({
       ok: true,
-      message: "SendGrid not configured — skipped email_schedules, personal actions still processed",
+      message: "Resend not configured — skipped email_schedules, personal actions still processed",
       processed: 0,
       results: [],
       subscriptionsDelivered,
       subscriptionsFailed,
     });
   }
-  const fromEmail = process.env.SENDGRID_FROM_EMAIL!;
+  const fromEmail = process.env.RESEND_FROM_EMAIL!;
 
   // ── Fetch due schedules ─────────────────────────────────────────────────────
   const { data: schedules, error: fetchError } = await admin

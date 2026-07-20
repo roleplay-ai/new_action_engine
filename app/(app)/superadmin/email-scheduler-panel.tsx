@@ -24,6 +24,11 @@ import {
   type EmailSchedule,
   type ScheduleType,
 } from "@/app/actions/email-schedule";
+import { EMAIL_TEMPLATES, type EmailTemplateKey } from "@/lib/email-templates";
+
+// Calendar invites are triggered by individual action scheduling, not by the
+// scheduler — only offer templates meant for bulk/recurring sends here.
+const SCHEDULABLE_TEMPLATE_KEYS: EmailTemplateKey[] = ["weekly_challenges", "credentials"];
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -130,7 +135,7 @@ type FormState = {
 
 const DEFAULT_FORM: FormState = {
   name: "",
-  template_id: "",
+  template_id: SCHEDULABLE_TEMPLATE_KEYS[0],
   schedule_type: "weekly",
   run_time_utc: "10:00", // stored as IST in form, converted to UTC on submit
   interval_days: "3",
@@ -243,14 +248,19 @@ function CreateScheduleForm({
           />
         </div>
         <div>
-          <label className={labelClass}>SendGrid template ID *</label>
-          <input
+          <label className={labelClass}>Email template *</label>
+          <select
             className={inputClass}
-            placeholder="d-xxxxxxxxxxxx"
             value={form.template_id}
             onChange={(e) => setForm((p) => ({ ...p, template_id: e.target.value }))}
             required
-          />
+          >
+            {SCHEDULABLE_TEMPLATE_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {EMAIL_TEMPLATES[key].label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -430,7 +440,11 @@ function ScheduleRow({
 
         <p className="text-[11px] text-slate-500">{scheduleDescription(schedule)}</p>
         <p className="text-[11px] text-slate-400">
-          Template: <span className="font-mono">{schedule.template_id}</span>
+          Template:{" "}
+          <span className="font-mono">
+            {(EMAIL_TEMPLATES as Record<string, { label: string }>)[schedule.template_id]?.label ??
+              schedule.template_id}
+          </span>
           {" · "}
           {schedule.user_ids.length} recipient{schedule.user_ids.length !== 1 ? "s" : ""}
         </p>
@@ -524,7 +538,7 @@ export default function EmailSchedulerPanel({ users }: { users: User[] }) {
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<string | null>(null);
 
-  const defaultTemplateId = "";
+  const defaultTemplateId = SCHEDULABLE_TEMPLATE_KEYS[0];
 
   async function loadSchedules() {
     setLoading(true);

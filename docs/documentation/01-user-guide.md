@@ -52,7 +52,7 @@ Each action card shows its **theme** tag (Collaboration / Feedback / Accountabil
    - Upserts a `user_actions` row (`status: "scheduled"`, the chosen `scheduled_at`).
    - Awards points (see §7).
    - Logs an `ACCEPTED` feed event.
-   - If calendar sync is on, emails the user an `.ics` calendar invite (via SendGrid) plus a pre-filled "Add to Google Calendar" link. **This is an emailed invite, not a live OAuth-connected calendar integration** — nothing writes directly into the user's calendar.
+   - If calendar sync is on, emails the user an `.ics` calendar invite (via Resend) plus a pre-filled "Add to Google Calendar" link. **This is an emailed invite, not a live OAuth-connected calendar integration** — nothing writes directly into the user's calendar.
 2. **Accept without scheduling** — the "×" on the schedule overlay; same as above but `scheduled_at` stays null and no calendar email is sent.
 3. **Decline** — always available, no confirmation. Sets `status: "skipped"` and logs a `DECLINED` feed event. This is intentionally framed as an "honesty skip" (see §7) — declining is rewarded, not just accepting, to encourage honest engagement over silent avoidance.
 

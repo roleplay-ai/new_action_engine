@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sgMail, isSendGridConfigured } from "@/lib/sendgrid";
+import { isResendConfigured } from "@/lib/resend";
 import { sendTemplateToUsers } from "@/lib/email-send";
 import { buildWeeklyEmailTemplateDataForUser } from "@/lib/weekly-email";
 
@@ -45,10 +45,10 @@ export async function sendAutoLoginEmails(
   try {
     const sentById = await ensureSuperadmin();
 
-    if (!isSendGridConfigured()) {
+    if (!isResendConfigured()) {
       return {
         results: [],
-        error: "SendGrid not configured. Set SENDGRID_API_KEY, SENDGRID_FROM_EMAIL, and SENDGRID_TEMPLATE_ID in environment.",
+        error: "Resend not configured. Set RESEND_API_KEY and RESEND_FROM_EMAIL in environment.",
       };
     }
 
@@ -57,11 +57,10 @@ export async function sendAutoLoginEmails(
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const fromEmail = process.env.SENDGRID_FROM_EMAIL!;
-    const templateId = process.env.SENDGRID_TEMPLATE_ID!;
+    const fromEmail = process.env.RESEND_FROM_EMAIL!;
     const results = await sendTemplateToUsers({
       userIds,
-      templateId,
+      templateId: "weekly_challenges",
       fromEmail,
       baseUrl,
       sentBy: sentById,

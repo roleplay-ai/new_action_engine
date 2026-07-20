@@ -49,7 +49,7 @@ This is how **assigning a company admin** actually happens today: pick a user in
 Every user profile carries a permanent, non-expiring `persistent_login_key`. Visiting `{app}/api/auto-login?key=<that key>` logs that specific user in immediately — no password prompt. Two panels on `/superadmin/emails` deal with this, plus a third entry point on the Users page:
 
 - **Auto-Login Testing Panel** — an internal/dev tool. Lists every user with a key and gives you Copy Link, Test (opens the link in a new tab so you can confirm the flow works, e.g. in an incognito window), and Rotate (invalidate + regenerate) actions. **Sends no email** — it's purely for verifying the mechanism works.
-- **Auto-Login Email Panel** — select users, click "Send login email," and each gets an actual SendGrid email containing their personal auto-login link. This is the real end-user-facing delivery mechanism.
+- **Auto-Login Email Panel** — select users, click "Send login email," and each gets an actual Resend email containing their personal auto-login link. This is the real end-user-facing delivery mechanism.
 - The Users page also has its own "Send login email" toolbar wired to the same send action — so this capability is reachable from two different screens.
 
 ### How the link actually resolves
@@ -73,7 +73,7 @@ Stored passwords are never auto-deleted, specifically so credentials can be rese
 
 A recurring-send configuration system, superadmin-only, on `/superadmin/emails`.
 
-A **schedule** has: a name, a SendGrid template ID, a list of recipient user IDs, a cadence type, and a run time. Supported cadence types in the underlying logic: daily, weekly, every N days, or a one-time specific date — **but the create form in the UI currently only offers Weekly or Specific Date**; daily/every-N-days exist in the backend and database constraint but aren't reachable from this screen today.
+A **schedule** has: a name, an email template (a fixed key from `lib/email-templates.ts` — "Weekly Challenges" or "Login Credentials"), a list of recipient user IDs, a cadence type, and a run time. Supported cadence types in the underlying logic: daily, weekly, every N days, or a one-time specific date — **but the create form in the UI currently only offers Weekly or Specific Date**; daily/every-N-days exist in the backend and database constraint but aren't reachable from this screen today.
 
 - **Create** — computes the first run time and saves the schedule as active.
 - **Toggle** — pause/resume without deleting.

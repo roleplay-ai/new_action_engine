@@ -1,11 +1,12 @@
 /**
- * Shared utility for sending SendGrid template emails to a list of users.
- * Generates auto-login URLs, sends via SendGrid, and writes audit rows to
+ * Shared utility for sending templated emails to a list of users.
+ * Generates auto-login URLs, sends via Resend, and writes audit rows to
  * email_campaign_logs.  Used by both the manual campaign action and the
  * scheduled cron handler.
  */
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sgMail } from "@/lib/sendgrid";
+import { resend } from "@/lib/resend";
+import { isEmailTemplateKey, renderEmailTemplate, type EmailTemplateKey } from "@/lib/email-templates";
 
 export type SendToUsersResult = {
   userId: string;
@@ -64,6 +65,7 @@ export async function sendTemplateToUsers({
   includeStoredCredentials = false,
 }: {
   userIds: string[];
+  /** Key of a template defined in lib/email-templates.ts (e.g. "weekly_challenges", "credentials"). */
   templateId: string;
   fromEmail: string;
   baseUrl: string;
@@ -73,6 +75,16 @@ export async function sendTemplateToUsers({
   /** When true, merges login_email, temporary_password, app_login_url from user_credential_delivery (row is not deleted). */
   includeStoredCredentials?: boolean;
 }): Promise<SendToUsersResult[]> {
+  if (!isEmailTemplateKey(templateId)) {
+    return userIds.map((userId) => ({
+      userId,
+      email: "",
+      success: false,
+      error: `Unknown email template "${templateId}"`,
+    }));
+  }
+  const templateKey: EmailTemplateKey = templateId;
+
   const admin = createAdminClient();
 
   const { data: profiles } = await admin
@@ -170,12 +182,14 @@ export async function sendTemplateToUsers({
         });
       }
 
-      await sgMail.send({
+      const { subject, html } = renderEmailTemplate(templateKey, dynamicTemplateData);
+      const { error: sendError } = await resend.emails.send({
         to: email,
         from: fromEmail,
-        templateId,
-        dynamicTemplateData,
+        subject,
+        html,
       });
+      if (sendError) throw new Error(sendError.message);
 
       await admin.from("email_campaign_logs").insert({
         user_id: userId,
@@ -187,7 +201,7 @@ export async function sendTemplateToUsers({
 
       results.push({ userId, email, success: true });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "SendGrid error";
+      const errorMessage = err instanceof Error ? err.message : "Resend error";
 
       if (isEmailDebugEnabled()) {
         console.log("[email-send] failed sending template email", {

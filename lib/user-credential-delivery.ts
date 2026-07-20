@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Persists login email + plaintext password for SendGrid (universal template data).
+ * Persists login email + plaintext password for the credential email template.
  * Supabase Auth cannot expose the password after create; this row is the only copy in your DB.
  * Rows are not removed when emails are sent — admins resend from Email Management when needed.
  */

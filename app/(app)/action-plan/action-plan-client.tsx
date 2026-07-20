@@ -31,7 +31,7 @@ export default function ActionPlanClient() {
   const [completingActionId, setCompletingActionId] = useState<string | null>(null);
   const [reflection, setReflection] = useState("");
   const [validationStep, setValidationStep] = useState<ValidationStep>("success_prompt");
-  const [showLibrary, setShowLibrary] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(true);
   const [editingActionId, setEditingActionId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ theme: ActionTheme; title: string; how: string; why: string; timeEstimate: string } | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -46,16 +46,6 @@ export default function ActionPlanClient() {
     userActions.filter((ua) => ua.status === "scheduled").map((ua) => ua.actionId)
   );
   const myActions = allActions.filter((ad) => ad.isPersonal && scheduledIds.has(ad.id));
-
-  const completedIds = new Set(
-    userActions.filter((ua) => ua.status === "success").map((ua) => ua.actionId)
-  );
-  const completedActions = allActions.filter((ad) => ad.isPersonal && completedIds.has(ad.id));
-
-  // Any personal action with no user_actions row at all yet — still waiting
-  // to be picked up by a future delivery. Grows live as generation continues.
-  const touchedIds = new Set(userActions.map((ua) => ua.actionId));
-  const generatedActions = allActions.filter((ad) => ad.isPersonal && !touchedIds.has(ad.id));
 
   const completingAction = completingActionId
     ? allActions.find((a) => a.id === completingActionId)
@@ -129,65 +119,61 @@ export default function ActionPlanClient() {
     <>
       {hasCompany && !selfOnboardingCompletedAt && <Onboarding onComplete={() => refetch()} />}
 
-      {completingActionId && (
+      {completingActionId && validationStep === "success_prompt" && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8"
           style={{ background: "rgba(34,29,35,0.65)", backdropFilter: "blur(12px)" }}
         >
-          {validationStep === "success_prompt" && (
-            <div className="card card--wide animate-pop w-full overflow-y-auto no-scrollbar" style={{ maxHeight: "90vh" }}>
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <span className="tag tag--yellow mb-3 inline-block">Check In</span>
-                  <h3 className="card__title">Mark as complete</h3>
-                  <p className="card__subtitle mb-0">
-                    {completingAction?.title
-                      ? `How did "${completingAction.title}" go?`
-                      : "Capture your tactical reflection — this builds the knowing-doing bridge."}
-                  </p>
-                </div>
-                <button onClick={closeCompleteModal} className="btn btn--icon ml-4">
-                  <X size={20} strokeWidth={2.5} />
-                </button>
+          <div className="card card--wide animate-pop w-full overflow-y-auto no-scrollbar" style={{ maxHeight: "90vh" }}>
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <span className="tag tag--yellow mb-3 inline-block">Check In</span>
+                <h3 className="card__title">Mark as complete</h3>
+                <p className="card__subtitle mb-0">
+                  {completingAction?.title
+                    ? `How did "${completingAction.title}" go?`
+                    : "Capture your tactical reflection — this builds the knowing-doing bridge."}
+                </p>
               </div>
-
-              <div className="card__inset mb-6">
-                <div className="flex items-center gap-2 mb-3">
-                  <Lightbulb size={16} style={{ color: "var(--bright-amber)" }} />
-                  <span className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>
-                    What was the tactical result or friction point?
-                  </span>
-                </div>
-                <textarea
-                  placeholder="The team shared 3 ideas they'd usually hide..."
-                  className="form-input"
-                  style={{ minHeight: "140px", resize: "vertical" }}
-                  value={reflection}
-                  onChange={(e) => setReflection(e.target.value)}
-                />
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button onClick={submitValidation} className="btn btn--accept flex-1">
-                  Verify <ArrowRight size={18} strokeWidth={2.5} />
-                </button>
-                <button onClick={handleDidNotComplete} className="btn btn--decline flex-1">
-                  Didn&apos;t Complete
-                </button>
-              </div>
+              <button onClick={closeCompleteModal} className="btn btn--icon ml-4">
+                <X size={20} strokeWidth={2.5} />
+              </button>
             </div>
-          )}
 
-          {validationStep === "celebration" && (
-            <div className="card--wide animate-pop w-full overflow-y-auto no-scrollbar" style={{ maxHeight: "90vh" }}>
-              <ConfettiCelebration
-                actionTitle={completingAction?.title}
-                onContinue={closeCompleteModal}
-                onClose={closeCompleteModal}
+            <div className="card__inset mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <Lightbulb size={16} style={{ color: "var(--bright-amber)" }} />
+                <span className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>
+                  What was the tactical result or friction point?
+                </span>
+              </div>
+              <textarea
+                placeholder="The team shared 3 ideas they'd usually hide..."
+                className="form-input"
+                style={{ minHeight: "140px", resize: "vertical" }}
+                value={reflection}
+                onChange={(e) => setReflection(e.target.value)}
               />
             </div>
-          )}
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button onClick={submitValidation} className="btn btn--accept flex-1">
+                Verify <ArrowRight size={18} strokeWidth={2.5} />
+              </button>
+              <button onClick={handleDidNotComplete} className="btn btn--decline flex-1">
+                Didn&apos;t Complete
+              </button>
+            </div>
+          </div>
         </div>
+      )}
+
+      {completingActionId && validationStep === "celebration" && (
+        <ConfettiCelebration
+          actionTitle={completingAction?.title}
+          onContinue={closeCompleteModal}
+          onClose={closeCompleteModal}
+        />
       )}
 
       <div className="animate-in fade-in duration-700 w-full space-y-10">
@@ -256,66 +242,30 @@ export default function ActionPlanClient() {
         </section>
 
         {hasCompany && (
-          <section>
+          <section className="w-full min-w-0">
             <button
               onClick={() => setShowLibrary((v) => !v)}
               className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider"
               style={{ color: "var(--color-text-muted)" }}
+              aria-expanded={showLibrary}
+              aria-controls="full-action-library"
             >
               {showLibrary ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
               Full action library
             </button>
-            {showLibrary && (
-              <div className="mt-6 space-y-10">
-                <div>
-                  <h3
-                    className="text-sm font-bold uppercase tracking-wider mb-4"
-                    style={{ color: "var(--color-text-muted)" }}
-                  >
-                    Generated actions ({generatedActions.length}
-                    {generationJob ? ` of ${generationJob.totalNeeded}` : ""})
-                  </h3>
-                  {generatedActions.length > 0 ? (
-                    <div className="action-grid">
-                      {generatedActions.map((action) => (
-                        <ActionCard
-                          key={action.id}
-                          action={action}
-                          onEdit={openEditModal}
-                          onDelete={handleDeleteGenerated}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-                      No actions generated yet.
-                    </p>
-                  )}
+            <div
+              id="full-action-library"
+              className="grid transition-[grid-template-rows] duration-200 ease-out"
+              style={{ gridTemplateRows: showLibrary ? "1fr" : "0fr" }}
+              aria-hidden={!showLibrary}
+              {...(!showLibrary ? { inert: "" as const } : {})}
+            >
+              <div className="min-h-0 overflow-hidden">
+                <div className="mt-6">
+                  <Challenges onEdit={openEditModal} onDelete={handleDeleteGenerated} />
                 </div>
-
-                <div>
-                  <h3
-                    className="text-sm font-bold uppercase tracking-wider mb-4"
-                    style={{ color: "var(--color-text-muted)" }}
-                  >
-                    Completed actions ({completedActions.length})
-                  </h3>
-                  {completedActions.length > 0 ? (
-                    <div className="action-grid">
-                      {completedActions.map((action) => (
-                        <ActionCard key={action.id} action={action} />
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-                      Nothing completed yet.
-                    </p>
-                  )}
-                </div>
-
-                <Challenges />
               </div>
-            )}
+            </div>
           </section>
         )}
       </div>

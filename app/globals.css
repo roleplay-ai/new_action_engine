@@ -117,10 +117,14 @@ input[type="range"] {
 
 /* ── page-content: slightly tighter horizontal gutters ── */
 .page-content {
+  width: 100% !important;
+  max-width: 1560px !important;
+  margin-inline: auto !important;
   padding-top: var(--space-8) !important;
   padding-left: var(--space-4) !important;
   padding-right: var(--space-4) !important;
-  max-width: 1560px !important;
+  overflow-x: clip;
+  box-sizing: border-box;
 }
 
 /* My Actions carousel — bleed into page gutters for more visible cards */
@@ -142,9 +146,15 @@ input[type="range"] {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
+  width: 100%;
+  min-width: 0;
 }
 .action-grid > * {
-  height: 260px;
+  height: 280px;
+}
+.action-grid .challenge-card {
+  padding-top: 20px !important;
+  padding-bottom: 20px !important;
 }
 @media (max-width: 1023px) {
   .action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

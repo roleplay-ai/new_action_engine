@@ -258,7 +258,7 @@ export default function ActionPlanClient() {
               className="grid transition-[grid-template-rows] duration-200 ease-out"
               style={{ gridTemplateRows: showLibrary ? "1fr" : "0fr" }}
               aria-hidden={!showLibrary}
-              {...(!showLibrary ? { inert: "" as const } : {})}
+              inert={!showLibrary || undefined}
             >
               <div className="min-h-0 overflow-hidden">
                 <div className="mt-6">

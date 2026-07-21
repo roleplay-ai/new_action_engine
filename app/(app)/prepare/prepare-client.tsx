@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, Check, ChevronRight, CircleUserRound, FileText, Play, Users } from "lucide-react";
+import { createPortal } from "react-dom";
+import { CalendarDays, Check, ChevronRight, CircleUserRound, FileText, Play, Users, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getMyCohort } from "@/app/actions/cohorts";
 import { listCohortContent } from "@/app/actions/prepare-content";
@@ -63,6 +64,20 @@ export default function PrepareClient() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!selectedItem) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedItem(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [selectedItem]);
 
   async function handleComplete(contentItemId: string) {
     const result = await markContentViewed(contentItemId);
@@ -161,12 +176,28 @@ export default function PrepareClient() {
         </article>
       </div>
 
-      {selectedItem && <div className="journey-resource-overlay" onClick={() => setSelectedItem(null)}>
-        <div className="journey-resource-modal" onClick={(event) => event.stopPropagation()}>
-          <button className="journey-modal-close" onClick={() => setSelectedItem(null)}>×</button>
-          {selectedItem.type === "video" ? <VideoCard item={selectedItem} completed={progress[selectedItem.id]?.status === "completed"} onComplete={handleComplete} accentColor="#FFEEA8" /> : selectedItem.type === "preread" ? <PrereadCard item={selectedItem} completed={progress[selectedItem.id]?.status === "completed"} onComplete={handleComplete} /> : <QuizCard item={selectedItem} completed={progress[selectedItem.id]?.status === "completed"} lastScore={progress[selectedItem.id]?.lastScore} lastTotalQuestions={progress[selectedItem.id]?.lastTotalQuestions} onComplete={handleComplete} />}
+      {typeof document !== "undefined" && selectedItem?.type === "quiz" && createPortal(<QuizCard
+        item={selectedItem}
+        completed={progress[selectedItem.id]?.status === "completed"}
+        lastScore={progress[selectedItem.id]?.lastScore}
+        lastTotalQuestions={progress[selectedItem.id]?.lastTotalQuestions}
+        onComplete={handleComplete}
+        autoOpen
+        modalOnly
+        onRequestClose={() => setSelectedItem(null)}
+      />, document.body)}
+
+      {typeof document !== "undefined" && selectedItem && selectedItem.type !== "quiz" && createPortal(<div className="journey-resource-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedItem(null); }}>
+        <div className="journey-resource-modal" role="dialog" aria-modal="true" aria-labelledby="journey-resource-title">
+          <header className="journey-resource-modal-head">
+            <div><span>{selectedItem.type === "video" ? "Video" : "Pre-read"}</span><strong id="journey-resource-title">{selectedItem.title}</strong></div>
+            <button className="journey-modal-close" onClick={() => setSelectedItem(null)} aria-label="Close resource"><X size={18} /></button>
+          </header>
+          <div className="journey-resource-modal-body">
+            {selectedItem.type === "video" ? <VideoCard item={selectedItem} completed={progress[selectedItem.id]?.status === "completed"} onComplete={handleComplete} accentColor="#FFEEA8" /> : <PrereadCard item={selectedItem} completed={progress[selectedItem.id]?.status === "completed"} onComplete={handleComplete} />}
+          </div>
         </div>
-      </div>}
+      </div>, document.body)}
     </div>
   );
 }

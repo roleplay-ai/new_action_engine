@@ -26,7 +26,7 @@ export async function saveGeneratedActions(params: {
   focusCustomText?: string;
   track: DeliveryTrack;
   /** Actions generated per delivery. */
-  dailyActionCount: 2 | 3 | 4;
+  dailyActionCount: 1 | 2 | 3 | 4 | 5;
   /** IST time (HH:MM) when the next batch should arrive. */
   deliveryTime: string;
   /** 0 = Sunday, ... 6 = Saturday. Multiple allowed for "daily", exactly one for "weekly". */
@@ -57,15 +57,18 @@ export async function saveGeneratedActions(params: {
     if (params.track !== "daily" && params.track !== "weekly") {
       return { error: "Invalid track" };
     }
-    const uniqueDays = [...new Set(params.daysOfWeek ?? [])].sort((a, b) => a - b);
+    // Daily plans always run every day. Weekly plans use exactly one chosen reminder day.
+    const uniqueDays = params.track === "daily"
+      ? [0, 1, 2, 3, 4, 5, 6]
+      : [...new Set(params.daysOfWeek ?? [])].sort((a, b) => a - b);
     if (!uniqueDays.length || uniqueDays.some((d) => d < 0 || d > 6)) {
       return { error: "Select at least one day" };
     }
     if (params.track === "weekly" && uniqueDays.length !== 1) {
       return { error: "Weekly sprint requires exactly one day" };
     }
-    if (![2, 3, 4].includes(params.dailyActionCount)) {
-      return { error: "Daily action count must be 2, 3, or 4" };
+    if (![1, 2, 3, 4, 5].includes(params.dailyActionCount)) {
+      return { error: "Action count must be between 1 and 5" };
     }
     if (!params.deliveryTime?.trim()) {
       return { error: "Select a delivery time" };

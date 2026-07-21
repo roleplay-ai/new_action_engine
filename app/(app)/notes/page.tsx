@@ -1,12 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import NotesClient from "./notes-client";
 
-export default async function PreparePage() {
+export default async function NotesPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-
-  redirect("/journey");
+  return <NotesClient />;
 }

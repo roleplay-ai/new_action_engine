@@ -43,14 +43,14 @@ const draftSchema = {
   required: ["actions"],
 };
 
-/** Total actions needed for a full plan: duration x actions/delivery x active delivery days/week. */
+/** Weekly: duration x actions/week. Daily: duration x actions/day x 7 days. */
 export function computeTotalActionsNeeded(
   durationWeeks: number,
   dailyActionCount: number,
   track: DeliveryTrack,
   daysOfWeek?: number[] | null
 ): number {
-  const activeDaysPerWeek = daysOfWeek?.length ? daysOfWeek.length : track === "daily" ? 7 : 1;
+  const activeDaysPerWeek = track === "daily" ? 7 : 1;
   return durationWeeks * dailyActionCount * activeDaysPerWeek;
 }
 

@@ -11,49 +11,40 @@ import { computeTotalActionsNeeded, type DeliveryTrack } from "@/lib/personal-ac
 type Step = "qna" | "cadence";
 
 const WEEKDAYS = [
-  { value: 0, label: "Sun" },
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
+  { value: 0, label: "Sunday" },
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+  { value: 6, label: "Saturday" },
 ];
 
-const Onboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+const REMINDER_TIMES = Array.from({ length: 10 }, (_, index) => {
+  const hour = index + 9;
+  return { value: `${String(hour).padStart(2, "0")}:00`, label: `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? "PM" : "AM"}` };
+});
+
+const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: string }> = ({ onComplete, initialTrainingText = "" }) => {
   const [step, setStep] = useState<Step>("qna");
-  const [trainingText, setTrainingText] = useState("");
+  const [trainingText, setTrainingText] = useState(initialTrainingText);
   const [focusCustomText, setFocusCustomText] = useState("");
   const [durationWeeks, setDurationWeeks] = useState(8);
-  const [track, setTrack] = useState<DeliveryTrack>("daily");
-  const [daysOfWeek, setDaysOfWeek] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
-  const [dailyActionCount, setDailyActionCount] = useState<2 | 3 | 4>(3);
-  const [deliveryTime, setDeliveryTime] = useState("09:00");
+  const [track, setTrack] = useState<DeliveryTrack>("weekly");
+  const [daysOfWeek, setDaysOfWeek] = useState<number[]>([2]);
+  const [dailyActionCount, setDailyActionCount] = useState<1 | 2 | 3 | 4 | 5>(2);
+  const [deliveryTime, setDeliveryTime] = useState("11:00");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const selectTrack = (next: DeliveryTrack) => {
     setTrack(next);
     if (next === "weekly") {
-      setDaysOfWeek((prev) => [prev[0] ?? 1]);
-    } else if (daysOfWeek.length <= 1) {
+      setDaysOfWeek((prev) => [prev[0] ?? 2]);
+    } else {
       setDaysOfWeek([0, 1, 2, 3, 4, 5, 6]);
     }
   };
-
-  // Daily Sprint: toggle any number of days on/off (at least one stays selected).
-  const toggleDay = (day: number) => {
-    setDaysOfWeek((prev) => {
-      if (prev.includes(day)) {
-        const next = prev.filter((d) => d !== day);
-        return next.length ? next : prev;
-      }
-      return [...prev, day].sort((a, b) => a - b);
-    });
-  };
-
-  // Weekly Sprint: exactly one day at a time.
-  const selectSingleDay = (day: number) => setDaysOfWeek([day]);
 
   const handleSkip = async () => {
     setSaving(true);
@@ -84,9 +75,17 @@ const Onboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   };
 
   const totalActions = computeTotalActionsNeeded(durationWeeks, dailyActionCount, track, daysOfWeek);
+  const cadenceSummary = track === "weekly"
+    ? `${dailyActionCount} action${dailyActionCount === 1 ? "" : "s"} each week for ${durationWeeks} weeks`
+    : `${dailyActionCount} action${dailyActionCount === 1 ? "" : "s"} each day for ${durationWeeks} weeks`;
+  const planWarning = totalActions > 100
+    ? "This is a very intensive plan. Consider fewer daily actions or a shorter duration."
+    : totalActions > 50
+      ? "This is a busy plan. Make sure this pace is realistic for your schedule."
+      : null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8"
+    <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-8"
       style={{ background: "rgba(34,29,35,0.65)", backdropFilter: "blur(12px)" }}>
       <div
         className="card card--wide animate-pop w-full overflow-y-auto no-scrollbar"
@@ -111,7 +110,7 @@ const Onboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
             <div className="form-group mb-5">
               <label className="form-label">What training did you do?</label>
               <textarea
-                placeholder="e.g. a workshop on giving direct feedback..."
+                placeholder="Your saved session notes will appear here, or describe the workshop in your own words…"
                 className="form-input"
                 style={{ minHeight: "100px", resize: "vertical" }}
                 value={trainingText}
@@ -144,10 +143,9 @@ const Onboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
             <div className="flex justify-between items-start mb-6">
               <div>
                 <span className="tag tag--yellow mb-3 inline-block">Plan setup</span>
-                <h3 className="card__title">Set your sprint cadence</h3>
+                <h3 className="card__title">Choose your action pace</h3>
                 <p className="card__subtitle mb-0">
-                  Choose how long your plan runs, how often you get a delivery, and how many
-                  actions each time.
+                  Choose how long you want to practise, how many actions you want, and when to be reminded.
                 </p>
               </div>
               <button onClick={handleSkip} disabled={saving} className="btn btn--icon ml-4">
@@ -179,113 +177,70 @@ const Onboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-              <button
-                type="button"
-                onClick={() => selectTrack("daily")}
-                className={`card__inset text-left transition-all ${track === "daily" ? "ring-2 ring-offset-2" : "opacity-70 hover:opacity-100"}`}
-                style={track === "daily" ? { borderColor: "var(--color-border-yellow)" } as React.CSSProperties : {}}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="icon-badge icon-badge--sm" style={{ marginBottom: 0 }}>
-                    <Zap size={20} style={{ color: track === "daily" ? "var(--bright-amber)" : "var(--color-text-muted)" }} />
-                  </div>
-                  {track === "daily" && <span className="tag tag--featured">Selected</span>}
-                </div>
-                <h5 className="font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>Daily Sprint</h5>
-                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                  A fresh delivery on the days you pick below — unselect any you don&apos;t want.
-                </p>
-              </button>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
               <button
                 type="button"
                 onClick={() => selectTrack("weekly")}
                 className={`card__inset text-left transition-all ${track === "weekly" ? "ring-2 ring-offset-2" : "opacity-70 hover:opacity-100"}`}
                 style={track === "weekly" ? { borderColor: "var(--color-border-yellow)" } : {}}
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="icon-badge icon-badge--sm" style={{ marginBottom: 0 }}>
-                    <CalendarDays size={20} style={{ color: track === "weekly" ? "var(--majorelle-blue)" : "var(--color-text-muted)" }} />
-                  </div>
+                <div className="flex items-center justify-between mb-2">
+                  <CalendarDays size={20} style={{ color: track === "weekly" ? "var(--bright-amber)" : "var(--color-text-muted)" }} />
                   {track === "weekly" && <span className="tag tag--featured">Selected</span>}
                 </div>
-                <h5 className="font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>Weekly Sprint</h5>
-                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                  One delivery a week, on a single day you pick below.
-                </p>
+                <h5 className="font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>Weekly actions</h5>
+                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Practise on one selected day each week.</p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => selectTrack("daily")}
+                className={`card__inset text-left transition-all ${track === "daily" ? "ring-2 ring-offset-2" : "opacity-70 hover:opacity-100"}`}
+                style={track === "daily" ? { borderColor: "var(--color-border-yellow)" } as React.CSSProperties : {}}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <Zap size={20} style={{ color: track === "daily" ? "var(--bright-amber)" : "var(--color-text-muted)" }} />
+                  {track === "daily" && <span className="tag tag--featured">Selected</span>}
+                </div>
+                <h5 className="font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>Daily actions</h5>
+                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Use short workplace actions every day.</p>
               </button>
             </div>
 
-            <div className="form-group mb-5">
-              <label className="form-label">
-                {track === "daily" ? "Which days of the week?" : "Which day of the week?"}
-              </label>
-              <p className="text-xs mb-2" style={{ color: "var(--color-text-muted)" }}>
-                {track === "daily"
-                  ? "Selected days get a fresh delivery — unselect any you want to skip."
-                  : "Pick the one day you want your weekly delivery."}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {WEEKDAYS.map(({ value, label }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => (track === "daily" ? toggleDay(value) : selectSingleDay(value))}
-                    className={`btn btn--sm ${daysOfWeek.includes(value) ? "btn--primary" : "btn--decline"}`}
-                  >
-                    {label}
-                  </button>
-                ))}
+            <div className={`grid gap-4 mb-5 ${track === "weekly" ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+              <div className="form-group mb-0">
+                <label className="form-label">Actions per {track === "weekly" ? "week" : "day"}</label>
+                <select className="form-input" value={dailyActionCount} onChange={(event) => setDailyActionCount(Number(event.target.value) as 1 | 2 | 3 | 4 | 5)}>
+                  {([1, 2, 3, 4, 5] as const).map((count) => <option key={count} value={count}>{count} action{count === 1 ? "" : "s"}</option>)}
+                </select>
+              </div>
+              {track === "weekly" && <div className="form-group mb-0">
+                <label className="form-label">Reminder day</label>
+                <select className="form-input" value={daysOfWeek[0]} onChange={(event) => setDaysOfWeek([Number(event.target.value)])}>
+                  {WEEKDAYS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </div>}
+              <div className="form-group mb-0">
+                <label className="form-label">Reminder time</label>
+                <select className="form-input" value={deliveryTime} onChange={(event) => setDeliveryTime(event.target.value)}>
+                  {REMINDER_TIMES.map((time) => <option key={time.value} value={time.value}>{time.label}</option>)}
+                </select>
               </div>
             </div>
 
-            <div className="form-group mb-5">
-              <label className="form-label">How many actions per delivery?</label>
-              <div className="flex gap-2">
-                {([2, 3, 4] as const).map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setDailyActionCount(n)}
-                    className={`btn btn--sm flex-1 ${dailyActionCount === n ? "btn--primary" : "btn--decline"}`}
-                  >
-                    {n} actions
-                  </button>
-                ))}
-              </div>
+            <div className="card__inset mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div><p className="font-bold" style={{ color: "var(--color-text-primary)" }}>{cadenceSummary}</p><p className="text-xs" style={{ color: "var(--color-text-muted)" }}>AI will generate your complete practice plan.</p></div>
+              <p className="text-xl font-bold whitespace-nowrap" style={{ color: "var(--color-text-primary)" }}>{totalActions} actions</p>
             </div>
 
-            <div className="form-group mb-5">
-              <label className="form-label">What time should new actions arrive?</label>
-              <p className="text-xs mb-2" style={{ color: "var(--color-text-muted)" }}>
-                We&apos;ll drop your next delivery in My Actions around this time (IST).
-              </p>
-              <input
-                type="time"
-                className="form-input"
-                style={{ maxWidth: "180px" }}
-                value={deliveryTime}
-                onChange={(e) => setDeliveryTime(e.target.value)}
-              />
-            </div>
-
-            <div className="card__inset mb-6" style={{ textAlign: "center" }}>
-              <p className="text-2xl font-bold" style={{ color: "var(--color-text-primary)" }}>
-                {totalActions} actions
-              </p>
-              <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                will be generated for your {durationWeeks}-week plan — we&apos;ll build them in the
-                background and drop them into your action library as they&apos;re ready.
-              </p>
-            </div>
+            {planWarning && <div className="mb-5 rounded-xl px-4 py-3 text-xs font-semibold" style={{ color: totalActions > 100 ? "#9b2c35" : "#7a5f00", background: totalActions > 100 ? "#feecee" : "rgba(255,206,0,.14)", border: `1px solid ${totalActions > 100 ? "#facbd0" : "var(--color-border-yellow)"}` }}>{planWarning}</div>}
 
             {errorMsg && (
               <p className="text-sm font-semibold mb-4" style={{ color: "var(--color-danger)" }}>{errorMsg}</p>
             )}
 
             <button onClick={handleFinish} disabled={saving} className="btn btn--primary btn--full">
-              {saving ? "Saving…" : "Finish Setup"}
+              {saving ? "Generating…" : "Generate my actions"}
             </button>
           </>
         )}

@@ -7,7 +7,6 @@ import Challenges from "@/components/Challenges";
 import Carousel from "@/components/Carousel";
 import { X, Lightbulb, ArrowRight, ListChecks, ChevronDown, ChevronRight } from "lucide-react";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
-import Onboarding from "@/components/Onboarding";
 import GenerationStatus from "@/components/GenerationStatus";
 import { updatePersonalAction, deletePersonalAction } from "@/app/actions/ai-actions";
 import { THEMES } from "@/lib/personal-action-generation";
@@ -117,8 +116,6 @@ export default function ActionPlanClient() {
 
   return (
     <>
-      {hasCompany && !selfOnboardingCompletedAt && <Onboarding onComplete={() => refetch()} />}
-
       {completingActionId && validationStep === "success_prompt" && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8"

@@ -7,6 +7,7 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { UserProfile, UserAction, FeedItem, ActionCard } from "./types";
@@ -121,6 +122,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [hasCompany, setHasCompany] = useState(false);
   const [generationJob, setGenerationJob] = useState<GenerationJobStatus | null>(null);
+  const generationWasActive = useRef(false);
 
   const refetch = useCallback(async () => {
     const supabase = createClient();
@@ -242,6 +244,10 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       const isGenerating = job?.status === "generating";
       setGenerationJob(isGenerating ? job : null);
       if (isGenerating) {
+        generationWasActive.current = true;
+        await refetch();
+      } else if (generationWasActive.current) {
+        generationWasActive.current = false;
         await refetch();
       }
     };

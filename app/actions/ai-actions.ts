@@ -9,16 +9,47 @@ import {
   computeTotalActionsNeeded,
   BACKGROUND_BATCH_SIZE,
   buildTrainingContext,
+  assignScheduledBatch,
   type DeliveryTrack,
 } from "@/lib/personal-action-generation";
-import { istToUTCTime } from "@/lib/timezone-utils";
+import { istToUTCTime, utcToISTTime } from "@/lib/timezone-utils";
+
+export type MyPlanSettings = {
+  track: DeliveryTrack;
+  actionCount: number;
+  durationWeeks: number;
+  daysOfWeek: number[];
+  reminderTime: string;
+  totalActionsPlanned: number;
+  nextDeliveryAt: string | null;
+  isActive: boolean;
+};
+
+export async function getMyPlanSettings(): Promise<{ settings: MyPlanSettings | null; error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { settings: null, error: "Not authenticated" };
+  const { data, error } = await supabase.from("personal_action_subscriptions")
+    .select("track, daily_action_count, duration_weeks, days_of_week, day_of_week, time_of_day_utc, total_actions_planned, next_delivery_at, is_active")
+    .eq("user_id", user.id).maybeSingle();
+  if (error) return { settings: null, error: error.message };
+  if (!data) return { settings: null };
+  return { settings: {
+    track: data.track as DeliveryTrack,
+    actionCount: data.daily_action_count ?? 1,
+    durationWeeks: data.duration_weeks ?? 0,
+    daysOfWeek: data.days_of_week ?? (data.day_of_week != null ? [data.day_of_week] : []),
+    reminderTime: utcToISTTime(data.time_of_day_utc),
+    totalActionsPlanned: data.total_actions_planned ?? 0,
+    nextDeliveryAt: data.next_delivery_at ?? null,
+    isActive: data.is_active === true,
+  } };
+}
 
 /**
- * Save the user's training context and sprint cadence, then kick off a background
- * job that generates the full plan's worth of actions in batches (see
- * app/api/generate-actions-batch/route.ts) and drops them straight into the
- * user's action library as they're ready. Marks onboarding complete immediately —
- * generation continues after this call returns.
+ * Save a draft plan and generate its actions in the background. The subscription
+ * remains inactive until the participant reviews the actions and explicitly
+ * finalises the plan with activatePersonalActionPlan.
  */
 export async function saveGeneratedActions(params: {
   trainingText: string;
@@ -86,10 +117,8 @@ export async function saveGeneratedActions(params: {
       uniqueDays
     );
 
-    // is_active: true — the delivery cron (assignScheduledBatch) paces how
-    // many of the already-generated actions become active at a time; it
-    // never generates new ones itself, so it can't over-produce beyond the
-    // plan total.
+    // Draft only: no actions are delivered until the participant reviews and
+    // activates the plan.
     const { error: subError } = await supabase.from("personal_action_subscriptions").upsert(
       {
         user_id: user.id,
@@ -100,7 +129,7 @@ export async function saveGeneratedActions(params: {
         days_of_week: uniqueDays,
         daily_action_count: params.dailyActionCount,
         time_of_day_utc: timeOfDayUtc,
-        is_active: true,
+        is_active: false,
         last_delivered_at: null,
         next_delivery_at: computeNextDeliveryAt(params.track, uniqueDays, timeOfDayUtc),
         duration_weeks: params.durationWeeks,
@@ -164,14 +193,42 @@ export async function saveGeneratedActions(params: {
       });
     }
 
-    await supabase
-      .from("profiles")
-      .update({ self_onboarding_completed_at: new Date().toISOString() })
-      .eq("id", user.id);
-
     return { totalActionsNeeded };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to save actions" };
+  }
+}
+
+/** Finalise a reviewed draft, activate its cadence, and release the first batch. */
+export async function activatePersonalActionPlan(): Promise<{ error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Not authenticated" };
+
+    const { data: sub, error } = await supabase
+      .from("personal_action_subscriptions")
+      .select("id, user_id, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error || !sub) return { error: error?.message ?? "Create a plan first" };
+
+    const nextDeliveryAt = computeNextDeliveryAt(
+      sub.track as DeliveryTrack,
+      sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
+      sub.time_of_day_utc
+    );
+    const { error: updateError } = await supabase
+      .from("personal_action_subscriptions")
+      .update({ is_active: true, next_delivery_at: nextDeliveryAt, last_delivered_at: null, updated_at: new Date().toISOString() })
+      .eq("id", sub.id);
+    if (updateError) return { error: updateError.message };
+
+    await assignScheduledBatch({ ...sub, next_delivery_at: nextDeliveryAt });
+    await supabase.from("profiles").update({ self_onboarding_completed_at: new Date().toISOString() }).eq("id", user.id);
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to activate plan" };
   }
 }
 

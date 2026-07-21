@@ -314,7 +314,7 @@ export async function getDueSubscriptions(nowIso: string): Promise<PersonalActio
 }
 
 /**
- * Assign up to `daily_action_count` already-generated personal actions (ones
+ * Keep up to `daily_action_count` generated personal actions active (ones
  * with no existing user_actions row yet, oldest first) into the user's
  * "My Actions" for this delivery cycle. Unlike the old deliverNewBatch, this
  * never generates new actions itself — the whole plan is generated upfront in
@@ -341,13 +341,33 @@ export async function assignScheduledBatch(
       .order("created_at", { ascending: true }),
     admin
       .from("user_actions")
-      .select("action_id")
+      .select("action_id, status")
       .eq("user_id", sub.user_id),
   ]);
 
   const assignedIds = new Set((existingUA ?? []).map((r) => r.action_id));
+  const activeCount = (existingUA ?? []).filter((row) => row.status === "scheduled").length;
+  const slotsAvailable = Math.max(0, batchSize - activeCount);
   const unassigned = (candidateActions ?? []).filter((a) => !assignedIds.has(a.id));
-  const batch = unassigned.slice(0, batchSize);
+  const batch = unassigned.slice(0, slotsAvailable);
+
+  // An unfinished batch remains current; do not stack another full batch on
+  // top of it. Advance the cadence and keep all remaining actions in backlog.
+  if (slotsAvailable === 0) {
+    await admin
+      .from("personal_action_subscriptions")
+      .update({
+        next_delivery_at: advanceNextDeliveryAt(
+          sub.next_delivery_at,
+          sub.track,
+          sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
+          sub.time_of_day_utc
+        ),
+        updated_at: nowIso,
+      })
+      .eq("id", sub.id);
+    return { assigned: 0 };
+  }
 
   if (batch.length) {
     const rows = batch.map((a) => ({

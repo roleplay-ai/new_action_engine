@@ -85,6 +85,24 @@ export interface CohortMember {
   fullName: string | null;
 }
 
+export interface CohortMessage {
+  id: string;
+  cohortId: string;
+  senderId: string;
+  senderName: string;
+  senderRole: 'participant' | 'trainer';
+  message: string;
+  createdAt: string;
+}
+
+export interface JourneyData {
+  error?: string;
+  cohort: Cohort | null;
+  roster: CohortMember[];
+  items: PrepareContentItem[];
+  progress: UserPrepareProgress[];
+}
+
 export type PrepareContentType = 'video' | 'quiz' | 'preread';
 
 export interface QuizOption {

@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { CalendarDays, Check, CheckCircle2, ChevronRight, Clock3, ListChecks, Medal, Settings2, Trophy, X } from "lucide-react";
+import { CalendarDays, Check, CheckCircle2, ChevronRight, CircleX, Clock3, ListChecks, Medal, Settings2, Trophy, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getCohortLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard";
 import { getMyPlanSettings, type MyPlanSettings } from "@/app/actions/ai-actions";
+import { usePageLoading } from "@/components/PageLoadingProvider";
 
-type Tab = "upcoming" | "completed" | "settings";
+type Tab = "upcoming" | "completed" | "not-completed" | "settings";
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function formatDate(value?: string) {
@@ -42,16 +43,31 @@ export default function ActionsClient() {
   const [busy, setBusy] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [settings, setSettings] = useState<MyPlanSettings | null>(null);
+  const [ready, setReady] = useState(false);
+
+  usePageLoading(!ready);
 
   useEffect(() => {
-    if (cohort?.id) getCohortLeaderboard(cohort.id).then((result) => setLeaderboard(result.entries ?? []));
-    getMyPlanSettings().then((result) => setSettings(result.settings));
-  }, [cohort?.id, profile.totalPoints]);
+    let cancelled = false;
+    Promise.all([
+      cohort?.id ? getCohortLeaderboard(cohort.id) : Promise.resolve({ entries: [] as LeaderboardEntry[] }),
+      getMyPlanSettings(),
+    ]).then(([lb, settingsResult]) => {
+      if (cancelled) return;
+      setLeaderboard(lb.entries ?? []);
+      setSettings(settingsResult.settings);
+      setReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [cohort?.id]);
 
   const actionMap = useMemo(() => new Map(allActions.map((action) => [action.id, action])), [allActions]);
   const planIsActive = settings?.isActive === true;
   const scheduled = planIsActive ? userActions.filter((item) => item.status === "scheduled" && actionMap.has(item.actionId)) : [];
   const completed = userActions.filter((item) => item.status === "success" && actionMap.has(item.actionId));
+  const notCompleted = userActions.filter((item) => (item.status === "failed" || item.status === "skipped") && actionMap.has(item.actionId));
   const usedActionIds = new Set(userActions.map((item) => item.actionId));
   const currentActions = scheduled.map((item) => ({ userAction: item, action: actionMap.get(item.actionId)! }));
   const upcoming = planIsActive ? allActions.filter((action) => action.isPersonal && !usedActionIds.has(action.id)) : [];
@@ -65,6 +81,15 @@ export default function ActionsClient() {
     setReflection("");
   }
 
+  async function skip(actionId: string) {
+    setBusy(true);
+    const result = await completeAction(actionId, false, "Skipped");
+    setBusy(false);
+    if (!result.error) setTab("not-completed");
+  }
+
+  if (!ready) return null;
+
   return <div className="reference-actions animate-in fade-in duration-700">
     <div className="actions-overview-head">
       <div><span className="participant-eyebrow">Workplace practice</span><h1>Your practice plan</h1><p>One action appears when it is due. Completed actions move to your history.</p></div>
@@ -72,9 +97,10 @@ export default function ActionsClient() {
     </div>
 
     <nav className="actions-tabs" aria-label="Action views">
-      <button className={tab === "upcoming" ? "active" : ""} onClick={() => setTab("upcoming")}>Upcoming <span>{scheduled.length}</span></button>
-      <button className={tab === "completed" ? "active" : ""} onClick={() => setTab("completed")}>Completed <span>{completed.length}</span></button>
-      <button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>Settings</button>
+      <button type="button" className={tab === "upcoming" ? "active" : ""} onClick={() => setTab("upcoming")}>Upcoming <span>{scheduled.length}</span></button>
+      <button type="button" className={tab === "completed" ? "active" : ""} onClick={() => setTab("completed")}>Completed <span>{completed.length}</span></button>
+      <button type="button" className={tab === "not-completed" ? "active" : ""} onClick={() => setTab("not-completed")}>Didn&apos;t complete <span>{notCompleted.length}</span></button>
+      <button type="button" className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>Plan overview</button>
     </nav>
 
     {tab === "upcoming" && <div className="actions-reference-layout">
@@ -86,7 +112,7 @@ export default function ActionsClient() {
               <div className="actions-current-top"><span>Current action {currentActions.length > 1 ? index + 1 : ""}</span><em>{action.timeEstimate}</em></div>
               <h2>{action.title}</h2><p>{action.how}</p>
               <div className="actions-why"><strong>Why this works</strong><span>{action.why}</span></div>
-              <div className="actions-current-buttons"><button className="journey-primary-button" onClick={() => setCompletingId(userAction.actionId)}><Check size={16} /> Mark completed</button><button onClick={() => { setCompletingId(userAction.actionId); setReflection("Skipped"); }}>Skip for now</button></div>
+              <div className="actions-current-buttons"><button className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(userAction.actionId)}><Check size={16} /> Mark completed</button><button disabled={busy} onClick={() => skip(userAction.actionId)}>Skip for now</button></div>
             </article>)}
           </div>}
         </section>
@@ -108,8 +134,13 @@ export default function ActionsClient() {
       {completed.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CheckCircle2 size={19} /><span><strong>{action.title}</strong><small>{item.reflection || "Completed successfully"}</small></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em></div>; })}
     </div></section>}
 
-    {tab === "settings" && <section className="actions-list-card actions-settings-card"><div className="actions-card-heading"><div><h3>Plan settings</h3><p>Your current duration, pace and reminder schedule.</p></div><Settings2 size={20} /></div>
-      {!settings?.isActive ? <div className="actions-empty-state"><CalendarDays size={28} /><strong>No active plan yet</strong><p>Generate, review and finalise your plan before actions appear here.</p><Link href="/plan" className="journey-primary-button">Go to my plan</Link></div> : <><div className="actions-settings-grid"><div><span>Action pace</span><strong>{settings.track === "weekly" ? "Weekly actions" : "Daily actions"}</strong></div><div><span>Plan duration</span><strong>{settings.durationWeeks} weeks</strong></div><div><span>Actions per {settings.track === "weekly" ? "week" : "day"}</span><strong>{settings.actionCount}</strong></div><div><span>Reminder</span><strong>{settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Daily, "}{formatTime(settings.reminderTime)}</strong></div><div><span>Total plan</span><strong>{settings.totalActionsPlanned} actions</strong></div></div><Link href="/plan" className="journey-primary-button">Edit plan</Link></>}
+    {tab === "not-completed" && <section className="actions-list-card actions-completed-card"><h3>Actions not completed</h3><p>A record of workplace actions you skipped or could not complete.</p><div className="actions-completed-list actions-not-completed-list">
+      {notCompleted.length === 0 && <div className="actions-empty-state"><CircleX size={28} /><strong>No uncompleted actions</strong><p>Actions you don&apos;t complete will appear here.</p></div>}
+      {notCompleted.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CircleX size={19} /><span><strong>{action.title}</strong><small>{item.reflection || (item.status === "skipped" ? "Skipped" : "Not completed")}</small></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em></div>; })}
+    </div></section>}
+
+    {tab === "settings" && <section className="actions-list-card actions-settings-card"><div className="actions-card-heading"><div><h3>Plan overview</h3><p>Your current duration, pace and reminder schedule.</p></div><Settings2 size={20} /></div>
+      {!settings?.isActive ? <div className="actions-empty-state"><CalendarDays size={28} /><strong>No active plan yet</strong><p>Generate, review and finalise your plan before actions appear here.</p><Link href="/plan" className="journey-primary-button">Go to my plan</Link></div> : <div className="actions-settings-grid"><div><span>Action pace</span><strong>{settings.track === "weekly" ? "Weekly actions" : "Daily actions"}</strong></div><div><span>Plan duration</span><strong>{settings.durationWeeks} weeks</strong></div><div><span>Actions per {settings.track === "weekly" ? "week" : "day"}</span><strong>{settings.actionCount}</strong></div><div><span>Reminder</span><strong>{settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Daily, "}{formatTime(settings.reminderTime)}</strong></div><div><span>Total plan</span><strong>{settings.totalActionsPlanned} actions</strong></div></div>}
     </section>}
 
     {typeof document !== "undefined" && completingId && createPortal(<div className="actions-checkin-overlay"><div className="actions-checkin-modal"><button onClick={() => setCompletingId(null)}><X size={18} /></button><span className="participant-eyebrow">Action check-in</span><h3>How did this action go?</h3><p>Add a short reflection. It helps you notice what worked and what to adjust.</p><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="What happened when you tried it?" /><div><button className="journey-primary-button" disabled={busy} onClick={() => finish(true)}>{busy ? "Saving…" : "Complete action"}</button><button disabled={busy} onClick={() => finish(false)}>I didn&apos;t complete it</button></div></div></div>, document.body)}

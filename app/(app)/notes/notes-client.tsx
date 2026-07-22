@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, Cloud, Lightbulb, Sparkles } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getMySessionNotes, saveMySessionNotes } from "@/app/actions/session-notes";
+import { usePageLoading } from "@/components/PageLoadingProvider";
 
 const prompts = [
   "One idea I want to remember is…",
@@ -17,19 +18,34 @@ export default function NotesClient() {
   const [body, setBody] = useState("");
   const [status, setStatus] = useState<"loading" | "saved" | "saving" | "error">("loading");
   const [error, setError] = useState("");
+  const [initializing, setInitializing] = useState(true);
   const loaded = useRef(false);
+  const skipNextSave = useRef(false);
+
+  usePageLoading(initializing);
 
   useEffect(() => {
+    let cancelled = false;
     getMySessionNotes(cohort?.id).then((result) => {
+      if (cancelled) return;
+      skipNextSave.current = true;
       setBody(result.body);
       setError(result.error ?? "");
       setStatus(result.error ? "error" : "saved");
       loaded.current = true;
+      setInitializing(false);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [cohort?.id]);
 
   useEffect(() => {
     if (!loaded.current) return;
+    if (skipNextSave.current) {
+      skipNextSave.current = false;
+      return;
+    }
     setStatus("saving");
     const timer = window.setTimeout(async () => {
       const result = await saveMySessionNotes(body, cohort?.id);
@@ -45,6 +61,8 @@ export default function NotesClient() {
 
   const words = body.trim() ? body.trim().split(/\s+/).length : 0;
 
+  if (initializing) return null;
+
   return (
     <div className="journey-page notes-page">
       <div className="participant-page-heading">
@@ -55,10 +73,21 @@ export default function NotesClient() {
       <div className="notes-layout">
         <section className="journey-card notes-editor-card">
           <div className="notes-editor-head">
-            <div><strong>{cohort?.name ?? "Learning session"}</strong><span>{words} {words === 1 ? "word" : "words"}</span></div>
+            <div>
+              <strong>{cohort?.name ?? "Learning session"}</strong>
+              <span>
+                {words} {words === 1 ? "word" : "words"}
+              </span>
+            </div>
             <span className={`notes-save-state ${status}`}>
               {status === "saved" ? <Check size={14} /> : <Cloud size={14} />}
-              {status === "loading" ? "Loading…" : status === "saving" ? "Saving…" : status === "error" ? "Not saved" : "Saved"}
+              {status === "loading"
+                ? "Loading…"
+                : status === "saving"
+                  ? "Saving…"
+                  : status === "error"
+                    ? "Not saved"
+                    : "Saved"}
             </span>
           </div>
           <textarea
@@ -69,12 +98,27 @@ export default function NotesClient() {
           />
           {error && <p className="notes-error">{error}</p>}
           <div className="note-prompts">
-            {prompts.map((prompt) => <button key={prompt} onClick={() => addPrompt(prompt)}>{prompt}</button>)}
+            {prompts.map((prompt) => (
+              <button key={prompt} type="button" onClick={() => addPrompt(prompt)}>
+                {prompt}
+              </button>
+            ))}
           </div>
         </section>
         <aside className="notes-side">
-          <div className="journey-card notes-help-card"><Lightbulb size={22} /><h3>Write for yourself</h3><p>Short phrases are fine. Capture practical examples, questions and moments that changed your thinking.</p></div>
-          <div className="journey-card notes-ai-card"><Sparkles size={22} /><h3>Use notes in your plan</h3><p>Your saved notes become useful context when you build personalised workplace actions.</p><Link href="/plan" className="journey-primary-button">Build my plan</Link></div>
+          <div className="journey-card notes-help-card">
+            <Lightbulb size={22} />
+            <h3>Write for yourself</h3>
+            <p>Short phrases are fine. Capture practical examples, questions and moments that changed your thinking.</p>
+          </div>
+          <div className="journey-card notes-ai-card">
+            <Sparkles size={22} />
+            <h3>Use notes in your plan</h3>
+            <p>Your saved notes become useful context when you build personalised workplace actions.</p>
+            <Link href="/plan" className="journey-primary-button">
+              Build my plan
+            </Link>
+          </div>
         </aside>
       </div>
     </div>

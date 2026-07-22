@@ -11,6 +11,7 @@ import GenerationStatus from "@/components/GenerationStatus";
 import { activatePersonalActionPlan, deletePersonalAction, updatePersonalAction } from "@/app/actions/ai-actions";
 import { THEMES } from "@/lib/personal-action-generation";
 import type { ActionCard, ActionTheme } from "@/lib/types";
+import { usePageLoading } from "@/components/PageLoadingProvider";
 
 type EditForm = { theme: ActionTheme; title: string; how: string; why: string; timeEstimate: string };
 
@@ -25,6 +26,9 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
   const [error, setError] = useState("");
   const generatedActions = allActions.filter((action) => action.isPersonal);
   const hasDraft = !selfOnboardingCompletedAt && (generatedActions.length > 0 || !!generationJob);
+
+  // Server already fetched notes; engine data is ready once Layout clears isLoading.
+  usePageLoading(false);
 
   function openEdit(action: ActionCard) {
     setEditingAction(action);

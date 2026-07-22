@@ -1,10 +1,7 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import PrepareClient from "../prepare/prepare-client";
+import { getJourneyData } from "@/app/actions/journey";
 
 export default async function JourneyPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  return <PrepareClient />;
+  const initialData = await getJourneyData();
+  return <PrepareClient initialData={initialData} />;
 }

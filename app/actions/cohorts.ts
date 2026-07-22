@@ -319,12 +319,49 @@ export async function getMyCohort(): Promise<{
       .limit(1)
       .maybeSingle();
 
-    if (!membership) return { cohort: null, roster: [] };
+    let cohortId = membership?.cohort_id ?? null;
+
+    // Company admins are the trainer role in the current data model. They may
+    // not be participant rows in cohort_members, so give them the Journey for
+    // a cohort they created (or the first cohort in their company as fallback).
+    if (!cohortId) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, company_id")
+        .eq("id", user.id)
+        .single();
+      if (profile?.role === "admin" || profile?.role === "superadmin") {
+        let createdQuery = supabase
+          .from("cohorts")
+          .select("id")
+          .eq("created_by", user.id)
+          .is("archived_at", null)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (profile.role === "admin") createdQuery = createdQuery.eq("company_id", profile.company_id);
+        const { data: createdCohort } = await createdQuery.maybeSingle();
+        cohortId = createdCohort?.id ?? null;
+
+        if (!cohortId) {
+          let managedQuery = supabase
+            .from("cohorts")
+            .select("id")
+            .is("archived_at", null)
+            .order("created_at", { ascending: false })
+            .limit(1);
+          if (profile.role === "admin") managedQuery = managedQuery.eq("company_id", profile.company_id);
+          const { data: managedCohort } = await managedQuery.maybeSingle();
+          cohortId = managedCohort?.id ?? null;
+        }
+      }
+    }
+
+    if (!cohortId) return { cohort: null, roster: [] };
 
     const { data: cohort } = await supabase
       .from("cohorts")
       .select("id, name, description, start_date, company_id")
-      .eq("id", membership.cohort_id)
+      .eq("id", cohortId)
       .single();
     if (!cohort) return { cohort: null, roster: [] };
 

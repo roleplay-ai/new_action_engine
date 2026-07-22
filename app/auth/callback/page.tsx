@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import PageLoader from "@/components/PageLoader";
 
 /**
  * Handles Supabase auth callback (e.g. from magic link / auto-login redirect).
@@ -50,12 +51,5 @@ export default function AuthCallbackPage() {
     );
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 border-[#FFCE00] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-sm font-bold text-slate-600 uppercase tracking-wider">Signing you in…</p>
-      </div>
-    </div>
-  );
+  return <PageLoader label="Signing you in" />;
 }

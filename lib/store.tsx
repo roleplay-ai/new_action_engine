@@ -17,7 +17,6 @@ import {
 } from "@/app/actions/user-actions";
 import { validateAction as validateActionServer } from "@/app/actions/validate-action";
 import { syncMyTotalPointsFromHistory } from "@/app/actions/points";
-import { getActiveGenerationJob } from "@/app/actions/ai-actions";
 import { utcToISTDateTime } from "@/lib/timezone-utils";
 
 export type GenerationJobStatus = {
@@ -39,7 +38,7 @@ interface EngineContextType {
   hasCompany: boolean;
   /** Live progress of the background action-plan generation job, while one is running. */
   generationJob: GenerationJobStatus | null;
-  refetch: () => Promise<void>;
+  refetch: (options?: { syncPoints?: boolean }) => Promise<void>;
   completeOnboarding: (importance: number, goal: number) => Promise<void>;
   updatePoints: (amount: number) => Promise<void>;
   completeAction: (actionId: string, success: boolean, reflection?: string) => Promise<{ error?: string }>;
@@ -123,8 +122,9 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
   const [hasCompany, setHasCompany] = useState(false);
   const [generationJob, setGenerationJob] = useState<GenerationJobStatus | null>(null);
   const generationWasActive = useRef(false);
+  const initialRefetchStarted = useRef(false);
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (options?: { syncPoints?: boolean }) => {
     const supabase = createClient();
     const {
       data: { user },
@@ -135,7 +135,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
     }
 
     // Backfill/sync points from existing history so legacy users get correct totals.
-    await syncMyTotalPointsFromHistory();
+    if (options?.syncPoints !== false) await syncMyTotalPointsFromHistory();
 
     const { data: prof } = await supabase
       .from("profiles")
@@ -228,6 +228,8 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
   }, [adminCompanyId]);
 
   useEffect(() => {
+    if (initialRefetchStarted.current) return;
+    initialRefetchStarted.current = true;
     refetch().finally(() => setIsLoading(false));
   }, [refetch, adminCompanyId]);
 
@@ -238,24 +240,40 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
   // the progress counter.
   useEffect(() => {
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const controller = new AbortController();
     const poll = async () => {
-      const { job } = await getActiveGenerationJob();
-      if (cancelled) return;
-      const isGenerating = job?.status === "generating";
-      setGenerationJob(isGenerating ? job : null);
-      if (isGenerating) {
-        generationWasActive.current = true;
-        await refetch();
-      } else if (generationWasActive.current) {
-        generationWasActive.current = false;
-        await refetch();
+      try {
+        const response = await fetch("/api/generation-status", {
+          method: "GET",
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const { job } = await response.json() as { job: GenerationJobStatus | null };
+        if (cancelled) return;
+        const isGenerating = job?.status === "generating";
+        setGenerationJob(isGenerating ? job : null);
+        if (isGenerating) {
+          generationWasActive.current = true;
+          // Refresh generated actions without running the points-sync mutation
+          // on every background status check.
+          await refetch({ syncPoints: false });
+        } else if (generationWasActive.current) {
+          generationWasActive.current = false;
+          await refetch({ syncPoints: false });
+        }
+        if (!cancelled) timer = setTimeout(poll, isGenerating ? 6000 : 15000);
+      } catch (error) {
+        if (!cancelled && !(error instanceof DOMException && error.name === "AbortError")) {
+          timer = setTimeout(poll, 15000);
+        }
       }
     };
-    poll();
-    const interval = setInterval(poll, 6000);
+    void poll();
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      controller.abort();
+      if (timer) clearTimeout(timer);
     };
   }, [refetch]);
 

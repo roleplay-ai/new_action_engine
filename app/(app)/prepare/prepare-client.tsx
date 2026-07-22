@@ -4,13 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays, Check, ChevronRight, CircleUserRound, FileText, Play, Users, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
-import { getMyCohort } from "@/app/actions/cohorts";
-import { listCohortContent } from "@/app/actions/prepare-content";
-import { getMyPrepareProgress, markContentViewed } from "@/app/actions/prepare-progress";
+import { getJourneyData } from "@/app/actions/journey";
+import { markContentViewed } from "@/app/actions/prepare-progress";
 import VideoCard from "@/components/prepare/VideoCard";
 import PrereadCard from "@/components/prepare/PrereadCard";
 import QuizCard from "@/components/prepare/QuizCard";
-import type { Cohort, CohortMember, PrepareContentItem, UserPrepareProgress } from "@/lib/types";
+import CohortChat from "@/components/journey/CohortChat";
+import { usePageLoading } from "@/components/PageLoadingProvider";
+import type { JourneyData, PrepareContentItem, UserPrepareProgress } from "@/lib/types";
 import { estimateMinutes } from "@/lib/prepare-estimate";
 
 function formatSessionDate(value?: string | null, long = false) {
@@ -36,34 +37,27 @@ function resourceMeta(item: PrepareContentItem) {
   return "Pre-read · Recommended";
 }
 
-export default function PrepareClient() {
+export default function PrepareClient({ initialData }: { initialData: JourneyData }) {
   const { profile } = useEngine();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [cohort, setCohort] = useState<Cohort | null>(null);
-  const [roster, setRoster] = useState<CohortMember[]>([]);
-  const [items, setItems] = useState<PrepareContentItem[]>([]);
-  const [progress, setProgress] = useState<Record<string, UserPrepareProgress>>({});
+  const [error, setError] = useState<string | null>(initialData.error ?? null);
+  const [cohort, setCohort] = useState(initialData.cohort);
+  const [roster, setRoster] = useState(initialData.roster);
+  const [items, setItems] = useState(initialData.items);
+  const [progress, setProgress] = useState<Record<string, UserPrepareProgress>>(
+    Object.fromEntries(initialData.progress.map((item) => [item.contentItemId, item]))
+  );
   const [selectedItem, setSelectedItem] = useState<PrepareContentItem | null>(null);
 
-  const load = useCallback(async () => {
-    setError(null);
-    const cohortResult = await getMyCohort();
-    if (cohortResult.error) { setError(cohortResult.error); setLoading(false); return; }
-    if (!cohortResult.cohort) { setCohort(null); setLoading(false); return; }
-    setCohort(cohortResult.cohort);
-    setRoster(cohortResult.roster ?? []);
-    const [contentResult, progressResult] = await Promise.all([
-      listCohortContent(cohortResult.cohort.id),
-      getMyPrepareProgress(cohortResult.cohort.id),
-    ]);
-    if (contentResult.error) { setError(contentResult.error); setLoading(false); return; }
-    setItems(contentResult.items ?? []);
-    setProgress(Object.fromEntries((progressResult.progress ?? []).map((item) => [item.contentItemId, item])));
-    setLoading(false);
-  }, []);
+  usePageLoading(false);
 
-  useEffect(() => { load(); }, [load]);
+  const reloadQuietly = useCallback(async () => {
+    const result = await getJourneyData();
+    setError(result.error ?? null);
+    setCohort(result.cohort);
+    setRoster(result.roster);
+    setItems(result.items);
+    setProgress(Object.fromEntries(result.progress.map((item) => [item.contentItemId, item])));
+  }, []);
 
   useEffect(() => {
     if (!selectedItem) return;
@@ -81,13 +75,12 @@ export default function PrepareClient() {
 
   async function handleComplete(contentItemId: string) {
     const result = await markContentViewed(contentItemId);
-    if (!result.error) await load();
+    if (!result.error) await reloadQuietly();
   }
 
   const completedCount = useMemo(() => items.filter((item) => progress[item.id]?.status === "completed").length, [items, progress]);
   const completion = items.length ? Math.round((completedCount / items.length) * 100) : 0;
 
-  if (loading) return <div className="journey-loading"><span />Loading your learning journey…</div>;
   if (error) return <div className="journey-empty"><strong>We couldn&apos;t load your journey.</strong><p>{error}</p></div>;
   if (!cohort) return <div className="journey-empty"><CircleUserRound size={32} /><strong>Your learning journey will appear here</strong><p>Ask your administrator to add you to a cohort.</p></div>;
 
@@ -121,13 +114,7 @@ export default function PrepareClient() {
       </section>
 
       <div className="journey-module-grid">
-        <article className="journey-module-card">
-          <h3>Message from your trainer</h3>
-          <div className="journey-trainer-message">
-            <div className="journey-trainer-avatar">N</div>
-            <div><strong>Your Nudgeable facilitator</strong><span>Workshop facilitator</span><p>Bring one real work situation you would like to improve. The most useful learning starts with something practical from your day-to-day role.</p></div>
-          </div>
-        </article>
+        <CohortChat cohortId={cohort.id} memberCount={cohort.memberCount} />
 
         <article className="journey-module-card">
           <h3>What you should get from this session</h3>

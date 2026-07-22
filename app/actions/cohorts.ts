@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Cohort, CohortMember } from "@/lib/types";
+import type { Cohort, CohortMember, CohortOption } from "@/lib/types";
 
 function mapMemberRow(m: {
   user_id: string;
@@ -268,9 +268,31 @@ export async function addMembersToCohort(cohortId: string, userIds: string[]): P
         .from("cohort_members")
         .upsert({ cohort_id: cohortId, user_id: userId, added_by: user?.id }, { onConflict: "cohort_id,user_id" });
       if (error) return { error: error.message };
+
+      // Upsert does not fire the INSERT trigger when the membership already
+      // exists. Explicitly make this the user's current cohort in both cases.
+      await admin
+        .from("profiles")
+        .update({ current_cohort_id: cohortId, selected_cohort_id: cohortId })
+        .eq("id", userId);
+      await admin
+        .from("personal_action_subscriptions")
+        .update({ is_active: false, archived_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq("user_id", userId)
+        .is("archived_at", null)
+        .or(`cohort_id.is.null,cohort_id.neq.${cohortId}`);
+      await admin
+        .from("personal_action_generation_jobs")
+        .update({ status: "failed", error_message: "Archived when participant moved to another cohort", updated_at: new Date().toISOString() })
+        .eq("user_id", userId)
+        .eq("status", "generating")
+        .or(`cohort_id.is.null,cohort_id.neq.${cohortId}`);
     }
 
     revalidatePath("/admin");
+    revalidatePath("/journey");
+    revalidatePath("/plan");
+    revalidatePath("/actions");
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed" };
@@ -299,71 +321,154 @@ export async function removeMembersFromCohort(cohortId: string, userIds: string[
   }
 }
 
-/** Current logged-in user's cohort (first one, if any) + roster, for the Prepare/Progress pages. */
+/**
+ * Every cohort the caller may view, plus the separate current/selected flags.
+ * Participants retain old memberships for history; trainers can switch between
+ * the cohorts they manage in their company.
+ */
+export async function getMyCohorts(): Promise<{
+  error?: string;
+  cohorts: CohortOption[];
+  selectedCohortId: string | null;
+  currentCohortId: string | null;
+}> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Not authenticated", cohorts: [], selectedCohortId: null, currentCohortId: null };
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role, company_id, current_cohort_id, selected_cohort_id")
+      .eq("id", user.id)
+      .single();
+    if (profileError) {
+      return {
+        error: profileError.message,
+        cohorts: [],
+        selectedCohortId: null,
+        currentCohortId: null,
+      };
+    }
+    if (!profile) return { error: "Profile not found", cohorts: [], selectedCohortId: null, currentCohortId: null };
+
+    const admin = createAdminClient();
+    let orderedIds: string[] = [];
+
+    if (profile.role === "user") {
+      const { data: memberships } = await admin
+        .from("cohort_members")
+        .select("cohort_id, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      orderedIds = (memberships ?? []).map((membership) => membership.cohort_id);
+    } else if (profile.role === "admin" && profile.company_id) {
+      const { data: managed } = await admin
+        .from("cohorts")
+        .select("id")
+        .eq("company_id", profile.company_id)
+        .order("created_at", { ascending: false });
+      orderedIds = (managed ?? []).map((cohort) => cohort.id);
+    } else {
+      const { data: managed } = await admin
+        .from("cohorts")
+        .select("id")
+        .eq("created_by", user.id)
+        .order("created_at", { ascending: false });
+      orderedIds = (managed ?? []).map((cohort) => cohort.id);
+    }
+
+    if (!orderedIds.length) {
+      return { cohorts: [], selectedCohortId: null, currentCohortId: null };
+    }
+
+    const [{ data: cohortRows }, { data: memberRows }] = await Promise.all([
+      admin
+        .from("cohorts")
+        .select("id, name, description, start_date, company_id, archived_at")
+        .in("id", orderedIds),
+      admin
+        .from("cohort_members")
+        .select("cohort_id")
+        .in("cohort_id", orderedIds),
+    ]);
+
+    const cohortById = new Map((cohortRows ?? []).map((cohort) => [cohort.id, cohort]));
+    const memberCounts = new Map<string, number>();
+    for (const row of memberRows ?? []) {
+      memberCounts.set(row.cohort_id, (memberCounts.get(row.cohort_id) ?? 0) + 1);
+    }
+
+    const accessibleIds = orderedIds.filter((id) => cohortById.has(id));
+    const currentCohortId = accessibleIds.includes(profile.current_cohort_id)
+      ? profile.current_cohort_id
+      : accessibleIds[0] ?? null;
+    const selectedCohortId = accessibleIds.includes(profile.selected_cohort_id)
+      ? profile.selected_cohort_id
+      : currentCohortId;
+
+    if (selectedCohortId && selectedCohortId !== profile.selected_cohort_id) {
+      await supabase.from("profiles").update({ selected_cohort_id: selectedCohortId }).eq("id", user.id);
+    }
+
+    const cohorts: CohortOption[] = accessibleIds.map((id) => {
+      const row = cohortById.get(id)!;
+      return {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        startDate: row.start_date,
+        memberCount: memberCounts.get(row.id) ?? 0,
+        companyId: row.company_id,
+        archivedAt: row.archived_at,
+        isCurrent: row.id === currentCohortId,
+        isSelected: row.id === selectedCohortId,
+      };
+    });
+
+    return { cohorts, selectedCohortId, currentCohortId };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Failed to load cohorts",
+      cohorts: [],
+      selectedCohortId: null,
+      currentCohortId: null,
+    };
+  }
+}
+
+/** Change only the viewing context. This never reactivates or archives a plan. */
+export async function selectMyCohort(cohortId: string): Promise<{ error?: string }> {
+  const context = await getMyCohorts();
+  if (context.error) return { error: context.error };
+  if (!context.cohorts.some((cohort) => cohort.id === cohortId)) return { error: "You do not have access to this cohort" };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+  const { error } = await supabase.from("profiles").update({ selected_cohort_id: cohortId }).eq("id", user.id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/journey");
+  revalidatePath("/notes");
+  revalidatePath("/plan");
+  revalidatePath("/actions");
+  revalidatePath("/progress");
+  return {};
+}
+
+/** Selected logged-in cohort + roster, for participant pages. */
 export async function getMyCohort(): Promise<{
   error?: string;
   cohort?: (Cohort & { companyId: string }) | null;
   roster?: CohortMember[];
 }> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return { error: "Not authenticated" };
-
-    const { data: membership } = await supabase
-      .from("cohort_members")
-      .select("cohort_id")
-      .eq("user_id", user.id)
-      .limit(1)
-      .maybeSingle();
-
-    let cohortId = membership?.cohort_id ?? null;
-
-    // Company admins are the trainer role in the current data model. They may
-    // not be participant rows in cohort_members, so give them the Journey for
-    // a cohort they created (or the first cohort in their company as fallback).
-    if (!cohortId) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role, company_id")
-        .eq("id", user.id)
-        .single();
-      if (profile?.role === "admin" || profile?.role === "superadmin") {
-        let createdQuery = supabase
-          .from("cohorts")
-          .select("id")
-          .eq("created_by", user.id)
-          .is("archived_at", null)
-          .order("created_at", { ascending: false })
-          .limit(1);
-        if (profile.role === "admin") createdQuery = createdQuery.eq("company_id", profile.company_id);
-        const { data: createdCohort } = await createdQuery.maybeSingle();
-        cohortId = createdCohort?.id ?? null;
-
-        if (!cohortId) {
-          let managedQuery = supabase
-            .from("cohorts")
-            .select("id")
-            .is("archived_at", null)
-            .order("created_at", { ascending: false })
-            .limit(1);
-          if (profile.role === "admin") managedQuery = managedQuery.eq("company_id", profile.company_id);
-          const { data: managedCohort } = await managedQuery.maybeSingle();
-          cohortId = managedCohort?.id ?? null;
-        }
-      }
-    }
-
+    const context = await getMyCohorts();
+    if (context.error) return { error: context.error };
+    const selected = context.cohorts.find((cohort) => cohort.isSelected) ?? null;
+    const cohortId = selected?.id ?? null;
     if (!cohortId) return { cohort: null, roster: [] };
-
-    const { data: cohort } = await supabase
-      .from("cohorts")
-      .select("id, name, description, start_date, company_id")
-      .eq("id", cohortId)
-      .single();
-    if (!cohort) return { cohort: null, roster: [] };
 
     // Admin client: a plain member's own cohort_members row satisfies RLS
     // (user_id = auth.uid()), but the embedded profiles join for their
@@ -374,18 +479,18 @@ export async function getMyCohort(): Promise<{
     const { data: members } = await admin
       .from("cohort_members")
       .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name)")
-      .eq("cohort_id", cohort.id);
+      .eq("cohort_id", cohortId);
 
     const roster = (members ?? []).map(mapMemberRow);
 
     return {
       cohort: {
-        id: cohort.id,
-        name: cohort.name,
-        description: cohort.description,
-        startDate: cohort.start_date,
+        id: selected!.id,
+        name: selected!.name,
+        description: selected!.description,
+        startDate: selected!.startDate,
         memberCount: roster.length,
-        companyId: cohort.company_id,
+        companyId: selected!.companyId,
       },
       roster,
     };

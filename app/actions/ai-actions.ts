@@ -13,6 +13,7 @@ import {
   type DeliveryTrack,
 } from "@/lib/personal-action-generation";
 import { istToUTCTime, utcToISTTime } from "@/lib/timezone-utils";
+import { getMyCohorts } from "@/app/actions/cohorts";
 
 export type MyPlanSettings = {
   track: DeliveryTrack;
@@ -23,15 +24,29 @@ export type MyPlanSettings = {
   totalActionsPlanned: number;
   nextDeliveryAt: string | null;
   isActive: boolean;
+  isArchived: boolean;
 };
+
+async function getSelectedPlanCohort(requireCurrent = false): Promise<{ cohortId?: string; error?: string }> {
+  const context = await getMyCohorts();
+  if (context.error) return { error: context.error };
+  const selected = context.cohorts.find((cohort) => cohort.isSelected);
+  if (!selected) return { error: "Select a cohort first" };
+  if (requireCurrent && !selected.isCurrent) return { error: "New plans can only be built for your current cohort" };
+  return { cohortId: selected.id };
+}
 
 export async function getMyPlanSettings(): Promise<{ settings: MyPlanSettings | null; error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { settings: null, error: "Not authenticated" };
+  const cohortContext = await getSelectedPlanCohort();
+  if (!cohortContext.cohortId) return { settings: null, error: cohortContext.error };
   const { data, error } = await supabase.from("personal_action_subscriptions")
-    .select("track, daily_action_count, duration_weeks, days_of_week, day_of_week, time_of_day_utc, total_actions_planned, next_delivery_at, is_active")
-    .eq("user_id", user.id).maybeSingle();
+    .select("track, daily_action_count, duration_weeks, days_of_week, day_of_week, time_of_day_utc, total_actions_planned, next_delivery_at, is_active, archived_at")
+    .eq("user_id", user.id)
+    .eq("cohort_id", cohortContext.cohortId)
+    .maybeSingle();
   if (error) return { settings: null, error: error.message };
   if (!data) return { settings: null };
   return { settings: {
@@ -43,6 +58,7 @@ export async function getMyPlanSettings(): Promise<{ settings: MyPlanSettings | 
     totalActionsPlanned: data.total_actions_planned ?? 0,
     nextDeliveryAt: data.next_delivery_at ?? null,
     isActive: data.is_active === true,
+    isArchived: !!data.archived_at,
   } };
 }
 
@@ -75,6 +91,10 @@ export async function saveGeneratedActions(params: {
       return { error: "Not authenticated" };
     }
 
+    const cohortContext = await getSelectedPlanCohort(true);
+    if (!cohortContext.cohortId) return { error: cohortContext.error };
+    const cohortId = cohortContext.cohortId;
+
     const { data: profile } = await supabase
       .from("profiles")
       .select("company_id")
@@ -83,6 +103,16 @@ export async function saveGeneratedActions(params: {
     const companyId = profile?.company_id;
     if (!companyId) {
       return { error: "You must be assigned to a company first" };
+    }
+
+    const { data: existingPlan } = await supabase
+      .from("personal_action_subscriptions")
+      .select("is_active, archived_at")
+      .eq("user_id", user.id)
+      .eq("cohort_id", cohortId)
+      .maybeSingle();
+    if (existingPlan?.is_active || existingPlan?.archived_at) {
+      return { error: "This cohort plan has already been finalised and cannot be edited" };
     }
 
     if (params.track !== "daily" && params.track !== "weekly") {
@@ -117,11 +147,29 @@ export async function saveGeneratedActions(params: {
       uniqueDays
     );
 
+    // Changing a draft replaces that cohort's unfinished generation rather
+    // than mixing two different setup choices into one plan.
+    if (existingPlan) {
+      await supabase
+        .from("personal_action_generation_jobs")
+        .update({ status: "failed", error_message: "Replaced by a newer draft", updated_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+        .eq("cohort_id", cohortId)
+        .eq("status", "generating");
+      await supabase
+        .from("actions")
+        .delete()
+        .eq("created_by", user.id)
+        .eq("cohort_id", cohortId)
+        .eq("is_personal", true);
+    }
+
     // Draft only: no actions are delivered until the participant reviews and
     // activates the plan.
     const { error: subError } = await supabase.from("personal_action_subscriptions").upsert(
       {
         user_id: user.id,
+        cohort_id: cohortId,
         training_text: contextText,
         focus_themes: params.focusThemes,
         track: params.track,
@@ -135,7 +183,7 @@ export async function saveGeneratedActions(params: {
         duration_weeks: params.durationWeeks,
         total_actions_planned: totalActionsNeeded,
       },
-      { onConflict: "user_id" }
+      { onConflict: "user_id,cohort_id" }
     );
     if (subError) {
       return { error: subError.message };
@@ -145,6 +193,7 @@ export async function saveGeneratedActions(params: {
       .from("personal_action_generation_jobs")
       .insert({
         user_id: user.id,
+        cohort_id: cohortId,
         training_text: contextText,
         focus_themes: params.focusThemes,
         total_needed: totalActionsNeeded,
@@ -205,13 +254,17 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "Not authenticated" };
+    const cohortContext = await getSelectedPlanCohort(true);
+    if (!cohortContext.cohortId) return { error: cohortContext.error };
 
     const { data: sub, error } = await supabase
       .from("personal_action_subscriptions")
-      .select("id, user_id, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at")
+      .select("id, user_id, cohort_id, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at, archived_at")
       .eq("user_id", user.id)
+      .eq("cohort_id", cohortContext.cohortId)
       .maybeSingle();
     if (error || !sub) return { error: error?.message ?? "Create a plan first" };
+    if (sub.archived_at) return { error: "Archived plans cannot be reactivated" };
 
     const nextDeliveryAt = computeNextDeliveryAt(
       sub.track as DeliveryTrack,
@@ -266,11 +319,14 @@ export async function getActiveGenerationJob(): Promise<{
   if (!user) {
     return { job: null };
   }
+  const cohortContext = await getSelectedPlanCohort();
+  if (!cohortContext.cohortId) return { job: null };
 
   const { data } = await supabase
     .from("personal_action_generation_jobs")
     .select("total_needed, total_generated, status")
     .eq("user_id", user.id)
+    .eq("cohort_id", cohortContext.cohortId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -309,6 +365,22 @@ export async function updatePersonalAction(
       return { error: "Not authenticated" };
     }
 
+    const { data: action } = await supabase
+      .from("actions")
+      .select("cohort_id")
+      .eq("id", id)
+      .eq("created_by", user.id)
+      .eq("is_personal", true)
+      .maybeSingle();
+    if (!action?.cohort_id) return { error: "Action not found" };
+    const { data: plan } = await supabase
+      .from("personal_action_subscriptions")
+      .select("is_active, archived_at")
+      .eq("user_id", user.id)
+      .eq("cohort_id", action.cohort_id)
+      .maybeSingle();
+    if (!plan || plan.is_active || plan.archived_at) return { error: "Finalised plans are view-only" };
+
     const updates: Record<string, unknown> = {};
     if (params.theme != null) updates.theme = params.theme;
     if (params.title != null) updates.title = params.title.trim();
@@ -341,6 +413,22 @@ export async function deletePersonalAction(id: string): Promise<{ error?: string
     if (userError || !user) {
       return { error: "Not authenticated" };
     }
+
+    const { data: action } = await supabase
+      .from("actions")
+      .select("cohort_id")
+      .eq("id", id)
+      .eq("created_by", user.id)
+      .eq("is_personal", true)
+      .maybeSingle();
+    if (!action?.cohort_id) return { error: "Action not found" };
+    const { data: plan } = await supabase
+      .from("personal_action_subscriptions")
+      .select("is_active, archived_at")
+      .eq("user_id", user.id)
+      .eq("cohort_id", action.cohort_id)
+      .maybeSingle();
+    if (!plan || plan.is_active || plan.archived_at) return { error: "Finalised plans are view-only" };
 
     const { error } = await supabase
       .from("actions")

@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEngine } from "@/lib/store";
 import { Map, NotebookPen, Sparkles, ListChecks, Bell, ShieldCheck } from "lucide-react";
 import { LogoutButton } from "@/app/(app)/logout-button";
 import GenerationStatus from "@/components/GenerationStatus";
 import PageLoader from "@/components/PageLoader";
 import { usePageLoadingControls } from "@/components/PageLoadingProvider";
+import { selectMyCohort } from "@/app/actions/cohorts";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,8 +17,10 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, role }) => {
-  const { profile, generationJob, isLoading } = useEngine();
+  const { profile, generationJob, isLoading, cohort, cohorts, refetch } = useEngine();
   const pathname = usePathname();
+  const router = useRouter();
+  const [switchingCohort, setSwitchingCohort] = useState(false);
   const { contentLoading, pendingHref, beginNavigation } = usePageLoadingControls();
 
   const navItems = useMemo(() => {
@@ -36,6 +39,17 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   const activePath = pendingHref || pathname || "";
   const isActive = (href: string) => activePath.startsWith(href);
   const showLoader = isLoading || contentLoading;
+
+  async function switchCohort(cohortId: string) {
+    if (!cohortId || cohortId === cohort?.id || switchingCohort) return;
+    setSwitchingCohort(true);
+    const result = await selectMyCohort(cohortId);
+    if (!result.error) {
+      await refetch({ syncPoints: false });
+      router.refresh();
+    }
+    setSwitchingCohort(false);
+  }
 
   return (
     <div className="participant-shell">
@@ -95,6 +109,19 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             <img src="/icon.png" alt="" /> <strong>Nudgeable</strong>
           </Link>
           <div className="participant-topbar-actions">
+            {cohorts.length > 0 && <label className="participant-cohort-switcher">
+              <span>Cohort</span>
+              <select
+                aria-label="View cohort"
+                value={cohort?.id ?? ""}
+                disabled={switchingCohort}
+                onChange={(event) => void switchCohort(event.target.value)}
+              >
+                {cohorts.map((option) => <option key={option.id} value={option.id}>
+                  {option.name}{option.isCurrent ? " · Current" : " · Earlier"}
+                </option>)}
+              </select>
+            </label>}
             <span className="tag tag--featured">🔥 {profile.streak}</span>
             <div style={{ position: "relative" }}>
               <button className="btn btn--icon" aria-label="Notifications">

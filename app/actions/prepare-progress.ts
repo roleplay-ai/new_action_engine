@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { UserPrepareProgress } from "@/lib/types";
+import { getMyCohort } from "@/app/actions/cohorts";
 
 /** Assigned Prepare items for the given cohort + this user's per-item status/completion. */
 export async function getMyPrepareProgress(cohortId: string): Promise<{
@@ -17,6 +18,9 @@ export async function getMyPrepareProgress(cohortId: string): Promise<{
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return { error: "Not authenticated" };
+
+    const { cohort: selectedCohort } = await getMyCohort();
+    if (selectedCohort?.id !== cohortId) return { error: "Select this cohort before viewing its progress" };
 
     // Confirm the caller is actually a member of this cohort before returning anything.
     const { data: membership } = await supabase
@@ -85,19 +89,14 @@ export async function markContentViewed(contentItemId: string): Promise<{ error?
     } = await supabase.auth.getUser();
     if (!user) return { error: "Not authenticated" };
 
-    const { data: myCohorts } = await supabase
-      .from("cohort_members")
-      .select("cohort_id")
-      .eq("user_id", user.id);
-    const cohortIds = (myCohorts ?? []).map((c: { cohort_id: string }) => c.cohort_id);
-    if (!cohortIds.length) return { error: "Not a member of any cohort" };
+    const { cohort } = await getMyCohort();
+    if (!cohort) return { error: "Select a cohort first" };
 
     const { data: assignment } = await supabase
       .from("cohort_prepare_assignments")
       .select("cohort_id")
       .eq("content_item_id", contentItemId)
-      .in("cohort_id", cohortIds)
-      .limit(1)
+      .eq("cohort_id", cohort.id)
       .maybeSingle();
     if (!assignment) return { error: "Content not assigned to your cohort" };
 
@@ -134,16 +133,14 @@ export async function getQuizForAttempt(contentItemId: string): Promise<{
     } = await supabase.auth.getUser();
     if (!user) return { error: "Not authenticated" };
 
-    const { data: myCohorts } = await supabase.from("cohort_members").select("cohort_id").eq("user_id", user.id);
-    const cohortIds = (myCohorts ?? []).map((c: { cohort_id: string }) => c.cohort_id);
-    if (!cohortIds.length) return { error: "Not a member of any cohort" };
+    const { cohort } = await getMyCohort();
+    if (!cohort) return { error: "Select a cohort first" };
 
     const { data: assignment } = await supabase
       .from("cohort_prepare_assignments")
       .select("cohort_id")
       .eq("content_item_id", contentItemId)
-      .in("cohort_id", cohortIds)
-      .limit(1)
+      .eq("cohort_id", cohort.id)
       .maybeSingle();
     if (!assignment) return { error: "Quiz not assigned to your cohort" };
 
@@ -187,16 +184,14 @@ export async function submitQuizAttempt(
     } = await supabase.auth.getUser();
     if (!user) return { error: "Not authenticated" };
 
-    const { data: myCohorts } = await supabase.from("cohort_members").select("cohort_id").eq("user_id", user.id);
-    const cohortIds = (myCohorts ?? []).map((c: { cohort_id: string }) => c.cohort_id);
-    if (!cohortIds.length) return { error: "Not a member of any cohort" };
+    const { cohort } = await getMyCohort();
+    if (!cohort) return { error: "Select a cohort first" };
 
     const { data: assignment } = await supabase
       .from("cohort_prepare_assignments")
       .select("cohort_id")
       .eq("content_item_id", contentItemId)
-      .in("cohort_id", cohortIds)
-      .limit(1)
+      .eq("cohort_id", cohort.id)
       .maybeSingle();
     if (!assignment) return { error: "Quiz not assigned to your cohort" };
 

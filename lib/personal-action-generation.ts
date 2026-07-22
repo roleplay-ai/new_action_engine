@@ -274,10 +274,11 @@ export function advanceNextDeliveryAt(
 }
 
 /** Shape a batch of drafts into `actions` insert rows. */
-export function draftsToActionRows(drafts: DraftAction[], companyId: string, userId: string) {
+export function draftsToActionRows(drafts: DraftAction[], companyId: string, userId: string, cohortId: string) {
   return drafts.map((d) => ({
     company_id: companyId,
     created_by: userId,
+    cohort_id: cohortId,
     is_personal: true,
     theme: d.theme,
     title: d.title,
@@ -291,6 +292,7 @@ export function draftsToActionRows(drafts: DraftAction[], companyId: string, use
 export type PersonalActionSubscriptionRow = {
   id: string;
   user_id: string;
+  cohort_id: string;
   training_text: string;
   focus_themes: ActionTheme[];
   track: DeliveryTrack;
@@ -307,8 +309,10 @@ export async function getDueSubscriptions(nowIso: string): Promise<PersonalActio
   const admin = createAdminClient();
   const { data } = await admin
     .from("personal_action_subscriptions")
-    .select("id, user_id, training_text, focus_themes, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at, last_delivered_at")
+    .select("id, user_id, cohort_id, training_text, focus_themes, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at, last_delivered_at")
     .eq("is_active", true)
+    .is("archived_at", null)
+    .not("cohort_id", "is", null)
     .lte("next_delivery_at", nowIso);
   return (data ?? []) as PersonalActionSubscriptionRow[];
 }
@@ -326,7 +330,7 @@ export async function getDueSubscriptions(nowIso: string): Promise<PersonalActio
  * retries next cycle instead of silently skipping ahead.
  */
 export async function assignScheduledBatch(
-  sub: Pick<PersonalActionSubscriptionRow, "id" | "user_id" | "track" | "day_of_week" | "days_of_week" | "daily_action_count" | "time_of_day_utc" | "next_delivery_at">
+  sub: Pick<PersonalActionSubscriptionRow, "id" | "user_id" | "cohort_id" | "track" | "day_of_week" | "days_of_week" | "daily_action_count" | "time_of_day_utc" | "next_delivery_at">
 ): Promise<{ assigned: number }> {
   const admin = createAdminClient();
   const nowIso = new Date().toISOString();
@@ -338,11 +342,13 @@ export async function assignScheduledBatch(
       .select("id")
       .eq("created_by", sub.user_id)
       .eq("is_personal", true)
+      .eq("cohort_id", sub.cohort_id)
       .order("created_at", { ascending: true }),
     admin
       .from("user_actions")
       .select("action_id, status")
-      .eq("user_id", sub.user_id),
+      .eq("user_id", sub.user_id)
+      .eq("cohort_id", sub.cohort_id),
   ]);
 
   const assignedIds = new Set((existingUA ?? []).map((r) => r.action_id));
@@ -373,6 +379,7 @@ export async function assignScheduledBatch(
     const rows = batch.map((a) => ({
       user_id: sub.user_id,
       action_id: a.id,
+      cohort_id: sub.cohort_id,
       status: "scheduled",
       scheduled_at: nowIso,
     }));

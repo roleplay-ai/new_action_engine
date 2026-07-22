@@ -3,12 +3,23 @@
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import { LoaderCircle, MessageCircle } from "lucide-react";
 import { sendCohortMessage } from "@/app/actions/cohort-chat";
+import { createClient } from "@/lib/supabase/client";
 import type { CohortMessage } from "@/lib/types";
 
 type CohortMessagesResponse = {
   error?: string;
   messages?: CohortMessage[];
   currentUserId?: string;
+  currentUserName?: string;
+  currentUserRole?: CohortMessage["senderRole"];
+};
+
+type RealtimeMessageRow = {
+  id: string;
+  cohort_id: string;
+  sender_id: string;
+  message: string;
+  created_at: string;
 };
 
 function initials(name: string) {
@@ -38,28 +49,52 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connectionState, setConnectionState] = useState<"connecting" | "live" | "offline">("connecting");
   const endRef = useRef<HTMLDivElement>(null);
   const refreshInFlight = useRef(false);
+  const refreshQueued = useRef(false);
+  const currentUserIdRef = useRef<string | null>(null);
+  const senderDirectoryRef = useRef(new Map<string, Pick<CohortMessage, "senderName" | "senderRole">>());
   const newestMessageId = messages.at(-1)?.id;
 
   const loadMessages = useCallback(async (quiet = false, signal?: AbortSignal) => {
-    if (refreshInFlight.current) return;
+    if (refreshInFlight.current) {
+      refreshQueued.current = true;
+      return;
+    }
     refreshInFlight.current = true;
     if (!quiet) setLoading(true);
     try {
-      const response = await fetch(`/api/cohort-chat?cohortId=${encodeURIComponent(cohortId)}`, {
-        method: "GET",
-        cache: "no-store",
-        signal,
-      });
-      const result = await response.json() as CohortMessagesResponse;
-      if (result.error) {
-        setError(result.error);
-      } else {
-        setMessages(result.messages ?? []);
-        setCurrentUserId(result.currentUserId ?? null);
-        setError(null);
-      }
+      do {
+        refreshQueued.current = false;
+        const response = await fetch(`/api/cohort-chat?cohortId=${encodeURIComponent(cohortId)}`, {
+          method: "GET",
+          cache: "no-store",
+          signal,
+        });
+        const result = await response.json() as CohortMessagesResponse;
+        if (result.error) {
+          setError(result.error);
+        } else {
+          const nextMessages = result.messages ?? [];
+          for (const message of nextMessages) {
+            senderDirectoryRef.current.set(message.senderId, {
+              senderName: message.senderName,
+              senderRole: message.senderRole,
+            });
+          }
+          currentUserIdRef.current = result.currentUserId ?? null;
+          if (currentUserIdRef.current) {
+            senderDirectoryRef.current.set(currentUserIdRef.current, {
+              senderName: result.currentUserName ?? "You",
+              senderRole: result.currentUserRole ?? "participant",
+            });
+          }
+          setMessages(nextMessages);
+          setCurrentUserId(currentUserIdRef.current);
+          setError(null);
+        }
+      } while (refreshQueued.current && !signal?.aborted);
     } catch (requestError) {
       if (!(requestError instanceof DOMException && requestError.name === "AbortError")) {
         setError("Could not refresh the conversation");
@@ -71,22 +106,58 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
   }, [cohortId]);
 
   useEffect(() => {
-    let stopped = false;
-    let timer: number | undefined;
     const controller = new AbortController();
+    const supabase = createClient();
+    setConnectionState("connecting");
 
-    const poll = async (initial = false) => {
-      if (stopped) return;
-      await loadMessages(!initial, controller.signal);
-      if (!stopped) timer = window.setTimeout(() => void poll(false), 5000);
-    };
+    const channel = supabase
+      .channel(`cohort-conversation:${cohortId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "cohort_messages",
+          filter: `cohort_id=eq.${cohortId}`,
+        },
+        (payload) => {
+          const row = payload.new as RealtimeMessageRow;
+          const knownSender = senderDirectoryRef.current.get(row.sender_id);
+          const own = row.sender_id === currentUserIdRef.current;
+          const realtimeMessage: CohortMessage = {
+            id: row.id,
+            cohortId: row.cohort_id,
+            senderId: row.sender_id,
+            senderName: knownSender?.senderName ?? (own ? "You" : "Cohort member"),
+            senderRole: knownSender?.senderRole ?? "participant",
+            message: row.message,
+            createdAt: row.created_at,
+          };
+          setMessages((current) => current.some((message) => message.id === row.id)
+            ? current
+            : [...current, realtimeMessage].slice(-200));
+          setError(null);
 
-    void poll(true);
+          // The message body is delivered by WebSocket. Only resolve history
+          // once when a previously unseen sender needs their display details.
+          if (!knownSender && !own) void loadMessages(true, controller.signal);
+        }
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") setConnectionState("live");
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          setConnectionState("offline");
+        }
+      });
+
+    // History is fetched once; new messages arrive through the cohort-filtered
+    // Realtime channel above instead of a recurring refresh timer.
+    void loadMessages(false, controller.signal);
     return () => {
-      stopped = true;
       controller.abort();
-      if (timer) window.clearTimeout(timer);
       refreshInFlight.current = false;
+      refreshQueued.current = false;
+      void supabase.removeChannel(channel);
     };
   }, [loadMessages]);
 
@@ -106,7 +177,7 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
       setError(result.error);
     } else {
       setDraft("");
-      await loadMessages(true);
+      if (connectionState !== "live") await loadMessages(true);
     }
     setSending(false);
   }
@@ -125,6 +196,7 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
           <h3>Cohort conversation</h3>
           <p>Messages shared by {memberCount} participant{memberCount === 1 ? "" : "s"} and your trainer.</p>
         </div>
+        <span className={connectionState}><i />{connectionState === "live" ? "Live" : connectionState === "connecting" ? "Connecting" : "Offline"}</span>
       </div>
 
       <div className="journey-chat-messages" aria-live="polite" aria-label="Cohort messages">

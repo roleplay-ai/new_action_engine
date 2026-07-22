@@ -10,7 +10,7 @@ import React, {
   useRef,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { UserProfile, UserAction, FeedItem, ActionCard } from "./types";
+import { UserProfile, UserAction, FeedItem, ActionCard, type CohortOption } from "./types";
 import {
   declineAction as declineActionServer,
   completeAction as completeActionServer,
@@ -18,6 +18,7 @@ import {
 import { validateAction as validateActionServer } from "@/app/actions/validate-action";
 import { syncMyTotalPointsFromHistory } from "@/app/actions/points";
 import { utcToISTDateTime } from "@/lib/timezone-utils";
+import { calculatePointsFromHistory } from "@/lib/points";
 
 export type GenerationJobStatus = {
   totalNeeded: number;
@@ -31,8 +32,12 @@ interface EngineContextType {
   allActions: ActionCard[];
   /** Null until the user completes the self-serve AI action onboarding wizard. */
   selfOnboardingCompletedAt: string | null;
-  /** The current user's cohort (first one, if any), for Prepare/Action Plan/Progress pages. */
-  cohort: { id: string; name: string; memberCount: number } | null;
+  /** Authoritative lifecycle of the personal plan subscription. */
+  personalPlanState: "none" | "draft" | "active" | "archived";
+  hasArchivedPlans: boolean;
+  /** Cohort currently selected for every participant page. */
+  cohort: CohortOption | null;
+  cohorts: CohortOption[];
   feed: FeedItem[];
   isLoading: boolean;
   hasCompany: boolean;
@@ -52,9 +57,10 @@ interface EngineContextType {
 
 const EngineContext = createContext<EngineContextType | undefined>(undefined);
 
-function mapDbAction(row: { id: string; theme: string; title: string; how: string; why: string; time_estimate: string; is_personal?: boolean | null }): ActionCard {
+function mapDbAction(row: { id: string; cohort_id?: string | null; theme: string; title: string; how: string; why: string; time_estimate: string; is_personal?: boolean | null }): ActionCard {
   return {
     id: row.id,
+    cohortId: row.cohort_id,
     theme: row.theme as ActionCard["theme"],
     title: row.title,
     how: row.how,
@@ -67,6 +73,7 @@ function mapDbAction(row: { id: string; theme: string; title: string; how: strin
 function mapDbUserAction(row: {
   id: string;
   action_id: string;
+  cohort_id?: string | null;
   status: string;
   scheduled_at: string | null;
   accepted_at: string | null;
@@ -80,6 +87,7 @@ function mapDbUserAction(row: {
   return {
     id: row.id,
     actionId: row.action_id,
+    cohortId: row.cohort_id,
     status: row.status as UserAction["status"],
     scheduledDate: scheduledIST?.date,
     scheduledTime: scheduledIST?.time,
@@ -92,9 +100,10 @@ function mapDbUserAction(row: {
   };
 }
 
-function mapDbFeedEvent(row: { id: string; user_id: string; action_title: string; type: string; likes: number; created_at: string }): FeedItem {
+function mapDbFeedEvent(row: { id: string; cohort_id?: string | null; user_id: string; action_title: string; type: string; likes: number; created_at: string }): FeedItem {
   return {
     id: row.id,
+    cohortId: row.cohort_id,
     userId: row.user_id,
     userName: "",
     actionTitle: row.action_title,
@@ -117,7 +126,10 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
   const [allActions, setAllActions] = useState<ActionCard[]>([]);
   const [userActions, setUserActions] = useState<UserAction[]>([]);
   const [selfOnboardingCompletedAt, setSelfOnboardingCompletedAt] = useState<string | null>(null);
-  const [cohort, setCohort] = useState<{ id: string; name: string; memberCount: number } | null>(null);
+  const [personalPlanState, setPersonalPlanState] = useState<"none" | "draft" | "active" | "archived">("none");
+  const [hasArchivedPlans, setHasArchivedPlans] = useState(false);
+  const [cohort, setCohort] = useState<CohortOption | null>(null);
+  const [cohorts, setCohorts] = useState<CohortOption[]>([]);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [hasCompany, setHasCompany] = useState(false);
   const [generationJob, setGenerationJob] = useState<GenerationJobStatus | null>(null);
@@ -163,30 +175,50 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       .maybeSingle();
     setSelfOnboardingCompletedAt((onboardingRow as any)?.self_onboarding_completed_at ?? null);
 
-    // Best-effort: cohort tables are newer (migration 025) — isolated so a
-    // not-yet-migrated DB doesn't break the core profile fetch above.
-    const { data: myCohortMembership } = await supabase
-      .from("cohort_members")
-      .select("cohort_id")
-      .eq("user_id", user.id)
-      .limit(1)
-      .maybeSingle();
-    if (myCohortMembership?.cohort_id) {
-      const { data: cohortRow } = await supabase
-        .from("cohorts")
-        .select("id, name")
-        .eq("id", myCohortMembership.cohort_id)
-        .single();
-      const { count: memberCount } = await supabase
-        .from("cohort_members")
-        .select("id", { count: "exact", head: true })
-        .eq("cohort_id", myCohortMembership.cohort_id);
-      setCohort(
-        cohortRow ? { id: cohortRow.id, name: cohortRow.name, memberCount: memberCount ?? 0 } : null
-      );
-    } else {
-      setCohort(null);
+    const cohortResponse = await fetch("/api/cohort-context", {
+      method: "GET",
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+    const cohortContext = await cohortResponse.json() as {
+      cohorts?: CohortOption[];
+      selectedCohortId?: string | null;
+      currentCohortId?: string | null;
+      error?: string;
+    };
+    const availableCohorts = cohortContext.cohorts ?? [];
+    const selectedCohort = availableCohorts.find((item) => item.isSelected) ?? null;
+    const selectedCohortId = selectedCohort?.id ?? null;
+    setCohorts(availableCohorts);
+    setCohort(selectedCohort);
+
+    // Plan activation is cohort-specific. A previous finalised plan can be
+    // archived while the newly assigned current cohort starts with no plan.
+    let planSubscription: { is_active: boolean; archived_at: string | null } | null = null;
+    if (selectedCohortId) {
+      const result = await supabase
+        .from("personal_action_subscriptions")
+        .select("is_active, archived_at")
+        .eq("user_id", user.id)
+        .eq("cohort_id", selectedCohortId)
+        .maybeSingle();
+      planSubscription = result.data;
     }
+    setPersonalPlanState(
+      !planSubscription
+        ? "none"
+        : planSubscription.archived_at
+          ? "archived"
+          : planSubscription.is_active === true
+            ? "active"
+            : "draft"
+    );
+    const { count: archivedPlanCount } = await supabase
+      .from("personal_action_subscriptions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .not("archived_at", "is", null);
+    setHasArchivedPlans((archivedPlanCount ?? 0) > 0);
 
     const { data: profRow } = await supabase
       .from("profiles")
@@ -195,29 +227,37 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       .single();
     const companyId = adminCompanyId ?? profRow?.company_id;
     setHasCompany(!!companyId);
-    if (companyId) {
+    if (companyId && selectedCohortId) {
       const { data: actions } = await supabase
         .from("actions")
-        .select("id, theme, title, how, why, time_estimate, is_personal")
+        .select("id, cohort_id, theme, title, how, why, time_estimate, is_personal")
         .eq("company_id", companyId)
+        .eq("cohort_id", selectedCohortId)
         .order("created_at", { ascending: true });
       setAllActions((actions ?? []).map(mapDbAction));
     } else {
       setAllActions([]);
     }
 
-    const { data: uas } = await supabase
-      .from("user_actions")
-      .select("*")
-      .eq("user_id", user.id);
+    const { data: uas } = selectedCohortId
+      ? await supabase
+          .from("user_actions")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("cohort_id", selectedCohortId)
+      : { data: [] };
     setUserActions((uas ?? []).map(mapDbUserAction));
+    setProfile((current) => ({ ...current, totalPoints: calculatePointsFromHistory(uas ?? []) }));
 
-    const { data: events } = await supabase
-      .from("feed_events")
-      .select("id, user_id, action_title, type, likes, created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(50);
+    const { data: events } = selectedCohortId
+      ? await supabase
+          .from("feed_events")
+          .select("id, cohort_id, user_id, action_title, type, likes, created_at")
+          .eq("user_id", user.id)
+          .eq("cohort_id", selectedCohortId)
+          .order("created_at", { ascending: false })
+          .limit(50)
+      : { data: [] };
     const displayName = prof?.full_name?.trim() || user.email?.split("@")[0] || "User";
     const items = (events ?? []).map((e) => {
       const it = mapDbFeedEvent(e);
@@ -309,7 +349,10 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       userActions,
       allActions,
       selfOnboardingCompletedAt,
+      personalPlanState,
+      hasArchivedPlans,
       cohort,
+      cohorts,
       feed,
       isLoading,
       hasCompany,
@@ -325,7 +368,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       likeFeedItem,
       addNewAction,
     }),
-    [profile, userActions, allActions, selfOnboardingCompletedAt, cohort, feed, isLoading, hasCompany, generationJob, refetch]
+    [profile, userActions, allActions, selfOnboardingCompletedAt, personalPlanState, hasArchivedPlans, cohort, cohorts, feed, isLoading, hasCompany, generationJob, refetch]
   );
 
   return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;

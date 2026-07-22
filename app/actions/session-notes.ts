@@ -1,11 +1,15 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getMyCohort } from "@/app/actions/cohorts";
 
 export async function getMySessionNotes(cohortId?: string | null): Promise<{ body: string; updatedAt?: string; error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { body: "", error: "Not authenticated" };
+  const { cohort, error: cohortError } = await getMyCohort();
+  if (cohortError) return { body: "", error: cohortError };
+  if ((cohort?.id ?? null) !== (cohortId ?? null)) return { body: "", error: "Select this cohort before viewing its notes" };
 
   let query = supabase
     .from("participant_session_notes")
@@ -22,6 +26,9 @@ export async function saveMySessionNotes(body: string, cohortId?: string | null)
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
   if (body.length > 50000) return { error: "Notes must be shorter than 50,000 characters" };
+  const { cohort, error: cohortError } = await getMyCohort();
+  if (cohortError) return { error: cohortError };
+  if ((cohort?.id ?? null) !== (cohortId ?? null)) return { error: "Select this cohort before editing its notes" };
 
   const { data, error } = await supabase
     .from("participant_session_notes")

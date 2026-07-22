@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { CalendarDays, Check, CheckCircle2, Clock3, Pencil, Sparkles, Trash2, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import Onboarding from "@/components/Onboarding";
@@ -16,8 +15,7 @@ import { usePageLoading } from "@/components/PageLoadingProvider";
 type EditForm = { theme: ActionTheme; title: string; how: string; why: string; timeEstimate: string };
 
 export default function PlanClient({ initialTrainingText }: { initialTrainingText: string }) {
-  const { selfOnboardingCompletedAt, generationJob, refetch, allActions } = useEngine();
-  const router = useRouter();
+  const { personalPlanState, hasArchivedPlans, cohort, generationJob, refetch, allActions } = useEngine();
   const [editingSetup, setEditingSetup] = useState(false);
   const [editingAction, setEditingAction] = useState<ActionCard | null>(null);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
@@ -25,7 +23,10 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
   const [activating, setActivating] = useState(false);
   const [error, setError] = useState("");
   const generatedActions = allActions.filter((action) => action.isPersonal);
-  const hasDraft = !selfOnboardingCompletedAt && (generatedActions.length > 0 || !!generationJob);
+  const isPlanActive = personalPlanState === "active";
+  const isPlanArchived = personalPlanState === "archived";
+  const hasDraft = personalPlanState === "draft" || (personalPlanState === "none" && (generatedActions.length > 0 || !!generationJob));
+  const canBuildPlan = !!cohort?.isCurrent && personalPlanState === "none";
 
   // Server already fetched notes; engine data is ready once Layout clears isLoading.
   usePageLoading(false);
@@ -52,8 +53,6 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
     const result = await deletePersonalAction(action.id);
     if (result.error) { setError(result.error); return; }
     await refetch();
-    router.push("/actions");
-    router.refresh();
   }
 
   async function activatePlan() {
@@ -65,19 +64,33 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
     await refetch();
   }
 
-  const heading = selfOnboardingCompletedAt ? "Your plan is active" : hasDraft ? "Review your draft plan" : "Build your first plan";
-  const summary = selfOnboardingCompletedAt
-    ? `${generatedActions.length} personalised actions are part of your practice plan.`
-    : hasDraft
-      ? "Edit or remove any action before finalising. Nothing is scheduled until you activate the plan."
-      : "Choose your focus, duration, action pace and reminder schedule.";
+  const heading = isPlanActive
+    ? "Your plan is active"
+    : isPlanArchived
+      ? "This earlier plan is archived"
+      : hasDraft
+        ? "Review your draft plan"
+        : canBuildPlan
+          ? "Build your plan for this cohort"
+          : "No plan was created for this cohort";
+  const summary = isPlanActive
+    ? `${generatedActions.length} personalised actions are part of this cohort's read-only practice plan.`
+    : isPlanArchived
+      ? "Reminders are paused, but you can revisit this cohort and complete any remaining released actions."
+      : hasDraft
+        ? "Edit or remove any action before finalising. Nothing is scheduled until you activate the plan."
+        : canBuildPlan
+          ? "Choose your focus, duration, action pace and reminder schedule."
+          : "Switch to your current cohort to build a new plan.";
 
   return <div className="journey-page plan-page">
     {editingSetup && <Onboarding initialTrainingText={initialTrainingText} onComplete={() => { setEditingSetup(false); refetch(); }} />}
 
     <div className="participant-page-heading centered"><span className="participant-eyebrow">AI action planner</span><h1>Turn learning into a practical plan</h1><p>Generate personalised workplace actions, review every suggestion, then activate the plan when it feels right.</p></div>
 
-    <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">Your practice plan</span><h2>{heading}</h2><p>{summary}</p></div><button className="journey-primary-button" onClick={() => setEditingSetup(true)}>{selfOnboardingCompletedAt ? "Change plan settings" : hasDraft ? "Change setup" : "Build my plan"}</button></div>
+    <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your cohort"}</span><h2>{heading}</h2><p>{summary}</p></div>{(hasDraft || canBuildPlan) && <button className="journey-primary-button" onClick={() => setEditingSetup(true)}>{hasDraft ? "Change setup" : "Build my plan"}</button>}</div>
+
+    {canBuildPlan && hasArchivedPlans && <div className="journey-card plan-history-notice"><strong>Your earlier cohort plans are safely archived.</strong><p>Use the cohort switcher above whenever you want to revisit earlier actions and complete any that remain.</p></div>}
 
     {generationJob && <div className="journey-card plan-generation-status"><GenerationStatus job={generationJob} /><p>You can preview actions as they arrive. Editing unlocks when generation finishes.</p></div>}
 
@@ -91,9 +104,11 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
       {error && <p className="plan-review-error">{error}</p>}
     </section>}
 
-    {selfOnboardingCompletedAt && <div className="plan-active-callout"><div><Check size={20} /><span><strong>Your plan is live</strong><small>Current actions and future reminders are available on the Actions page.</small></span></div><Link href="/actions" className="journey-primary-button">View my actions</Link></div>}
+    {isPlanActive && <div className="plan-active-callout"><div><Check size={20} /><span><strong>Your plan is live</strong><small>Current actions and future reminders are available on the Actions page.</small></span></div><Link href="/actions" className="journey-primary-button">View my actions</Link></div>}
 
-    {!selfOnboardingCompletedAt && !hasDraft && <div className="plan-benefits-grid"><div className="journey-card"><CheckCircle2 size={22} /><h3>Review everything</h3><p>Edit or delete every AI suggestion before your plan begins.</p></div><div className="journey-card"><CalendarDays size={22} /><h3>Your pace</h3><p>Choose the days, frequency and time that work with your schedule.</p></div></div>}
+    {isPlanArchived && <div className="plan-active-callout"><div><Check size={20} /><span><strong>Archived cohort plan</strong><small>This plan is view-only. Its reminder schedule will not release new actions.</small></span></div><Link href="/actions" className="journey-primary-button">Revisit remaining actions</Link></div>}
+
+    {!isPlanActive && !isPlanArchived && !hasDraft && <div className="plan-benefits-grid"><div className="journey-card"><CheckCircle2 size={22} /><h3>Review everything</h3><p>Edit or delete every AI suggestion before your plan begins.</p></div><div className="journey-card"><CalendarDays size={22} /><h3>Your pace</h3><p>Choose the days, frequency and time that work with your schedule.</p></div></div>}
 
     {typeof document !== "undefined" && editingAction && editForm && createPortal(<div className="plan-edit-overlay"><div className="plan-edit-modal"><button className="plan-edit-close" onClick={() => setEditingAction(null)}><X size={18} /></button><span className="participant-eyebrow">Edit action</span><h3>Make this action yours</h3><div className="plan-edit-grid"><label>Theme<select value={editForm.theme} onChange={(event) => setEditForm({ ...editForm, theme: event.target.value as ActionTheme })}>{THEMES.map((theme) => <option key={theme}>{theme}</option>)}</select></label><label>Time estimate<select value={editForm.timeEstimate} onChange={(event) => setEditForm({ ...editForm, timeEstimate: event.target.value })}>{["2 mins","5 mins","15 mins","30 mins"].map((time) => <option key={time}>{time}</option>)}</select></label></div><label>Action title<input value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} /></label><label>How to do it<textarea value={editForm.how} onChange={(event) => setEditForm({ ...editForm, how: event.target.value })} /></label><label>Why it works<textarea value={editForm.why} onChange={(event) => setEditForm({ ...editForm, why: event.target.value })} /></label>{error && <p className="plan-review-error">{error}</p>}<button className="journey-primary-button" disabled={saving || !editForm.title.trim()} onClick={saveEdit}>{saving ? "Saving…" : "Save changes"}</button></div></div>, document.body)}
   </div>;

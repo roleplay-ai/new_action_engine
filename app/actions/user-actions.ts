@@ -92,7 +92,7 @@ export async function scheduleAction(params: {
 
   const { data: actionRow, error: actionFetchError } = await supabase
     .from("actions")
-    .select("title, how, why, theme")
+    .select("title, how, why, theme, cohort_id")
     .eq("id", actionId)
     .single();
 
@@ -119,6 +119,7 @@ export async function scheduleAction(params: {
     {
       user_id: user.id,
       action_id: actionId,
+      cohort_id: actionRow.cohort_id,
       status: "scheduled",
       scheduled_at: scheduledAt,
       accepted_at: acceptedAt,
@@ -147,6 +148,7 @@ export async function scheduleAction(params: {
   // Emit feed event
   await supabase.from("feed_events").insert({
     user_id: user.id,
+    cohort_id: actionRow.cohort_id,
     action_title: actionRow.title,
     type: "ACCEPTED",
   });
@@ -241,6 +243,9 @@ export async function acceptActionWithoutSchedule(actionId: string): Promise<{ e
     return { error: "Not authenticated" };
   }
 
+  const { data: action } = await supabase.from("actions").select("title, cohort_id").eq("id", actionId).single();
+  if (!action) return { error: "Action not found" };
+
   const acceptedAt = new Date().toISOString();
   const { data: existingUa } = await supabase
     .from("user_actions")
@@ -253,6 +258,7 @@ export async function acceptActionWithoutSchedule(actionId: string): Promise<{ e
     {
       user_id: user.id,
       action_id: actionId,
+      cohort_id: action.cohort_id,
       status: "scheduled",
       scheduled_at: null,
       accepted_at: acceptedAt,
@@ -278,10 +284,10 @@ export async function acceptActionWithoutSchedule(actionId: string): Promise<{ e
     await addPointsToProfile(user.id, getPointsForEvent("read"));
   }
 
-  const { data: action } = await supabase.from("actions").select("title").eq("id", actionId).single();
   if (action) {
     await supabase.from("feed_events").insert({
       user_id: user.id,
+      cohort_id: action.cohort_id,
       action_title: action.title,
       type: "ACCEPTED",
     });
@@ -303,6 +309,9 @@ export async function declineAction(actionId: string): Promise<{ error?: string 
     return { error: "Not authenticated" };
   }
 
+  const { data: action } = await supabase.from("actions").select("title, cohort_id").eq("id", actionId).single();
+  if (!action) return { error: "Action not found" };
+
   const { data: existingUa } = await supabase
     .from("user_actions")
     .select("status")
@@ -314,6 +323,7 @@ export async function declineAction(actionId: string): Promise<{ error?: string 
     {
       user_id: user.id,
       action_id: actionId,
+      cohort_id: action.cohort_id,
       status: "skipped",
       scheduled_at: null,
     },
@@ -332,10 +342,10 @@ export async function declineAction(actionId: string): Promise<{ error?: string 
     await addPointsToProfile(user.id, getPointsForEvent("read"));
   }
 
-  const { data: action } = await supabase.from("actions").select("title").eq("id", actionId).single();
   if (action) {
     await supabase.from("feed_events").insert({
       user_id: user.id,
+      cohort_id: action.cohort_id,
       action_title: action.title,
       type: "DECLINED",
     });
@@ -365,7 +375,7 @@ export async function completeAction(params: {
 
   const { data: actionRow } = await supabase
     .from("actions")
-    .select("title")
+    .select("title, cohort_id")
     .eq("id", actionId)
     .single();
 
@@ -383,6 +393,7 @@ export async function completeAction(params: {
     {
       user_id: user.id,
       action_id: actionId,
+      cohort_id: actionRow?.cohort_id ?? null,
       status: newStatus,
       scheduled_at: null,
       accepted_at: acceptedAt,
@@ -413,6 +424,7 @@ export async function completeAction(params: {
     if (actionRow?.title) {
       await supabase.from("feed_events").insert({
         user_id: user.id,
+        cohort_id: actionRow.cohort_id,
         action_title: actionRow.title,
         type: "SUCCESS",
       });

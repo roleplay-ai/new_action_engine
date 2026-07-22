@@ -26,6 +26,9 @@ export default function NotesClient() {
 
   useEffect(() => {
     let cancelled = false;
+    loaded.current = false;
+    setInitializing(true);
+    setStatus("loading");
     getMySessionNotes(cohort?.id).then((result) => {
       if (cancelled) return;
       skipNextSave.current = true;

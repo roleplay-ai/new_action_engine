@@ -3,6 +3,7 @@ export type ActionTheme = 'Collaboration' | 'Feedback' | 'Accountability' | 'Con
 
 export interface ActionCard {
   id: string;
+  cohortId?: string | null;
   theme: ActionTheme;
   title: string;
   how: string;
@@ -15,6 +16,7 @@ export interface ActionCard {
 export interface UserAction {
   id: string;
   actionId: string;
+  cohortId?: string | null;
   status: 'scheduled' | 'success' | 'failed' | 'skipped';
   scheduledDate?: string;
   scheduledTime?: string;
@@ -29,6 +31,7 @@ export interface UserAction {
 
 export interface FeedItem {
   id: string;
+  cohortId?: string | null;
   userId: string;
   userName: string;
   actionTitle: string;
@@ -78,6 +81,14 @@ export interface Cohort {
   description?: string | null;
   startDate?: string | null;
   memberCount: number;
+}
+
+/** A cohort available in the participant-wide cohort switcher. */
+export interface CohortOption extends Cohort {
+  companyId: string;
+  archivedAt?: string | null;
+  isCurrent: boolean;
+  isSelected: boolean;
 }
 
 export interface CohortMember {

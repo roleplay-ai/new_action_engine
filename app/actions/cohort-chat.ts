@@ -8,6 +8,7 @@ import type { CohortMessage } from "@/lib/types";
 type ChatAccess = {
   supabase: Awaited<ReturnType<typeof createClient>>;
   userId: string;
+  userName: string;
   role: string;
 };
 
@@ -20,7 +21,7 @@ async function getChatAccess(cohortId: string): Promise<ChatAccess | { error: st
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, company_id")
+    .select("role, company_id, full_name")
     .eq("id", user.id)
     .single();
   if (!profile) return { error: "Profile not found" };
@@ -32,7 +33,7 @@ async function getChatAccess(cohortId: string): Promise<ChatAccess | { error: st
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (membership) return { supabase, userId: user.id, role: profile.role };
+  if (membership) return { supabase, userId: user.id, userName: profile.full_name?.trim() || "Cohort member", role: profile.role };
 
   if (profile.role === "admin" || profile.role === "superadmin") {
     const { data: cohort } = await supabase
@@ -41,7 +42,7 @@ async function getChatAccess(cohortId: string): Promise<ChatAccess | { error: st
       .eq("id", cohortId)
       .maybeSingle();
     const canTrain = profile.role === "superadmin" || (!!cohort && cohort.company_id === profile.company_id);
-    if (canTrain) return { supabase, userId: user.id, role: profile.role };
+    if (canTrain) return { supabase, userId: user.id, userName: profile.full_name?.trim() || "Trainer", role: profile.role };
   }
 
   return { error: "You do not have access to this cohort conversation" };
@@ -51,6 +52,8 @@ export async function getCohortMessages(cohortId: string): Promise<{
   error?: string;
   messages?: CohortMessage[];
   currentUserId?: string;
+  currentUserName?: string;
+  currentUserRole?: CohortMessage["senderRole"];
 }> {
   try {
     const access = await getChatAccess(cohortId);
@@ -87,7 +90,12 @@ export async function getCohortMessages(cohortId: string): Promise<{
       };
     });
 
-    return { messages, currentUserId: access.userId };
+    return {
+      messages,
+      currentUserId: access.userId,
+      currentUserName: access.userName,
+      currentUserRole: access.role === "admin" || access.role === "superadmin" ? "trainer" : "participant",
+    };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not load messages" };
   }

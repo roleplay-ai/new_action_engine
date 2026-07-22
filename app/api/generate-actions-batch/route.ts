@@ -45,6 +45,13 @@ export async function POST(request: Request) {
   if (!job || job.status !== "generating") {
     return NextResponse.json({ ok: true, skipped: true });
   }
+  if (!job.cohort_id) {
+    await admin
+      .from("personal_action_generation_jobs")
+      .update({ status: "failed", error_message: "Generation job has no cohort", updated_at: new Date().toISOString() })
+      .eq("id", jobId);
+    return NextResponse.json({ ok: false, error: "Generation job has no cohort" });
+  }
 
   const remaining = job.total_needed - job.total_generated;
   const count = Math.min(job.batch_size ?? 12, remaining);
@@ -78,6 +85,7 @@ export async function POST(request: Request) {
     .select("title")
     .eq("created_by", job.user_id)
     .eq("is_personal", true)
+    .eq("cohort_id", job.cohort_id)
     .order("created_at", { ascending: false })
     .limit(30);
   const avoidTitles = (recentActions ?? []).map((r) => r.title);
@@ -97,7 +105,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error });
   }
 
-  const rows = draftsToActionRows(drafts, companyId, job.user_id);
+  // The participant may have changed the draft while this AI call was in
+  // flight. Do not let a replaced job append stale actions afterward.
+  const { data: latestJobState } = await admin
+    .from("personal_action_generation_jobs")
+    .select("status")
+    .eq("id", jobId)
+    .single();
+  if (latestJobState?.status !== "generating") {
+    return NextResponse.json({ ok: true, skipped: true, reason: "job_replaced" });
+  }
+
+  const rows = draftsToActionRows(drafts, companyId, job.user_id, job.cohort_id);
   await admin.from("actions").insert(rows);
 
   const totalGenerated = job.total_generated + drafts.length;
@@ -118,10 +137,11 @@ export async function POST(request: Request) {
   // in a replacement early.
   const { data: sub } = await admin
     .from("personal_action_subscriptions")
-    .select("id, user_id, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at, last_delivered_at, is_active")
+    .select("id, user_id, cohort_id, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at, last_delivered_at, is_active, archived_at")
     .eq("user_id", job.user_id)
+    .eq("cohort_id", job.cohort_id)
     .maybeSingle();
-  if (sub && sub.is_active && !sub.last_delivered_at) {
+  if (sub && sub.is_active && !sub.archived_at && !sub.last_delivered_at) {
     await assignScheduledBatch(sub);
   }
 

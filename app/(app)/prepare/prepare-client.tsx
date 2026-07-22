@@ -38,7 +38,7 @@ function resourceMeta(item: PrepareContentItem) {
 }
 
 export default function PrepareClient({ initialData }: { initialData: JourneyData }) {
-  const { profile } = useEngine();
+  const { profile, cohort: selectedCohort } = useEngine();
   const [error, setError] = useState<string | null>(initialData.error ?? null);
   const [cohort, setCohort] = useState(initialData.cohort);
   const [roster, setRoster] = useState(initialData.roster);
@@ -96,7 +96,7 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
           <h1>{cohort.name}</h1>
           <p>{cohort.description || "Your sessions, preparation and application cycles in one place."}</p>
         </div>
-        <div className="journey-cohort-filter"><label>View cohort</label><div>{cohort.name}<ChevronRight size={14} /></div></div>
+        <div className="journey-cohort-filter"><label>Viewing</label><div>{selectedCohort?.isCurrent ? "Current cohort" : "Earlier cohort"}<ChevronRight size={14} /></div></div>
       </div>
 
       <section className="journey-session-hero">

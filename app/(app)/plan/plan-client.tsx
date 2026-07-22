@@ -8,11 +8,10 @@ import { useEngine } from "@/lib/store";
 import Onboarding from "@/components/Onboarding";
 import GenerationStatus from "@/components/GenerationStatus";
 import { activatePersonalActionPlan, deletePersonalAction, updatePersonalAction } from "@/app/actions/ai-actions";
-import { THEMES } from "@/lib/personal-action-generation";
-import type { ActionCard, ActionTheme } from "@/lib/types";
+import type { ActionCard } from "@/lib/types";
 import { usePageLoading } from "@/components/PageLoadingProvider";
 
-type EditForm = { theme: ActionTheme; title: string; how: string; why: string; timeEstimate: string };
+type EditForm = { title: string; how: string; why: string };
 
 export default function PlanClient({ initialTrainingText }: { initialTrainingText: string }) {
   const { personalPlanState, hasArchivedPlans, cohort, generationJob, refetch, allActions } = useEngine();
@@ -33,14 +32,18 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
 
   function openEdit(action: ActionCard) {
     setEditingAction(action);
-    setEditForm({ theme: action.theme, title: action.title, how: action.how, why: action.why, timeEstimate: action.timeEstimate });
+    setEditForm({ title: action.title, how: action.how, why: action.why });
     setError("");
   }
 
   async function saveEdit() {
     if (!editingAction || !editForm) return;
     setSaving(true);
-    const result = await updatePersonalAction(editingAction.id, editForm);
+    const result = await updatePersonalAction(editingAction.id, {
+      title: editForm.title,
+      how: editForm.how,
+      why: editForm.why,
+    });
     setSaving(false);
     if (result.error) { setError(result.error); return; }
     await refetch();
@@ -110,6 +113,6 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
 
     {!isPlanActive && !isPlanArchived && !hasDraft && <div className="plan-benefits-grid"><div className="journey-card"><CheckCircle2 size={22} /><h3>Review everything</h3><p>Edit or delete every AI suggestion before your plan begins.</p></div><div className="journey-card"><CalendarDays size={22} /><h3>Your pace</h3><p>Choose the days, frequency and time that work with your schedule.</p></div></div>}
 
-    {typeof document !== "undefined" && editingAction && editForm && createPortal(<div className="plan-edit-overlay"><div className="plan-edit-modal"><button className="plan-edit-close" onClick={() => setEditingAction(null)}><X size={18} /></button><span className="participant-eyebrow">Edit action</span><h3>Make this action yours</h3><div className="plan-edit-grid"><label>Theme<select value={editForm.theme} onChange={(event) => setEditForm({ ...editForm, theme: event.target.value as ActionTheme })}>{THEMES.map((theme) => <option key={theme}>{theme}</option>)}</select></label><label>Time estimate<select value={editForm.timeEstimate} onChange={(event) => setEditForm({ ...editForm, timeEstimate: event.target.value })}>{["2 mins","5 mins","15 mins","30 mins"].map((time) => <option key={time}>{time}</option>)}</select></label></div><label>Action title<input value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} /></label><label>How to do it<textarea value={editForm.how} onChange={(event) => setEditForm({ ...editForm, how: event.target.value })} /></label><label>Why it works<textarea value={editForm.why} onChange={(event) => setEditForm({ ...editForm, why: event.target.value })} /></label>{error && <p className="plan-review-error">{error}</p>}<button className="journey-primary-button" disabled={saving || !editForm.title.trim()} onClick={saveEdit}>{saving ? "Saving…" : "Save changes"}</button></div></div>, document.body)}
+    {typeof document !== "undefined" && editingAction && editForm && createPortal(<div className="plan-edit-overlay"><div className="plan-edit-modal"><button className="plan-edit-close" onClick={() => setEditingAction(null)}><X size={18} /></button><span className="participant-eyebrow">Edit action</span><h3>Make this action yours</h3><label>Action title<input value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} /></label><div className="plan-edit-how-why"><span className="plan-edit-how-why-label">How and why</span><label><span>How to do it</span><textarea value={editForm.how} onChange={(event) => setEditForm({ ...editForm, how: event.target.value })} rows={3} /></label><label><span>Why it works</span><textarea value={editForm.why} onChange={(event) => setEditForm({ ...editForm, why: event.target.value })} rows={3} /></label></div>{error && <p className="plan-review-error">{error}</p>}<button className="journey-primary-button" disabled={saving || !editForm.title.trim()} onClick={saveEdit}>{saving ? "Saving…" : "Save changes"}</button></div></div>, document.body)}
   </div>;
 }

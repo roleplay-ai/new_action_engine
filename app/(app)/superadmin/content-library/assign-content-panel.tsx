@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { listCohorts } from "@/app/actions/cohorts";
 import { assignContentToCohort } from "@/app/actions/prepare-content";
 import type { PrepareContentItem } from "@/lib/types";
@@ -20,21 +21,30 @@ export default function AssignContentPanel({
   const [cohortId, setCohortId] = useState("");
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [cohortsLoading, setCohortsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (!companyId) return;
     let cancelled = false;
+    setCohortsLoading(true);
+    setError(null);
+    setCohortId("");
     (async () => {
-      const { cohorts: list, error } = await listCohorts(companyId);
-      if (cancelled) return;
-      if (error) {
-        setCohorts([]);
-        return;
+      try {
+        const result = await listCohorts(companyId);
+        if (cancelled) return;
+        if (result.error) {
+          setCohorts([]);
+          setError(result.error);
+          return;
+        }
+        setCohorts(result.cohorts ?? []);
+        setCohortId((result.cohorts ?? [])[0]?.id ?? "");
+      } finally {
+        if (!cancelled) setCohortsLoading(false);
       }
-      setCohorts(list ?? []);
-      setCohortId((list ?? [])[0]?.id ?? "");
     })();
     return () => {
       cancelled = true;
@@ -55,14 +65,17 @@ export default function AssignContentPanel({
     setError(null);
     setSuccess(null);
     setLoading(true);
-    const { error } = await assignContentToCohort(cohortId, Array.from(selectedItemIds));
-    setLoading(false);
-    if (error) {
-      setError(error);
-      return;
+    try {
+      const result = await assignContentToCohort(cohortId, Array.from(selectedItemIds));
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setSuccess("Content assigned successfully.");
+      setSelectedItemIds(new Set());
+    } finally {
+      setLoading(false);
     }
-    setSuccess("Assigned.");
-    setSelectedItemIds(new Set());
   }
 
   const activeItems = items.filter((i) => i.isActive);
@@ -72,7 +85,7 @@ export default function AssignContentPanel({
   }
 
   return (
-    <div className="bg-white border-4 border-black rounded-[24px] p-5 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] space-y-4">
+    <div className="superadmin-assignment-card">
       <div className="flex flex-col sm:flex-row gap-3">
         <select
           value={companyId}
@@ -88,11 +101,11 @@ export default function AssignContentPanel({
         <select
           value={cohortId}
           onChange={(e) => setCohortId(e.target.value)}
-          disabled={cohorts.length === 0}
+          disabled={cohortsLoading || cohorts.length === 0}
           className="flex-1 px-3 py-2 border-2 border-black rounded-lg text-sm font-semibold disabled:opacity-50"
         >
-          {cohorts.length === 0 ? (
-            <option value="">No cohorts in this company</option>
+          {cohortsLoading || cohorts.length === 0 ? (
+            <option value="">{cohortsLoading ? "Loading cohorts…" : "No cohorts in this company"}</option>
           ) : (
             cohorts.map((c) => (
               <option key={c.id} value={c.id}>
@@ -125,9 +138,9 @@ export default function AssignContentPanel({
       <button
         onClick={handleAssign}
         disabled={loading || !cohortId || selectedItemIds.size === 0}
-        className="px-4 py-2 bg-[#3699FC] border-2 border-black text-white rounded-lg font-bold text-xs uppercase tracking-wider disabled:opacity-50"
+        className="superadmin-submit"
       >
-        {loading ? "…" : `Assign ${selectedItemIds.size || ""}`}
+        {loading && <Loader2 size={14} className="animate-spin" />}{loading ? "Assigning" : `Assign ${selectedItemIds.size || ""}`}
       </button>
       {error && <p className="text-xs font-bold text-red-600">{error}</p>}
       {success && <p className="text-xs font-bold text-emerald-600">{success}</p>}

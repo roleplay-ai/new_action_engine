@@ -4,6 +4,7 @@ import { getUsersWithProfiles } from "@/app/actions/superadmin";
 import AutoLoginTestingPanel from "../auto-login-testing-panel";
 import AutoLoginEmailPanel from "../auto-login-email-panel";
 import EmailSchedulerPanel from "../email-scheduler-panel";
+import { KeyRound, MailCheck, ShieldCheck } from "lucide-react";
 
 export default async function SuperadminEmailsPage() {
   const supabase = await createClient();
@@ -30,19 +31,18 @@ export default async function SuperadminEmailsPage() {
   const usersError = !Array.isArray(usersResult) ? usersResult.error : null;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-black uppercase italic tracking-tight">
-          Emails
-        </h1>
+    <div className="superadmin-page">
+      <div className="superadmin-page-heading"><div><span>Communication operations</span><h1>Email delivery</h1><p>Send secure access links, test login journeys, and manage scheduled campaigns.</p></div></div>
+
+      <div className="superadmin-stat-grid">
+        <div className="superadmin-stat"><span><MailCheck size={17} /></span><div><small>Recipients</small><strong>{users.filter((item) => item.role !== "superadmin").length}</strong><p>Accounts eligible for delivery</p></div></div>
+        <div className="superadmin-stat"><span><KeyRound size={17} /></span><div><small>Login ready</small><strong>{users.filter((item) => !!item.persistent_login_key).length}</strong><p>Persistent keys configured</p></div></div>
+        <div className="superadmin-stat"><span><ShieldCheck size={17} /></span><div><small>Without keys</small><strong>{users.filter((item) => item.role !== "superadmin" && !item.persistent_login_key).length}</strong><p>Need credential preparation</p></div></div>
       </div>
 
       {usersError && (
-        <div className="p-4 bg-amber-50 border-2 border-amber-200 rounded-xl">
-          <p className="text-sm font-bold text-amber-800">{usersError}</p>
-          <p className="text-xs mt-1 text-amber-600">
-            Ensure SUPABASE_SERVICE_ROLE_KEY is set in .env.local to list users.
-          </p>
+        <div className="superadmin-alert warning">
+          <strong>{usersError}</strong><span>Ensure the service-role configuration is available to list recipients.</span>
         </div>
       )}
 

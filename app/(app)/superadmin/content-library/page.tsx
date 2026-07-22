@@ -4,6 +4,7 @@ import { listContentItems } from "@/app/actions/prepare-content";
 import ContentLibraryList from "./content-library-list";
 import CreateContentForm from "./create-content-form";
 import AssignContentPanel from "./assign-content-panel";
+import { Archive, FileStack, PlayCircle } from "lucide-react";
 
 export default async function ContentLibraryPage() {
   const supabase = await createClient();
@@ -20,29 +21,33 @@ export default async function ContentLibraryPage() {
 
   const { items } = await listContentItems();
   const { data: companies } = await supabase.from("companies").select("id, name").order("name");
+  const contentItems = items ?? [];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-black uppercase italic tracking-tight">Content Library</h1>
+    <div className="superadmin-page">
+      <div className="superadmin-page-heading">
+        <div><span>Learning operations</span><h1>Content library</h1><p>Build reusable preparation content and distribute it to cohorts.</p></div>
         <CreateContentForm />
       </div>
 
-      <div className="bg-white border-4 border-black rounded-[24px] overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-        {items && items.length > 0 ? (
-          <ContentLibraryList items={items} />
-        ) : (
-          <div className="p-12 text-center text-slate-500">
-            <p className="font-bold uppercase tracking-wider">No content yet</p>
-            <p className="text-sm mt-2">Create a video, quiz, or pre-read above</p>
-          </div>
-        )}
+      <div className="superadmin-stat-grid">
+        <div className="superadmin-stat"><span><FileStack size={17} /></span><div><small>Total content</small><strong>{contentItems.length}</strong><p>Reusable learning items</p></div></div>
+        <div className="superadmin-stat"><span><PlayCircle size={17} /></span><div><small>Active content</small><strong>{contentItems.filter((item) => item.isActive).length}</strong><p>Available for assignment</p></div></div>
+        <div className="superadmin-stat"><span><Archive size={17} /></span><div><small>Archived</small><strong>{contentItems.filter((item) => !item.isActive).length}</strong><p>Retained outside circulation</p></div></div>
       </div>
 
-      <div>
-        <h2 className="text-lg font-black uppercase italic tracking-tight mb-3">Assign to a cohort</h2>
-        <AssignContentPanel companies={companies ?? []} items={items ?? []} />
-      </div>
+      <section className="superadmin-surface">
+        <div className="superadmin-section-heading"><div><h2>Library items</h2><p>Videos, quizzes, and pre-reading available across organisations.</p></div><span>{contentItems.length} items</span></div>
+        {contentItems.length > 0 ? (
+          <ContentLibraryList items={contentItems} />
+        ) : (
+          <div className="superadmin-empty">
+            <FileStack size={26} /><strong>No content yet</strong><p>Create a video, quiz, or pre-read to build the shared library.</p>
+          </div>
+        )}
+      </section>
+
+      <section><div className="superadmin-section-heading standalone"><div><h2>Assign to a cohort</h2><p>Choose an organisation, cohort, and active learning items.</p></div></div><AssignContentPanel companies={companies ?? []} items={contentItems} /></section>
     </div>
   );
 }

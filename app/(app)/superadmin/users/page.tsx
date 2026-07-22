@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUsersWithProfiles } from "@/app/actions/superadmin";
 import UsersList from "../users-list";
 import CreateUserForm from "../create-user-form";
+import { Building2, ShieldCheck, UserRound, Users } from "lucide-react";
 
 export default async function SuperadminUsersPage() {
   const supabase = await createClient();
@@ -32,26 +33,26 @@ export default async function SuperadminUsersPage() {
     .order("name");
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-black uppercase italic tracking-tight">
-          Users
-        </h1>
+    <div className="superadmin-page">
+      <div className="superadmin-page-heading">
+        <div><span>Identity and access</span><h1>Users</h1><p>Manage accounts, company access, administrative roles, and login delivery.</p></div>
         <CreateUserForm companies={companies ?? []} />
       </div>
 
+      <div className="superadmin-stat-grid">
+        <div className="superadmin-stat"><span><Users size={17} /></span><div><small>Total users</small><strong>{users.length}</strong><p>All authenticated accounts</p></div></div>
+        <div className="superadmin-stat"><span><ShieldCheck size={17} /></span><div><small>Administrators</small><strong>{users.filter((item) => item.role === "admin" || item.role === "superadmin").length}</strong><p>Privileged workspace access</p></div></div>
+        <div className="superadmin-stat"><span><Building2 size={17} /></span><div><small>Unassigned</small><strong>{users.filter((item) => !item.company_id && item.role !== "superadmin").length}</strong><p>Need a company assignment</p></div></div>
+      </div>
+
       {usersError && (
-        <div className="p-4 bg-amber-50 border-2 border-amber-200 rounded-xl">
-          <p className="text-sm font-bold text-amber-800">
-            {usersError}
-          </p>
-          <p className="text-xs mt-1 text-amber-600">
-            Ensure SUPABASE_SERVICE_ROLE_KEY is set in .env.local to list users.
-          </p>
+        <div className="superadmin-alert warning">
+          <strong>{usersError}</strong><span>Ensure the service-role configuration is available to list authentication users.</span>
         </div>
       )}
 
-      <div className="bg-white border-4 border-black rounded-[24px] overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+      <section className="superadmin-surface">
+        <div className="superadmin-section-heading"><div><h2>User directory</h2><p>Select recipients, edit access, or securely remove accounts.</p></div><span>{users.length} records</span></div>
         {users.length > 0 ? (
           <UsersList
             users={users}
@@ -59,16 +60,11 @@ export default async function SuperadminUsersPage() {
             currentUserId={user.id}
           />
         ) : (
-          <div className="p-12 text-center text-slate-500">
-            <p className="font-bold uppercase tracking-wider">
-              {usersError ? "Could not load users" : "No users yet"}
-            </p>
-            <p className="text-sm mt-2">
-              {usersError ? "Check your service role key" : "Create a user above"}
-            </p>
+          <div className="superadmin-empty">
+            <UserRound size={26} /><strong>{usersError ? "Could not load users" : "No users yet"}</strong><p>{usersError ? "Check the server configuration and refresh this page." : "Create the first user account to get started."}</p>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

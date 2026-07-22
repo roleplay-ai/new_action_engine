@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createUser } from "@/app/actions/superadmin";
-import { Plus } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 
 type Company = { id: string; name: string };
 
@@ -22,32 +22,35 @@ export default function CreateUserForm({ companies }: { companies: Company[] }) 
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error } = await createUser({
-      email,
-      password,
-      fullName,
-      companyId: companyId || null,
-      role,
-    });
-    setLoading(false);
-    if (error) {
-      setError(error);
-      return;
+    try {
+      const result = await createUser({
+        email,
+        password,
+        fullName,
+        companyId: companyId || null,
+        role,
+      });
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setEmail("");
+      setPassword("");
+      setFullName("");
+      setCompanyId("");
+      setRole("user");
+      setOpen(false);
+      router.refresh();
+    } finally {
+      setLoading(false);
     }
-    router.refresh();
-    setEmail("");
-    setPassword("");
-    setFullName("");
-    setCompanyId("");
-    setRole("user");
-    setOpen(false);
   }
 
   if (!open) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 bg-[#FFCE00] border-2 border-black px-5 py-2.5 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
+        className="superadmin-primary-action"
       >
         <Plus size={16} /> Create User
       </button>
@@ -57,11 +60,9 @@ export default function CreateUserForm({ companies }: { companies: Company[] }) 
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white border-2 border-black rounded-xl p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-4 max-w-md"
+      className="superadmin-creation-form"
     >
-      <h3 className="text-xs font-black uppercase tracking-widest text-slate-600">
-        Create user (credentials)
-      </h3>
+      <div className="superadmin-creation-form-head"><div><h3>Create user</h3><p>Set up credentials, access, and company assignment.</p></div><button type="button" onClick={() => setOpen(false)} aria-label="Close"><X size={17} /></button></div>
       <div>
         <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Email</label>
         <input
@@ -122,14 +123,14 @@ export default function CreateUserForm({ companies }: { companies: Company[] }) 
         <button
           type="submit"
           disabled={loading}
-          className="px-4 py-2 bg-[#3699FC] border-2 border-black text-white rounded-lg font-bold text-xs uppercase tracking-wider disabled:opacity-50"
+          className="superadmin-submit"
         >
-          {loading ? "Creating…" : "Create"}
+          {loading && <Loader2 size={14} className="animate-spin" />}{loading ? "Creating" : "Create user"}
         </button>
         <button
           type="button"
           onClick={() => { setOpen(false); setError(null); }}
-          className="px-4 py-2 bg-white border-2 border-black rounded-lg font-bold text-xs uppercase tracking-wider hover:bg-slate-50"
+          className="superadmin-secondary-action"
         >
           Cancel
         </button>

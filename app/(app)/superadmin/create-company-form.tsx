@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createCompany } from "@/app/actions/companies";
-import { Plus } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 
 export default function CreateCompanyForm() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -15,22 +17,26 @@ export default function CreateCompanyForm() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error } = await createCompany({ name, slug: slug || undefined });
-    setLoading(false);
-    if (error) {
-      setError(error);
-      return;
+    try {
+      const result = await createCompany({ name, slug: slug || undefined });
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setName("");
+      setSlug("");
+      setOpen(false);
+      router.refresh();
+    } finally {
+      setLoading(false);
     }
-    setName("");
-    setSlug("");
-    setOpen(false);
   }
 
   if (!open) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 bg-[#FFCE00] border-2 border-black px-5 py-2.5 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
+        className="superadmin-primary-action"
       >
         <Plus size={16} /> New Company
       </button>
@@ -38,35 +44,36 @@ export default function CreateCompanyForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white border-2 border-black rounded-xl p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-      <div className="flex flex-col sm:flex-row gap-3">
+    <form onSubmit={handleSubmit} className="superadmin-quick-form">
+      <div className="superadmin-quick-form-title"><div><strong>New company</strong><small>Add an organisation to the workspace.</small></div><button type="button" onClick={() => setOpen(false)} aria-label="Close"><X size={16} /></button></div>
+      <div className="superadmin-quick-form-fields">
         <input
           type="text"
           placeholder="Company name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
-          className="flex-1 px-4 py-2 border-2 border-black rounded-lg text-sm font-semibold outline-none focus:border-[#3699FC]"
+          className="flex-1"
         />
         <input
           type="text"
           placeholder="Slug (optional)"
           value={slug}
           onChange={(e) => setSlug(e.target.value)}
-          className="w-full sm:w-32 px-4 py-2 border-2 border-black rounded-lg text-sm font-semibold outline-none focus:border-[#3699FC]"
+          className="w-full sm:w-40"
         />
         <div className="flex gap-2">
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-[#3699FC] border-2 border-black text-white rounded-lg font-bold text-xs uppercase tracking-wider disabled:opacity-50"
+            className="superadmin-submit"
           >
-            {loading ? "…" : "Create"}
+            {loading && <Loader2 size={14} className="animate-spin" />}{loading ? "Creating" : "Create"}
           </button>
           <button
             type="button"
             onClick={() => { setOpen(false); setError(null); }}
-            className="px-4 py-2 bg-white border-2 border-black rounded-lg font-bold text-xs uppercase tracking-wider hover:bg-slate-50"
+            className="superadmin-secondary-action"
           >
             Cancel
           </button>

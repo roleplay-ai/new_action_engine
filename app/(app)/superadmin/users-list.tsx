@@ -30,7 +30,7 @@ export default function UsersList({
   currentUserId: string;
 }) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [editing, setEditing] = useState<User | null>(null);
   const [editFullName, setEditFullName] = useState("");
@@ -76,15 +76,17 @@ export default function UsersList({
     setEmailResults(null);
     setEmailError(null);
 
-    const result = await sendAutoLoginEmails(Array.from(selectedUserIds));
-
-    if (result.error) {
-      setEmailError(result.error);
-    } else {
-      setEmailResults(result.results);
-      setSelectedUserIds(new Set());
+    try {
+      const result = await sendAutoLoginEmails(Array.from(selectedUserIds));
+      if (result.error) {
+        setEmailError(result.error);
+      } else {
+        setEmailResults(result.results);
+        setSelectedUserIds(new Set());
+      }
+    } finally {
+      setSendingEmails(false);
     }
-    setSendingEmails(false);
   }
 
   function openEdit(u: User) {
@@ -100,31 +102,37 @@ export default function UsersList({
     if (!editing) return;
     setEditSaving(true);
     setEditError(null);
-    const { error } = await updateUserBySuperadmin(editing.id, {
-      fullName: editFullName,
-      companyId: editCompanyId || null,
-      role: editRole,
-    });
-    setEditSaving(false);
-    if (error) {
-      setEditError(error);
-      return;
+    try {
+      const result = await updateUserBySuperadmin(editing.id, {
+        fullName: editFullName,
+        companyId: editCompanyId || null,
+        role: editRole,
+      });
+      if (result.error) {
+        setEditError(result.error);
+        return;
+      }
+      setEditing(null);
+      router.refresh();
+    } finally {
+      setEditSaving(false);
     }
-    setEditing(null);
-    router.refresh();
   }
 
   async function handleDelete(userId: string) {
     if (!window.confirm("Permanently delete this user? This cannot be undone.")) return;
     setActionError(null);
-    setLoading(true);
-    const { error } = await deleteUserBySuperadmin(userId);
-    setLoading(false);
-    if (error) {
-      setActionError(error);
-      return;
+    setDeletingId(userId);
+    try {
+      const result = await deleteUserBySuperadmin(userId);
+      if (result.error) {
+        setActionError(result.error);
+        return;
+      }
+      router.refresh();
+    } finally {
+      setDeletingId(null);
     }
-    router.refresh();
   }
 
   const isSuperadminTarget = editing?.role === "superadmin";
@@ -349,7 +357,7 @@ export default function UsersList({
                     <button
                       type="button"
                       onClick={() => openEdit(u)}
-                      disabled={loading}
+                      disabled={deletingId !== null}
                       className="inline-flex items-center gap-1 px-2 py-1 bg-[#3699FC] text-white rounded text-xs font-bold border border-black disabled:opacity-50 hover:bg-[#2980e0]"
                       title="Edit name, company, and role"
                     >
@@ -359,7 +367,7 @@ export default function UsersList({
                     <button
                       type="button"
                       onClick={() => handleDelete(u.id)}
-                      disabled={loading || !canDelete}
+                      disabled={deletingId !== null || !canDelete}
                       className="inline-flex items-center gap-1 px-2 py-1 bg-red-600 text-white rounded text-xs font-bold border border-black disabled:opacity-40 disabled:cursor-not-allowed hover:bg-red-700"
                       title={
                         !canDelete
@@ -369,8 +377,8 @@ export default function UsersList({
                           : "Delete user permanently"
                       }
                     >
-                      <Trash2 size={14} />
-                      Delete
+                      {deletingId === u.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                      {deletingId === u.id ? "Deleting" : "Delete"}
                     </button>
                   </div>
                 </td>

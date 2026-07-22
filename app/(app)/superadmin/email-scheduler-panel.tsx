@@ -542,9 +542,14 @@ export default function EmailSchedulerPanel({ users }: { users: User[] }) {
 
   async function loadSchedules() {
     setLoading(true);
-    const result = await getEmailSchedules();
-    if ("data" in result) setSchedules(result.data);
-    setLoading(false);
+    setActionError(null);
+    try {
+      const result = await getEmailSchedules();
+      if ("data" in result) setSchedules(result.data);
+      else if (result.error) setActionError(result.error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -568,21 +573,24 @@ export default function EmailSchedulerPanel({ users }: { users: User[] }) {
     setRunning(true);
     setRunResult(null);
     setActionError(null);
-    const result = await runEmailSchedulerNow();
-    setRunning(false);
-    if ("error" in result && result.error) {
-      setActionError(result.error);
-    } else {
-      const processed = result.processed ?? 0;
-      if (processed === 0) {
-        setRunResult("No due schedules right now.");
+    try {
+      const result = await runEmailSchedulerNow();
+      if ("error" in result && result.error) {
+        setActionError(result.error);
       } else {
-        const summary = (result.results ?? [])
-          .map((r) => `${r.name}: ${r.sent} sent${r.failed ? `, ${r.failed} failed` : ""}`)
-          .join(" · ");
-        setRunResult(`Ran ${processed} schedule${processed !== 1 ? "s" : ""}. ${summary}`);
+        const processed = result.processed ?? 0;
+        if (processed === 0) {
+          setRunResult("No due schedules right now.");
+        } else {
+          const summary = (result.results ?? [])
+            .map((r) => `${r.name}: ${r.sent} sent${r.failed ? `, ${r.failed} failed` : ""}`)
+            .join(" · ");
+          setRunResult(`Ran ${processed} schedule${processed !== 1 ? "s" : ""}. ${summary}`);
+        }
+        void loadSchedules();
       }
-      loadSchedules(); // refresh last_run fields
+    } finally {
+      setRunning(false);
     }
   }
 

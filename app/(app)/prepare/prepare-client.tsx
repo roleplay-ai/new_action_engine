@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, Check, ChevronRight, CircleUserRound, FileText, Play, Users, X } from "lucide-react";
+import { CalendarDays, Check, CircleUserRound, FileText, Play, Users, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getJourneyData } from "@/app/actions/journey";
 import { markContentViewed } from "@/app/actions/prepare-progress";
@@ -96,7 +96,10 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
           <h1>{cohort.name}</h1>
           <p>{cohort.description || "Your sessions, preparation and application cycles in one place."}</p>
         </div>
-        <div className="journey-cohort-filter"><label>Viewing</label><div>{selectedCohort?.isCurrent ? "Current cohort" : "Earlier cohort"}<ChevronRight size={14} /></div></div>
+        <div className="journey-cohort-status">
+          <span>Viewing</span>
+          <strong>{selectedCohort?.isCurrent ? "Current cohort" : "Earlier cohort"}</strong>
+        </div>
       </div>
 
       <section className="journey-session-hero">

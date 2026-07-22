@@ -7,6 +7,7 @@ import type { ActionTheme } from "@/lib/types";
 import {
   computeNextDeliveryAt,
   computeTotalActionsNeeded,
+  advanceNextDeliveryAt,
   BACKGROUND_BATCH_SIZE,
   buildTrainingContext,
   assignScheduledBatch,
@@ -25,6 +26,12 @@ export type MyPlanSettings = {
   nextDeliveryAt: string | null;
   isActive: boolean;
   isArchived: boolean;
+};
+
+export type DraftPlanScheduleSlot = {
+  plannedAt: string;
+  isImmediate: boolean;
+  batchNumber: number;
 };
 
 async function getSelectedPlanCohort(requireCurrent = false): Promise<{ cohortId?: string; error?: string }> {
@@ -60,6 +67,82 @@ export async function getMyPlanSettings(): Promise<{ settings: MyPlanSettings | 
     isActive: data.is_active === true,
     isArchived: !!data.archived_at,
   } };
+}
+
+/** Preview the release slots a reviewed draft will use when it is finalised. */
+export async function getDraftPlanSchedule(): Promise<{
+  slots: DraftPlanScheduleSlot[];
+  actionCountPerRelease: number;
+  error?: string;
+}> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { slots: [], actionCountPerRelease: 1, error: "Not authenticated" };
+    const cohortContext = await getSelectedPlanCohort(true);
+    if (!cohortContext.cohortId) return { slots: [], actionCountPerRelease: 1, error: cohortContext.error };
+
+    const [{ data: subscription, error: subscriptionError }, { count, error: actionError }] = await Promise.all([
+      supabase
+        .from("personal_action_subscriptions")
+        .select("track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, is_active, archived_at")
+        .eq("user_id", user.id)
+        .eq("cohort_id", cohortContext.cohortId)
+        .maybeSingle(),
+      supabase
+        .from("actions")
+        .select("id", { count: "exact", head: true })
+        .eq("created_by", user.id)
+        .eq("cohort_id", cohortContext.cohortId)
+        .eq("is_personal", true),
+    ]);
+    if (subscriptionError || actionError) {
+      return { slots: [], actionCountPerRelease: 1, error: subscriptionError?.message ?? actionError?.message };
+    }
+    if (!subscription || subscription.is_active || subscription.archived_at) {
+      return { slots: [], actionCountPerRelease: 1, error: "Only draft plans have a schedule preview" };
+    }
+
+    const actionCountPerRelease = Math.max(1, subscription.daily_action_count ?? 1);
+    const daysOfWeek = subscription.days_of_week ?? (subscription.day_of_week != null ? [subscription.day_of_week] : null);
+    const firstCadenceAt = computeNextDeliveryAt(
+      subscription.track as DeliveryTrack,
+      daysOfWeek,
+      subscription.time_of_day_utc
+    );
+    const releaseDates: string[] = [new Date().toISOString()];
+    let nextRelease = firstCadenceAt;
+    const batchCount = Math.ceil((count ?? 0) / actionCountPerRelease);
+    // The first batch is released immediately. The second batch uses the first
+    // upcoming cadence slot, then each later batch advances by one cycle.
+    for (let batchIndex = 1; batchIndex < batchCount; batchIndex += 1) {
+      releaseDates.push(nextRelease);
+      nextRelease = advanceNextDeliveryAt(
+        nextRelease,
+        subscription.track as DeliveryTrack,
+        daysOfWeek,
+        subscription.time_of_day_utc
+      );
+    }
+
+    return {
+      actionCountPerRelease,
+      slots: Array.from({ length: count ?? 0 }, (_, index) => {
+        const batchNumber = Math.floor(index / actionCountPerRelease) + 1;
+        return {
+          plannedAt: releaseDates[batchNumber - 1],
+          isImmediate: batchNumber === 1,
+          batchNumber,
+        };
+      }),
+    };
+  } catch (error) {
+    return {
+      slots: [],
+      actionCountPerRelease: 1,
+      error: error instanceof Error ? error.message : "Failed to preview the plan schedule",
+    };
+  }
 }
 
 /**
@@ -277,7 +360,9 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
       .eq("id", sub.id);
     if (updateError) return { error: updateError.message };
 
-    await assignScheduledBatch({ ...sub, next_delivery_at: nextDeliveryAt });
+    // Release the first reviewed batch now while keeping the first upcoming
+    // cadence slot intact for the next batch.
+    await assignScheduledBatch({ ...sub, next_delivery_at: nextDeliveryAt }, { advanceCadence: false });
     await supabase.from("profiles").update({ self_onboarding_completed_at: new Date().toISOString() }).eq("id", user.id);
     return {};
   } catch (e) {
@@ -342,6 +427,34 @@ export async function getActiveGenerationJob(): Promise<{
       status: data.status,
     },
   };
+}
+
+/** Persist the exact sequence chosen on the draft review screen. */
+export async function reorderPersonalActions(actionIds: string[]): Promise<{ error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return { error: "Not authenticated" };
+    const cohortContext = await getSelectedPlanCohort(true);
+    if (!cohortContext.cohortId) return { error: cohortContext.error };
+
+    const { data: plan } = await supabase
+      .from("personal_action_subscriptions")
+      .select("is_active, archived_at")
+      .eq("user_id", user.id)
+      .eq("cohort_id", cohortContext.cohortId)
+      .maybeSingle();
+    if (!plan || plan.is_active || plan.archived_at) return { error: "Finalised plans are view-only" };
+
+    const { error: reorderError } = await supabase.rpc("reorder_my_draft_personal_actions", {
+      p_cohort_id: cohortContext.cohortId,
+      p_action_ids: actionIds,
+    });
+    if (reorderError) return { error: reorderError.message };
+    return {};
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to reorder actions" };
+  }
 }
 
 /** Edit one of the current user's own AI-generated personal actions (e.g. from the library while generation is still in progress). */

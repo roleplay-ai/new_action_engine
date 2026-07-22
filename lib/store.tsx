@@ -57,10 +57,11 @@ interface EngineContextType {
 
 const EngineContext = createContext<EngineContextType | undefined>(undefined);
 
-function mapDbAction(row: { id: string; cohort_id?: string | null; theme: string; title: string; how: string; why: string; time_estimate: string; is_personal?: boolean | null }): ActionCard {
+function mapDbAction(row: { id: string; cohort_id?: string | null; plan_order?: number | null; theme: string; title: string; how: string; why: string; time_estimate: string; is_personal?: boolean | null }): ActionCard {
   return {
     id: row.id,
     cohortId: row.cohort_id,
+    planOrder: row.plan_order ?? null,
     theme: row.theme as ActionCard["theme"],
     title: row.title,
     how: row.how,
@@ -230,9 +231,10 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
     if (companyId && selectedCohortId) {
       const { data: actions } = await supabase
         .from("actions")
-        .select("id, cohort_id, theme, title, how, why, time_estimate, is_personal")
+        .select("id, cohort_id, plan_order, theme, title, how, why, time_estimate, is_personal")
         .eq("company_id", companyId)
         .eq("cohort_id", selectedCohortId)
+        .order("plan_order", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true });
       setAllActions((actions ?? []).map(mapDbAction));
     } else {

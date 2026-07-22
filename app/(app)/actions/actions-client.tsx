@@ -8,6 +8,7 @@ import { useEngine } from "@/lib/store";
 import { getCohortLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard";
 import { getMyPlanSettings, type MyPlanSettings } from "@/app/actions/ai-actions";
 import { usePageLoading } from "@/components/PageLoadingProvider";
+import ConfettiCelebration from "@/components/ConfettiCelebration";
 
 type Tab = "upcoming" | "completed" | "not-completed" | "archived" | "settings";
 type ArchivedActionEntry = {
@@ -72,6 +73,7 @@ export default function ActionsClient() {
   const { cohort, personalPlanState, allActions, userActions, completeAction } = useEngine();
   const [tab, setTab] = useState<Tab>("upcoming");
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [celebratingTitle, setCelebratingTitle] = useState<string | null>(null);
   const [reflection, setReflection] = useState("");
   const [busy, setBusy] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -130,6 +132,9 @@ export default function ActionsClient() {
 
   async function finish(success: boolean) {
     if (!completingId) return;
+    const actionTitle =
+      actionMap.get(completingId)?.title ??
+      archivedActions.find((action) => action.id === completingId)?.title;
     setBusy(true);
     try {
       const result = await completeAction(completingId, success, reflection);
@@ -142,10 +147,17 @@ export default function ActionsClient() {
         }
         setCompletingId(null);
         setReflection("");
+        if (success) {
+          setCelebratingTitle(actionTitle ?? "Action completed");
+        }
       }
     } finally {
       setBusy(false);
     }
+  }
+
+  function closeCelebration() {
+    setCelebratingTitle(null);
   }
 
   async function skip(actionId: string) {
@@ -224,5 +236,14 @@ export default function ActionsClient() {
     </section>}
 
     {typeof document !== "undefined" && completingId && createPortal(<div className="actions-checkin-overlay"><div className="actions-checkin-modal"><button onClick={() => setCompletingId(null)}><X size={18} /></button><span className="participant-eyebrow">Action check-in</span><h3>How did this action go?</h3><p>Add a short reflection. It helps you notice what worked and what to adjust.</p><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="What happened when you tried it?" /><div><button className="journey-primary-button" disabled={busy} onClick={() => finish(true)}>{busy ? "Saving…" : "Complete action"}</button><button disabled={busy} onClick={() => finish(false)}>I didn&apos;t complete it</button></div></div></div>, document.body)}
+
+    {typeof document !== "undefined" && celebratingTitle && createPortal(
+      <ConfettiCelebration
+        actionTitle={celebratingTitle}
+        onContinue={closeCelebration}
+        onClose={closeCelebration}
+      />,
+      document.body,
+    )}
   </div>;
 }

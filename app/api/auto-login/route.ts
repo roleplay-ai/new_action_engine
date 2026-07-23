@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const ACTION_ENGINE_URL = "https://new-action-engine.vercel.app";
+const ACTION_ENGINE_URL = "https://testing-action-engine.vercel.app";
 
 function appUrl(path: string) {
   return new URL(path, ACTION_ENGINE_URL);

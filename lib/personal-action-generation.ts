@@ -182,7 +182,7 @@ function addDaysToISTDate(dateStr: string, days: number): string {
 }
 
 /** Weekday in IST for date YYYY-MM-DD (0 = Sunday, 1 = Monday, ... 6 = Saturday). */
-function getWeekdayIST(dateStr: string): number {
+export function getWeekdayIST(dateStr: string): number {
   const [y, m, d] = dateStr.split("-").map(Number);
   if ([y, m, d].some(Number.isNaN)) return 0;
   const utcMidnight = Date.UTC(y, m - 1, d, 0, 0, 0);

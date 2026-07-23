@@ -27,7 +27,7 @@ const Challenges: React.FC<Props> = ({ onEdit, onDelete }) => {
     [userActions],
   );
 
-  const getStatus = (actionId: string, isPersonal: boolean): LibraryStatus | 'Active' | 'Available' => {
+  const getStatus = (actionId: string, isPersonal: boolean): LibraryStatus | 'Active' | 'Available' | 'Skipped' => {
     if (isPersonal && !touchedIds.has(actionId)) return 'Generated';
     const ua = userActions.find((u) => u.actionId === actionId);
     if (!ua) return 'Available';

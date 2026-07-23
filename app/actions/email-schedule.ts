@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isResendConfigured } from "@/lib/resend";
+import { sendTemplateToUsers } from "@/lib/email-send";
+import { computeNextRunAtAfter } from "@/lib/schedule-utils";
+import { buildWeeklyEmailTemplateDataForUser } from "@/lib/weekly-email";
 
 const SUPERADMIN_EMAIL = (
   process.env.SUPERADMIN_EMAIL || "admin@actionengine"
@@ -65,6 +69,18 @@ export type CreateScheduleInput = {
   specific_run_at?: string;  // ISO datetime string, only for specific_date
 };
 
+export type BulkRunScheduleResult = {
+  scheduleId: string;
+  name: string;
+  sent: number;
+  failed: number;
+  nextRunAt: string | null;
+  status: "sent" | "partial" | "failed" | "skipped";
+  error?: string;
+};
+
+const FREE_CRON_RUN_TIME_UTC = "06:00"; // 11:30 AM IST
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -114,7 +130,11 @@ export async function createEmailSchedule(
     const createdBy = await ensureSuperadmin();
     const admin = createAdminClient();
 
-    const nextRunAt = computeFirstRunAt(input);
+    const normalizedInput =
+      input.schedule_type === "specific_date"
+        ? input
+        : { ...input, run_time_utc: FREE_CRON_RUN_TIME_UTC };
+    const nextRunAt = computeFirstRunAt(normalizedInput);
 
     const { data, error } = await admin
       .from("email_schedules")
@@ -125,7 +145,7 @@ export async function createEmailSchedule(
         schedule_type: input.schedule_type,
         interval_days:
           input.schedule_type === "every_n_days" ? (input.interval_days ?? 1) : null,
-        run_time_utc: input.run_time_utc,
+        run_time_utc: normalizedInput.run_time_utc,
         specific_run_at:
           input.schedule_type === "specific_date" ? input.specific_run_at : null,
         next_run_at: nextRunAt.toISOString(),
@@ -206,7 +226,7 @@ export async function deleteEmailSchedule(
 
 /**
  * Manually trigger the email scheduler cron handler right now.
- * Useful for testing on the Vercel free plan where the cron only runs once a day.
+ * Useful for testing a schedule immediately without waiting for the next cron check.
  */
 export async function runEmailSchedulerNow(): Promise<{
   ok?: boolean;
@@ -247,6 +267,187 @@ export async function runEmailSchedulerNow(): Promise<{
     return { ok: true, processed: data?.processed, results: data?.results };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to trigger scheduler" };
+  }
+}
+
+/**
+ * Send selected active schedules immediately, even when their next run is in
+ * the future. The selected occurrence is consumed: recurring schedules advance
+ * to their following slot and one-time schedules are completed.
+ */
+export async function bulkRunEmailSchedulesNow(
+  scheduleIds: string[]
+): Promise<{
+  ok?: boolean;
+  processed?: number;
+  results?: BulkRunScheduleResult[];
+  error?: string;
+}> {
+  try {
+    await ensureSuperadmin();
+
+    const uniqueIds = Array.from(
+      new Set(scheduleIds.filter((id) => typeof id === "string" && id.trim()))
+    );
+    if (uniqueIds.length === 0) {
+      return { error: "Select at least one upcoming email schedule." };
+    }
+    if (!isResendConfigured()) {
+      return {
+        error:
+          "Email sending is not configured. Add RESEND_API_KEY and RESEND_FROM_EMAIL.",
+      };
+    }
+
+    const admin = createAdminClient();
+    const { data: schedules, error: fetchError } = await admin
+      .from("email_schedules")
+      .select("*")
+      .in("id", uniqueIds)
+      .eq("is_active", true)
+      .order("next_run_at", { ascending: true });
+
+    if (fetchError) return { error: fetchError.message };
+    if (!schedules?.length) {
+      return { error: "The selected schedules are no longer active." };
+    }
+
+    const fromEmail = process.env.RESEND_FROM_EMAIL!;
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000");
+    const results: BulkRunScheduleResult[] = [];
+
+    for (const schedule of schedules) {
+      const now = new Date();
+      const nowIso = now.toISOString();
+      const { data: claimed, error: claimError } = await admin.rpc(
+        "claim_email_schedule_for_manual_run",
+        { p_schedule_id: schedule.id, p_now: nowIso }
+      );
+
+      if (claimError) {
+        results.push({
+          scheduleId: schedule.id,
+          name: schedule.name,
+          sent: 0,
+          failed: 0,
+          nextRunAt: schedule.next_run_at,
+          status: "failed",
+          error: claimError.message,
+        });
+        continue;
+      }
+      if (!claimed) {
+        results.push({
+          scheduleId: schedule.id,
+          name: schedule.name,
+          sent: 0,
+          failed: 0,
+          nextRunAt: schedule.next_run_at,
+          status: "skipped",
+          error: "Already running, paused, or completed.",
+        });
+        continue;
+      }
+
+      try {
+        const userIds: string[] = schedule.user_ids ?? [];
+        const sendResults = await sendTemplateToUsers({
+          userIds,
+          templateId: schedule.template_id,
+          fromEmail,
+          baseUrl,
+          sentBy: null,
+          includeStoredCredentials: schedule.template_id === "credentials",
+          getPerUserTemplateData:
+            schedule.template_id === "weekly_challenges"
+              ? async (userId) => {
+                  const data = await buildWeeklyEmailTemplateDataForUser(userId, {
+                    baseUrl,
+                  });
+                  return data as unknown as Record<string, unknown>;
+                }
+              : undefined,
+        });
+
+        const sent = sendResults.filter((result) => result.success).length;
+        const failed = sendResults.filter((result) => !result.success).length;
+        const scheduleType = String(
+          schedule.schedule_type ?? ""
+        ).toLowerCase() as ScheduleType;
+        const nextRunDate = computeNextRunAtAfter(
+          scheduleType,
+          new Date(schedule.next_run_at),
+          now,
+          schedule.interval_days
+        );
+        const isOneTime = scheduleType === "specific_date";
+        const nextRunAt = nextRunDate?.toISOString() ?? schedule.next_run_at;
+        const runStatus =
+          failed === 0 ? "success" : sent === 0 ? "failed" : "partial";
+
+        const { error: updateError } = await admin
+          .from("email_schedules")
+          .update({
+            last_run_at: nowIso,
+            last_run_status: runStatus,
+            last_run_sent: sent,
+            last_run_failed: failed,
+            next_run_at: nextRunAt,
+            is_active: !isOneTime,
+            processing_started_at: null,
+            updated_at: nowIso,
+          })
+          .eq("id", schedule.id);
+
+        if (updateError) throw updateError;
+
+        results.push({
+          scheduleId: schedule.id,
+          name: schedule.name,
+          sent,
+          failed,
+          nextRunAt: isOneTime ? null : nextRunAt,
+          status:
+            failed === 0 ? "sent" : sent === 0 ? "failed" : "partial",
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to send schedule";
+        await admin
+          .from("email_schedules")
+          .update({
+            last_run_at: nowIso,
+            last_run_status: "failed",
+            last_run_sent: 0,
+            last_run_failed: (schedule.user_ids ?? []).length,
+            processing_started_at: null,
+            updated_at: nowIso,
+          })
+          .eq("id", schedule.id);
+
+        results.push({
+          scheduleId: schedule.id,
+          name: schedule.name,
+          sent: 0,
+          failed: (schedule.user_ids ?? []).length,
+          nextRunAt: schedule.next_run_at,
+          status: "failed",
+          error: message,
+        });
+      }
+    }
+
+    revalidatePath("/superadmin/emails");
+    return { ok: true, processed: results.length, results };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "Failed to run email schedules",
+    };
   }
 }
 

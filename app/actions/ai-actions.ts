@@ -24,6 +24,7 @@ export type MyPlanSettings = {
   reminderTime: string;
   totalActionsPlanned: number;
   nextDeliveryAt: string | null;
+  emailRemindersEnabled: boolean;
   isActive: boolean;
   isArchived: boolean;
 };
@@ -50,7 +51,7 @@ export async function getMyPlanSettings(): Promise<{ settings: MyPlanSettings | 
   const cohortContext = await getSelectedPlanCohort();
   if (!cohortContext.cohortId) return { settings: null, error: cohortContext.error };
   const { data, error } = await supabase.from("personal_action_subscriptions")
-    .select("track, daily_action_count, duration_weeks, days_of_week, day_of_week, time_of_day_utc, total_actions_planned, next_delivery_at, is_active, archived_at")
+    .select("track, daily_action_count, duration_weeks, days_of_week, day_of_week, time_of_day_utc, total_actions_planned, next_delivery_at, email_reminders_enabled, is_active, archived_at")
     .eq("user_id", user.id)
     .eq("cohort_id", cohortContext.cohortId)
     .maybeSingle();
@@ -64,6 +65,7 @@ export async function getMyPlanSettings(): Promise<{ settings: MyPlanSettings | 
     reminderTime: utcToISTTime(data.time_of_day_utc),
     totalActionsPlanned: data.total_actions_planned ?? 0,
     nextDeliveryAt: data.next_delivery_at ?? null,
+    emailRemindersEnabled: data.email_reminders_enabled !== false,
     isActive: data.is_active === true,
     isArchived: !!data.archived_at,
   } };
@@ -157,12 +159,12 @@ export async function saveGeneratedActions(params: {
   track: DeliveryTrack;
   /** Actions generated per delivery. */
   dailyActionCount: 1 | 2 | 3 | 4 | 5;
-  /** IST time (HH:MM) when the next batch should arrive. */
-  deliveryTime: string;
   /** 0 = Sunday, ... 6 = Saturday. Multiple allowed for "daily", exactly one for "weekly". */
   daysOfWeek: number[];
   /** Length of the plan in weeks (2-24). Drives how many total actions get generated. */
   durationWeeks: number;
+  /** Whether action reminders should also be delivered by email. */
+  emailRemindersEnabled: boolean;
 }): Promise<{ error?: string; totalActionsNeeded?: number }> {
   try {
     const supabase = await createClient();
@@ -214,15 +216,14 @@ export async function saveGeneratedActions(params: {
     if (![1, 2, 3, 4, 5].includes(params.dailyActionCount)) {
       return { error: "Action count must be between 1 and 5" };
     }
-    if (!params.deliveryTime?.trim()) {
-      return { error: "Select a delivery time" };
-    }
     if (!Number.isInteger(params.durationWeeks) || params.durationWeeks < 2 || params.durationWeeks > 24) {
       return { error: "Plan duration must be between 2 and 24 weeks" };
     }
 
     const contextText = buildTrainingContext(params.trainingText, params.focusThemes, params.focusCustomText);
-    const timeOfDayUtc = istToUTCTime(params.deliveryTime);
+    // The free Vercel cron runs once daily at 11:30 AM IST. Enforce that
+    // server-side so older or custom clients cannot submit an unsupported time.
+    const timeOfDayUtc = istToUTCTime("11:30");
     const totalActionsNeeded = computeTotalActionsNeeded(
       params.durationWeeks,
       params.dailyActionCount,
@@ -265,6 +266,8 @@ export async function saveGeneratedActions(params: {
         next_delivery_at: computeNextDeliveryAt(params.track, uniqueDays, timeOfDayUtc),
         duration_weeks: params.durationWeeks,
         total_actions_planned: totalActionsNeeded,
+        email_reminders_enabled: params.emailRemindersEnabled,
+        last_reminder_sent_date: null,
       },
       { onConflict: "user_id,cohort_id" }
     );

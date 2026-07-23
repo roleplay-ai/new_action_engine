@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, ArrowRight, Zap, CalendarDays } from "lucide-react";
+import { X, ArrowRight, Zap, CalendarDays, Mail, MailX } from "lucide-react";
 import {
   saveGeneratedActions,
   skipSelfOnboarding,
@@ -20,11 +20,6 @@ const WEEKDAYS = [
   { value: 6, label: "Saturday" },
 ];
 
-const REMINDER_TIMES = Array.from({ length: 10 }, (_, index) => {
-  const hour = index + 9;
-  return { value: `${String(hour).padStart(2, "0")}:00`, label: `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? "PM" : "AM"}` };
-});
-
 const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: string }> = ({ onComplete, initialTrainingText = "" }) => {
   const [step, setStep] = useState<Step>("qna");
   const [trainingText, setTrainingText] = useState(initialTrainingText);
@@ -33,7 +28,7 @@ const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: strin
   const [track, setTrack] = useState<DeliveryTrack>("weekly");
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([2]);
   const [dailyActionCount, setDailyActionCount] = useState<1 | 2 | 3 | 4 | 5>(2);
-  const [deliveryTime, setDeliveryTime] = useState("11:00");
+  const [emailRemindersEnabled, setEmailRemindersEnabled] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -62,9 +57,9 @@ const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: strin
       focusCustomText,
       track,
       dailyActionCount,
-      deliveryTime,
       daysOfWeek,
       durationWeeks,
+      emailRemindersEnabled,
     });
     setSaving(false);
     if (error) {
@@ -222,14 +217,39 @@ const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: strin
               </div>}
               <div className="form-group mb-0">
                 <label className="form-label">Reminder time</label>
-                <select className="form-input" value={deliveryTime} onChange={(event) => setDeliveryTime(event.target.value)}>
-                  {REMINDER_TIMES.map((time) => <option key={time.value} value={time.value}>{time.label}</option>)}
-                </select>
+                <div className="plan-fixed-reminder-time">
+                  <strong>11:30 AM IST</strong>
+                  <small>Fixed daily processing time</small>
+                </div>
+              </div>
+            </div>
+
+            <div className="form-group mb-5">
+              <label className="form-label">Email notifications</label>
+              <div className="plan-notification-choice" role="group" aria-label="Email reminder preference">
+                <button
+                  type="button"
+                  className={emailRemindersEnabled ? "selected" : ""}
+                  onClick={() => setEmailRemindersEnabled(true)}
+                  aria-pressed={emailRemindersEnabled}
+                >
+                  <Mail size={19} />
+                  <span><strong>Send email reminders</strong><small>Email me on my selected {track === "weekly" ? "day" : "days"} at 11:30 AM IST.</small></span>
+                </button>
+                <button
+                  type="button"
+                  className={!emailRemindersEnabled ? "selected" : ""}
+                  onClick={() => setEmailRemindersEnabled(false)}
+                  aria-pressed={!emailRemindersEnabled}
+                >
+                  <MailX size={19} />
+                  <span><strong>In-app only</strong><small>Keep my actions in Nudgeable without sending reminder emails.</small></span>
+                </button>
               </div>
             </div>
 
             <div className="card__inset mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div><p className="font-bold" style={{ color: "var(--color-text-primary)" }}>{cadenceSummary}</p><p className="text-xs" style={{ color: "var(--color-text-muted)" }}>AI will generate your complete practice plan.</p></div>
+              <div><p className="font-bold" style={{ color: "var(--color-text-primary)" }}>{cadenceSummary}</p><p className="text-xs" style={{ color: "var(--color-text-muted)" }}>AI will generate your complete practice plan. {emailRemindersEnabled ? "Email reminders are on." : "Notifications will stay in-app."}</p></div>
               <p className="text-xl font-bold whitespace-nowrap" style={{ color: "var(--color-text-primary)" }}>{totalActions} actions</p>
             </div>
 

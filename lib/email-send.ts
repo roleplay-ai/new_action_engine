@@ -8,6 +8,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resend } from "@/lib/resend";
 import { isEmailTemplateKey, renderEmailTemplate, type EmailTemplateKey } from "@/lib/email-templates";
 
+const NUDGEABLE_APP_URL = "https://new-action-engine.vercel.app";
+const NUDGEABLE_EMAIL_ICON_URL =
+  "https://new-action-engine.vercel.app/icon.png";
+
 export type SendToUsersResult = {
   userId: string;
   email: string;
@@ -63,6 +67,7 @@ export async function sendTemplateToUsers({
   extraTemplateData = {},
   getPerUserTemplateData,
   includeStoredCredentials = false,
+  loginPath,
 }: {
   userIds: string[];
   /** Key of a template defined in lib/email-templates.ts (e.g. "weekly_challenges", "credentials"). */
@@ -74,6 +79,8 @@ export async function sendTemplateToUsers({
   getPerUserTemplateData?: (userId: string) => Promise<Record<string, unknown>>;
   /** When true, merges login_email, temporary_password, app_login_url from user_credential_delivery (row is not deleted). */
   includeStoredCredentials?: boolean;
+  /** Optional safe in-app destination after auto-login, e.g. "/actions". */
+  loginPath?: string;
 }): Promise<SendToUsersResult[]> {
   if (!isEmailTemplateKey(templateId)) {
     return userIds.map((userId) => ({
@@ -113,13 +120,29 @@ export async function sendTemplateToUsers({
     }
   }
 
-  const { data: usersData } = await admin.auth.admin.listUsers({ perPage: 500 });
-  const userEmailMap = new Map(
-    (usersData?.users ?? []).map((u) => [u.id, u.email])
-  );
+  // Supabase listUsers is paginated. Loading only the first page silently
+  // skipped recipients in larger organisations, so keep paging until every
+  // requested account has been resolved or there are no more auth users.
+  const wantedUserIds = new Set(userIds);
+  const userEmailMap = new Map<string, string | undefined>();
+  const perPage = 1000;
+  for (let page = 1; wantedUserIds.size > 0; page += 1) {
+    const { data: usersData, error: usersError } = await admin.auth.admin.listUsers({ page, perPage });
+    if (usersError) break;
+    for (const authUser of usersData?.users ?? []) {
+      if (!wantedUserIds.has(authUser.id)) continue;
+      userEmailMap.set(authUser.id, authUser.email);
+      wantedUserIds.delete(authUser.id);
+    }
+    if ((usersData?.users ?? []).length < perPage) break;
+  }
 
   const results: SendToUsersResult[] = [];
-  const normalizedBase = baseUrl.replace(/\/$/, "");
+  // Credential/welcome emails must always use the deployed app so magic-link
+  // buttons never inherit a localhost URL from an admin or cron environment.
+  const normalizedBase = templateKey === "credentials"
+    ? NUDGEABLE_APP_URL
+    : baseUrl.replace(/\/$/, "");
   const appLoginUrl = `${normalizedBase}/login`;
 
   for (const userId of userIds) {
@@ -131,7 +154,7 @@ export async function sendTemplateToUsers({
       results.push({ userId, email: "", success: false, error: "User email not found" });
       continue;
     }
-    if (!key && !includeStoredCredentials) {
+    if (!key) {
       results.push({ userId, email, success: false, error: "No login key (run migrations)" });
       continue;
     }
@@ -146,8 +169,12 @@ export async function sendTemplateToUsers({
       continue;
     }
 
+    const requestedLoginPath = loginPath ?? (templateKey === "credentials" ? "/actions" : undefined);
+    const safeLoginPath = requestedLoginPath?.startsWith("/") && !requestedLoginPath.startsWith("//")
+      ? requestedLoginPath
+      : undefined;
     const loginUrl = key
-      ? `${normalizedBase}/api/auto-login?key=${encodeURIComponent(key)}`
+      ? `${normalizedBase}/api/auto-login?key=${encodeURIComponent(key)}${safeLoginPath ? `&next=${encodeURIComponent(safeLoginPath)}` : ""}`
       : appLoginUrl;
     const firstName =
       (prof?.fullName ?? "").trim().split(/\s+/)[0] ||
@@ -162,10 +189,15 @@ export async function sendTemplateToUsers({
       const dynamicTemplateData: Record<string, unknown> = {
         login_url: loginUrl,
         first_name: firstName,
-        company_logo: `${normalizedBase}/icon.png`,
         ...cleanedExtra,
         ...cleanedPerUser,
       };
+      // Reminder-specific data used to overwrite this with the protected
+      // testing-domain icon URL. Keep the publicly loadable brand asset last.
+      if (templateKey === "credentials" || templateKey === "daily_reminder") {
+        dynamicTemplateData.company_logo = NUDGEABLE_EMAIL_ICON_URL;
+        dynamicTemplateData.brand_icon = NUDGEABLE_EMAIL_ICON_URL;
+      }
       if (includeStoredCredentials && cred) {
         dynamicTemplateData.login_email = cred.email;
         dynamicTemplateData.temporary_password = cred.plaintext_password;

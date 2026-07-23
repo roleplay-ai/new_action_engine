@@ -8,6 +8,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resend } from "@/lib/resend";
 import { isEmailTemplateKey, renderEmailTemplate, type EmailTemplateKey } from "@/lib/email-templates";
 
+const NUDGEABLE_APP_URL = "https://testing-action-engine.vercel.app";
+
 export type SendToUsersResult = {
   userId: string;
   email: string;
@@ -134,7 +136,11 @@ export async function sendTemplateToUsers({
   }
 
   const results: SendToUsersResult[] = [];
-  const normalizedBase = baseUrl.replace(/\/$/, "");
+  // Credential/welcome emails must always use the deployed app so magic-link
+  // buttons never inherit a localhost URL from an admin or cron environment.
+  const normalizedBase = templateKey === "credentials"
+    ? NUDGEABLE_APP_URL
+    : baseUrl.replace(/\/$/, "");
   const appLoginUrl = `${normalizedBase}/login`;
 
   for (const userId of userIds) {
@@ -146,7 +152,7 @@ export async function sendTemplateToUsers({
       results.push({ userId, email: "", success: false, error: "User email not found" });
       continue;
     }
-    if (!key && !includeStoredCredentials) {
+    if (!key) {
       results.push({ userId, email, success: false, error: "No login key (run migrations)" });
       continue;
     }
@@ -161,8 +167,9 @@ export async function sendTemplateToUsers({
       continue;
     }
 
-    const safeLoginPath = loginPath?.startsWith("/") && !loginPath.startsWith("//")
-      ? loginPath
+    const requestedLoginPath = loginPath ?? (templateKey === "credentials" ? "/actions" : undefined);
+    const safeLoginPath = requestedLoginPath?.startsWith("/") && !requestedLoginPath.startsWith("//")
+      ? requestedLoginPath
       : undefined;
     const loginUrl = key
       ? `${normalizedBase}/api/auto-login?key=${encodeURIComponent(key)}${safeLoginPath ? `&next=${encodeURIComponent(safeLoginPath)}` : ""}`
@@ -181,6 +188,7 @@ export async function sendTemplateToUsers({
         login_url: loginUrl,
         first_name: firstName,
         company_logo: `${normalizedBase}/icon.png`,
+        brand_icon: `${normalizedBase}/icon.png`,
         ...cleanedExtra,
         ...cleanedPerUser,
       };

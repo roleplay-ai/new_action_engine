@@ -244,7 +244,7 @@ export default function ActionReminderQueuePanel() {
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border-4 border-black bg-violet-50 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+    <section id="reminder-emails" className="scroll-mt-24 overflow-hidden rounded-2xl border-4 border-black bg-violet-50 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
       <button
         type="button"
         onClick={() => setExpanded((value) => !value)}

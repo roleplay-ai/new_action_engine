@@ -150,33 +150,84 @@ function renderCredentialsHtml(data: EmailTemplateData): string {
   const firstName = str(data, "first_name", "there");
   const loginEmail = str(data, "login_email");
   const password = str(data, "temporary_password");
-  const appLoginUrl = str(data, "app_login_url", str(data, "login_url", "#"));
+  const loginUrl = str(data, "login_url", "#");
+  const brandIcon = str(data, "brand_icon", str(data, "company_logo"));
 
-  return emailShell(`
-    ${headerHtml(data)}
+  return nudgeableEmailShell(`
     <tr>
-      <td style="padding:28px 32px;">
-        <p style="margin:0 0 4px;color:#111827;font-size:18px;font-weight:bold;">Hey ${esc(firstName)},</p>
-        <p style="margin:0 0 20px;color:#374151;font-size:13px;">Here are your login details.</p>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;">
+      <td align="center" style="padding:20px 24px;background:#ffce00;border-bottom:1px solid #e7b900;">
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
           <tr>
-            <td style="padding:14px 16px;border-bottom:1px solid #e5e7eb;">
-              <p style="margin:0;color:#6b7280;font-size:11px;text-transform:uppercase;">Email</p>
-              <p style="margin:2px 0 0;color:#111827;font-size:14px;font-weight:bold;">${esc(loginEmail)}</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:14px 16px;">
-              <p style="margin:0;color:#6b7280;font-size:11px;text-transform:uppercase;">Temporary password</p>
-              <p style="margin:2px 0 0;color:#111827;font-size:14px;font-weight:bold;font-family:monospace;">${esc(password)}</p>
+            ${
+              brandIcon
+                ? `<td valign="middle" style="padding:0 10px 0 0;">
+                    <img src="${esc(brandIcon)}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;border:0;" />
+                  </td>`
+                : ""
+            }
+            <td valign="middle" style="color:#221d23;font-size:27px;font-weight:900;letter-spacing:-.055em;">
+              nudgeable
             </td>
           </tr>
         </table>
-        <p style="margin:16px 0 0;color:#9ca3af;font-size:11px;">For your security, sign in and change this password when you can.</p>
-        ${ctaButtonHtml(appLoginUrl, "Log in")}
       </td>
     </tr>
-    ${footerHtml()}`);
+    <tr>
+      <td class="nudge-pad nudge-hero" style="padding:36px 38px 28px;background:#221d23;">
+        <span style="display:inline-block;margin:0 0 14px;padding:6px 10px;border:1px solid rgba(255,206,0,.35);border-radius:999px;color:#ffce00;font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;">
+          Welcome to Nudgeable
+        </span>
+        <h1 class="nudge-title" style="margin:0;color:#ffffff;font-size:34px;line-height:1.08;letter-spacing:-.04em;">
+          Your workflows<br /><span style="color:#ffce00;">start here.</span>
+        </h1>
+        <p style="margin:17px 0 0;color:#d8d2d8;font-size:14px;line-height:1.6;">
+          Hey ${esc(firstName)}, your secure access is ready. Use the button below for instant sign in, or keep the credentials for regular login.
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td class="nudge-pad" style="padding:26px 38px 34px;">
+        <table class="nudge-action" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border:1px solid #ece7d8;border-radius:14px;background:#fffdf7;">
+          <tr>
+            <td style="padding:16px 18px;border-bottom:1px solid #ece7d8;">
+              <p style="margin:0;color:#8a8090;font-size:9px;font-weight:900;letter-spacing:.11em;text-transform:uppercase;">Login ID</p>
+              <p style="margin:5px 0 0;color:#221d23;font-size:14px;line-height:1.45;font-weight:800;word-break:break-all;">${esc(loginEmail)}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 18px;">
+              <p style="margin:0;color:#8a8090;font-size:9px;font-weight:900;letter-spacing:.11em;text-transform:uppercase;">Temporary password</p>
+              <p style="margin:5px 0 0;color:#221d23;font-size:15px;line-height:1.45;font-weight:900;font-family:Consolas,Monaco,monospace;word-break:break-all;">${esc(password)}</p>
+            </td>
+          </tr>
+        </table>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0 0;border-radius:12px;background:#fff9e8;">
+          <tr>
+            <td style="padding:12px 14px;color:#725c00;font-size:11px;line-height:1.5;">
+              <strong>Security note:</strong> Change your temporary password after your first regular login. The one-click button below signs you in securely without asking for it.
+            </td>
+          </tr>
+        </table>
+        <table class="nudge-cta" role="presentation" cellpadding="0" cellspacing="0" style="margin:24px auto 0;">
+          <tr>
+            <td align="center" style="border-radius:12px;background:#221d23;">
+              <a href="${esc(loginUrl)}" target="_blank" style="display:inline-block;padding:15px 28px;color:#ffffff;font-size:14px;font-weight:900;text-decoration:none;">
+                Open Workflows&nbsp; &#8594;
+              </a>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:12px 0 0;color:#8a8090;font-size:10px;line-height:1.5;text-align:center;">
+          Secure one-click sign in. No password needed.
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" style="padding:20px 28px;background:#fff9e8;border-top:1px solid #eee3be;">
+        <p style="margin:0;color:#5f5860;font-size:11px;font-weight:800;">Nudgeable</p>
+        <p style="margin:5px 0 0;color:#9a8d80;font-size:10px;">Turn learning into action, one nudge at a time.</p>
+      </td>
+    </tr>`, "Welcome to Nudgeable—your secure access details are inside.");
 }
 
 // ─── Calendar invite ────────────────────────────────────────────────────────
@@ -221,7 +272,7 @@ type ReminderAction = {
   timeEstimate?: string;
 };
 
-function nudgeableReminderShell(bodyHtml: string, preheader: string): string {
+function nudgeableEmailShell(bodyHtml: string, preheader: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -304,7 +355,7 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
 
   const preheader = `${count} action${count === 1 ? "" : "s"} from ${cohortName} ${count === 1 ? "is" : "are"} ready.`;
 
-  return nudgeableReminderShell(`
+  return nudgeableEmailShell(`
     <tr>
       <td align="center" style="padding:20px 24px;background:#ffce00;border-bottom:1px solid #e7b900;">
         <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
@@ -388,7 +439,7 @@ export const EMAIL_TEMPLATES = {
   },
   credentials: {
     label: "Login Credentials",
-    subject: () => "Your Login Credentials",
+    subject: () => "Welcome to Nudgeable — your access is ready",
     render: renderCredentialsHtml,
   },
   calendar_invite: {

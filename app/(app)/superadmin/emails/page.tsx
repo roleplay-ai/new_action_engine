@@ -34,7 +34,7 @@ export default async function SuperadminEmailsPage() {
 
   return (
     <div className="superadmin-page">
-      <div className="superadmin-page-heading"><div><span>Communication operations</span><h1>Email delivery</h1><p>Send secure access links, test login journeys, and manage scheduled campaigns.</p></div></div>
+      <div className="superadmin-page-heading"><div><span>Communication operations</span><h1>Emails &amp; reminders</h1><p>Review upcoming participant reminders, send them immediately, and manage secure access and scheduled campaigns.</p></div></div>
 
       <div className="superadmin-stat-grid">
         <div className="superadmin-stat"><span><MailCheck size={17} /></span><div><small>Recipients</small><strong>{users.filter((item) => item.role !== "superadmin").length}</strong><p>Accounts eligible for delivery</p></div></div>
@@ -48,14 +48,35 @@ export default async function SuperadminEmailsPage() {
         </div>
       )}
 
+      <div className="superadmin-section-heading standalone">
+        <div>
+          <h2>Participant reminder emails</h2>
+          <p>See every user&apos;s next reminder and use bulk send whenever needed.</p>
+        </div>
+        <span>11:30 AM IST</span>
+      </div>
+
+      <ActionReminderQueuePanel />
+
+      <div className="superadmin-section-heading standalone">
+        <div>
+          <h2>Welcome &amp; access emails</h2>
+          <p>Send branded login emails and verify secure one-click access.</p>
+        </div>
+      </div>
+
       <AutoLoginEmailPanel users={users} />
 
       <AutoLoginTestingPanel users={users} />
 
-      <ActionReminderQueuePanel />
+      <div className="superadmin-section-heading standalone">
+        <div>
+          <h2>Campaign scheduling</h2>
+          <p>Manage reusable email schedules and review delivery history.</p>
+        </div>
+      </div>
 
       <EmailSchedulerPanel users={users} />
-
       <ActionReminderLogsPanel />
     </div>
   );

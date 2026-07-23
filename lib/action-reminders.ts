@@ -250,7 +250,6 @@ export async function sendDailyActionReminders(
     getPerUserTemplateData: async (userId) => {
       const item = claimedByUser.get(userId);
       return {
-        brand_icon: `${ACTION_REMINDER_APP_URL}/icon.png`,
         cohort_name: item?.cohortName,
         reminder_schedule: item
           ? reminderScheduleLabel(item.sub)

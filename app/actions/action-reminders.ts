@@ -400,7 +400,6 @@ export async function bulkSendUpcomingActionReminders(
           sentBy: null,
           loginPath: "/actions",
           getPerUserTemplateData: async () => ({
-            brand_icon: `${ACTION_REMINDER_APP_URL}/icon.png`,
             cohort_name: reminder.cohortName,
             reminder_schedule: reminder.scheduleLabel,
             actions: reminder.actions.map((action) => ({

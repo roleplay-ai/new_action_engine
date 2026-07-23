@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resend } from "@/lib/resend";
 import { isEmailTemplateKey, renderEmailTemplate, type EmailTemplateKey } from "@/lib/email-templates";
 
-const NUDGEABLE_APP_URL = "https://testing-action-engine.vercel.app";
+const NUDGEABLE_APP_URL = "https://new-action-engine.vercel.app";
 const NUDGEABLE_EMAIL_ICON_URL =
   "https://new-action-engine.vercel.app/icon.png";
 

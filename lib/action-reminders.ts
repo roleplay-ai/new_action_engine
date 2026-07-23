@@ -70,7 +70,7 @@ function formatReminderTime(value: string) {
 
 const FIXED_REMINDER_TIME_IST = "11:30";
 export const ACTION_REMINDER_APP_URL =
-  "https://testing-action-engine.vercel.app";
+  "https://new-action-engine.vercel.app";
 
 function reminderScheduleLabel(sub: ReminderSubscription) {
   const time = `${formatReminderTime(FIXED_REMINDER_TIME_IST)} IST`;

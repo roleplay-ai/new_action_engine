@@ -11,6 +11,8 @@ import {
   BACKGROUND_BATCH_SIZE,
   buildTrainingContext,
   assignScheduledBatch,
+  draftsToActionRows,
+  generateDraftActions,
   type DeliveryTrack,
 } from "@/lib/personal-action-generation";
 import { istToUTCTime, utcToISTTime } from "@/lib/timezone-utils";
@@ -512,6 +514,92 @@ export async function updatePersonalAction(
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to update action" };
+  }
+}
+
+/**
+ * Append one extra AI-generated action to a draft plan while the participant
+ * is still reviewing/editing. Finalised and archived plans stay view-only.
+ */
+export async function generateOneMorePersonalAction(): Promise<{ error?: string }> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError || !user) return { error: "Not authenticated" };
+
+    const cohortContext = await getSelectedPlanCohort(true);
+    if (!cohortContext.cohortId) return { error: cohortContext.error };
+    const cohortId = cohortContext.cohortId;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("company_id")
+      .eq("id", user.id)
+      .single();
+    const companyId = profile?.company_id;
+    if (!companyId) return { error: "You must be assigned to a company first" };
+
+    const { data: plan } = await supabase
+      .from("personal_action_subscriptions")
+      .select("id, training_text, focus_themes, is_active, archived_at, total_actions_planned")
+      .eq("user_id", user.id)
+      .eq("cohort_id", cohortId)
+      .maybeSingle();
+    if (!plan) return { error: "Create a plan first" };
+    if (plan.is_active || plan.archived_at) return { error: "Finalised plans are view-only" };
+
+    const { data: activeJob } = await supabase
+      .from("personal_action_generation_jobs")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("cohort_id", cohortId)
+      .eq("status", "generating")
+      .limit(1)
+      .maybeSingle();
+    if (activeJob) return { error: "Wait for the current generation to finish" };
+
+    const { data: existingActions, error: existingError } = await supabase
+      .from("actions")
+      .select("title, plan_order")
+      .eq("created_by", user.id)
+      .eq("cohort_id", cohortId)
+      .eq("is_personal", true)
+      .order("plan_order", { ascending: false, nullsFirst: false });
+    if (existingError) return { error: existingError.message };
+
+    const avoidTitles = (existingActions ?? []).map((action) => action.title).filter(Boolean);
+    const nextPlanOrder = ((existingActions ?? [])[0]?.plan_order ?? -1) + 1;
+    const focusThemes = (plan.focus_themes ?? []) as ActionTheme[];
+
+    const { drafts, error: generateError } = await generateDraftActions({
+      trainingText: plan.training_text ?? "",
+      focusThemes,
+      count: 1,
+      avoidTitles,
+    });
+    if (generateError || !drafts?.length) {
+      return { error: generateError ?? "AI did not return an action" };
+    }
+
+    const rows = draftsToActionRows(drafts.slice(0, 1), companyId, user.id, cohortId, nextPlanOrder);
+    const { error: insertError } = await supabase.from("actions").insert(rows);
+    if (insertError) return { error: insertError.message };
+
+    const totalActions = (existingActions?.length ?? 0) + 1;
+    await supabase
+      .from("personal_action_subscriptions")
+      .update({
+        total_actions_planned: Math.max(plan.total_actions_planned ?? 0, totalActions),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", plan.id);
+
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to generate another action" };
   }
 }
 

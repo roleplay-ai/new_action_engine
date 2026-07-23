@@ -10,6 +10,7 @@ import GenerationStatus from "@/components/GenerationStatus";
 import {
   activatePersonalActionPlan,
   deletePersonalAction,
+  generateOneMorePersonalAction,
   getDraftPlanSchedule,
   reorderPersonalActions,
   updatePersonalAction,
@@ -51,6 +52,7 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
+  const [generatingMore, setGeneratingMore] = useState(false);
   const [scheduleSlots, setScheduleSlots] = useState<DraftPlanScheduleSlot[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [error, setError] = useState("");
@@ -118,7 +120,7 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
   }
 
   async function saveOrder(nextActions: ActionCard[], previousActions: ActionCard[]) {
-    if (savingOrder || generationJob) return;
+    if (savingOrder || generationJob || generatingMore) return;
     setOrderedActions(nextActions);
     setSavingOrder(true);
     setError("");
@@ -133,7 +135,7 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
   }
 
   function moveAction(sourceId: string, targetId: string) {
-    if (sourceId === targetId || savingOrder || generationJob) return;
+    if (sourceId === targetId || savingOrder || generationJob || generatingMore) return;
     const previous = [...orderedActions];
     const sourceIndex = previous.findIndex((action) => action.id === sourceId);
     const targetIndex = previous.findIndex((action) => action.id === targetId);
@@ -145,7 +147,7 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
   }
 
   function nudgeAction(actionId: string, direction: -1 | 1) {
-    if (savingOrder || generationJob) return;
+    if (savingOrder || generationJob || generatingMore) return;
     const currentIndex = orderedActions.findIndex((action) => action.id === actionId);
     const nextIndex = currentIndex + direction;
     if (currentIndex < 0 || nextIndex < 0 || nextIndex >= orderedActions.length) return;
@@ -160,6 +162,16 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
     setError("");
     const result = await activatePersonalActionPlan();
     setActivating(false);
+    if (result.error) { setError(result.error); return; }
+    await refetch();
+  }
+
+  async function generateOneMore() {
+    if (generatingMore || generationJob || savingOrder) return;
+    setGeneratingMore(true);
+    setError("");
+    const result = await generateOneMorePersonalAction();
+    setGeneratingMore(false);
     if (result.error) { setError(result.error); return; }
     await refetch();
   }
@@ -200,7 +212,7 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
       <div className="plan-review-list">
         {orderedActions.map((action, index) => {
           const schedule = formatScheduleSlot(scheduleSlots[index]);
-          const locked = Boolean(generationJob) || savingOrder;
+          const locked = Boolean(generationJob) || savingOrder || generatingMore;
           return <article
             className={`plan-review-action plan-review-action--reorderable${draggedId === action.id ? " is-dragging" : ""}${dragOverId === action.id ? " is-drag-over" : ""}`}
             key={action.id}
@@ -240,7 +252,20 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
         })}
         {generatedActions.length === 0 && <div className="actions-inline-empty">Your first actions are being generated…</div>}
       </div>
-      <div className="plan-freeze-bar"><div><CheckCircle2 size={20} /><span><strong>Ready to start?</strong><small>Finalising locks this order, releases your first actions and starts the reminder schedule.</small></span></div><button className="journey-primary-button" disabled={!!generationJob || generatedActions.length === 0 || activating || savingOrder} onClick={activatePlan}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generationJob ? "Finish generating first" : "Finalise and start plan"}</button></div>
+      {!generationJob && generatedActions.length > 0 && (
+        <div className="plan-generate-more">
+          <button
+            type="button"
+            className="plan-generate-more-button"
+            disabled={generatingMore || savingOrder || activating}
+            onClick={generateOneMore}
+          >
+            {generatingMore ? <><Loader2 size={15} className="plan-order-spinner" /> Generating…</> : <><Sparkles size={15} /> Generate 1 more</>}
+          </button>
+          <p>Need another option? Add one more AI suggestion, then edit or reorder it like the rest.</p>
+        </div>
+      )}
+      <div className="plan-freeze-bar"><div><CheckCircle2 size={20} /><span><strong>Ready to start?</strong><small>Finalising locks this order, releases your first actions and starts the reminder schedule.</small></span></div><button className="journey-primary-button" disabled={!!generationJob || generatedActions.length === 0 || activating || savingOrder || generatingMore} onClick={activatePlan}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generationJob ? "Finish generating first" : "Finalise and start plan"}</button></div>
       {error && <p className="plan-review-error">{error}</p>}
     </section>}
 

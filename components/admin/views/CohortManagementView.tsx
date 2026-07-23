@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -91,9 +91,10 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
   const [description, setDescription] = useState("");
   const [startDate, setStartDate] = useState("");
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (opts?: { silent?: boolean }) => {
     if (!companyId) return;
-    setLoading(true);
+    const silent = opts?.silent ?? false;
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const result = await listCohorts(companyId);
@@ -110,7 +111,7 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load cohorts");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [companyId]);
 
@@ -171,7 +172,7 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
       setDescription("");
       setStartDate("");
       setCreating(false);
-      await refresh();
+      await refresh({ silent: cohorts.length > 0 });
       if (result.id) setSelectedId(result.id);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Failed to create cohort");
@@ -193,7 +194,7 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
         <div className="cohort-admin-header-actions">
           <button
             type="button"
-            onClick={() => void refresh()}
+            onClick={() => void refresh({ silent: cohorts.length > 0 })}
             className="cohort-admin-button cohort-admin-button--secondary"
             disabled={loading}
           >
@@ -299,7 +300,7 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
               key={`${companyId}:${selectedCohort.id}`}
               companyId={companyId}
               cohort={selectedCohort}
-              onChange={refresh}
+              onChange={() => refresh({ silent: true })}
             />
           ) : (
             <div className="cohort-admin-placeholder">
@@ -368,9 +369,11 @@ function CohortDetailPanel({
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? hasLoadedRef.current;
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [detailResult, usersResult, contentResult, libraryResult] = await Promise.all([
@@ -385,15 +388,17 @@ function CohortDetailPanel({
       setCompanyUsers(usersResult.users ?? []);
       setAssignedContentIds(new Set((contentResult.items ?? []).map((item) => item.id)));
       setLibraryItems(libraryResult.items ?? []);
+      hasLoadedRef.current = true;
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load cohort details");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [cohort.id, companyId]);
 
   useEffect(() => {
-    void refresh();
+    hasLoadedRef.current = false;
+    void refresh({ silent: false });
   }, [refresh]);
 
   const currentMembers = useMemo(
@@ -452,8 +457,8 @@ function CohortDetailPanel({
         return;
       }
       after?.();
-      await refresh();
-      await onChange();
+      // Soft-refresh list + detail in place — keep the panel visible (no full loading flash).
+      await Promise.all([refresh({ silent: true }), onChange()]);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "The update could not be completed");
     } finally {

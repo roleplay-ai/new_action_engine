@@ -3,20 +3,21 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isResendConfigured } from "@/lib/resend";
 import { sendTemplateToUsers } from "@/lib/email-send";
 import { type ScheduleType } from "@/app/actions/email-schedule";
-import { computeNextRunAt } from "@/lib/schedule-utils";
+import { computeNextRunAtAfter } from "@/lib/schedule-utils";
 import { buildWeeklyEmailTemplateDataForUser } from "@/lib/weekly-email";
 import { getDueSubscriptions, assignScheduledBatch } from "@/lib/personal-action-generation";
 import { sendDailyActionReminders } from "@/lib/action-reminders";
 
 /**
- * Vercel Cron handler — runs once daily (see vercel.json for the exact cron expression).
+ * Shared cron handler — runs once daily at 11:30 AM IST / 06:00 UTC
+ * on Vercel's free cron allowance (see vercel.json).
  * Picks up all active email_schedules where next_run_at <= now, sends via Resend,
  * then advances (or deactivates) each schedule. Also picks up due
  * personal_action_subscriptions and assigns the next batch of already-generated
  * personal actions into "My Actions" (in-app only, no email), then advances
  * next_delivery_at by the subscription's frequency. Finally sends per-user
- * action-reminder emails on whichever day(s) each user's own plan cadence
- * says (see lib/action-reminders.ts) — a separate concept from email_schedules,
+ * action-reminder emails on each participant's chosen day at the fixed cron time
+ * (see lib/action-reminders.ts) — a separate concept from email_schedules,
  * which is admin-configured broadcasts to explicitly chosen recipients.
  *
  * Auth: checks Authorization: Bearer <CRON_SECRET> header (set by Vercel
@@ -37,8 +38,9 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
-  const nowIso = new Date().toISOString();
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://localhost:3000";
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
 
   // ── Personal action delivery (in-app, no email required) ───────────────────
   const dueSubscriptions = await getDueSubscriptions(nowIso);
@@ -56,7 +58,14 @@ export async function GET(request: Request) {
       processed: 0,
       results: [],
       subscriptionsDelivered,
-      reminders: { sent: 0, failed: 0, skippedEmpty: 0 },
+      reminders: {
+        sent: 0,
+        failed: 0,
+        skippedEmpty: 0,
+        skippedNotDue: 0,
+        skippedDisabled: 0,
+        skippedClaimed: 0,
+      },
     });
   }
   const fromEmail = process.env.RESEND_FROM_EMAIL!;
@@ -84,6 +93,19 @@ export async function GET(request: Request) {
   }[] = [];
 
   for (const schedule of schedules ?? []) {
+    const { data: claimed, error: claimError } = await admin.rpc(
+      "claim_due_email_schedule",
+      { p_schedule_id: schedule.id, p_now: nowIso }
+    );
+    if (claimError) {
+      console.error("[email-scheduler] failed to claim schedule", {
+        scheduleId: schedule.id,
+        error: claimError.message,
+      });
+      continue;
+    }
+    if (!claimed) continue;
+
     const userIds: string[] = schedule.user_ids ?? [];
     const scheduleType = String(schedule.schedule_type ?? "").toLowerCase();
 
@@ -113,8 +135,9 @@ export async function GET(request: Request) {
         fromEmail,
         baseUrl,
         sentBy: null, // automated, no human sender
+        includeStoredCredentials: schedule.template_id === "credentials",
         getPerUserTemplateData:
-          scheduleType === "weekly" || scheduleType === "specific_date"
+          schedule.template_id === "weekly_challenges"
             ? async (userId) => {
                 const data = await buildWeeklyEmailTemplateDataForUser(userId, { baseUrl });
                 return data as unknown as Record<string, unknown>;
@@ -128,9 +151,10 @@ export async function GET(request: Request) {
 
     // ── Advance schedule ──────────────────────────────────────────────────────
     const currentNextRun = new Date(schedule.next_run_at);
-    const nextRunDate = computeNextRunAt(
+    const nextRunDate = computeNextRunAtAfter(
       scheduleType as ScheduleType,
       currentNextRun,
+      now,
       schedule.interval_days
     );
 
@@ -148,6 +172,7 @@ export async function GET(request: Request) {
         last_run_failed: failed,
         next_run_at: nextRunAt,
         is_active: !isOneTime, // deactivate one-time schedules after firing
+        processing_started_at: null,
         updated_at: nowIso,
       })
       .eq("id", schedule.id);

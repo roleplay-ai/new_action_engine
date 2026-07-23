@@ -780,6 +780,66 @@ input[type="range"] {
   }
 }
 
+/* Participant-selected notification channel */
+.plan-notification-choice {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.plan-notification-choice > button {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--color-text-muted);
+  text-align: left;
+  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+.plan-notification-choice > button:hover {
+  border-color: var(--color-border-yellow);
+  background: var(--color-bg-muted);
+}
+.plan-notification-choice > button.selected {
+  border-color: #d3a50d;
+  background: rgba(255, 206, 0, 0.1);
+  box-shadow: 0 0 0 2px rgba(255, 206, 0, 0.1);
+  color: var(--color-text-accent);
+}
+.plan-notification-choice > button > svg { flex: 0 0 auto; margin-top: 1px; }
+.plan-notification-choice > button > span { display: grid; min-width: 0; gap: 3px; }
+.plan-notification-choice strong { color: var(--color-text-primary); font-size: 11px; }
+.plan-notification-choice small { color: var(--color-text-muted); font-size: 9px; line-height: 1.45; }
+.actions-notification-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.plan-fixed-reminder-time {
+  display: grid;
+  min-height: 42px;
+  align-content: center;
+  gap: 1px;
+  padding: 7px 11px;
+  border: 1px solid var(--color-border-yellow);
+  border-radius: 10px;
+  background: rgba(255, 206, 0, 0.08);
+}
+.plan-fixed-reminder-time strong {
+  color: var(--color-text-primary);
+  font-size: 12px;
+}
+.plan-fixed-reminder-time small {
+  color: var(--color-text-muted);
+  font-size: 8px;
+}
+@media (max-width: 560px) {
+  .plan-notification-choice { grid-template-columns: 1fr; }
+}
+
 /* Draft action-plan ordering and schedule preview */
 .plan-review-heading > strong {
   display: inline-flex;

@@ -30,3 +30,29 @@ export function computeNextRunAt(
       return null;
   }
 }
+
+/**
+ * Advance a recurring schedule beyond a reference time. This avoids a stale
+ * schedule being processed repeatedly when more than one interval was missed.
+ */
+export function computeNextRunAtAfter(
+  scheduleType: ScheduleType,
+  currentNextRun: Date,
+  after: Date,
+  intervalDays?: number | null
+): Date | null {
+  const next = computeNextRunAt(scheduleType, currentNextRun, intervalDays);
+  if (!next || next > after) return next;
+
+  const cycleDays =
+    scheduleType === "weekly"
+      ? 7
+      : scheduleType === "every_n_days"
+        ? (intervalDays ?? 1)
+        : 1;
+  const cycleMs = cycleDays * 24 * 60 * 60 * 1000;
+  const missedCycles =
+    Math.floor((after.getTime() - next.getTime()) / cycleMs) + 1;
+  next.setUTCDate(next.getUTCDate() + missedCycles * cycleDays);
+  return next;
+}

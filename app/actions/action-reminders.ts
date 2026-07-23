@@ -35,6 +35,9 @@ export type ActionReminderLog = {
   actionCount: number;
   status: "sent" | "failed";
   errorMessage: string | null;
+  cohortName: string | null;
+  scheduledFor: string | null;
+  reminderDate: string | null;
   createdAt: string;
 };
 
@@ -48,7 +51,7 @@ export async function getActionReminderLogs(
 
     const { data: logs, error } = await admin
       .from("personal_action_reminder_logs")
-      .select("id, user_id, email, actions, action_count, status, error_message, created_at")
+      .select("id, user_id, cohort_id, email, actions, action_count, status, error_message, scheduled_for, reminder_date, created_at")
       .order("created_at", { ascending: false })
       .limit(limit);
 
@@ -60,6 +63,12 @@ export async function getActionReminderLogs(
       .select("id, full_name")
       .in("id", userIds.length ? userIds : ["00000000-0000-0000-0000-000000000000"]);
     const nameMap = new Map((profiles ?? []).map((p) => [p.id, p.full_name as string | null]));
+    const cohortIds = [...new Set((logs ?? []).map((log) => log.cohort_id).filter(Boolean))];
+    const { data: cohorts } = await admin
+      .from("cohorts")
+      .select("id, name")
+      .in("id", cohortIds.length ? cohortIds : ["00000000-0000-0000-0000-000000000000"]);
+    const cohortNameMap = new Map((cohorts ?? []).map((cohort) => [cohort.id, cohort.name as string]));
 
     return {
       data: (logs ?? []).map((l) => ({
@@ -71,6 +80,9 @@ export async function getActionReminderLogs(
         actionCount: l.action_count,
         status: l.status,
         errorMessage: l.error_message,
+        cohortName: l.cohort_id ? cohortNameMap.get(l.cohort_id) ?? null : null,
+        scheduledFor: l.scheduled_for ?? null,
+        reminderDate: l.reminder_date ?? null,
         createdAt: l.created_at,
       })),
     };

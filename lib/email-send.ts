@@ -63,6 +63,7 @@ export async function sendTemplateToUsers({
   extraTemplateData = {},
   getPerUserTemplateData,
   includeStoredCredentials = false,
+  loginPath,
 }: {
   userIds: string[];
   /** Key of a template defined in lib/email-templates.ts (e.g. "weekly_challenges", "credentials"). */
@@ -74,6 +75,8 @@ export async function sendTemplateToUsers({
   getPerUserTemplateData?: (userId: string) => Promise<Record<string, unknown>>;
   /** When true, merges login_email, temporary_password, app_login_url from user_credential_delivery (row is not deleted). */
   includeStoredCredentials?: boolean;
+  /** Optional safe in-app destination after auto-login, e.g. "/actions". */
+  loginPath?: string;
 }): Promise<SendToUsersResult[]> {
   if (!isEmailTemplateKey(templateId)) {
     return userIds.map((userId) => ({
@@ -113,10 +116,22 @@ export async function sendTemplateToUsers({
     }
   }
 
-  const { data: usersData } = await admin.auth.admin.listUsers({ perPage: 500 });
-  const userEmailMap = new Map(
-    (usersData?.users ?? []).map((u) => [u.id, u.email])
-  );
+  // Supabase listUsers is paginated. Loading only the first page silently
+  // skipped recipients in larger organisations, so keep paging until every
+  // requested account has been resolved or there are no more auth users.
+  const wantedUserIds = new Set(userIds);
+  const userEmailMap = new Map<string, string | undefined>();
+  const perPage = 1000;
+  for (let page = 1; wantedUserIds.size > 0; page += 1) {
+    const { data: usersData, error: usersError } = await admin.auth.admin.listUsers({ page, perPage });
+    if (usersError) break;
+    for (const authUser of usersData?.users ?? []) {
+      if (!wantedUserIds.has(authUser.id)) continue;
+      userEmailMap.set(authUser.id, authUser.email);
+      wantedUserIds.delete(authUser.id);
+    }
+    if ((usersData?.users ?? []).length < perPage) break;
+  }
 
   const results: SendToUsersResult[] = [];
   const normalizedBase = baseUrl.replace(/\/$/, "");
@@ -146,8 +161,11 @@ export async function sendTemplateToUsers({
       continue;
     }
 
+    const safeLoginPath = loginPath?.startsWith("/") && !loginPath.startsWith("//")
+      ? loginPath
+      : undefined;
     const loginUrl = key
-      ? `${normalizedBase}/api/auto-login?key=${encodeURIComponent(key)}`
+      ? `${normalizedBase}/api/auto-login?key=${encodeURIComponent(key)}${safeLoginPath ? `&next=${encodeURIComponent(safeLoginPath)}` : ""}`
       : appLoginUrl;
     const firstName =
       (prof?.fullName ?? "").trim().split(/\s+/)[0] ||

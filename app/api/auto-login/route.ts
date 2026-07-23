@@ -13,6 +13,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export async function GET(request: NextRequest) {
   try {
     const key = request.nextUrl.searchParams.get("key");
+    const requestedNext = request.nextUrl.searchParams.get("next");
+    const safeNext =
+      requestedNext?.startsWith("/") && !requestedNext.startsWith("//")
+        ? requestedNext
+        : "/";
     if (!key || key.length < 30) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
@@ -54,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     // 3. Build callback URL (must be in Supabase redirect URLs)
     const base = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
-    const redirectTo = `${base}/auth/callback`;
+    const redirectTo = `${base}/auth/callback?next=${encodeURIComponent(safeNext)}`;
 
     const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
       type: "magiclink",

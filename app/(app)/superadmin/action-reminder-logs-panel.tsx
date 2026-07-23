@@ -48,7 +48,15 @@ function LogRow({ log }: { log: ActionReminderLog }) {
           </span>
         </div>
 
-        <p className="text-[11px] text-slate-500">{formatIstTime(log.createdAt)}</p>
+        <p className="text-[11px] text-slate-500">
+          Sent {formatIstTime(log.createdAt)}
+          {log.cohortName ? ` · ${log.cohortName}` : ""}
+        </p>
+        {log.scheduledFor && (
+          <p className="text-[10px] font-semibold text-amber-700">
+            Scheduled reminder: {formatIstTime(log.scheduledFor)}
+          </p>
+        )}
 
         {log.status === "failed" && log.errorMessage && (
           <p className="text-[11px] text-red-600 font-semibold">{log.errorMessage}</p>
@@ -134,7 +142,7 @@ export default function ActionReminderLogsPanel() {
         <div className="border-t-2 border-black">
           <div className="px-4 py-2 bg-amber-100 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2">
             <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">
-              Sent automatically per user&apos;s own plan cadence, once daily at 11:30 AM IST
+              Runs daily at 11:30 AM IST · sends only on each participant&apos;s selected reminder day
             </p>
             <button
               type="button"

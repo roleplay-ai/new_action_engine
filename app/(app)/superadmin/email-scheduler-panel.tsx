@@ -20,7 +20,7 @@ import {
   getEmailSchedules,
   toggleEmailSchedule,
   deleteEmailSchedule,
-  runEmailSchedulerNow,
+  bulkRunEmailSchedulesNow,
   type EmailSchedule,
   type ScheduleType,
 } from "@/app/actions/email-schedule";
@@ -73,14 +73,6 @@ function istTimeToUtc(istTime: string): string {
   return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
 }
 
-/** Convert "HH:MM" UTC → "HH:MM" IST (for display) */
-function utcTimeToIst(utcTime: string): string {
-  const [h, m] = utcTime.split(":").map(Number);
-  let mins = h * 60 + m + 330;
-  if (mins >= 1440) mins -= 1440;
-  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
-}
-
 /**
  * Convert datetime-local value ("YYYY-MM-DDTHH:MM") treated as IST
  * into a UTC ISO string.
@@ -111,13 +103,13 @@ function formatIstTime(isoStr: string | null | undefined) {
 function scheduleDescription(s: EmailSchedule) {
   switch (s.schedule_type) {
     case "daily":
-      return `Daily at ${utcTimeToIst(s.run_time_utc)} IST`;
+      return "Daily · processed at 11:30 AM IST";
     case "weekly":
-      return `Every Monday at ${utcTimeToIst(s.run_time_utc)} IST`;
+      return "Every Monday · processed at 11:30 AM IST";
     case "every_n_days":
-      return `Every ${s.interval_days} days at ${utcTimeToIst(s.run_time_utc)} IST`;
+      return `Every ${s.interval_days} days · processed at 11:30 AM IST`;
     case "specific_date":
-      return `Once on ${formatIstTime(s.specific_run_at)}`;
+      return `Once after ${formatIstTime(s.specific_run_at)} · next daily cron`;
   }
 }
 
@@ -137,7 +129,7 @@ const DEFAULT_FORM: FormState = {
   name: "",
   template_id: SCHEDULABLE_TEMPLATE_KEYS[0],
   schedule_type: "weekly",
-  run_time_utc: "10:00", // stored as IST in form, converted to UTC on submit
+  run_time_utc: "11:30", // fixed free-cron time, shown in IST
   interval_days: "3",
   specific_run_at: "",
   user_ids: new Set(),
@@ -291,17 +283,11 @@ function CreateScheduleForm({
       {form.schedule_type !== "specific_date" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Run time (IST) *</label>
-            <input
-              type="time"
-              className={inputClass}
-              value={form.run_time_utc}
-              onChange={(e) => setForm((p) => ({ ...p, run_time_utc: e.target.value }))}
-              required
-            />
-            <p className="text-[10px] text-slate-400 mt-1">
-              Stored as UTC ({istTimeToUtc(form.run_time_utc)} UTC)
-            </p>
+            <label className={labelClass}>Processing time</label>
+            <div className={`${inputClass} bg-amber-50`}>
+              <strong>11:30 AM IST</strong>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Fixed by the free daily Vercel cron.</p>
           </div>
         </div>
       )}
@@ -319,7 +305,7 @@ function CreateScheduleForm({
             required
           />
           <p className="text-[10px] text-slate-500 mt-1">
-            Enter time in IST — saved as UTC internally. Fires once, then auto-deactivates.
+            Fires at the first 11:30 AM IST cron after this time, then auto-deactivates.
           </p>
         </div>
       )}
@@ -401,17 +387,40 @@ function CreateScheduleForm({
 
 function ScheduleRow({
   schedule,
+  selected,
+  onSelect,
   onToggle,
   onDelete,
 }: {
   schedule: EmailSchedule;
+  selected: boolean;
+  onSelect: (id: string, selected: boolean) => void;
   onToggle: (id: string, active: boolean) => void;
   onDelete: (id: string) => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
-    <div className="flex flex-wrap items-start gap-3 p-3 bg-white border-2 border-black rounded-xl">
+    <div
+      className={`flex flex-wrap items-start gap-3 p-3 bg-white border-2 rounded-xl transition-colors ${
+        selected ? "border-[#3699FC] ring-2 ring-sky-100" : "border-black"
+      }`}
+    >
+      {schedule.is_active && (
+        <label
+          className="mt-0.5 flex h-6 w-6 flex-shrink-0 cursor-pointer items-center justify-center rounded-md border border-slate-300 bg-white hover:bg-sky-50"
+          title="Select schedule for bulk run"
+        >
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(event) => onSelect(schedule.id, event.target.checked)}
+            className="h-4 w-4 accent-[#3699FC]"
+            aria-label={`Select ${schedule.name}`}
+          />
+        </label>
+      )}
+
       {/* Status dot */}
       <div
         className={`mt-1 w-2.5 h-2.5 rounded-full flex-shrink-0 ${
@@ -530,13 +539,16 @@ function ScheduleRow({
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
 export default function EmailSchedulerPanel({ users }: { users: User[] }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [schedules, setSchedules] = useState<EmailSchedule[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<string | null>(null);
+  const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(
+    new Set()
+  );
 
   const defaultTemplateId = SCHEDULABLE_TEMPLATE_KEYS[0];
 
@@ -545,8 +557,18 @@ export default function EmailSchedulerPanel({ users }: { users: User[] }) {
     setActionError(null);
     try {
       const result = await getEmailSchedules();
-      if ("data" in result) setSchedules(result.data);
-      else if (result.error) setActionError(result.error);
+      if ("data" in result) {
+        setSchedules(result.data);
+        const activeIds = new Set(
+          result.data
+            .filter((schedule) => schedule.is_active)
+            .map((schedule) => schedule.id)
+        );
+        setSelectedScheduleIds(
+          (previous) =>
+            new Set(Array.from(previous).filter((id) => activeIds.has(id)))
+        );
+      } else if (result.error) setActionError(result.error);
     } finally {
       setLoading(false);
     }
@@ -566,28 +588,55 @@ export default function EmailSchedulerPanel({ users }: { users: User[] }) {
       setSchedules((prev) =>
         prev.map((s) => (s.id === id ? { ...s, is_active: active } : s))
       );
+      if (!active) {
+        setSelectedScheduleIds((previous) => {
+          const next = new Set(previous);
+          next.delete(id);
+          return next;
+        });
+      }
     }
   }
 
-  async function handleRunNow() {
+  function handleSelect(id: string, selected: boolean) {
+    setSelectedScheduleIds((previous) => {
+      const next = new Set(previous);
+      if (selected) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  async function handleBulkRunNow() {
     setRunning(true);
     setRunResult(null);
     setActionError(null);
     try {
-      const result = await runEmailSchedulerNow();
+      const result = await bulkRunEmailSchedulesNow(
+        Array.from(selectedScheduleIds)
+      );
       if ("error" in result && result.error) {
         setActionError(result.error);
       } else {
-        const processed = result.processed ?? 0;
-        if (processed === 0) {
-          setRunResult("No due schedules right now.");
-        } else {
-          const summary = (result.results ?? [])
-            .map((r) => `${r.name}: ${r.sent} sent${r.failed ? `, ${r.failed} failed` : ""}`)
-            .join(" · ");
-          setRunResult(`Ran ${processed} schedule${processed !== 1 ? "s" : ""}. ${summary}`);
+        const runResults = result.results ?? [];
+        const sent = runResults.reduce((total, item) => total + item.sent, 0);
+        const failed = runResults.reduce((total, item) => total + item.failed, 0);
+        const skipped = runResults.filter((item) => item.status === "skipped").length;
+        setRunResult(
+          `Bulk run finished for ${runResults.length} schedule${
+            runResults.length !== 1 ? "s" : ""
+          }: ${sent} email${sent !== 1 ? "s" : ""} sent${
+            failed ? `, ${failed} failed` : ""
+          }${skipped ? `, ${skipped} skipped` : ""}.`
+        );
+        const itemErrors = runResults
+          .filter((item) => item.error)
+          .map((item) => `${item.name}: ${item.error}`);
+        setSelectedScheduleIds(new Set());
+        await loadSchedules();
+        if (itemErrors.length > 0) {
+          setActionError(itemErrors.join(" · "));
         }
-        void loadSchedules();
       }
     } finally {
       setRunning(false);
@@ -601,10 +650,38 @@ export default function EmailSchedulerPanel({ users }: { users: User[] }) {
       setActionError(result.error);
     } else {
       setSchedules((prev) => prev.filter((s) => s.id !== id));
+      setSelectedScheduleIds((previous) => {
+        const next = new Set(previous);
+        next.delete(id);
+        return next;
+      });
     }
   }
 
-  const activeCount = schedules.filter((s) => s.is_active).length;
+  const upcomingSchedules = schedules
+    .filter((schedule) => schedule.is_active)
+    .sort(
+      (left, right) =>
+        new Date(left.next_run_at).getTime() - new Date(right.next_run_at).getTime()
+    );
+  const inactiveSchedules = schedules.filter((schedule) => !schedule.is_active);
+  const activeCount = upcomingSchedules.length;
+  const selectedCount = selectedScheduleIds.size;
+  const allUpcomingSelected =
+    upcomingSchedules.length > 0 &&
+    upcomingSchedules.every((schedule) => selectedScheduleIds.has(schedule.id));
+  const upcomingRecipientCount = upcomingSchedules.reduce(
+    (total, schedule) => total + schedule.user_ids.length,
+    0
+  );
+
+  function toggleAllUpcoming() {
+    setSelectedScheduleIds(
+      allUpcomingSelected
+        ? new Set()
+        : new Set(upcomingSchedules.map((schedule) => schedule.id))
+    );
+  }
 
   return (
     <div className="border-4 border-black rounded-2xl overflow-hidden bg-sky-50 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
@@ -629,25 +706,11 @@ export default function EmailSchedulerPanel({ users }: { users: User[] }) {
       {expanded && (
         <div className="border-t-2 border-black">
           {/* Info bar */}
-          <div className="px-4 py-2 bg-sky-100 border-b border-sky-200 flex flex-wrap items-center justify-between gap-2">
+          <div className="px-4 py-2 bg-sky-100 border-b border-sky-200">
             <p className="text-[10px] font-bold text-sky-800 uppercase tracking-wider">
-              Vercel cron fires daily at 11:30 AM IST (06:00 UTC) ·{" "}
-              <code className="bg-sky-200 px-1 rounded">next_run_at &le; now</code>{" "}
-              triggers send
+              Automatic delivery runs daily at 11:30 AM IST. Bulk run sends the
+              selected upcoming occurrence immediately and moves it to its next cycle.
             </p>
-            <button
-              type="button"
-              onClick={handleRunNow}
-              disabled={running}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-black text-white border-2 border-black rounded-lg text-[10px] font-bold uppercase hover:bg-slate-800 disabled:opacity-50"
-            >
-              {running ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <Zap size={12} />
-              )}
-              Run now
-            </button>
           </div>
 
           {/* Run result toast */}
@@ -683,14 +746,99 @@ export default function EmailSchedulerPanel({ users }: { users: User[] }) {
                 No schedules yet. Create one below.
               </p>
             ) : (
-              schedules.map((s) => (
-                <ScheduleRow
-                  key={s.id}
-                  schedule={s}
-                  onToggle={handleToggle}
-                  onDelete={handleDelete}
-                />
-              ))
+              <>
+                <section className="overflow-hidden rounded-xl border-2 border-sky-200 bg-white">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-100 bg-sky-50 p-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <CalendarClock size={16} className="text-sky-700" />
+                        <h3 className="text-sm font-black uppercase tracking-tight">
+                          Upcoming emails
+                        </h3>
+                        <span className="rounded-full bg-sky-700 px-2 py-0.5 text-[10px] font-black text-white">
+                          {upcomingSchedules.length}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        {upcomingRecipientCount} scheduled recipient
+                        {upcomingRecipientCount !== 1 ? "s" : ""}
+                        {upcomingSchedules[0]
+                          ? ` · Next ${formatIstTime(upcomingSchedules[0].next_run_at)}`
+                          : " · No active schedules"}
+                      </p>
+                    </div>
+
+                    {upcomingSchedules.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={toggleAllUpcoming}
+                          disabled={running}
+                          className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[10px] font-bold uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          {allUpcomingSelected ? (
+                            <CheckSquare size={13} />
+                          ) : (
+                            <Square size={13} />
+                          )}
+                          {allUpcomingSelected ? "Clear all" : "Select all"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleBulkRunNow}
+                          disabled={running || selectedCount === 0}
+                          className="flex items-center gap-1.5 rounded-lg border-2 border-black bg-black px-3 py-2 text-[10px] font-bold uppercase text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {running ? (
+                            <Loader2 size={13} className="animate-spin" />
+                          ) : (
+                            <Zap size={13} />
+                          )}
+                          Bulk run now
+                          {selectedCount > 0 ? ` (${selectedCount})` : ""}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 p-3">
+                    {upcomingSchedules.length === 0 ? (
+                      <p className="text-xs italic text-slate-500">
+                        No upcoming emails. Resume a paused schedule or create a new one.
+                      </p>
+                    ) : (
+                      upcomingSchedules.map((schedule) => (
+                        <ScheduleRow
+                          key={schedule.id}
+                          schedule={schedule}
+                          selected={selectedScheduleIds.has(schedule.id)}
+                          onSelect={handleSelect}
+                          onToggle={handleToggle}
+                          onDelete={handleDelete}
+                        />
+                      ))
+                    )}
+                  </div>
+                </section>
+
+                {inactiveSchedules.length > 0 && (
+                  <section className="space-y-3 pt-2">
+                    <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                      Paused &amp; completed
+                    </h3>
+                    {inactiveSchedules.map((schedule) => (
+                      <ScheduleRow
+                        key={schedule.id}
+                        schedule={schedule}
+                        selected={false}
+                        onSelect={handleSelect}
+                        onToggle={handleToggle}
+                        onDelete={handleDelete}
+                      />
+                    ))}
+                  </section>
+                )}
+              </>
             )}
 
             {/* Add button */}

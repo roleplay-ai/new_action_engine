@@ -224,6 +224,8 @@ type ReminderAction = {
 function renderDailyReminderHtml(data: EmailTemplateData): string {
   const firstName = str(data, "first_name", "there");
   const loginUrl = str(data, "login_url", "#");
+  const cohortName = str(data, "cohort_name", "your cohort");
+  const reminderSchedule = str(data, "reminder_schedule");
   const actions = Array.isArray(data.actions) ? (data.actions as ReminderAction[]) : [];
   const count = actions.length;
 
@@ -250,7 +252,8 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
     <tr>
       <td style="padding:28px 32px 8px;">
         <p style="margin:0 0 4px;color:#111827;font-size:18px;font-weight:bold;">Hey ${esc(firstName)},</p>
-        <p style="margin:0 0 16px;color:#374151;font-size:13px;">${count} action${count === 1 ? "" : "s"} waiting for you — here's a quick reminder.</p>
+        <p style="margin:0 0 4px;color:#374151;font-size:13px;">${count} current action${count === 1 ? "" : "s"} from <strong>${esc(cohortName)}</strong> ${count === 1 ? "is" : "are"} ready for you.</p>
+        ${reminderSchedule ? `<p style="margin:0 0 16px;color:#6b7280;font-size:11px;">Sent according to your choice: ${esc(reminderSchedule)}</p>` : '<div style="height:12px;"></div>'}
         ${actionsHtml}
         ${ctaButtonHtml(loginUrl, "Open My Actions")}
       </td>
@@ -284,7 +287,8 @@ export const EMAIL_TEMPLATES = {
     label: "Action Reminder",
     subject: (data: EmailTemplateData) => {
       const n = Array.isArray(data.actions) ? data.actions.length : 0;
-      return `${n} action${n === 1 ? "" : "s"} waiting for you today`;
+      const cohort = str(data, "cohort_name");
+      return `${n} Nudgeable action${n === 1 ? "" : "s"} ready${cohort ? ` — ${cohort}` : ""}`;
     },
     render: renderDailyReminderHtml,
   },

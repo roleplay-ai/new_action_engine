@@ -5,6 +5,7 @@ import AutoLoginTestingPanel from "../auto-login-testing-panel";
 import AutoLoginEmailPanel from "../auto-login-email-panel";
 import EmailSchedulerPanel from "../email-scheduler-panel";
 import ActionReminderLogsPanel from "../action-reminder-logs-panel";
+import ActionReminderQueuePanel from "../action-reminder-queue-panel";
 import { KeyRound, MailCheck, ShieldCheck } from "lucide-react";
 
 export default async function SuperadminEmailsPage() {
@@ -50,6 +51,8 @@ export default async function SuperadminEmailsPage() {
       <AutoLoginEmailPanel users={users} />
 
       <AutoLoginTestingPanel users={users} />
+
+      <ActionReminderQueuePanel />
 
       <EmailSchedulerPanel users={users} />
 

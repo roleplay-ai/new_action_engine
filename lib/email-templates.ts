@@ -439,7 +439,8 @@ export const EMAIL_TEMPLATES = {
   },
   credentials: {
     label: "Login Credentials",
-    subject: () => "Welcome to Nudgeable — your access is ready",
+    subject: (data: EmailTemplateData) =>
+      `Hi ${str(data, "first_name", "there")} - Welcome to Nudgeable, your access is ready`,
     render: renderCredentialsHtml,
   },
   calendar_invite: {
@@ -452,7 +453,8 @@ export const EMAIL_TEMPLATES = {
     subject: (data: EmailTemplateData) => {
       const n = Array.isArray(data.actions) ? data.actions.length : 0;
       const cohort = str(data, "cohort_name");
-      return `Nudgeable: Your next workflow${n === 1 ? " is" : "s are"} ready${cohort ? ` — ${cohort}` : ""}`;
+      const firstName = str(data, "first_name", "there");
+      return `Hi ${firstName} - Your next workflow${n === 1 ? " is" : "s are"} ready${cohort ? ` — ${cohort}` : ""}`;
     },
     render: renderDailyReminderHtml,
   },

@@ -1,261 +1,193 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Calendar } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { CalendarDays, Check, CircleUserRound, FileText, Play, Users, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
-import { getMyCohort } from "@/app/actions/cohorts";
-import { listCohortContent } from "@/app/actions/prepare-content";
-import { getMyPrepareProgress, markContentViewed } from "@/app/actions/prepare-progress";
-import CohortRoster from "@/components/prepare/CohortRoster";
-import PrepProgressTracker, { type PrepChecklistItem } from "@/components/prepare/PrepProgressTracker";
+import { getJourneyData } from "@/app/actions/journey";
+import { markContentViewed } from "@/app/actions/prepare-progress";
 import VideoCard from "@/components/prepare/VideoCard";
 import PrereadCard from "@/components/prepare/PrereadCard";
 import QuizCard from "@/components/prepare/QuizCard";
-import type { Cohort, CohortMember, PrepareContentItem, UserPrepareProgress } from "@/lib/types";
+import CohortChat from "@/components/journey/CohortChat";
+import { usePageLoading } from "@/components/PageLoadingProvider";
+import type { JourneyData, PrepareContentItem, UserPrepareProgress } from "@/lib/types";
 import { estimateMinutes } from "@/lib/prepare-estimate";
 
-function formatSessionDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return dateStr;
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }).toUpperCase();
+function formatSessionDate(value?: string | null, long = false) {
+  if (!value) return "Date to be announced";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-GB", long
+    ? { weekday: "long", day: "numeric", month: "long", year: "numeric" }
+    : { day: "numeric", month: "short" });
 }
 
-const VIDEO_ACCENTS = ["#FADCC0", "#D7ECFC", "#C9F0DC", "#E0D6F5"];
+function initials(name: string | null) {
+  if (!name) return "P";
+  return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+}
 
-export default function PrepareClient() {
-  const { profile } = useEngine();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [cohort, setCohort] = useState<Cohort | null>(null);
-  const [roster, setRoster] = useState<CohortMember[]>([]);
-  const [items, setItems] = useState<PrepareContentItem[]>([]);
-  const [progress, setProgress] = useState<Record<string, UserPrepareProgress>>({});
-  const [completedCount, setCompletedCount] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
+function resourceMeta(item: PrepareContentItem) {
+  if (item.type === "video") {
+    const minutes = estimateMinutes(item);
+    return `${minutes ? `${minutes}-minute video` : "Video"} · Recommended`;
+  }
+  if (item.type === "quiz") return `${item.questionCount ?? 0} questions · Required`;
+  return "Pre-read · Recommended";
+}
 
-  const load = useCallback(async () => {
-    setError(null);
-    const { cohort: myCohort, roster: myRoster, error: cohortErr } = await getMyCohort();
-    if (cohortErr) {
-      setError(cohortErr);
-      setLoading(false);
-      return;
-    }
-    if (!myCohort) {
-      setCohort(null);
-      setLoading(false);
-      return;
-    }
-    setCohort(myCohort);
-    setRoster(myRoster ?? []);
+export default function PrepareClient({ initialData }: { initialData: JourneyData }) {
+  const { profile, cohort: selectedCohort } = useEngine();
+  const [error, setError] = useState<string | null>(initialData.error ?? null);
+  const [cohort, setCohort] = useState(initialData.cohort);
+  const [roster, setRoster] = useState(initialData.roster);
+  const [items, setItems] = useState(initialData.items);
+  const [progress, setProgress] = useState<Record<string, UserPrepareProgress>>(
+    Object.fromEntries(initialData.progress.map((item) => [item.contentItemId, item]))
+  );
+  const [selectedItem, setSelectedItem] = useState<PrepareContentItem | null>(null);
 
-    const [{ items: contentItems, error: contentErr }, progressRes] = await Promise.all([
-      listCohortContent(myCohort.id),
-      getMyPrepareProgress(myCohort.id),
-    ]);
-    if (contentErr) {
-      setError(contentErr);
-      setLoading(false);
-      return;
-    }
-    setItems(contentItems ?? []);
-    const progressMap: Record<string, UserPrepareProgress> = {};
-    for (const p of progressRes.progress ?? []) progressMap[p.contentItemId] = p;
-    setProgress(progressMap);
-    setCompletedCount(progressRes.completedCount ?? 0);
-    setTotalCount(progressRes.totalCount ?? 0);
-    setLoading(false);
+  usePageLoading(false);
+
+  const reloadQuietly = useCallback(async () => {
+    const result = await getJourneyData();
+    setError(result.error ?? null);
+    setCohort(result.cohort);
+    setRoster(result.roster);
+    setItems(result.items);
+    setProgress(Object.fromEntries(result.progress.map((item) => [item.contentItemId, item])));
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!selectedItem) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedItem(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [selectedItem]);
 
   async function handleComplete(contentItemId: string) {
-    const { error } = await markContentViewed(contentItemId);
-    if (!error) await load();
+    const result = await markContentViewed(contentItemId);
+    if (!result.error) await reloadQuietly();
   }
 
-  if (loading) {
-    return (
-      <div className="w-full space-y-10">
-        <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>Loading…</p>
-      </div>
-    );
-  }
+  const completedCount = useMemo(() => items.filter((item) => progress[item.id]?.status === "completed").length, [items, progress]);
+  const completion = items.length ? Math.round((completedCount / items.length) * 100) : 0;
 
-  if (error) {
-    return (
-      <div className="w-full space-y-10">
-        <p className="text-sm font-bold" style={{ color: "#ED4551" }}>{error}</p>
-      </div>
-    );
-  }
+  if (error) return <div className="journey-empty"><strong>We couldn&apos;t load your journey.</strong><p>{error}</p></div>;
+  if (!cohort) return <div className="journey-empty"><CircleUserRound size={32} /><strong>Your learning journey will appear here</strong><p>Ask your administrator to add you to a cohort.</p></div>;
 
-  if (!cohort) {
-    return (
-      <div className="animate-in fade-in duration-700 w-full space-y-10">
-        <h1 className="text-4xl font-bold" style={{ color: "var(--color-text-primary)", letterSpacing: "-0.01em" }}>
-          Prepare
-        </h1>
-        <div className="card card--flat text-center">
-          <div className="icon-badge">🎓</div>
-          <h3 className="card__title">You haven&apos;t been added to a cohort yet</h3>
-          <p className="card__subtitle mb-0">
-            Contact your admin to get added to a cohort — you&apos;ll see your prep content here once you are.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const videoItems = items.filter((i) => i.type === "video");
-  const otherItems = items.filter((i) => i.type !== "video");
   const firstName = profile.name.split(" ")[0];
-  const videoMinutesTotal = videoItems.reduce((sum, i) => sum + (estimateMinutes(i) ?? 0), 0);
-
-  const checklist: PrepChecklistItem[] = items.map((item) => ({
-    item,
-    status: progress[item.id]?.status ?? "not_started",
-  }));
+  const currentStage = completedCount === items.length && items.length > 0 ? 2 : 1;
+  const visibleRoster = roster.slice(0, 4);
 
   return (
-    <div className="animate-in fade-in duration-700 w-full space-y-10">
-      {/* ── Header ── */}
-      <div
-        className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6"
-        style={{
-          background: "var(--color-bg-dark)",
-          borderRadius: "var(--radius-xl)",
-          padding: "var(--space-8)",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          aria-hidden
-          style={{
-            position: "absolute", top: -60, right: -60, width: 220, height: 220, borderRadius: "50%",
-            border: "40px solid rgba(255,255,255,0.04)",
-          }}
-        />
-        <div style={{ position: "relative", zIndex: 1 }}>
-          {cohort.description && (
-            <p
-              className="text-xs font-black uppercase tracking-wider mb-2"
-              style={{ color: "var(--bright-amber)" }}
-            >
-              {cohort.description}
-            </p>
-          )}
-          <h1 className="text-4xl font-bold" style={{ color: "#fff", letterSpacing: "-0.01em" }}>
-            Welcome, {firstName}.
-          </h1>
-          <p className="text-sm font-medium mt-3 max-w-lg" style={{ color: "rgba(255,255,255,0.65)" }}>
-            Your learning journey begins before the session. Complete these steps to arrive ready.
-          </p>
+    <div className="reference-journey animate-in fade-in duration-700">
+      <div className="journey-page-title">
+        <div>
+          <span>Training workspace</span>
+          <h1>{cohort.name}</h1>
+          <p>{cohort.description || "Your sessions, preparation and application cycles in one place."}</p>
         </div>
+        <div className="journey-cohort-status">
+          <span>Viewing</span>
+          <strong>{selectedCohort?.isCurrent ? "Current cohort" : "Earlier cohort"}</strong>
+        </div>
+      </div>
 
-        {cohort.startDate && (
-          <div
-            className="flex items-center gap-4 shrink-0"
-            style={{
-              position: "relative", zIndex: 1,
-              background: "var(--bright-amber)",
-              borderRadius: "var(--radius-lg)",
-              padding: "var(--space-5) var(--space-6)",
-            }}
-          >
-            <Calendar size={20} style={{ color: "var(--color-text-primary)" }} strokeWidth={2.5} />
-            <div>
-              <p className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--color-text-primary)", opacity: 0.7 }}>
-                Live session
-              </p>
-              <p className="text-lg font-bold" style={{ color: "var(--color-text-primary)" }}>
-                {formatSessionDate(cohort.startDate)}
-              </p>
-            </div>
+      <section className="journey-session-hero">
+        <div className="journey-session-copy">
+          <span className="journey-session-label">Current session · {formatSessionDate(cohort.startDate)}</span>
+          <h2>{cohort.description || cohort.name}</h2>
+          <p>Welcome, {firstName}. Complete your preparation, join the session ready, then turn what you learn into workplace actions.</p>
+          <div className="journey-session-meta">
+            <span><CalendarDays size={14} />{formatSessionDate(cohort.startDate, true)}</span>
+            <span><Users size={14} />{cohort.memberCount} participants</span>
+            <span>{completedCount} of {items.length} prep items complete</span>
           </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 items-start">
-        {/* ── Main column ── */}
-        <div className="space-y-10 min-w-0">
-          {items.length === 0 ? (
-            <div className="card card--flat text-center">
-              <p className="card__subtitle mb-0">No prep content assigned yet.</p>
-            </div>
-          ) : (
-            <>
-              {videoItems.length > 0 && (
-                <section>
-                  <span className="tag tag--blue mb-2 inline-block">Start here</span>
-                  <h2
-                    style={{
-                      fontSize: "var(--text-2xl)", fontWeight: "var(--weight-bold)",
-                      color: "var(--color-text-primary)", letterSpacing: "-0.02em", marginBottom: "4px",
-                    }}
-                  >
-                    A message from your leaders
-                  </h2>
-                  {videoMinutesTotal > 0 && (
-                    <p className="text-sm mb-4" style={{ color: "var(--color-text-muted)" }}>{videoMinutesTotal} min total</p>
-                  )}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {videoItems.map((item, i) => (
-                      <div key={item.id} id={`prepare-item-${item.id}`}>
-                        <VideoCard
-                          item={item}
-                          completed={progress[item.id]?.status === "completed"}
-                          onComplete={handleComplete}
-                          accentColor={VIDEO_ACCENTS[i % VIDEO_ACCENTS.length]}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {otherItems.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {otherItems.map((item) => {
-                    const p = progress[item.id];
-                    const completed = p?.status === "completed";
-                    return (
-                      <div key={item.id} id={`prepare-item-${item.id}`}>
-                        {item.type === "preread" ? (
-                          <PrereadCard item={item} completed={completed} onComplete={handleComplete} />
-                        ) : (
-                          <QuizCard
-                            item={item}
-                            completed={completed}
-                            lastScore={p?.lastScore}
-                            lastTotalQuestions={p?.lastTotalQuestions}
-                            onComplete={handleComplete}
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {roster.length > 0 && <CohortRoster roster={roster} />}
-            </>
-          )}
         </div>
+        <div className="journey-hero-progress"><strong>{completion}%</strong><span>Preparation complete</span><div><i style={{ width: `${completion}%` }} /></div></div>
+      </section>
 
-        {/* ── Sidebar ── */}
-        {items.length > 0 && (
-          <PrepProgressTracker
-            checklist={checklist}
-            completedCount={completedCount}
-            totalCount={totalCount}
-            deadlineLabel={cohort.startDate ? `Complete before your session on ${formatSessionDate(cohort.startDate)}` : null}
-          />
-        )}
+      <div className="journey-module-grid">
+        <CohortChat cohortId={cohort.id} memberCount={cohort.memberCount} />
+
+        <article className="journey-module-card">
+          <h3>What you should get from this session</h3>
+          <div className="journey-outcomes">
+            <div><b>1</b><span><strong>Understand the idea</strong><small>Connect the session content to your own role.</small></span></div>
+            <div><b>2</b><span><strong>Apply it to real work</strong><small>Identify a situation where you can practise.</small></span></div>
+            <div><b>3</b><span><strong>Leave with a plan</strong><small>Turn your notes into clear workplace actions.</small></span></div>
+          </div>
+        </article>
+
+        <article className="journey-module-card">
+          <h3>Before you arrive</h3>
+          <p className="journey-card-subtitle">Only preparation assigned to this session.</p>
+          <div className="journey-resources">
+            {items.length === 0 && <div className="journey-inline-empty">No preparation has been assigned yet.</div>}
+            {items.map((item) => {
+              const done = progress[item.id]?.status === "completed";
+              const Icon = item.type === "video" ? Play : FileText;
+              return <div className={`journey-resource ${done ? "done" : ""}`} key={item.id}>
+                <div className="journey-resource-icon">{done ? <Check size={16} /> : <Icon size={16} />}</div>
+                <div><strong>{item.title}</strong><span>{resourceMeta(item)}</span></div>
+                <button onClick={() => setSelectedItem(item)}>{done ? "Review" : "Open"}</button>
+              </div>;
+            })}
+          </div>
+        </article>
+
+        <article className="journey-module-card">
+          <h3>Your cohort</h3>
+          <p className="journey-card-subtitle">People attending this cohort with you.</p>
+          <div className="journey-cohort-people">
+            {visibleRoster.map((member) => <div key={member.id}><b>{initials(member.fullName)}</b><span>{member.fullName?.split(" ")[0] || "Participant"}</span></div>)}
+            {roster.length > visibleRoster.length && <small>+{roster.length - visibleRoster.length} others</small>}
+          </div>
+        </article>
+
+        <article className="journey-module-card journey-module-wide">
+          <h3>Your learning journey</h3>
+          <p className="journey-card-subtitle">Preparation, the live session and workplace application shown together.</p>
+          <div className="journey-stages">
+            <div className={currentStage > 1 ? "complete" : "current"}><b>{currentStage > 1 ? <Check size={15} /> : 1}</b><span><strong>Prepare for the session</strong><small>{completedCount} of {items.length} resources complete</small></span><em>Preparation</em></div>
+            <div className={currentStage === 2 ? "current" : "upcoming"}><b>2</b><span><strong>{cohort.name}</strong><small>{formatSessionDate(cohort.startDate, true)}</small></span><em>Classroom</em></div>
+            <div className="upcoming"><b>3</b><span><strong>Build your practice plan</strong><small>Use your notes to create personalised actions</small></span><em>Planning</em></div>
+            <div className="upcoming"><b>4</b><span><strong>Workplace practice cycle</strong><small>Complete actions at the pace you choose</small></span><em>Application</em></div>
+          </div>
+        </article>
       </div>
+
+      {typeof document !== "undefined" && selectedItem?.type === "quiz" && createPortal(<QuizCard
+        item={selectedItem}
+        completed={progress[selectedItem.id]?.status === "completed"}
+        lastScore={progress[selectedItem.id]?.lastScore}
+        lastTotalQuestions={progress[selectedItem.id]?.lastTotalQuestions}
+        onComplete={handleComplete}
+        autoOpen
+        modalOnly
+        onRequestClose={() => setSelectedItem(null)}
+      />, document.body)}
+
+      {typeof document !== "undefined" && selectedItem && selectedItem.type !== "quiz" && createPortal(<div className="journey-resource-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedItem(null); }}>
+        <div className="journey-resource-modal" role="dialog" aria-modal="true" aria-labelledby="journey-resource-title">
+          <header className="journey-resource-modal-head">
+            <div><span>{selectedItem.type === "video" ? "Video" : "Pre-read"}</span><strong id="journey-resource-title">{selectedItem.title}</strong></div>
+            <button className="journey-modal-close" onClick={() => setSelectedItem(null)} aria-label="Close resource"><X size={18} /></button>
+          </header>
+          <div className="journey-resource-modal-body">
+            {selectedItem.type === "video" ? <VideoCard item={selectedItem} completed={progress[selectedItem.id]?.status === "completed"} onComplete={handleComplete} accentColor="#FFEEA8" /> : <PrereadCard item={selectedItem} completed={progress[selectedItem.id]?.status === "completed"} onComplete={handleComplete} />}
+          </div>
+        </div>
+      </div>, document.body)}
     </div>
   );
 }

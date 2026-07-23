@@ -1,19 +1,34 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Users, BookOpen, ChevronRight, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  AlertCircle,
+  ArrowRight,
+  BookOpen,
+  CalendarDays,
+  Check,
+  ChevronRight,
+  Info,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Search,
+  UserPlus,
+  Users,
+  X,
+} from "lucide-react";
+import {
+  addMembersToCohort,
   createCohort,
-  listCohorts,
   getCohortDetail,
   getCompanyUsers,
-  addMembersToCohort,
+  listCohorts,
   removeMembersFromCohort,
 } from "@/app/actions/cohorts";
 import {
+  assignContentToCohort,
   listActiveLibraryItems,
   listCohortContent,
-  assignContentToCohort,
   removeContentFromCohort,
 } from "@/app/actions/prepare-content";
 import type { PrepareContentItem } from "@/lib/types";
@@ -32,148 +47,325 @@ type CohortSummary = {
   contentCount: number;
 };
 
+type CompanyUser = { id: string; full_name: string | null };
+
+function formatStartDate(date: string | null | undefined) {
+  if (!date) return "Start date not set";
+  return new Intl.DateTimeFormat("en", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(`${date}T00:00:00`));
+}
+
+function initials(value: string | null | undefined) {
+  const words = (value || "Unnamed user").trim().split(/\s+/).slice(0, 2);
+  return words.map((word) => word[0]?.toUpperCase()).join("") || "U";
+}
+
+function CohortListSkeleton() {
+  return (
+    <div className="cohort-admin-list" aria-label="Loading cohorts" aria-busy="true">
+      {[0, 1, 2].map((item) => (
+        <div key={item} className="cohort-admin-row cohort-admin-row--skeleton">
+          <span className="cohort-admin-skeleton cohort-admin-skeleton--avatar" />
+          <span className="cohort-admin-skeleton-copy">
+            <span className="cohort-admin-skeleton cohort-admin-skeleton--title" />
+            <span className="cohort-admin-skeleton cohort-admin-skeleton--text" />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function CohortManagementView({ companyId }: CohortManagementViewProps) {
   const [cohorts, setCohorts] = useState<CohortSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [creatingBusy, setCreatingBusy] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
+  const [query, setQuery] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [startDate, setStartDate] = useState("");
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     if (!companyId) return;
     setLoading(true);
-    listCohorts(companyId)
-      .then(({ cohorts, error }) => {
-        if (error) setError(error);
-        else setCohorts(cohorts ?? []);
-      })
-      .finally(() => setLoading(false));
+    setError(null);
+    try {
+      const result = await listCohorts(companyId);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      const nextCohorts = result.cohorts ?? [];
+      setCohorts(nextCohorts);
+      setSelectedId((current) => {
+        if (current && nextCohorts.some((cohort) => cohort.id === current)) return current;
+        return nextCohorts[0]?.id ?? null;
+      });
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Failed to load cohorts");
+    } finally {
+      setLoading(false);
+    }
   }, [companyId]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    setCohorts([]);
+    setSelectedId(null);
+    setCreating(false);
+    setQuery("");
+    void refresh();
+  }, [companyId, refresh]);
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!companyId) return;
-    setError(null);
-    const { error, id } = await createCohort({ name, description: description || undefined, startDate: startDate || undefined, companyId });
-    if (error) {
-      setError(error);
-      return;
-    }
+  const filteredCohorts = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return cohorts;
+    return cohorts.filter((cohort) =>
+      `${cohort.name} ${cohort.description ?? ""}`.toLowerCase().includes(needle)
+    );
+  }, [cohorts, query]);
+
+  const selectedCohort = useMemo(
+    () => cohorts.find((cohort) => cohort.id === selectedId) ?? null,
+    [cohorts, selectedId]
+  );
+
+  const totals = useMemo(
+    () => ({
+      members: cohorts.reduce((sum, cohort) => sum + cohort.memberCount, 0),
+      content: cohorts.reduce((sum, cohort) => sum + cohort.contentCount, 0),
+    }),
+    [cohorts]
+  );
+
+  function closeCreateDialog() {
+    if (creatingBusy) return;
+    setCreating(false);
     setName("");
     setDescription("");
     setStartDate("");
-    setCreating(false);
-    refresh();
-    // Jump straight into the new cohort's Members tab so users can be added right away.
-    if (id) setSelectedId(id);
+  }
+
+  async function handleCreate(event: React.FormEvent) {
+    event.preventDefault();
+    if (!companyId || !name.trim() || creatingBusy) return;
+    setCreatingBusy(true);
+    setError(null);
+    try {
+      const result = await createCohort({
+        name,
+        description: description || undefined,
+        startDate: startDate || undefined,
+        companyId,
+      });
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setName("");
+      setDescription("");
+      setStartDate("");
+      setCreating(false);
+      await refresh();
+      if (result.id) setSelectedId(result.id);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Failed to create cohort");
+    } finally {
+      setCreatingBusy(false);
+    }
   }
 
   if (!companyId) return null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold" style={{ color: "var(--color-text-primary)" }}>
-          Cohort Management
-        </h2>
-        <button
-          onClick={() => setCreating((v) => !v)}
-          className="btn btn--sm btn--primary"
-        >
-          <Plus size={14} strokeWidth={2.5} /> New Cohort
-        </button>
+    <section className="cohort-admin-page">
+      <header className="cohort-admin-header">
+        <div>
+          <p className="cohort-admin-eyebrow">People &amp; learning operations</p>
+          <h1>Cohort management</h1>
+          <p>Organise participants, assign preparation content, and keep every learning group ready.</p>
+        </div>
+        <div className="cohort-admin-header-actions">
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="cohort-admin-button cohort-admin-button--secondary"
+            disabled={loading}
+          >
+            <RefreshCw size={16} className={loading ? "cohort-admin-spin" : undefined} />
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="cohort-admin-button cohort-admin-button--primary"
+          >
+            <Plus size={17} /> New cohort
+          </button>
+        </div>
+      </header>
+
+      <div className="cohort-admin-stats" aria-label="Cohort overview">
+        <div className="cohort-admin-stat">
+          <span className="cohort-admin-stat-icon"><Users size={18} /></span>
+          <div><strong>{cohorts.length}</strong><span>Active cohorts</span></div>
+        </div>
+        <div className="cohort-admin-stat">
+          <span className="cohort-admin-stat-icon"><UserPlus size={18} /></span>
+          <div><strong>{totals.members}</strong><span>Cohort seats</span></div>
+        </div>
+        <div className="cohort-admin-stat">
+          <span className="cohort-admin-stat-icon"><BookOpen size={18} /></span>
+          <div><strong>{totals.content}</strong><span>Content assignments</span></div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="cohort-admin-alert cohort-admin-alert--error" role="alert">
+          <AlertCircle size={18} />
+          <div><strong>Something went wrong</strong><span>{error}</span></div>
+          <button type="button" onClick={() => void refresh()}>Try again</button>
+        </div>
+      )}
+
+      <div className="cohort-admin-layout">
+        <aside className="cohort-admin-directory">
+          <div className="cohort-admin-directory-head">
+            <div><h2>Cohorts</h2><span>{cohorts.length} active</span></div>
+            <label className="cohort-admin-search">
+              <Search size={16} />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search cohorts"
+                aria-label="Search cohorts"
+              />
+              {query && <button type="button" onClick={() => setQuery("")} aria-label="Clear search"><X size={14} /></button>}
+            </label>
+          </div>
+
+          {loading && cohorts.length === 0 ? (
+            <CohortListSkeleton />
+          ) : cohorts.length === 0 ? (
+            <div className="cohort-admin-empty">
+              <span><Users size={23} /></span>
+              <h3>Create your first cohort</h3>
+              <p>Set up a learning group, then add participants and content.</p>
+              <button type="button" onClick={() => setCreating(true)}>Create cohort <ArrowRight size={15} /></button>
+            </div>
+          ) : filteredCohorts.length === 0 ? (
+            <div className="cohort-admin-empty cohort-admin-empty--compact">
+              <h3>No matching cohorts</h3>
+              <p>Try a different name or description.</p>
+              <button type="button" onClick={() => setQuery("")}>Clear search</button>
+            </div>
+          ) : (
+            <div className="cohort-admin-list">
+              {filteredCohorts.map((cohort) => {
+                const selected = selectedId === cohort.id;
+                return (
+                  <button
+                    type="button"
+                    key={cohort.id}
+                    className={`cohort-admin-row${selected ? " cohort-admin-row--selected" : ""}`}
+                    onClick={() => setSelectedId(cohort.id)}
+                    aria-current={selected ? "true" : undefined}
+                  >
+                    <span className="cohort-admin-cohort-mark">{initials(cohort.name)}</span>
+                    <span className="cohort-admin-row-copy">
+                      <strong>{cohort.name}</strong>
+                      <span>{cohort.description || formatStartDate(cohort.startDate)}</span>
+                      <span className="cohort-admin-row-meta">
+                        <span><Users size={12} /> {cohort.memberCount}</span>
+                        <span><BookOpen size={12} /> {cohort.contentCount}</span>
+                      </span>
+                    </span>
+                    <ChevronRight size={17} className="cohort-admin-row-chevron" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </aside>
+
+        <main className="cohort-admin-workspace">
+          {selectedCohort ? (
+            <CohortDetailPanel
+              key={`${companyId}:${selectedCohort.id}`}
+              companyId={companyId}
+              cohort={selectedCohort}
+              onChange={refresh}
+            />
+          ) : (
+            <div className="cohort-admin-placeholder">
+              <span><Users size={25} /></span>
+              <h2>Select a cohort</h2>
+              <p>Choose a cohort to manage its participants and learning content.</p>
+            </div>
+          )}
+        </main>
       </div>
 
       {creating && (
-        <form onSubmit={handleCreate} className="card card--flat space-y-3">
-          <input
-            type="text"
-            placeholder="Cohort name (e.g. Leadership Cohort - Jan 2026)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            className="form-input"
-          />
-          <textarea
-            placeholder="Description (optional)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="form-input"
-            rows={2}
-          />
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="form-input"
-          />
-          <div className="flex gap-2">
-            <button type="submit" className="btn btn--sm btn--accept">Create</button>
-            <button type="button" onClick={() => setCreating(false)} className="btn btn--sm btn--decline">Cancel</button>
-          </div>
-        </form>
-      )}
-
-      {error && <p className="text-xs font-bold" style={{ color: "#ED4551" }}>{error}</p>}
-
-      {loading ? (
-        <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>Loading…</p>
-      ) : cohorts.length === 0 ? (
-        <div className="card card--flat text-center">
-          <p className="card__subtitle mb-0">No cohorts yet. Create one above.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {cohorts.map((c) => (
-            <div key={c.id}>
-              <button
-                onClick={() => setSelectedId(selectedId === c.id ? null : c.id)}
-                className="card card--flat w-full flex items-center justify-between text-left"
-              >
-                <div>
-                  <p className="font-bold" style={{ color: "var(--color-text-primary)" }}>{c.name}</p>
-                  <p className="text-xs mt-1 flex items-center gap-3" style={{ color: "var(--color-text-muted)" }}>
-                    <span className="flex items-center gap-1"><Users size={12} /> {c.memberCount} member{c.memberCount === 1 ? "" : "s"}</span>
-                    <span className="flex items-center gap-1"><BookOpen size={12} /> {c.contentCount} items</span>
-                  </p>
-                </div>
-                <ChevronRight size={18} style={{ transform: selectedId === c.id ? "rotate(90deg)" : undefined }} />
-              </button>
-              {selectedId === c.id && (
-                <CohortDetailPanel companyId={companyId} cohortId={c.id} onChange={refresh} />
-              )}
+        <div className="cohort-admin-modal-backdrop" role="presentation" onMouseDown={closeCreateDialog}>
+          <div className="cohort-admin-modal" role="dialog" aria-modal="true" aria-labelledby="new-cohort-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="cohort-admin-modal-head">
+              <div><p className="cohort-admin-eyebrow">New learning group</p><h2 id="new-cohort-title">Create a cohort</h2></div>
+              <button type="button" onClick={closeCreateDialog} disabled={creatingBusy} aria-label="Close"><X size={18} /></button>
             </div>
-          ))}
+            <form onSubmit={handleCreate}>
+              <label className="cohort-admin-field">
+                <span>Cohort name <em>Required</em></span>
+                <input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Leadership cohort — January 2026" required />
+              </label>
+              <label className="cohort-admin-field">
+                <span>Description <em>Optional</em></span>
+                <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What is this cohort working towards?" rows={3} />
+              </label>
+              <label className="cohort-admin-field">
+                <span>Start date <em>Optional</em></span>
+                <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+              </label>
+              <div className="cohort-admin-modal-note"><Info size={16} /><span>You can add participants and learning content immediately after creation.</span></div>
+              <div className="cohort-admin-modal-actions">
+                <button type="button" onClick={closeCreateDialog} disabled={creatingBusy} className="cohort-admin-button cohort-admin-button--secondary">Cancel</button>
+                <button type="submit" disabled={creatingBusy || !name.trim()} className="cohort-admin-button cohort-admin-button--primary">
+                  {creatingBusy ? <Loader2 size={16} className="cohort-admin-spin" /> : <Plus size={16} />}
+                  {creatingBusy ? "Creating…" : "Create cohort"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
 function CohortDetailPanel({
   companyId,
-  cohortId,
+  cohort,
   onChange,
 }: {
   companyId: string;
-  cohortId: string;
-  onChange: () => void;
+  cohort: CohortSummary;
+  onChange: () => Promise<void> | void;
 }) {
   const [tab, setTab] = useState<"members" | "content">("members");
-  const [companyUsers, setCompanyUsers] = useState<{ id: string; full_name: string | null }[]>([]);
+  const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
   const [memberIds, setMemberIds] = useState<Set<string>>(new Set());
   const [libraryItems, setLibraryItems] = useState<PrepareContentItem[]>([]);
   const [assignedContentIds, setAssignedContentIds] = useState<Set<string>>(new Set());
   const [pendingAddIds, setPendingAddIds] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState(false);
+  const [pendingContentIds, setPendingContentIds] = useState<Set<string>>(new Set());
+  const [memberQuery, setMemberQuery] = useState("");
+  const [contentQuery, setContentQuery] = useState("");
+  const [busyAction, setBusyAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -181,281 +373,246 @@ function CohortDetailPanel({
     setLoading(true);
     setError(null);
     try {
-      const [detailRes, usersRes, contentRes, libraryRes] = await Promise.all([
-        getCohortDetail(cohortId),
+      const [detailResult, usersResult, contentResult, libraryResult] = await Promise.all([
+        getCohortDetail(cohort.id),
         getCompanyUsers(companyId),
-        listCohortContent(cohortId),
+        listCohortContent(cohort.id),
         listActiveLibraryItems(),
       ]);
-      // Surface the first real error instead of silently rendering an empty list —
-      // an "Access denied"/auth failure otherwise looks identical to "no users yet".
-      const firstError = detailRes.error || usersRes.error || contentRes.error || libraryRes.error;
-      setError(firstError ?? null);
-      setMemberIds(new Set((detailRes.members ?? []).map((m) => m.id)));
-      setCompanyUsers(usersRes.users ?? []);
-      setAssignedContentIds(new Set((contentRes.items ?? []).map((i) => i.id)));
-      setLibraryItems(libraryRes.items ?? []);
-    } catch (e) {
-      // A rejected server-action call (e.g. a transient dev-mode reload) must not
-      // leave the panel stuck on "Loading…" forever with no way to recover.
-      setError(e instanceof Error ? e.message : "Failed to load cohort details");
+      const firstError = detailResult.error || usersResult.error || contentResult.error || libraryResult.error;
+      if (firstError) setError(firstError);
+      setMemberIds(new Set((detailResult.members ?? []).map((member) => member.id)));
+      setCompanyUsers(usersResult.users ?? []);
+      setAssignedContentIds(new Set((contentResult.items ?? []).map((item) => item.id)));
+      setLibraryItems(libraryResult.items ?? []);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Failed to load cohort details");
     } finally {
       setLoading(false);
     }
-  }, [cohortId, companyId]);
+  }, [cohort.id, companyId]);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
 
-  const [pendingContentIds, setPendingContentIds] = useState<Set<string>>(new Set());
-
   const currentMembers = useMemo(
-    () => companyUsers.filter((u) => memberIds.has(u.id)),
+    () => companyUsers.filter((user) => memberIds.has(user.id)),
     [companyUsers, memberIds]
   );
   const availableUsers = useMemo(
-    () => companyUsers.filter((u) => !memberIds.has(u.id)),
+    () => companyUsers.filter((user) => !memberIds.has(user.id)),
     [companyUsers, memberIds]
   );
+  const visibleAvailableUsers = useMemo(() => {
+    const needle = memberQuery.trim().toLowerCase();
+    if (!needle) return availableUsers;
+    return availableUsers.filter((user) => (user.full_name || "Unnamed user").toLowerCase().includes(needle));
+  }, [availableUsers, memberQuery]);
   const assignedItems = useMemo(
-    () => libraryItems.filter((i) => assignedContentIds.has(i.id)),
+    () => libraryItems.filter((item) => assignedContentIds.has(item.id)),
     [libraryItems, assignedContentIds]
   );
   const availableItems = useMemo(
-    () => libraryItems.filter((i) => !assignedContentIds.has(i.id)),
+    () => libraryItems.filter((item) => !assignedContentIds.has(item.id)),
     [libraryItems, assignedContentIds]
   );
+  const visibleAvailableItems = useMemo(() => {
+    const needle = contentQuery.trim().toLowerCase();
+    if (!needle) return availableItems;
+    return availableItems.filter((item) => `${item.title} ${item.type}`.toLowerCase().includes(needle));
+  }, [availableItems, contentQuery]);
 
-  function togglePendingAdd(userId: string) {
-    setPendingAddIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(userId)) next.delete(userId);
-      else next.add(userId);
+  function toggleSelection(id: string, setter: React.Dispatch<React.SetStateAction<Set<string>>>) {
+    setter((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
 
-  async function handleAddSelected() {
-    if (pendingAddIds.size === 0) return;
-    setBusy(true);
-    setError(null);
-    const { error } = await addMembersToCohort(cohortId, Array.from(pendingAddIds));
-    setBusy(false);
-    if (error) {
-      setError(error);
-      return;
-    }
-    setPendingAddIds(new Set());
-    await refresh();
-    onChange();
-  }
-
-  async function handleRemoveMember(userId: string) {
-    setBusy(true);
-    setError(null);
-    const { error } = await removeMembersFromCohort(cohortId, [userId]);
-    setBusy(false);
-    if (error) {
-      setError(error);
-      return;
-    }
-    await refresh();
-    onChange();
-  }
-
-  function togglePendingContent(itemId: string) {
-    setPendingContentIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(itemId)) next.delete(itemId);
-      else next.add(itemId);
+  function toggleAllVisible(ids: string[], selected: Set<string>, setter: React.Dispatch<React.SetStateAction<Set<string>>>) {
+    const allSelected = ids.length > 0 && ids.every((id) => selected.has(id));
+    setter((previous) => {
+      const next = new Set(previous);
+      ids.forEach((id) => allSelected ? next.delete(id) : next.add(id));
       return next;
     });
   }
 
-  async function handleAddContentSelected() {
-    if (pendingContentIds.size === 0) return;
-    setBusy(true);
+  async function runMutation(action: string, mutation: () => Promise<{ error?: string }>, after?: () => void) {
+    if (busyAction) return;
+    setBusyAction(action);
     setError(null);
-    const { error } = await assignContentToCohort(cohortId, Array.from(pendingContentIds));
-    setBusy(false);
-    if (error) {
-      setError(error);
-      return;
+    try {
+      const result = await mutation();
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      after?.();
+      await refresh();
+      await onChange();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "The update could not be completed");
+    } finally {
+      setBusyAction(null);
     }
-    setPendingContentIds(new Set());
-    await refresh();
-    onChange();
   }
 
-  async function handleRemoveContent(itemId: string) {
-    setBusy(true);
-    setError(null);
-    const { error } = await removeContentFromCohort(cohortId, itemId);
-    setBusy(false);
-    if (error) {
-      setError(error);
-      return;
-    }
-    await refresh();
-    onChange();
-  }
+  const allVisibleMembersSelected = visibleAvailableUsers.length > 0 && visibleAvailableUsers.every((user) => pendingAddIds.has(user.id));
+  const allVisibleContentSelected = visibleAvailableItems.length > 0 && visibleAvailableItems.every((item) => pendingContentIds.has(item.id));
 
   return (
-    <div className="card card--flat mt-2 space-y-4">
-      <div className="flex gap-2">
-        {(["members", "content"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`btn btn--sm ${tab === t ? "btn--primary" : "btn--decline"}`}
-          >
-            {t === "members" ? "Members" : "Content"}
-          </button>
-        ))}
+    <div className="cohort-admin-detail">
+      <div className="cohort-admin-detail-head">
+        <div className="cohort-admin-detail-title">
+          <span className="cohort-admin-cohort-mark cohort-admin-cohort-mark--large">{initials(cohort.name)}</span>
+          <div>
+            <p className="cohort-admin-eyebrow">Active cohort</p>
+            <h2>{cohort.name}</h2>
+            <p>{cohort.description || "No description added."}</p>
+          </div>
+        </div>
+        <span className="cohort-admin-date"><CalendarDays size={15} /> {formatStartDate(cohort.startDate)}</span>
+      </div>
+
+      <div className="cohort-admin-tabs" role="tablist" aria-label="Cohort details">
+        <button type="button" role="tab" aria-selected={tab === "members"} onClick={() => setTab("members")} className={tab === "members" ? "is-active" : ""}>
+          <Users size={16} /> Members <span>{currentMembers.length}</span>
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "content"} onClick={() => setTab("content")} className={tab === "content" ? "is-active" : ""}>
+          <BookOpen size={16} /> Learning content <span>{assignedItems.length}</span>
+        </button>
       </div>
 
       {error && (
-        <div className="flex items-center gap-3">
-          <p className="text-xs font-bold" style={{ color: "#ED4551" }}>{error}</p>
-          <button onClick={() => refresh()} className="btn btn--sm btn--decline">Retry</button>
+        <div className="cohort-admin-alert cohort-admin-alert--error cohort-admin-alert--inner" role="alert">
+          <AlertCircle size={17} /><div><strong>Unable to update this cohort</strong><span>{error}</span></div>
+          <button type="button" onClick={() => void refresh()}>Retry</button>
         </div>
       )}
 
       {loading ? (
-        <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>Loading…</p>
+        <div className="cohort-admin-detail-loading" aria-busy="true">
+          <Loader2 size={20} className="cohort-admin-spin" /><span>Loading cohort details…</span>
+        </div>
+      ) : tab === "members" ? (
+        <div className="cohort-admin-picker-grid">
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head"><div><h3>Current members</h3><p>People currently learning in this cohort.</p></div><span>{currentMembers.length}</span></div>
+            {currentMembers.length === 0 ? (
+              <div className="cohort-admin-mini-empty"><Users size={20} /><strong>No members yet</strong><span>Select people from the company directory.</span></div>
+            ) : (
+              <div className="cohort-admin-people-list">
+                {currentMembers.map((user) => (
+                  <div key={user.id} className="cohort-admin-person">
+                    <span className="cohort-admin-avatar">{initials(user.full_name)}</span>
+                    <div><strong>{user.full_name || "Unnamed user"}</strong><span>Cohort participant</span></div>
+                    <button
+                      type="button"
+                      onClick={() => void runMutation(`remove-member:${user.id}`, () => removeMembersFromCohort(cohort.id, [user.id]))}
+                      disabled={Boolean(busyAction)}
+                      aria-label={`Remove ${user.full_name || "member"}`}
+                      title="Remove from cohort"
+                    >
+                      {busyAction === `remove-member:${user.id}` ? <Loader2 size={15} className="cohort-admin-spin" /> : <X size={15} />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head"><div><h3>Add participants</h3><p>{availableUsers.length} available in this company.</p></div></div>
+            <div className="cohort-admin-notice"><Info size={17} /><p><strong>Moving between cohorts</strong><span>Adding an existing participant makes this their current cohort. Any unfinished earlier plan is archived and remains available in Archived actions.</span></p></div>
+            {companyUsers.length === 0 ? (
+              <div className="cohort-admin-mini-empty"><Users size={20} /><strong>No company users</strong><span>Create participants in User management first.</span></div>
+            ) : availableUsers.length === 0 ? (
+              <div className="cohort-admin-mini-empty"><Check size={20} /><strong>Everyone is assigned</strong><span>All company participants are in this cohort.</span></div>
+            ) : (
+              <>
+                <label className="cohort-admin-search cohort-admin-search--panel"><Search size={15} /><input value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} placeholder="Search participants" aria-label="Search participants" /></label>
+                <button type="button" className="cohort-admin-select-all" onClick={() => toggleAllVisible(visibleAvailableUsers.map((user) => user.id), pendingAddIds, setPendingAddIds)} disabled={Boolean(busyAction) || visibleAvailableUsers.length === 0}>
+                  <span className={`cohort-admin-checkbox${allVisibleMembersSelected ? " is-checked" : ""}`}>{allVisibleMembersSelected && <Check size={12} />}</span>{allVisibleMembersSelected ? "Clear visible" : "Select all visible"}
+                </button>
+                <div className="cohort-admin-selection-list">
+                  {visibleAvailableUsers.map((user) => (
+                    <label key={user.id} className="cohort-admin-select-row">
+                      <input type="checkbox" checked={pendingAddIds.has(user.id)} onChange={() => toggleSelection(user.id, setPendingAddIds)} disabled={Boolean(busyAction)} />
+                      <span className="cohort-admin-checkbox">{pendingAddIds.has(user.id) && <Check size={12} />}</span>
+                      <span className="cohort-admin-avatar">{initials(user.full_name)}</span>
+                      <strong>{user.full_name || "Unnamed user"}</strong>
+                    </label>
+                  ))}
+                  {visibleAvailableUsers.length === 0 && <div className="cohort-admin-no-results">No participants match your search.</div>}
+                </div>
+                <div className="cohort-admin-panel-action">
+                  <span>{pendingAddIds.size ? `${pendingAddIds.size} selected` : "Select participants to add"}</span>
+                  <button type="button" onClick={() => void runMutation("add-members", () => addMembersToCohort(cohort.id, Array.from(pendingAddIds)), () => setPendingAddIds(new Set()))} disabled={Boolean(busyAction) || pendingAddIds.size === 0} className="cohort-admin-button cohort-admin-button--primary">
+                    {busyAction === "add-members" ? <Loader2 size={15} className="cohort-admin-spin" /> : <UserPlus size={15} />} Add to cohort
+                  </button>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
       ) : (
-        <>
-          {tab === "members" && (
-            <div className="space-y-6">
-              {companyUsers.length === 0 && !error && (
-                <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-                  No users in this company yet. Create some in User Management first.
-                </p>
-              )}
-
-              {currentMembers.length > 0 && (
-                <div>
-                  <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: "var(--color-text-muted)" }}>
-                    Current members ({currentMembers.length})
-                  </p>
-                  <ul className="divide-y" style={{ borderColor: "var(--color-border)" }}>
-                    {currentMembers.map((u) => (
-                      <li key={u.id} className="flex items-center justify-between gap-3 py-2">
-                        <span className="text-sm font-semibold">{u.full_name ?? "Unnamed user"}</span>
-                        <button
-                          onClick={() => handleRemoveMember(u.id)}
-                          disabled={busy}
-                          className="btn btn--icon"
-                          aria-label={`Remove ${u.full_name ?? "member"}`}
-                          title="Remove from cohort"
-                        >
-                          <X size={14} strokeWidth={2.5} />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {availableUsers.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
-                      Add members
-                    </p>
-                    {pendingAddIds.size > 0 && (
-                      <button onClick={handleAddSelected} disabled={busy} className="btn btn--sm btn--accept">
-                        Add {pendingAddIds.size} selected
-                      </button>
-                    )}
+        <div className="cohort-admin-picker-grid">
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head"><div><h3>Assigned content</h3><p>Preparation visible to this cohort.</p></div><span>{assignedItems.length}</span></div>
+            {assignedItems.length === 0 ? (
+              <div className="cohort-admin-mini-empty"><BookOpen size={20} /><strong>No content assigned</strong><span>Select items from the active content library.</span></div>
+            ) : (
+              <div className="cohort-admin-content-list">
+                {assignedItems.map((item) => (
+                  <div key={item.id} className="cohort-admin-content-row">
+                    <span className="cohort-admin-type-badge">{item.type}</span>
+                    <div><strong>{item.title}</strong><span>{item.description || "No description"}</span></div>
+                    <button type="button" onClick={() => void runMutation(`remove-content:${item.id}`, () => removeContentFromCohort(cohort.id, item.id))} disabled={Boolean(busyAction)} aria-label={`Remove ${item.title}`} title="Remove from cohort">
+                      {busyAction === `remove-content:${item.id}` ? <Loader2 size={15} className="cohort-admin-spin" /> : <X size={15} />}
+                    </button>
                   </div>
-                  <ul className="divide-y" style={{ borderColor: "var(--color-border)" }}>
-                    {availableUsers.map((u) => (
-                      <li key={u.id} className="flex items-center gap-3 py-2">
-                        <input
-                          type="checkbox"
-                          checked={pendingAddIds.has(u.id)}
-                          disabled={busy}
-                          onChange={() => togglePendingAdd(u.id)}
-                          aria-label={u.full_name ?? u.id}
-                        />
-                        <span className="text-sm font-semibold">{u.full_name ?? "Unnamed user"}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </section>
 
-          {tab === "content" && (
-            <div className="space-y-6">
-              {libraryItems.length === 0 && !error && (
-                <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-                  No content in the library yet — ask superadmin to add some in Content Library.
-                </p>
-              )}
-
-              {assignedItems.length > 0 && (
-                <div>
-                  <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: "var(--color-text-muted)" }}>
-                    Assigned content ({assignedItems.length})
-                  </p>
-                  <ul className="divide-y" style={{ borderColor: "var(--color-border)" }}>
-                    {assignedItems.map((item) => (
-                      <li key={item.id} className="flex items-center justify-between gap-3 py-2">
-                        <span className="flex items-center gap-2">
-                          <span className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>{item.type}</span>
-                          <span className="text-sm font-semibold">{item.title}</span>
-                        </span>
-                        <button
-                          onClick={() => handleRemoveContent(item.id)}
-                          disabled={busy}
-                          className="btn btn--icon"
-                          aria-label={`Remove ${item.title}`}
-                          title="Remove from cohort"
-                        >
-                          <X size={14} strokeWidth={2.5} />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head"><div><h3>Add learning content</h3><p>{availableItems.length} active items available.</p></div></div>
+            {libraryItems.length === 0 ? (
+              <div className="cohort-admin-mini-empty"><BookOpen size={20} /><strong>The library is empty</strong><span>Add active content in Content management first.</span></div>
+            ) : availableItems.length === 0 ? (
+              <div className="cohort-admin-mini-empty"><Check size={20} /><strong>Everything is assigned</strong><span>This cohort has all active library items.</span></div>
+            ) : (
+              <>
+                <label className="cohort-admin-search cohort-admin-search--panel"><Search size={15} /><input value={contentQuery} onChange={(event) => setContentQuery(event.target.value)} placeholder="Search content" aria-label="Search content" /></label>
+                <button type="button" className="cohort-admin-select-all" onClick={() => toggleAllVisible(visibleAvailableItems.map((item) => item.id), pendingContentIds, setPendingContentIds)} disabled={Boolean(busyAction) || visibleAvailableItems.length === 0}>
+                  <span className={`cohort-admin-checkbox${allVisibleContentSelected ? " is-checked" : ""}`}>{allVisibleContentSelected && <Check size={12} />}</span>{allVisibleContentSelected ? "Clear visible" : "Select all visible"}
+                </button>
+                <div className="cohort-admin-selection-list">
+                  {visibleAvailableItems.map((item) => (
+                    <label key={item.id} className="cohort-admin-select-row cohort-admin-select-row--content">
+                      <input type="checkbox" checked={pendingContentIds.has(item.id)} onChange={() => toggleSelection(item.id, setPendingContentIds)} disabled={Boolean(busyAction)} />
+                      <span className="cohort-admin-checkbox">{pendingContentIds.has(item.id) && <Check size={12} />}</span>
+                      <span className="cohort-admin-type-badge">{item.type}</span>
+                      <span><strong>{item.title}</strong><small>{item.description || "No description"}</small></span>
+                    </label>
+                  ))}
+                  {visibleAvailableItems.length === 0 && <div className="cohort-admin-no-results">No content matches your search.</div>}
                 </div>
-              )}
-
-              {availableItems.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
-                      Add content
-                    </p>
-                    {pendingContentIds.size > 0 && (
-                      <button onClick={handleAddContentSelected} disabled={busy} className="btn btn--sm btn--accept">
-                        Add {pendingContentIds.size} selected
-                      </button>
-                    )}
-                  </div>
-                  <ul className="divide-y" style={{ borderColor: "var(--color-border)" }}>
-                    {availableItems.map((item) => (
-                      <li key={item.id} className="flex items-center gap-3 py-2">
-                        <input
-                          type="checkbox"
-                          checked={pendingContentIds.has(item.id)}
-                          disabled={busy}
-                          onChange={() => togglePendingContent(item.id)}
-                          aria-label={item.title}
-                        />
-                        <span className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>{item.type}</span>
-                        <span className="text-sm font-semibold">{item.title}</span>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="cohort-admin-panel-action">
+                  <span>{pendingContentIds.size ? `${pendingContentIds.size} selected` : "Select content to assign"}</span>
+                  <button type="button" onClick={() => void runMutation("add-content", () => assignContentToCohort(cohort.id, Array.from(pendingContentIds)), () => setPendingContentIds(new Set()))} disabled={Boolean(busyAction) || pendingContentIds.size === 0} className="cohort-admin-button cohort-admin-button--primary">
+                    {busyAction === "add-content" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Plus size={15} />} Assign content
+                  </button>
                 </div>
-              )}
-            </div>
-          )}
-        </>
+              </>
+            )}
+          </section>
+        </div>
       )}
     </div>
   );

@@ -3,6 +3,9 @@ export type ActionTheme = 'Collaboration' | 'Feedback' | 'Accountability' | 'Con
 
 export interface ActionCard {
   id: string;
+  cohortId?: string | null;
+  /** Zero-based sequence chosen during draft-plan review. */
+  planOrder?: number | null;
   theme: ActionTheme;
   title: string;
   how: string;
@@ -15,6 +18,7 @@ export interface ActionCard {
 export interface UserAction {
   id: string;
   actionId: string;
+  cohortId?: string | null;
   status: 'scheduled' | 'success' | 'failed' | 'skipped';
   scheduledDate?: string;
   scheduledTime?: string;
@@ -29,6 +33,7 @@ export interface UserAction {
 
 export interface FeedItem {
   id: string;
+  cohortId?: string | null;
   userId: string;
   userName: string;
   actionTitle: string;
@@ -80,9 +85,35 @@ export interface Cohort {
   memberCount: number;
 }
 
+/** A cohort available in the participant-wide cohort switcher. */
+export interface CohortOption extends Cohort {
+  companyId: string;
+  archivedAt?: string | null;
+  isCurrent: boolean;
+  isSelected: boolean;
+}
+
 export interface CohortMember {
   id: string;
   fullName: string | null;
+}
+
+export interface CohortMessage {
+  id: string;
+  cohortId: string;
+  senderId: string;
+  senderName: string;
+  senderRole: 'participant' | 'trainer';
+  message: string;
+  createdAt: string;
+}
+
+export interface JourneyData {
+  error?: string;
+  cohort: Cohort | null;
+  roster: CohortMember[];
+  items: PrepareContentItem[];
+  progress: UserPrepareProgress[];
 }
 
 export type PrepareContentType = 'video' | 'quiz' | 'preread';

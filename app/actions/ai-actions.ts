@@ -7,18 +7,148 @@ import type { ActionTheme } from "@/lib/types";
 import {
   computeNextDeliveryAt,
   computeTotalActionsNeeded,
+  advanceNextDeliveryAt,
   BACKGROUND_BATCH_SIZE,
   buildTrainingContext,
+  assignScheduledBatch,
   type DeliveryTrack,
 } from "@/lib/personal-action-generation";
-import { istToUTCTime } from "@/lib/timezone-utils";
+import { istToUTCTime, utcToISTTime } from "@/lib/timezone-utils";
+import { getMyCohorts } from "@/app/actions/cohorts";
+
+export type MyPlanSettings = {
+  track: DeliveryTrack;
+  actionCount: number;
+  durationWeeks: number;
+  daysOfWeek: number[];
+  reminderTime: string;
+  totalActionsPlanned: number;
+  nextDeliveryAt: string | null;
+  isActive: boolean;
+  isArchived: boolean;
+};
+
+export type DraftPlanScheduleSlot = {
+  plannedAt: string;
+  isImmediate: boolean;
+  batchNumber: number;
+};
+
+async function getSelectedPlanCohort(requireCurrent = false): Promise<{ cohortId?: string; error?: string }> {
+  const context = await getMyCohorts();
+  if (context.error) return { error: context.error };
+  const selected = context.cohorts.find((cohort) => cohort.isSelected);
+  if (!selected) return { error: "Select a cohort first" };
+  if (requireCurrent && !selected.isCurrent) return { error: "New plans can only be built for your current cohort" };
+  return { cohortId: selected.id };
+}
+
+export async function getMyPlanSettings(): Promise<{ settings: MyPlanSettings | null; error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { settings: null, error: "Not authenticated" };
+  const cohortContext = await getSelectedPlanCohort();
+  if (!cohortContext.cohortId) return { settings: null, error: cohortContext.error };
+  const { data, error } = await supabase.from("personal_action_subscriptions")
+    .select("track, daily_action_count, duration_weeks, days_of_week, day_of_week, time_of_day_utc, total_actions_planned, next_delivery_at, is_active, archived_at")
+    .eq("user_id", user.id)
+    .eq("cohort_id", cohortContext.cohortId)
+    .maybeSingle();
+  if (error) return { settings: null, error: error.message };
+  if (!data) return { settings: null };
+  return { settings: {
+    track: data.track as DeliveryTrack,
+    actionCount: data.daily_action_count ?? 1,
+    durationWeeks: data.duration_weeks ?? 0,
+    daysOfWeek: data.days_of_week ?? (data.day_of_week != null ? [data.day_of_week] : []),
+    reminderTime: utcToISTTime(data.time_of_day_utc),
+    totalActionsPlanned: data.total_actions_planned ?? 0,
+    nextDeliveryAt: data.next_delivery_at ?? null,
+    isActive: data.is_active === true,
+    isArchived: !!data.archived_at,
+  } };
+}
+
+/** Preview the release slots a reviewed draft will use when it is finalised. */
+export async function getDraftPlanSchedule(): Promise<{
+  slots: DraftPlanScheduleSlot[];
+  actionCountPerRelease: number;
+  error?: string;
+}> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { slots: [], actionCountPerRelease: 1, error: "Not authenticated" };
+    const cohortContext = await getSelectedPlanCohort(true);
+    if (!cohortContext.cohortId) return { slots: [], actionCountPerRelease: 1, error: cohortContext.error };
+
+    const [{ data: subscription, error: subscriptionError }, { count, error: actionError }] = await Promise.all([
+      supabase
+        .from("personal_action_subscriptions")
+        .select("track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, is_active, archived_at")
+        .eq("user_id", user.id)
+        .eq("cohort_id", cohortContext.cohortId)
+        .maybeSingle(),
+      supabase
+        .from("actions")
+        .select("id", { count: "exact", head: true })
+        .eq("created_by", user.id)
+        .eq("cohort_id", cohortContext.cohortId)
+        .eq("is_personal", true),
+    ]);
+    if (subscriptionError || actionError) {
+      return { slots: [], actionCountPerRelease: 1, error: subscriptionError?.message ?? actionError?.message };
+    }
+    if (!subscription || subscription.is_active || subscription.archived_at) {
+      return { slots: [], actionCountPerRelease: 1, error: "Only draft plans have a schedule preview" };
+    }
+
+    const actionCountPerRelease = Math.max(1, subscription.daily_action_count ?? 1);
+    const daysOfWeek = subscription.days_of_week ?? (subscription.day_of_week != null ? [subscription.day_of_week] : null);
+    const firstCadenceAt = computeNextDeliveryAt(
+      subscription.track as DeliveryTrack,
+      daysOfWeek,
+      subscription.time_of_day_utc
+    );
+    const releaseDates: string[] = [new Date().toISOString()];
+    let nextRelease = firstCadenceAt;
+    const batchCount = Math.ceil((count ?? 0) / actionCountPerRelease);
+    // The first batch is released immediately. The second batch uses the first
+    // upcoming cadence slot, then each later batch advances by one cycle.
+    for (let batchIndex = 1; batchIndex < batchCount; batchIndex += 1) {
+      releaseDates.push(nextRelease);
+      nextRelease = advanceNextDeliveryAt(
+        nextRelease,
+        subscription.track as DeliveryTrack,
+        daysOfWeek,
+        subscription.time_of_day_utc
+      );
+    }
+
+    return {
+      actionCountPerRelease,
+      slots: Array.from({ length: count ?? 0 }, (_, index) => {
+        const batchNumber = Math.floor(index / actionCountPerRelease) + 1;
+        return {
+          plannedAt: releaseDates[batchNumber - 1],
+          isImmediate: batchNumber === 1,
+          batchNumber,
+        };
+      }),
+    };
+  } catch (error) {
+    return {
+      slots: [],
+      actionCountPerRelease: 1,
+      error: error instanceof Error ? error.message : "Failed to preview the plan schedule",
+    };
+  }
+}
 
 /**
- * Save the user's training context and sprint cadence, then kick off a background
- * job that generates the full plan's worth of actions in batches (see
- * app/api/generate-actions-batch/route.ts) and drops them straight into the
- * user's action library as they're ready. Marks onboarding complete immediately —
- * generation continues after this call returns.
+ * Save a draft plan and generate its actions in the background. The subscription
+ * remains inactive until the participant reviews the actions and explicitly
+ * finalises the plan with activatePersonalActionPlan.
  */
 export async function saveGeneratedActions(params: {
   trainingText: string;
@@ -26,7 +156,7 @@ export async function saveGeneratedActions(params: {
   focusCustomText?: string;
   track: DeliveryTrack;
   /** Actions generated per delivery. */
-  dailyActionCount: 2 | 3 | 4;
+  dailyActionCount: 1 | 2 | 3 | 4 | 5;
   /** IST time (HH:MM) when the next batch should arrive. */
   deliveryTime: string;
   /** 0 = Sunday, ... 6 = Saturday. Multiple allowed for "daily", exactly one for "weekly". */
@@ -44,6 +174,10 @@ export async function saveGeneratedActions(params: {
       return { error: "Not authenticated" };
     }
 
+    const cohortContext = await getSelectedPlanCohort(true);
+    if (!cohortContext.cohortId) return { error: cohortContext.error };
+    const cohortId = cohortContext.cohortId;
+
     const { data: profile } = await supabase
       .from("profiles")
       .select("company_id")
@@ -54,18 +188,31 @@ export async function saveGeneratedActions(params: {
       return { error: "You must be assigned to a company first" };
     }
 
+    const { data: existingPlan } = await supabase
+      .from("personal_action_subscriptions")
+      .select("is_active, archived_at")
+      .eq("user_id", user.id)
+      .eq("cohort_id", cohortId)
+      .maybeSingle();
+    if (existingPlan?.is_active || existingPlan?.archived_at) {
+      return { error: "This cohort plan has already been finalised and cannot be edited" };
+    }
+
     if (params.track !== "daily" && params.track !== "weekly") {
       return { error: "Invalid track" };
     }
-    const uniqueDays = [...new Set(params.daysOfWeek ?? [])].sort((a, b) => a - b);
+    // Daily plans always run every day. Weekly plans use exactly one chosen reminder day.
+    const uniqueDays = params.track === "daily"
+      ? [0, 1, 2, 3, 4, 5, 6]
+      : [...new Set(params.daysOfWeek ?? [])].sort((a, b) => a - b);
     if (!uniqueDays.length || uniqueDays.some((d) => d < 0 || d > 6)) {
       return { error: "Select at least one day" };
     }
     if (params.track === "weekly" && uniqueDays.length !== 1) {
       return { error: "Weekly sprint requires exactly one day" };
     }
-    if (![2, 3, 4].includes(params.dailyActionCount)) {
-      return { error: "Daily action count must be 2, 3, or 4" };
+    if (![1, 2, 3, 4, 5].includes(params.dailyActionCount)) {
+      return { error: "Action count must be between 1 and 5" };
     }
     if (!params.deliveryTime?.trim()) {
       return { error: "Select a delivery time" };
@@ -83,13 +230,29 @@ export async function saveGeneratedActions(params: {
       uniqueDays
     );
 
-    // is_active: true — the delivery cron (assignScheduledBatch) paces how
-    // many of the already-generated actions become active at a time; it
-    // never generates new ones itself, so it can't over-produce beyond the
-    // plan total.
+    // Changing a draft replaces that cohort's unfinished generation rather
+    // than mixing two different setup choices into one plan.
+    if (existingPlan) {
+      await supabase
+        .from("personal_action_generation_jobs")
+        .update({ status: "failed", error_message: "Replaced by a newer draft", updated_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+        .eq("cohort_id", cohortId)
+        .eq("status", "generating");
+      await supabase
+        .from("actions")
+        .delete()
+        .eq("created_by", user.id)
+        .eq("cohort_id", cohortId)
+        .eq("is_personal", true);
+    }
+
+    // Draft only: no actions are delivered until the participant reviews and
+    // activates the plan.
     const { error: subError } = await supabase.from("personal_action_subscriptions").upsert(
       {
         user_id: user.id,
+        cohort_id: cohortId,
         training_text: contextText,
         focus_themes: params.focusThemes,
         track: params.track,
@@ -97,13 +260,13 @@ export async function saveGeneratedActions(params: {
         days_of_week: uniqueDays,
         daily_action_count: params.dailyActionCount,
         time_of_day_utc: timeOfDayUtc,
-        is_active: true,
+        is_active: false,
         last_delivered_at: null,
         next_delivery_at: computeNextDeliveryAt(params.track, uniqueDays, timeOfDayUtc),
         duration_weeks: params.durationWeeks,
         total_actions_planned: totalActionsNeeded,
       },
-      { onConflict: "user_id" }
+      { onConflict: "user_id,cohort_id" }
     );
     if (subError) {
       return { error: subError.message };
@@ -113,6 +276,7 @@ export async function saveGeneratedActions(params: {
       .from("personal_action_generation_jobs")
       .insert({
         user_id: user.id,
+        cohort_id: cohortId,
         training_text: contextText,
         focus_themes: params.focusThemes,
         total_needed: totalActionsNeeded,
@@ -161,14 +325,48 @@ export async function saveGeneratedActions(params: {
       });
     }
 
-    await supabase
-      .from("profiles")
-      .update({ self_onboarding_completed_at: new Date().toISOString() })
-      .eq("id", user.id);
-
     return { totalActionsNeeded };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to save actions" };
+  }
+}
+
+/** Finalise a reviewed draft, activate its cadence, and release the first batch. */
+export async function activatePersonalActionPlan(): Promise<{ error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Not authenticated" };
+    const cohortContext = await getSelectedPlanCohort(true);
+    if (!cohortContext.cohortId) return { error: cohortContext.error };
+
+    const { data: sub, error } = await supabase
+      .from("personal_action_subscriptions")
+      .select("id, user_id, cohort_id, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at, archived_at")
+      .eq("user_id", user.id)
+      .eq("cohort_id", cohortContext.cohortId)
+      .maybeSingle();
+    if (error || !sub) return { error: error?.message ?? "Create a plan first" };
+    if (sub.archived_at) return { error: "Archived plans cannot be reactivated" };
+
+    const nextDeliveryAt = computeNextDeliveryAt(
+      sub.track as DeliveryTrack,
+      sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
+      sub.time_of_day_utc
+    );
+    const { error: updateError } = await supabase
+      .from("personal_action_subscriptions")
+      .update({ is_active: true, next_delivery_at: nextDeliveryAt, last_delivered_at: null, updated_at: new Date().toISOString() })
+      .eq("id", sub.id);
+    if (updateError) return { error: updateError.message };
+
+    // Release the first reviewed batch now while keeping the first upcoming
+    // cadence slot intact for the next batch.
+    await assignScheduledBatch({ ...sub, next_delivery_at: nextDeliveryAt }, { advanceCadence: false });
+    await supabase.from("profiles").update({ self_onboarding_completed_at: new Date().toISOString() }).eq("id", user.id);
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to activate plan" };
   }
 }
 
@@ -206,11 +404,14 @@ export async function getActiveGenerationJob(): Promise<{
   if (!user) {
     return { job: null };
   }
+  const cohortContext = await getSelectedPlanCohort();
+  if (!cohortContext.cohortId) return { job: null };
 
   const { data } = await supabase
     .from("personal_action_generation_jobs")
     .select("total_needed, total_generated, status")
     .eq("user_id", user.id)
+    .eq("cohort_id", cohortContext.cohortId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -226,6 +427,34 @@ export async function getActiveGenerationJob(): Promise<{
       status: data.status,
     },
   };
+}
+
+/** Persist the exact sequence chosen on the draft review screen. */
+export async function reorderPersonalActions(actionIds: string[]): Promise<{ error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return { error: "Not authenticated" };
+    const cohortContext = await getSelectedPlanCohort(true);
+    if (!cohortContext.cohortId) return { error: cohortContext.error };
+
+    const { data: plan } = await supabase
+      .from("personal_action_subscriptions")
+      .select("is_active, archived_at")
+      .eq("user_id", user.id)
+      .eq("cohort_id", cohortContext.cohortId)
+      .maybeSingle();
+    if (!plan || plan.is_active || plan.archived_at) return { error: "Finalised plans are view-only" };
+
+    const { error: reorderError } = await supabase.rpc("reorder_my_draft_personal_actions", {
+      p_cohort_id: cohortContext.cohortId,
+      p_action_ids: actionIds,
+    });
+    if (reorderError) return { error: reorderError.message };
+    return {};
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to reorder actions" };
+  }
 }
 
 /** Edit one of the current user's own AI-generated personal actions (e.g. from the library while generation is still in progress). */
@@ -248,6 +477,22 @@ export async function updatePersonalAction(
     if (userError || !user) {
       return { error: "Not authenticated" };
     }
+
+    const { data: action } = await supabase
+      .from("actions")
+      .select("cohort_id")
+      .eq("id", id)
+      .eq("created_by", user.id)
+      .eq("is_personal", true)
+      .maybeSingle();
+    if (!action?.cohort_id) return { error: "Action not found" };
+    const { data: plan } = await supabase
+      .from("personal_action_subscriptions")
+      .select("is_active, archived_at")
+      .eq("user_id", user.id)
+      .eq("cohort_id", action.cohort_id)
+      .maybeSingle();
+    if (!plan || plan.is_active || plan.archived_at) return { error: "Finalised plans are view-only" };
 
     const updates: Record<string, unknown> = {};
     if (params.theme != null) updates.theme = params.theme;
@@ -281,6 +526,22 @@ export async function deletePersonalAction(id: string): Promise<{ error?: string
     if (userError || !user) {
       return { error: "Not authenticated" };
     }
+
+    const { data: action } = await supabase
+      .from("actions")
+      .select("cohort_id")
+      .eq("id", id)
+      .eq("created_by", user.id)
+      .eq("is_personal", true)
+      .maybeSingle();
+    if (!action?.cohort_id) return { error: "Action not found" };
+    const { data: plan } = await supabase
+      .from("personal_action_subscriptions")
+      .select("is_active, archived_at")
+      .eq("user_id", user.id)
+      .eq("cohort_id", action.cohort_id)
+      .maybeSingle();
+    if (!plan || plan.is_active || plan.archived_at) return { error: "Finalised plans are view-only" };
 
     const { error } = await supabase
       .from("actions")

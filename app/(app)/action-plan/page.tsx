@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import ActionPlanClient from "./action-plan-client";
 
 export default async function ActionPlanPage() {
   const supabase = await createClient();
@@ -9,5 +8,5 @@ export default async function ActionPlanPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  return <ActionPlanClient />;
+  redirect("/actions");
 }

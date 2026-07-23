@@ -43,14 +43,14 @@ const draftSchema = {
   required: ["actions"],
 };
 
-/** Total actions needed for a full plan: duration x actions/delivery x active delivery days/week. */
+/** Weekly: duration x actions/week. Daily: duration x actions/day x 7 days. */
 export function computeTotalActionsNeeded(
   durationWeeks: number,
   dailyActionCount: number,
   track: DeliveryTrack,
   daysOfWeek?: number[] | null
 ): number {
-  const activeDaysPerWeek = daysOfWeek?.length ? daysOfWeek.length : track === "daily" ? 7 : 1;
+  const activeDaysPerWeek = track === "daily" ? 7 : 1;
   return durationWeeks * dailyActionCount * activeDaysPerWeek;
 }
 
@@ -274,10 +274,18 @@ export function advanceNextDeliveryAt(
 }
 
 /** Shape a batch of drafts into `actions` insert rows. */
-export function draftsToActionRows(drafts: DraftAction[], companyId: string, userId: string) {
-  return drafts.map((d) => ({
+export function draftsToActionRows(
+  drafts: DraftAction[],
+  companyId: string,
+  userId: string,
+  cohortId: string,
+  startPlanOrder = 0
+) {
+  return drafts.map((d, index) => ({
     company_id: companyId,
     created_by: userId,
+    cohort_id: cohortId,
+    plan_order: startPlanOrder + index,
     is_personal: true,
     theme: d.theme,
     title: d.title,
@@ -291,6 +299,7 @@ export function draftsToActionRows(drafts: DraftAction[], companyId: string, use
 export type PersonalActionSubscriptionRow = {
   id: string;
   user_id: string;
+  cohort_id: string;
   training_text: string;
   focus_themes: ActionTheme[];
   track: DeliveryTrack;
@@ -307,16 +316,19 @@ export async function getDueSubscriptions(nowIso: string): Promise<PersonalActio
   const admin = createAdminClient();
   const { data } = await admin
     .from("personal_action_subscriptions")
-    .select("id, user_id, training_text, focus_themes, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at, last_delivered_at")
+    .select("id, user_id, cohort_id, training_text, focus_themes, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at, last_delivered_at")
     .eq("is_active", true)
+    .is("archived_at", null)
+    .not("cohort_id", "is", null)
     .lte("next_delivery_at", nowIso);
   return (data ?? []) as PersonalActionSubscriptionRow[];
 }
 
 /**
- * Assign up to `daily_action_count` already-generated personal actions (ones
- * with no existing user_actions row yet, oldest first) into the user's
- * "My Actions" for this delivery cycle. Unlike the old deliverNewBatch, this
+ * Move up to `daily_action_count` generated personal actions into the user's
+ * "My Actions" for this delivery cycle, using the participant's chosen plan
+ * order and considering only actions without a user_actions row. Unlike the
+ * old deliverNewBatch, this
  * never generates new actions itself — the whole plan is generated upfront in
  * the background (see app/api/generate-actions-batch/route.ts); this just
  * paces how many of those already-generated actions are active at once, so
@@ -326,7 +338,8 @@ export async function getDueSubscriptions(nowIso: string): Promise<PersonalActio
  * retries next cycle instead of silently skipping ahead.
  */
 export async function assignScheduledBatch(
-  sub: Pick<PersonalActionSubscriptionRow, "id" | "user_id" | "track" | "day_of_week" | "days_of_week" | "daily_action_count" | "time_of_day_utc" | "next_delivery_at">
+  sub: Pick<PersonalActionSubscriptionRow, "id" | "user_id" | "cohort_id" | "track" | "day_of_week" | "days_of_week" | "daily_action_count" | "time_of_day_utc" | "next_delivery_at">,
+  options?: { advanceCadence?: boolean }
 ): Promise<{ assigned: number }> {
   const admin = createAdminClient();
   const nowIso = new Date().toISOString();
@@ -338,21 +351,47 @@ export async function assignScheduledBatch(
       .select("id")
       .eq("created_by", sub.user_id)
       .eq("is_personal", true)
+      .eq("cohort_id", sub.cohort_id)
+      .order("plan_order", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true }),
     admin
       .from("user_actions")
-      .select("action_id")
-      .eq("user_id", sub.user_id),
+      .select("action_id, status")
+      .eq("user_id", sub.user_id)
+      .eq("cohort_id", sub.cohort_id),
   ]);
 
   const assignedIds = new Set((existingUA ?? []).map((r) => r.action_id));
+  const activeCount = (existingUA ?? []).filter((row) => row.status === "scheduled").length;
+  const slotsAvailable = Math.max(0, batchSize - activeCount);
   const unassigned = (candidateActions ?? []).filter((a) => !assignedIds.has(a.id));
-  const batch = unassigned.slice(0, batchSize);
+  const batch = unassigned.slice(0, slotsAvailable);
+
+  // An unfinished batch remains current; do not stack another full batch on
+  // top of it. Advance the cadence and keep all remaining actions in backlog.
+  if (slotsAvailable === 0) {
+    await admin
+      .from("personal_action_subscriptions")
+      .update({
+        next_delivery_at: options?.advanceCadence === false
+          ? sub.next_delivery_at
+          : advanceNextDeliveryAt(
+              sub.next_delivery_at,
+              sub.track,
+              sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
+              sub.time_of_day_utc
+            ),
+        updated_at: nowIso,
+      })
+      .eq("id", sub.id);
+    return { assigned: 0 };
+  }
 
   if (batch.length) {
     const rows = batch.map((a) => ({
       user_id: sub.user_id,
       action_id: a.id,
+      cohort_id: sub.cohort_id,
       status: "scheduled",
       scheduled_at: nowIso,
     }));
@@ -362,12 +401,14 @@ export async function assignScheduledBatch(
       .from("personal_action_subscriptions")
       .update({
         last_delivered_at: nowIso,
-        next_delivery_at: advanceNextDeliveryAt(
-          sub.next_delivery_at,
-          sub.track,
-          sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
-          sub.time_of_day_utc
-        ),
+        next_delivery_at: options?.advanceCadence === false
+          ? sub.next_delivery_at
+          : advanceNextDeliveryAt(
+              sub.next_delivery_at,
+              sub.track,
+              sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
+              sub.time_of_day_utc
+            ),
         updated_at: nowIso,
       })
       .eq("id", sub.id);

@@ -46,6 +46,26 @@ export function getPointsForEvent(event: PointEvent, hasCalendarSync = false): n
   }
 }
 
+export type PointHistoryRow = {
+  status: string;
+  is_calendar_synced?: boolean | null;
+};
+
+/** Rebuild the score represented by a set of action-ledger rows. */
+export function calculatePointsFromHistory(rows: PointHistoryRow[]): number {
+  let total = 0;
+  for (const row of rows) {
+    total += getPointsForEvent("read");
+    if (row.status === "scheduled" || row.status === "success" || row.status === "failed") {
+      total += getPointsForEvent("accept", !!row.is_calendar_synced);
+    }
+    if (row.status === "skipped") total += getPointsForEvent("honesty_skip");
+    if (row.status === "failed") total += getPointsForEvent("inaction");
+    if (row.status === "success") total += getPointsForEvent("success");
+  }
+  return Math.max(0, total);
+}
+
 /** Leagues: Starter 0–24, Bronze 25–49, Silver 50–99, Gold 100–199, Diamond 200+ */
 export function getLeagueFromPoints(points: number): string {
   if (points >= 200) return "Diamond";

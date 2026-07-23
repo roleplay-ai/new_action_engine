@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import PrepareClient from "./prepare-client";
 
 export default async function PreparePage() {
   const supabase = await createClient();
@@ -9,5 +8,5 @@ export default async function PreparePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  return <PrepareClient />;
+  redirect("/journey");
 }

@@ -6,7 +6,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen relative z-10">
+    <div className="min-h-screen relative z-10" style={{ minHeight: "100dvh" }}>
       {children}
     </div>
   );

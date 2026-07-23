@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { HelpCircle, CheckCircle2, X } from "lucide-react";
 import { getQuizForAttempt, submitQuizAttempt } from "@/app/actions/prepare-progress";
 import type { PrepareContentItem } from "@/lib/types";
@@ -13,12 +13,18 @@ export default function QuizCard({
   lastScore,
   lastTotalQuestions,
   onComplete,
+  autoOpen = false,
+  modalOnly = false,
+  onRequestClose,
 }: {
   item: PrepareContentItem;
   completed: boolean;
   lastScore?: number | null;
   lastTotalQuestions?: number | null;
   onComplete: (id: string) => Promise<void>;
+  autoOpen?: boolean;
+  modalOnly?: boolean;
+  onRequestClose?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -26,6 +32,19 @@ export default function QuizCard({
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [result, setResult] = useState<{ score: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const autoOpened = useRef(false);
+
+  useEffect(() => {
+    if (autoOpen && !autoOpened.current) {
+      autoOpened.current = true;
+      void handleOpen();
+    }
+  }, [autoOpen]);
+
+  function handleClose() {
+    setOpen(false);
+    onRequestClose?.();
+  }
 
   async function handleOpen() {
     setOpen(true);
@@ -57,8 +76,8 @@ export default function QuizCard({
 
   return (
     <div
-      className="card card--flat"
-      style={{ background: "rgba(255, 206, 0, 0.10)", border: "1px solid var(--color-border-yellow)", maxWidth: "none" }}
+      className={modalOnly ? "quiz-card--modal-only" : "card card--flat"}
+      style={modalOnly ? undefined : { background: "rgba(255, 206, 0, 0.10)", border: "1px solid var(--color-border-yellow)", maxWidth: "none" }}
     >
       <div className="flex items-start justify-between mb-4">
         <div
@@ -103,13 +122,13 @@ export default function QuizCard({
 
       {open && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8"
+          className="fixed inset-0 z-[280] flex items-center justify-center p-4 sm:p-8"
           style={{ background: "rgba(34,29,35,0.65)", backdropFilter: "blur(12px)" }}
         >
           <div className="card card--wide animate-pop w-full overflow-y-auto no-scrollbar" style={{ maxHeight: "90vh" }}>
             <div className="flex justify-between items-start mb-6">
               <h3 className="card__title">{item.title}</h3>
-              <button onClick={() => setOpen(false)} className="btn btn--icon ml-4">
+              <button onClick={handleClose} className="btn btn--icon ml-4">
                 <X size={20} strokeWidth={2.5} />
               </button>
             </div>
@@ -155,7 +174,7 @@ export default function QuizCard({
                   {result.score}/{result.total}
                 </p>
                 <p className="card__subtitle mb-4">Assessment complete.</p>
-                <button onClick={() => setOpen(false)} className="btn btn--primary btn--full">
+                <button onClick={handleClose} className="btn btn--primary btn--full">
                   Continue
                 </button>
               </div>

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import CompaniesList from "./companies-list";
 import CreateCompanyForm from "./create-company-form";
+import { Building2, CalendarDays, Link2 } from "lucide-react";
 
 export default async function SuperadminCompaniesPage() {
   const supabase = await createClient();
@@ -25,26 +26,35 @@ export default async function SuperadminCompaniesPage() {
     .from("companies")
     .select("id, name, slug, created_at")
     .order("name");
+  const companyRows = companies ?? [];
+  const thisMonth = new Date();
+  thisMonth.setDate(1);
+  thisMonth.setHours(0, 0, 0, 0);
+  const recentlyCreated = companyRows.filter((company) => new Date(company.created_at) >= thisMonth).length;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-black uppercase italic tracking-tight">
-          Companies
-        </h1>
+    <div className="superadmin-page">
+      <div className="superadmin-page-heading">
+        <div><span>Organisation management</span><h1>Companies</h1><p>Create and maintain the organisations using Nudgeable.</p></div>
         <CreateCompanyForm />
       </div>
 
-      <div className="bg-white border-4 border-black rounded-[24px] overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-        {companies && companies.length > 0 ? (
-          <CompaniesList companies={companies} />
+      <div className="superadmin-stat-grid">
+        <div className="superadmin-stat"><span><Building2 size={17} /></span><div><small>Total companies</small><strong>{companyRows.length}</strong><p>Organisations in the workspace</p></div></div>
+        <div className="superadmin-stat"><span><Link2 size={17} /></span><div><small>Configured slugs</small><strong>{companyRows.filter((company) => !!company.slug).length}</strong><p>Ready for branded access</p></div></div>
+        <div className="superadmin-stat"><span><CalendarDays size={17} /></span><div><small>Added this month</small><strong>{recentlyCreated}</strong><p>New organisation records</p></div></div>
+      </div>
+
+      <section className="superadmin-surface">
+        <div className="superadmin-section-heading"><div><h2>Company directory</h2><p>Names, workspace slugs, and account creation dates.</p></div><span>{companyRows.length} total</span></div>
+        {companyRows.length > 0 ? (
+          <CompaniesList companies={companyRows} />
         ) : (
-          <div className="p-12 text-center text-slate-500">
-            <p className="font-bold uppercase tracking-wider">No companies yet</p>
-            <p className="text-sm mt-2">Create your first company above</p>
+          <div className="superadmin-empty">
+            <Building2 size={26} /><strong>No companies yet</strong><p>Create the first organisation to begin assigning users and cohorts.</p>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

@@ -103,50 +103,52 @@ export default function CreateContentForm() {
 
     setLoading(true);
 
-    let result: { error?: string };
-    if (type === "video") {
-      result = await createVideoContentItem({
-        title,
-        description: description || undefined,
-        badgeLabel: badgeLabel || undefined,
-        videoUrl,
-        videoDurationSeconds,
-      });
-    } else if (type === "preread") {
-      result = await createPrereadContentItem({
-        title,
-        description: description || undefined,
-        badgeLabel: badgeLabel || undefined,
-        prereadUrl: prereadUrl || undefined,
-        prereadBody: prereadBody || undefined,
-      });
-    } else {
-      result = await createQuizContentItem({
-        title,
-        badgeLabel: badgeLabel || undefined,
-        description: description || undefined,
-        questions: questions.map((q) => ({
-          questionText: q.questionText,
-          options: q.options.map((o) => ({ optionText: o.optionText, isCorrect: o.isCorrect })),
-        })),
-      });
+    try {
+      let result: { error?: string };
+      if (type === "video") {
+        result = await createVideoContentItem({
+          title,
+          description: description || undefined,
+          badgeLabel: badgeLabel || undefined,
+          videoUrl,
+          videoDurationSeconds,
+        });
+      } else if (type === "preread") {
+        result = await createPrereadContentItem({
+          title,
+          description: description || undefined,
+          badgeLabel: badgeLabel || undefined,
+          prereadUrl: prereadUrl || undefined,
+          prereadBody: prereadBody || undefined,
+        });
+      } else {
+        result = await createQuizContentItem({
+          title,
+          badgeLabel: badgeLabel || undefined,
+          description: description || undefined,
+          questions: questions.map((q) => ({
+            questionText: q.questionText,
+            options: q.options.map((o) => ({ optionText: o.optionText, isCorrect: o.isCorrect })),
+          })),
+        });
+      }
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      reset();
+      setOpen(false);
+      router.refresh();
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-    if (result.error) {
-      setError(result.error);
-      return;
-    }
-    reset();
-    setOpen(false);
-    router.refresh();
   }
 
   if (!open) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 bg-[#FFCE00] border-2 border-black px-5 py-2.5 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
+        className="superadmin-primary-action"
       >
         <Plus size={16} /> New Content
       </button>
@@ -156,7 +158,7 @@ export default function CreateContentForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white border-2 border-black rounded-xl p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-4"
+      className="superadmin-creation-form superadmin-content-form"
     >
       <div className="flex items-center justify-between">
         <div className="flex gap-1">

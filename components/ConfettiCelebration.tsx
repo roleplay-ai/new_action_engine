@@ -3,27 +3,28 @@
 import { useState, useEffect } from "react";
 
 const C = {
-  dark:   "#221D23",
-  amber:  "#FFCE00",
+  dark: "#221D23",
+  amber: "#FFCE00",
   purple: "#623CEA",
-  green:  "#23CE6B",
+  green: "#23CE6B",
   orange: "#F68A29",
-  red:    "#ED4551",
-  blue:   "#3699FC",
+  red: "#ED4551",
+  blue: "#3699FC",
+  pink: "#FF5CAD",
   textMute: "rgba(255,255,255,0.50)",
 };
 
 interface Particle {
   id: number;
-  x: number;
-  y: number;
   color: string;
   size: number;
   angle: number;
-  speed: number;
+  spin: number;
+  duration: number;
   delay: number;
   tx: number;
   ty: number;
+  shape: "rect" | "circle" | "ribbon";
 }
 
 interface ConfettiCelebrationProps {
@@ -33,19 +34,26 @@ interface ConfettiCelebrationProps {
 }
 
 function makeParticles(): Particle[] {
-  const colors = [C.amber, C.purple, C.green, C.orange, C.red, C.blue];
-  return Array.from({ length: 96 }, (_, i) => ({
-    id: i,
-    x: Math.random() * 100,
-    y: Math.random() * 100,
-    color: colors[i % 6],
-    size: 6 + Math.random() * 10,
-    angle: Math.random() * 360,
-    speed: 1 + Math.random() * 1.4,
-    delay: Math.random() * 1,
-    tx: (Math.random() - 0.5) * 520,
-    ty: 140 + Math.random() * 280,
-  }));
+  const colors = [C.amber, C.purple, C.green, C.orange, C.red, C.blue, C.pink];
+  const shapes: Particle["shape"][] = ["rect", "circle", "ribbon"];
+
+  return Array.from({ length: 120 }, (_, i) => {
+    const theta = (Math.PI * 2 * i) / 120 + (Math.random() - 0.5) * 0.45;
+    const distance = 180 + Math.random() * 420;
+    const shape = shapes[i % 3];
+    return {
+      id: i,
+      color: colors[i % colors.length],
+      size: shape === "ribbon" ? 4 + Math.random() * 4 : 7 + Math.random() * 10,
+      angle: Math.random() * 360,
+      spin: 360 + Math.random() * 720,
+      duration: 1.1 + Math.random() * 1.6,
+      delay: Math.random() * 0.25,
+      tx: Math.cos(theta) * distance,
+      ty: Math.sin(theta) * distance * 0.85 + 40 + Math.random() * 120,
+      shape,
+    };
+  });
 }
 
 export default function ConfettiCelebration({
@@ -57,7 +65,7 @@ export default function ConfettiCelebration({
 
   useEffect(() => {
     setParticles(makeParticles());
-    const clearTimer = setTimeout(() => setParticles([]), 6000);
+    const clearTimer = setTimeout(() => setParticles([]), 5000);
     return () => clearTimeout(clearTimer);
   }, []);
 
@@ -65,14 +73,15 @@ export default function ConfettiCelebration({
     .map(
       (p) =>
         `@keyframes cf${p.id}{` +
-        `0%{transform:translate(0,0) rotate(${p.angle}deg);opacity:1}` +
-        `100%{transform:translate(${p.tx}px,${p.ty}px) rotate(${p.angle + 720}deg);opacity:0}}`
+        `0%{transform:translate(-50%,-50%) scale(1) rotate(${p.angle}deg);opacity:1}` +
+        `70%{opacity:1}` +
+        `100%{transform:translate(calc(-50% + ${p.tx}px),calc(-50% + ${p.ty}px)) scale(0.35) rotate(${p.angle + p.spin}deg);opacity:0}}`
     )
     .join("");
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8"
+      className="fixed inset-0 z-[240] flex items-center justify-center p-4 sm:p-8"
       style={{
         background: "rgba(34,29,35,0.55)",
         backdropFilter: "blur(8px)",
@@ -81,7 +90,7 @@ export default function ConfettiCelebration({
     >
       {particles.length > 0 && <style>{keyframeCSS}</style>}
 
-      {/* Full-page confetti layer */}
+      {/* Party burst from center */}
       <div
         aria-hidden="true"
         style={{
@@ -96,14 +105,19 @@ export default function ConfettiCelebration({
             key={p.id}
             style={{
               position: "absolute",
-              left: `${p.x}%`,
-              top: `${p.y}%`,
-              width: p.size,
-              height: p.size * 0.45,
+              left: "50%",
+              top: "42%",
+              width: p.shape === "ribbon" ? p.size : p.size,
+              height:
+                p.shape === "circle"
+                  ? p.size
+                  : p.shape === "ribbon"
+                    ? p.size * 3.2
+                    : p.size * 0.45,
               background: p.color,
-              borderRadius: 2,
-              animation: `cf${p.id} ${p.speed}s ${p.delay}s ease-out both`,
-              transform: `rotate(${p.angle}deg)`,
+              borderRadius: p.shape === "circle" ? "50%" : p.shape === "ribbon" ? 2 : 2,
+              animation: `cf${p.id} ${p.duration}s ${p.delay}s cubic-bezier(0.12,0.75,0.28,1) both`,
+              boxShadow: `0 0 0 1px ${p.color}33`,
             }}
           />
         ))}
@@ -152,7 +166,7 @@ export default function ConfettiCelebration({
             lineHeight: 1,
           }}
         >
-          🏆
+          🎉
         </div>
 
         <h3
@@ -208,9 +222,9 @@ export default function ConfettiCelebration({
           }}
         >
           {[
-            { label: "+50 XP",      color: C.amber  },
-            { label: "🔥 Streak",   color: C.orange },
-            { label: "✅ Validated", color: C.green  },
+            { label: "+50 XP", color: C.amber },
+            { label: "🔥 Streak", color: C.orange },
+            { label: "✅ Validated", color: C.green },
           ].map((b) => (
             <span
               key={b.label}

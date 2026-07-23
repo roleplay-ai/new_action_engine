@@ -280,7 +280,17 @@ export async function rotateAutoLoginKey(userId: string): Promise<{ error?: stri
 }
 
 export async function getUsersWithProfiles(): Promise<
-  { id: string; email: string; full_name: string; company_id: string | null; role: string; company_name: string | null; persistent_login_key: string | null }[] | { error: string }
+  {
+    id: string;
+    email: string;
+    full_name: string;
+    company_id: string | null;
+    role: string;
+    company_name: string | null;
+    persistent_login_key: string | null;
+    has_stored_credentials: boolean;
+    welcome_email_sent_at: string | null;
+  }[] | { error: string }
 > {
   try {
     await ensureSuperadmin();
@@ -299,6 +309,36 @@ export async function getUsersWithProfiles(): Promise<
     const { data: companies } = await admin.from("companies").select("id, name");
     const companyMap = new Map((companies ?? []).map((c) => [c.id, c.name]));
 
+    const userIds = (usersData?.users ?? []).map((user) => user.id);
+    const credentialUserIds = new Set<string>();
+    const welcomeSentAt = new Map<string, string>();
+
+    if (userIds.length > 0) {
+      const [{ data: credentialRows }, { data: welcomeLogs }] = await Promise.all([
+        admin
+          .from("user_credential_delivery")
+          .select("user_id")
+          .in("user_id", userIds),
+        admin
+          .from("email_campaign_logs")
+          .select("user_id, created_at")
+          .in("user_id", userIds)
+          .eq("template_id", "credentials")
+          .eq("status", "sent")
+          .order("created_at", { ascending: false }),
+      ]);
+
+      for (const row of credentialRows ?? []) {
+        credentialUserIds.add(row.user_id as string);
+      }
+      for (const row of welcomeLogs ?? []) {
+        const userId = row.user_id as string;
+        if (!welcomeSentAt.has(userId)) {
+          welcomeSentAt.set(userId, row.created_at as string);
+        }
+      }
+    }
+
     const result = (usersData?.users ?? []).map((u) => {
       const p = profileMap.get(u.id);
       return {
@@ -309,6 +349,8 @@ export async function getUsersWithProfiles(): Promise<
         role: p?.role ?? "user",
         company_name: p?.company_id ? companyMap.get(p.company_id) ?? null : null,
         persistent_login_key: p?.persistent_login_key ?? null,
+        has_stored_credentials: credentialUserIds.has(u.id),
+        welcome_email_sent_at: welcomeSentAt.get(u.id) ?? null,
       };
     });
 

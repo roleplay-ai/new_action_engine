@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUsersWithProfiles } from "@/app/actions/superadmin";
-import AutoLoginTestingPanel from "../auto-login-testing-panel";
-import AutoLoginEmailPanel from "../auto-login-email-panel";
+import WelcomeEmailPanel from "../welcome-email-panel";
 import EmailSchedulerPanel from "../email-scheduler-panel";
 import ActionReminderLogsPanel from "../action-reminder-logs-panel";
 import ActionReminderQueuePanel from "../action-reminder-queue-panel";
+import EmailManagementTabs from "../email-management-tabs";
 import { KeyRound, MailCheck, ShieldCheck } from "lucide-react";
 
 export default async function SuperadminEmailsPage() {
@@ -38,8 +38,8 @@ export default async function SuperadminEmailsPage() {
 
       <div className="superadmin-stat-grid">
         <div className="superadmin-stat"><span><MailCheck size={17} /></span><div><small>Recipients</small><strong>{users.filter((item) => item.role !== "superadmin").length}</strong><p>Accounts eligible for delivery</p></div></div>
-        <div className="superadmin-stat"><span><KeyRound size={17} /></span><div><small>Login ready</small><strong>{users.filter((item) => !!item.persistent_login_key).length}</strong><p>Persistent keys configured</p></div></div>
-        <div className="superadmin-stat"><span><ShieldCheck size={17} /></span><div><small>Without keys</small><strong>{users.filter((item) => item.role !== "superadmin" && !item.persistent_login_key).length}</strong><p>Need credential preparation</p></div></div>
+        <div className="superadmin-stat"><span><KeyRound size={17} /></span><div><small>Welcome ready</small><strong>{users.filter((item) => item.role !== "superadmin" && !!item.persistent_login_key && item.has_stored_credentials).length}</strong><p>Magic link and credentials available</p></div></div>
+        <div className="superadmin-stat"><span><ShieldCheck size={17} /></span><div><small>Needs preparation</small><strong>{users.filter((item) => item.role !== "superadmin" && (!item.persistent_login_key || !item.has_stored_credentials)).length}</strong><p>Missing a login key or credentials</p></div></div>
       </div>
 
       {usersError && (
@@ -48,36 +48,12 @@ export default async function SuperadminEmailsPage() {
         </div>
       )}
 
-      <div className="superadmin-section-heading standalone">
-        <div>
-          <h2>Participant reminder emails</h2>
-          <p>See every user&apos;s next reminder and use bulk send whenever needed.</p>
-        </div>
-        <span>11:30 AM IST</span>
-      </div>
-
-      <ActionReminderQueuePanel />
-
-      <div className="superadmin-section-heading standalone">
-        <div>
-          <h2>Welcome &amp; access emails</h2>
-          <p>Send branded login emails and verify secure one-click access.</p>
-        </div>
-      </div>
-
-      <AutoLoginEmailPanel users={users} />
-
-      <AutoLoginTestingPanel users={users} />
-
-      <div className="superadmin-section-heading standalone">
-        <div>
-          <h2>Campaign scheduling</h2>
-          <p>Manage reusable email schedules and review delivery history.</p>
-        </div>
-      </div>
-
-      <EmailSchedulerPanel users={users} />
-      <ActionReminderLogsPanel />
+      <EmailManagementTabs
+        reminders={<ActionReminderQueuePanel alwaysExpanded />}
+        welcome={<WelcomeEmailPanel users={users} />}
+        campaigns={<EmailSchedulerPanel users={users} alwaysExpanded />}
+        history={<ActionReminderLogsPanel alwaysExpanded />}
+      />
     </div>
   );
 }

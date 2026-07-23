@@ -145,7 +145,11 @@ function ReminderRow({
   );
 }
 
-export default function ActionReminderQueuePanel() {
+export default function ActionReminderQueuePanel({
+  alwaysExpanded = false,
+}: {
+  alwaysExpanded?: boolean;
+}) {
   const [expanded, setExpanded] = useState(true);
   const [reminders, setReminders] = useState<UpcomingActionReminder[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -179,10 +183,12 @@ export default function ActionReminderQueuePanel() {
     }
   }
 
+  const panelExpanded = alwaysExpanded || expanded;
+
   useEffect(() => {
-    if (expanded) void loadReminders();
+    if (panelExpanded) void loadReminders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded]);
+  }, [panelExpanded]);
 
   const sendableReminders = reminders.filter((reminder) => reminder.canSend);
   const allSelected =
@@ -245,11 +251,7 @@ export default function ActionReminderQueuePanel() {
 
   return (
     <section id="reminder-emails" className="scroll-mt-24 overflow-hidden rounded-2xl border-4 border-black bg-violet-50 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-      <button
-        type="button"
-        onClick={() => setExpanded((value) => !value)}
-        className="flex w-full items-center justify-between p-4 text-left font-black uppercase tracking-tight transition-colors hover:bg-violet-100"
-      >
+      <div className="flex w-full items-center justify-between p-4 text-left font-black uppercase tracking-tight">
         <span className="flex items-center gap-2">
           <Mail size={18} />
           Upcoming user reminder emails
@@ -259,10 +261,19 @@ export default function ActionReminderQueuePanel() {
             </span>
           )}
         </span>
-        {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-      </button>
+        {!alwaysExpanded && (
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className="rounded-lg p-1 hover:bg-violet-100"
+            aria-label={expanded ? "Collapse reminders" : "Expand reminders"}
+          >
+            {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          </button>
+        )}
+      </div>
 
-      {expanded && (
+      {panelExpanded && (
         <div className="border-t-2 border-black">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-violet-200 bg-violet-100 px-4 py-3">
             <div>

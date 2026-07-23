@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isResendConfigured } from "@/lib/resend";
 import { sendTemplateToUsers } from "@/lib/email-send";
-import { buildWeeklyEmailTemplateDataForUser } from "@/lib/weekly-email";
 
 const SUPERADMIN_EMAIL = (process.env.SUPERADMIN_EMAIL || "admin@actionengine").toLowerCase();
 
@@ -36,10 +35,12 @@ export type SendEmailResult = {
 };
 
 /**
- * Send auto-login emails to selected users.
+ * Send the branded welcome email to selected users.
+ * The email includes the secure magic link and the credentials retained when
+ * the account was created by an administrator.
  * Returns results for each user (success/failure).
  */
-export async function sendAutoLoginEmails(
+export async function sendWelcomeEmails(
   userIds: string[]
 ): Promise<{ results: SendEmailResult[]; error?: string }> {
   try {
@@ -56,22 +57,44 @@ export async function sendAutoLoginEmails(
       return { results: [], error: "No users selected" };
     }
 
+    const uniqueUserIds = Array.from(new Set(userIds));
+    const admin = createAdminClient();
+    const { data: recipientProfiles, error: recipientError } = await admin
+      .from("profiles")
+      .select("id, role")
+      .in("id", uniqueUserIds);
+    if (recipientError) {
+      return { results: [], error: recipientError.message };
+    }
+
+    const allowedIds = new Set(
+      (recipientProfiles ?? [])
+        .filter((profile) => profile.role !== "superadmin")
+        .map((profile) => profile.id as string)
+    );
+    if (
+      uniqueUserIds.length !== allowedIds.size ||
+      uniqueUserIds.some((userId) => !allowedIds.has(userId))
+    ) {
+      return {
+        results: [],
+        error: "One or more selected recipients are not eligible for welcome email delivery.",
+      };
+    }
+
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const fromEmail = process.env.RESEND_FROM_EMAIL!;
     const results = await sendTemplateToUsers({
-      userIds,
-      templateId: "weekly_challenges",
+      userIds: uniqueUserIds,
+      templateId: "credentials",
       fromEmail,
       baseUrl,
       sentBy: sentById,
-      // For one-time manual sends, we still want the Weekly Challenges data
-      // so the same template can be reused without blank sections.
-      getPerUserTemplateData: async (userId) => {
-        const data = await buildWeeklyEmailTemplateDataForUser(userId, { baseUrl });
-        return data as unknown as Record<string, unknown>;
-      },
+      includeStoredCredentials: true,
+      loginPath: "/actions",
     });
 
+    revalidatePath("/superadmin/emails");
     revalidatePath("/superadmin/users");
     return { results };
   } catch (e) {

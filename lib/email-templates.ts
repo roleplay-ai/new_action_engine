@@ -196,7 +196,7 @@ function renderCredentialsHtml(data: EmailTemplateData): string {
           </tr>
           <tr>
             <td style="padding:16px 18px;">
-              <p style="margin:0;color:#8a8090;font-size:9px;font-weight:900;letter-spacing:.11em;text-transform:uppercase;">Temporary password</p>
+              <p style="margin:0;color:#8a8090;font-size:9px;font-weight:900;letter-spacing:.11em;text-transform:uppercase;">Password</p>
               <p style="margin:5px 0 0;color:#221d23;font-size:15px;line-height:1.45;font-weight:900;font-family:Consolas,Monaco,monospace;word-break:break-all;">${esc(password)}</p>
             </td>
           </tr>
@@ -204,7 +204,7 @@ function renderCredentialsHtml(data: EmailTemplateData): string {
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0 0;border-radius:12px;background:#fff9e8;">
           <tr>
             <td style="padding:12px 14px;color:#725c00;font-size:11px;line-height:1.5;">
-              <strong>Security note:</strong> Change your temporary password after your first regular login. The one-click button below signs you in securely without asking for it.
+              <strong>Security note:</strong> Change your password after your first regular login. The one-click button below signs you in securely without asking for it.
             </td>
           </tr>
         </table>
@@ -212,7 +212,7 @@ function renderCredentialsHtml(data: EmailTemplateData): string {
           <tr>
             <td align="center" style="border-radius:12px;background:#221d23;">
               <a href="${esc(loginUrl)}" target="_blank" style="display:inline-block;padding:15px 28px;color:#ffffff;font-size:14px;font-weight:900;text-decoration:none;">
-                Open Workflows&nbsp; &#8594;
+                Open Action Engine&nbsp; &#8594;
               </a>
             </td>
           </tr>
@@ -407,7 +407,7 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
           <tr>
             <td align="center" style="border-radius:12px;background:#221d23;">
               <a href="${esc(loginUrl)}" target="_blank" style="display:inline-block;padding:15px 28px;color:#ffffff;font-size:14px;font-weight:900;text-decoration:none;">
-                Open Workflows&nbsp; &#8594;
+                Open Action Engine&nbsp; &#8594;
               </a>
             </td>
           </tr>

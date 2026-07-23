@@ -28,7 +28,7 @@ import { EMAIL_TEMPLATES, type EmailTemplateKey } from "@/lib/email-templates";
 
 // Calendar invites are triggered by individual action scheduling, not by the
 // scheduler — only offer templates meant for bulk/recurring sends here.
-const SCHEDULABLE_TEMPLATE_KEYS: EmailTemplateKey[] = ["weekly_challenges", "credentials"];
+const SCHEDULABLE_TEMPLATE_KEYS: EmailTemplateKey[] = ["weekly_challenges"];
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -538,7 +538,13 @@ function ScheduleRow({
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
-export default function EmailSchedulerPanel({ users }: { users: User[] }) {
+export default function EmailSchedulerPanel({
+  users,
+  alwaysExpanded = false,
+}: {
+  users: User[];
+  alwaysExpanded?: boolean;
+}) {
   const [expanded, setExpanded] = useState(true);
   const [schedules, setSchedules] = useState<EmailSchedule[]>([]);
   const [loading, setLoading] = useState(false);
@@ -574,10 +580,12 @@ export default function EmailSchedulerPanel({ users }: { users: User[] }) {
     }
   }
 
+  const panelExpanded = alwaysExpanded || expanded;
+
   useEffect(() => {
-    if (expanded) loadSchedules();
+    if (panelExpanded) loadSchedules();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded]);
+  }, [panelExpanded]);
 
   async function handleToggle(id: string, active: boolean) {
     setActionError(null);
@@ -686,11 +694,7 @@ export default function EmailSchedulerPanel({ users }: { users: User[] }) {
   return (
     <div className="border-4 border-black rounded-2xl overflow-hidden bg-sky-50 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
       {/* Header */}
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between p-4 text-left font-black uppercase tracking-tight hover:bg-sky-100 transition-colors"
-      >
+      <div className="flex w-full items-center justify-between p-4 text-left font-black uppercase tracking-tight">
         <span className="flex items-center gap-2">
           <CalendarClock size={18} />
           Email Scheduler
@@ -700,10 +704,19 @@ export default function EmailSchedulerPanel({ users }: { users: User[] }) {
             </span>
           )}
         </span>
-        {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-      </button>
+        {!alwaysExpanded && (
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="rounded-lg p-1 hover:bg-sky-100"
+            aria-label={expanded ? "Collapse scheduler" : "Expand scheduler"}
+          >
+            {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          </button>
+        )}
+      </div>
 
-      {expanded && (
+      {panelExpanded && (
         <div className="border-t-2 border-black">
           {/* Info bar */}
           <div className="px-4 py-2 bg-sky-100 border-b border-sky-200">

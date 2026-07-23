@@ -96,7 +96,11 @@ function LogRow({ log }: { log: ActionReminderLog }) {
   );
 }
 
-export default function ActionReminderLogsPanel() {
+export default function ActionReminderLogsPanel({
+  alwaysExpanded = false,
+}: {
+  alwaysExpanded?: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [logs, setLogs] = useState<ActionReminderLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -111,21 +115,19 @@ export default function ActionReminderLogsPanel() {
     setLoading(false);
   }
 
+  const panelExpanded = alwaysExpanded || expanded;
+
   useEffect(() => {
-    if (expanded) loadLogs();
+    if (panelExpanded) loadLogs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded]);
+  }, [panelExpanded]);
 
   const sentCount = logs.filter((l) => l.status === "sent").length;
   const failedCount = logs.filter((l) => l.status === "failed").length;
 
   return (
     <div className="border-4 border-black rounded-2xl overflow-hidden bg-amber-50 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between p-4 text-left font-black uppercase tracking-tight hover:bg-amber-100 transition-colors"
-      >
+      <div className="flex w-full items-center justify-between p-4 text-left font-black uppercase tracking-tight">
         <span className="flex items-center gap-2">
           <Mail size={18} />
           Action Reminder History
@@ -135,10 +137,19 @@ export default function ActionReminderLogsPanel() {
             </span>
           )}
         </span>
-        {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-      </button>
+        {!alwaysExpanded && (
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="rounded-lg p-1 hover:bg-amber-100"
+            aria-label={expanded ? "Collapse history" : "Expand history"}
+          >
+            {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          </button>
+        )}
+      </div>
 
-      {expanded && (
+      {panelExpanded && (
         <div className="border-t-2 border-black">
           <div className="px-4 py-2 bg-amber-100 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2">
             <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">

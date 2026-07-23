@@ -7,8 +7,26 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resend } from "@/lib/resend";
 import { isEmailTemplateKey, renderEmailTemplate, type EmailTemplateKey } from "@/lib/email-templates";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 
 const NUDGEABLE_APP_URL = "https://testing-action-engine.vercel.app";
+const NUDGEABLE_ICON_CONTENT_ID = "nudgeable-brand-icon";
+let nudgeableIconContentPromise: Promise<string | null> | null = null;
+
+function getNudgeableIconContent(): Promise<string | null> {
+  if (!nudgeableIconContentPromise) {
+    nudgeableIconContentPromise = readFile(
+      join(process.cwd(), "public", "icon.png")
+    )
+      .then((file) => file.toString("base64"))
+      .catch((error) => {
+        console.error("[email-send] could not embed Nudgeable icon", error);
+        return null;
+      });
+  }
+  return nudgeableIconContentPromise;
+}
 
 export type SendToUsersResult = {
   userId: string;
@@ -142,6 +160,14 @@ export async function sendTemplateToUsers({
     ? NUDGEABLE_APP_URL
     : baseUrl.replace(/\/$/, "");
   const appLoginUrl = `${normalizedBase}/login`;
+  const shouldEmbedBrandIcon =
+    templateKey === "credentials" || templateKey === "daily_reminder";
+  const embeddedBrandIcon = shouldEmbedBrandIcon
+    ? await getNudgeableIconContent()
+    : null;
+  const brandIconSource = embeddedBrandIcon
+    ? `cid:${NUDGEABLE_ICON_CONTENT_ID}`
+    : `${normalizedBase}/icon.png`;
 
   for (const userId of userIds) {
     const email = userEmailMap.get(userId);
@@ -187,8 +213,8 @@ export async function sendTemplateToUsers({
       const dynamicTemplateData: Record<string, unknown> = {
         login_url: loginUrl,
         first_name: firstName,
-        company_logo: `${normalizedBase}/icon.png`,
-        brand_icon: `${normalizedBase}/icon.png`,
+        company_logo: brandIconSource,
+        brand_icon: brandIconSource,
         ...cleanedExtra,
         ...cleanedPerUser,
       };
@@ -214,6 +240,18 @@ export async function sendTemplateToUsers({
         from: fromEmail,
         subject,
         html,
+        ...(embeddedBrandIcon
+          ? {
+              attachments: [
+                {
+                  content: embeddedBrandIcon,
+                  filename: "nudgeable-icon.png",
+                  contentType: "image/png",
+                  contentId: NUDGEABLE_ICON_CONTENT_ID,
+                },
+              ],
+            }
+          : {}),
       });
       if (sendError) throw new Error(sendError.message);
 

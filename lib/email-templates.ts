@@ -221,44 +221,157 @@ type ReminderAction = {
   timeEstimate?: string;
 };
 
+function nudgeableReminderShell(bodyHtml: string, preheader: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      @keyframes nudgeFadeUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes nudgeBreathe {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.035); }
+      }
+      .nudge-hero { animation: nudgeFadeUp .55s ease-out both; }
+      .nudge-action { animation: nudgeFadeUp .5s ease-out both; }
+      .nudge-action-2 { animation-delay: .08s; }
+      .nudge-action-3 { animation-delay: .16s; }
+      .nudge-cta { animation: nudgeBreathe 2.8s ease-in-out 1s infinite; }
+      @media screen and (max-width: 620px) {
+        .nudge-wrap { width: 100% !important; }
+        .nudge-pad { padding-left: 20px !important; padding-right: 20px !important; }
+        .nudge-title { font-size: 28px !important; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .nudge-hero, .nudge-action, .nudge-cta {
+          animation: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body style="margin:0;padding:0;background:#fff9e8;color:#221d23;font-family:Arial,Helvetica,sans-serif;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+      ${esc(preheader)}
+    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;background:#fff9e8;">
+      <tr>
+        <td align="center" style="padding:28px 12px;">
+          <table class="nudge-wrap" role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#ffffff;border:1px solid #eadfba;border-radius:22px;overflow:hidden;box-shadow:0 14px 34px rgba(34,29,35,.08);">
+            ${bodyHtml}
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
 function renderDailyReminderHtml(data: EmailTemplateData): string {
   const firstName = str(data, "first_name", "there");
   const loginUrl = str(data, "login_url", "#");
   const cohortName = str(data, "cohort_name", "your cohort");
   const reminderSchedule = str(data, "reminder_schedule");
+  const brandIcon = str(data, "brand_icon", str(data, "company_logo"));
   const actions = Array.isArray(data.actions) ? (data.actions as ReminderAction[]) : [];
   const count = actions.length;
 
   const actionsHtml = actions.length
     ? actions
         .map(
-          (a) => `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;border:1px solid #e5e7eb;border-radius:8px;">
+          (action, index) => `
+    <table class="nudge-action nudge-action-${Math.min(index + 1, 3)}" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 12px;border:1px solid #ece7d8;border-radius:14px;background:#fffdf7;">
       <tr>
-        <td style="padding:14px 16px;">
-          ${a.theme ? `<p style="margin:0 0 4px;color:#6b7280;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">${esc(a.theme)}</p>` : ""}
-          <p style="margin:0 0 6px;color:#111827;font-size:15px;font-weight:bold;">${esc(a.title)}</p>
-          ${a.how ? `<p style="margin:0;color:#374151;font-size:13px;">${esc(a.how)}</p>` : ""}
-          ${a.timeEstimate ? `<p style="margin:8px 0 0;color:#9ca3af;font-size:11px;">⏱ ${esc(a.timeEstimate)}</p>` : ""}
+        <td width="52" valign="top" style="width:52px;padding:16px 0 16px 16px;">
+          <div style="width:34px;height:34px;line-height:34px;border-radius:11px;background:#ffce00;color:#221d23;font-size:13px;font-weight:900;text-align:center;">
+            ${String(index + 1).padStart(2, "0")}
+          </div>
+        </td>
+        <td style="padding:16px 16px 16px 10px;">
+          ${action.theme ? `<span style="display:inline-block;margin:0 0 7px;padding:4px 8px;border-radius:999px;background:#fff1ad;color:#725c00;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">${esc(action.theme)}</span>` : ""}
+          <p style="margin:0 0 7px;color:#221d23;font-size:16px;line-height:1.35;font-weight:800;">${esc(action.title)}</p>
+          ${action.how ? `<p style="margin:0;color:#5f5860;font-size:13px;line-height:1.55;">${esc(action.how)}</p>` : ""}
+          ${action.timeEstimate ? `<p style="margin:10px 0 0;color:#8a8090;font-size:11px;font-weight:700;">&#9201;&nbsp; ${esc(action.timeEstimate)}</p>` : ""}
         </td>
       </tr>
     </table>`
         )
         .join("")
-    : `<p style="margin:0;color:#6b7280;font-size:13px;">Nothing pending right now — nice work staying on top of it.</p>`;
+    : `<p style="margin:0;padding:18px;border-radius:14px;background:#fff9e8;color:#5f5860;font-size:13px;line-height:1.5;">Nothing pending right now—nice work staying on top of it.</p>`;
 
-  return emailShell(`
-    ${headerHtml(data)}
+  const preheader = `${count} action${count === 1 ? "" : "s"} from ${cohortName} ${count === 1 ? "is" : "are"} ready.`;
+
+  return nudgeableReminderShell(`
     <tr>
-      <td style="padding:28px 32px 8px;">
-        <p style="margin:0 0 4px;color:#111827;font-size:18px;font-weight:bold;">Hey ${esc(firstName)},</p>
-        <p style="margin:0 0 4px;color:#374151;font-size:13px;">${count} current action${count === 1 ? "" : "s"} from <strong>${esc(cohortName)}</strong> ${count === 1 ? "is" : "are"} ready for you.</p>
-        ${reminderSchedule ? `<p style="margin:0 0 16px;color:#6b7280;font-size:11px;">Sent according to your choice: ${esc(reminderSchedule)}</p>` : '<div style="height:12px;"></div>'}
-        ${actionsHtml}
-        ${ctaButtonHtml(loginUrl, "Open My Actions")}
+      <td align="center" style="padding:20px 24px;background:#ffce00;border-bottom:1px solid #e7b900;">
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+          <tr>
+            ${
+              brandIcon
+                ? `<td valign="middle" style="padding:0 10px 0 0;">
+                    <img src="${esc(brandIcon)}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;border:0;" />
+                  </td>`
+                : ""
+            }
+            <td valign="middle" style="color:#221d23;font-size:27px;font-weight:900;letter-spacing:-.055em;">
+              nudgeable
+            </td>
+          </tr>
+        </table>
       </td>
     </tr>
-    ${footerHtml()}`);
+    <tr>
+      <td class="nudge-pad nudge-hero" style="padding:36px 38px 28px;background:#221d23;">
+        <span style="display:inline-block;margin:0 0 14px;padding:6px 10px;border:1px solid rgba(255,206,0,.35);border-radius:999px;color:#ffce00;font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;">
+          Your next nudge
+        </span>
+        <h1 class="nudge-title" style="margin:0;color:#ffffff;font-size:34px;line-height:1.08;letter-spacing:-.04em;">
+          Small action.<br /><span style="color:#ffce00;">Real momentum.</span>
+        </h1>
+        <p style="margin:17px 0 0;color:#d8d2d8;font-size:14px;line-height:1.6;">
+          Hey ${esc(firstName)}, ${count} action${count === 1 ? "" : "s"} from
+          <strong style="color:#ffffff;">${esc(cohortName)}</strong>
+          ${count === 1 ? "is" : "are"} ready when you are.
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td class="nudge-pad" style="padding:26px 38px 34px;">
+        ${
+          reminderSchedule
+            ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;border-radius:12px;background:#fff9e8;">
+                <tr>
+                  <td style="padding:11px 14px;color:#725c00;font-size:11px;line-height:1.4;">
+                    <strong>Reminder schedule:</strong> ${esc(reminderSchedule)}
+                  </td>
+                </tr>
+              </table>`
+            : ""
+        }
+        ${actionsHtml}
+        <table class="nudge-cta" role="presentation" cellpadding="0" cellspacing="0" style="margin:24px auto 0;">
+          <tr>
+            <td align="center" style="border-radius:12px;background:#221d23;">
+              <a href="${esc(loginUrl)}" target="_blank" style="display:inline-block;padding:15px 28px;color:#ffffff;font-size:14px;font-weight:900;text-decoration:none;">
+                Open Workflows&nbsp; &#8594;
+              </a>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:12px 0 0;color:#8a8090;font-size:10px;line-height:1.5;text-align:center;">
+          Secure one-click sign in. No password needed.
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" style="padding:20px 28px;background:#fff9e8;border-top:1px solid #eee3be;">
+        <p style="margin:0;color:#5f5860;font-size:11px;font-weight:800;">Nudgeable</p>
+        <p style="margin:5px 0 0;color:#9a8d80;font-size:10px;">Turn learning into action, one nudge at a time.</p>
+      </td>
+    </tr>`, preheader);
 }
 
 // ─── Registry ───────────────────────────────────────────────────────────────
@@ -288,7 +401,7 @@ export const EMAIL_TEMPLATES = {
     subject: (data: EmailTemplateData) => {
       const n = Array.isArray(data.actions) ? data.actions.length : 0;
       const cohort = str(data, "cohort_name");
-      return `${n} Nudgeable action${n === 1 ? "" : "s"} ready${cohort ? ` — ${cohort}` : ""}`;
+      return `Nudgeable: Your next workflow${n === 1 ? " is" : "s are"} ready${cohort ? ` — ${cohort}` : ""}`;
     },
     render: renderDailyReminderHtml,
   },

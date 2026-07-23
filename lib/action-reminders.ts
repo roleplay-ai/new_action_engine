@@ -69,6 +69,8 @@ function formatReminderTime(value: string) {
 }
 
 const FIXED_REMINDER_TIME_IST = "11:30";
+export const ACTION_REMINDER_APP_URL =
+  "https://new-action-engine.vercel.app";
 
 function reminderScheduleLabel(sub: ReminderSubscription) {
   const time = `${formatReminderTime(FIXED_REMINDER_TIME_IST)} IST`;
@@ -78,7 +80,7 @@ function reminderScheduleLabel(sub: ReminderSubscription) {
 }
 
 export async function sendDailyActionReminders(
-  baseUrl: string,
+  _baseUrl: string,
   fromEmail: string
 ): Promise<ActionReminderRunSummary> {
   const admin = createAdminClient();
@@ -242,12 +244,13 @@ export async function sendDailyActionReminders(
     userIds: [...claimedByUser.keys()],
     templateId: "daily_reminder",
     fromEmail,
-    baseUrl,
+    baseUrl: ACTION_REMINDER_APP_URL,
     sentBy: null,
     loginPath: "/actions",
     getPerUserTemplateData: async (userId) => {
       const item = claimedByUser.get(userId);
       return {
+        brand_icon: `${ACTION_REMINDER_APP_URL}/icon.png`,
         cohort_name: item?.cohortName,
         reminder_schedule: item
           ? reminderScheduleLabel(item.sub)

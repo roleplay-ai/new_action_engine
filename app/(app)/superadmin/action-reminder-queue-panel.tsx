@@ -236,7 +236,6 @@ export default function ActionReminderQueuePanel() {
           (item) =>
             `${item.fullName || item.email || "User"}: ${item.error}`
         );
-      setSelectedIds(new Set());
       await loadReminders();
       if (itemErrors.length) setError(itemErrors.join(" · "));
     } finally {
@@ -271,8 +270,8 @@ export default function ActionReminderQueuePanel() {
                 Participant-selected reminders · fixed delivery at 11:30 AM IST
               </p>
               <p className="mt-1 text-[11px] text-violet-700">
-                Send now consumes the selected user&apos;s next reminder, preventing
-                a duplicate at the scheduled time.
+                Manual sends can be repeated whenever needed and do not consume
+                the participant&apos;s automatic scheduled reminder.
               </p>
             </div>
             <button

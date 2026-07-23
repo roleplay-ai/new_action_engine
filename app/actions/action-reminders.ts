@@ -10,6 +10,7 @@ import {
   istToUTCDateTime,
 } from "@/lib/timezone-utils";
 import { getWeekdayIST } from "@/lib/personal-action-generation";
+import { ACTION_REMINDER_APP_URL } from "@/lib/action-reminders";
 
 const SUPERADMIN_EMAIL = (
   process.env.SUPERADMIN_EMAIL || "admin@actionengine"
@@ -338,7 +339,10 @@ export async function getUpcomingActionReminders(): Promise<
   }
 }
 
-/** Send selected participants' next reminder occurrence immediately. */
+/**
+ * Send selected participant reminders as an unrestricted manual override.
+ * Manual sends are logged but do not claim or consume the automatic occurrence.
+ */
 export async function bulkSendUpcomingActionReminders(
   subscriptionIds: string[]
 ): Promise<
@@ -369,11 +373,6 @@ export async function bulkSendUpcomingActionReminders(
 
     const admin = createAdminClient();
     const fromEmail = process.env.RESEND_FROM_EMAIL!;
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      (process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000");
     const results: ManualActionReminderResult[] = [];
 
     for (const reminder of reminders) {
@@ -389,31 +388,6 @@ export async function bulkSendUpcomingActionReminders(
         continue;
       }
 
-      const { data: claimId, error: claimError } = await admin.rpc(
-        "claim_personal_action_reminder",
-        {
-          p_subscription_id: reminder.subscriptionId,
-          p_user_id: reminder.userId,
-          p_cohort_id: reminder.cohortId,
-          p_reminder_date: reminder.reminderDate,
-          p_scheduled_for: reminder.scheduledFor,
-        }
-      );
-
-      if (claimError || !claimId) {
-        results.push({
-          subscriptionId: reminder.subscriptionId,
-          userId: reminder.userId,
-          email: reminder.email,
-          fullName: reminder.fullName,
-          status: "skipped",
-          error:
-            claimError?.message ??
-            "This reminder is already sent, running, or awaiting retry.",
-        });
-        continue;
-      }
-
       let sendResult: Awaited<
         ReturnType<typeof sendTemplateToUsers>
       >[number] | undefined;
@@ -422,10 +396,11 @@ export async function bulkSendUpcomingActionReminders(
           userIds: [reminder.userId],
           templateId: "daily_reminder",
           fromEmail,
-          baseUrl,
+          baseUrl: ACTION_REMINDER_APP_URL,
           sentBy: null,
           loginPath: "/actions",
           getPerUserTemplateData: async () => ({
+            brand_icon: `${ACTION_REMINDER_APP_URL}/icon.png`,
             cohort_name: reminder.cohortName,
             reminder_schedule: reminder.scheduleLabel,
             actions: reminder.actions.map((action) => ({
@@ -439,14 +414,6 @@ export async function bulkSendUpcomingActionReminders(
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Email send failed";
-        await admin
-          .from("personal_action_reminder_claims")
-          .update({
-            status: "failed",
-            last_error: message,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", String(claimId));
         results.push({
           subscriptionId: reminder.subscriptionId,
           userId: reminder.userId,
@@ -460,7 +427,6 @@ export async function bulkSendUpcomingActionReminders(
       const succeeded = Boolean(sendResult?.success);
       const errorMessage =
         sendResult?.error ?? (succeeded ? undefined : "Email send failed");
-      const completedAt = new Date().toISOString();
 
       await admin.from("personal_action_reminder_logs").insert({
         subscription_id: reminder.subscriptionId,
@@ -478,24 +444,6 @@ export async function bulkSendUpcomingActionReminders(
         status: succeeded ? "sent" : "failed",
         error_message: errorMessage ?? null,
       });
-
-      await admin
-        .from("personal_action_reminder_claims")
-        .update({
-          status: succeeded ? "sent" : "failed",
-          last_error: errorMessage ?? null,
-          sent_at: succeeded ? completedAt : null,
-          updated_at: completedAt,
-        })
-        .eq("id", String(claimId));
-
-      if (succeeded) {
-        await admin
-          .from("personal_action_subscriptions")
-          .update({ last_reminder_sent_date: reminder.reminderDate })
-          .eq("id", reminder.subscriptionId)
-          .eq("cohort_id", reminder.cohortId);
-      }
 
       results.push({
         subscriptionId: reminder.subscriptionId,

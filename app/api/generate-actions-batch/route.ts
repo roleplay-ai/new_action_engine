@@ -116,7 +116,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, skipped: true, reason: "job_replaced" });
   }
 
-  const rows = draftsToActionRows(drafts, companyId, job.user_id, job.cohort_id);
+  const rows = draftsToActionRows(drafts, companyId, job.user_id, job.cohort_id, job.total_generated);
   await admin.from("actions").insert(rows);
 
   const totalGenerated = job.total_generated + drafts.length;

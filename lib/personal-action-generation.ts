@@ -274,11 +274,18 @@ export function advanceNextDeliveryAt(
 }
 
 /** Shape a batch of drafts into `actions` insert rows. */
-export function draftsToActionRows(drafts: DraftAction[], companyId: string, userId: string, cohortId: string) {
-  return drafts.map((d) => ({
+export function draftsToActionRows(
+  drafts: DraftAction[],
+  companyId: string,
+  userId: string,
+  cohortId: string,
+  startPlanOrder = 0
+) {
+  return drafts.map((d, index) => ({
     company_id: companyId,
     created_by: userId,
     cohort_id: cohortId,
+    plan_order: startPlanOrder + index,
     is_personal: true,
     theme: d.theme,
     title: d.title,
@@ -318,9 +325,10 @@ export async function getDueSubscriptions(nowIso: string): Promise<PersonalActio
 }
 
 /**
- * Keep up to `daily_action_count` generated personal actions active (ones
- * with no existing user_actions row yet, oldest first) into the user's
- * "My Actions" for this delivery cycle. Unlike the old deliverNewBatch, this
+ * Move up to `daily_action_count` generated personal actions into the user's
+ * "My Actions" for this delivery cycle, using the participant's chosen plan
+ * order and considering only actions without a user_actions row. Unlike the
+ * old deliverNewBatch, this
  * never generates new actions itself — the whole plan is generated upfront in
  * the background (see app/api/generate-actions-batch/route.ts); this just
  * paces how many of those already-generated actions are active at once, so
@@ -330,7 +338,8 @@ export async function getDueSubscriptions(nowIso: string): Promise<PersonalActio
  * retries next cycle instead of silently skipping ahead.
  */
 export async function assignScheduledBatch(
-  sub: Pick<PersonalActionSubscriptionRow, "id" | "user_id" | "cohort_id" | "track" | "day_of_week" | "days_of_week" | "daily_action_count" | "time_of_day_utc" | "next_delivery_at">
+  sub: Pick<PersonalActionSubscriptionRow, "id" | "user_id" | "cohort_id" | "track" | "day_of_week" | "days_of_week" | "daily_action_count" | "time_of_day_utc" | "next_delivery_at">,
+  options?: { advanceCadence?: boolean }
 ): Promise<{ assigned: number }> {
   const admin = createAdminClient();
   const nowIso = new Date().toISOString();
@@ -343,6 +352,7 @@ export async function assignScheduledBatch(
       .eq("created_by", sub.user_id)
       .eq("is_personal", true)
       .eq("cohort_id", sub.cohort_id)
+      .order("plan_order", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true }),
     admin
       .from("user_actions")
@@ -363,12 +373,14 @@ export async function assignScheduledBatch(
     await admin
       .from("personal_action_subscriptions")
       .update({
-        next_delivery_at: advanceNextDeliveryAt(
-          sub.next_delivery_at,
-          sub.track,
-          sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
-          sub.time_of_day_utc
-        ),
+        next_delivery_at: options?.advanceCadence === false
+          ? sub.next_delivery_at
+          : advanceNextDeliveryAt(
+              sub.next_delivery_at,
+              sub.track,
+              sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
+              sub.time_of_day_utc
+            ),
         updated_at: nowIso,
       })
       .eq("id", sub.id);
@@ -389,12 +401,14 @@ export async function assignScheduledBatch(
       .from("personal_action_subscriptions")
       .update({
         last_delivered_at: nowIso,
-        next_delivery_at: advanceNextDeliveryAt(
-          sub.next_delivery_at,
-          sub.track,
-          sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
-          sub.time_of_day_utc
-        ),
+        next_delivery_at: options?.advanceCadence === false
+          ? sub.next_delivery_at
+          : advanceNextDeliveryAt(
+              sub.next_delivery_at,
+              sub.track,
+              sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
+              sub.time_of_day_utc
+            ),
         updated_at: nowIso,
       })
       .eq("id", sub.id);

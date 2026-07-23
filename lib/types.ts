@@ -4,6 +4,8 @@ export type ActionTheme = 'Collaboration' | 'Feedback' | 'Accountability' | 'Con
 export interface ActionCard {
   id: string;
   cohortId?: string | null;
+  /** Zero-based sequence chosen during draft-plan review. */
+  planOrder?: number | null;
   theme: ActionTheme;
   title: string;
   how: string;

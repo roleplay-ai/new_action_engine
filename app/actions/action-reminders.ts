@@ -9,7 +9,7 @@ import {
   getCurrentISTDate,
   istToUTCDateTime,
 } from "@/lib/timezone-utils";
-import { getWeekdayIST } from "@/lib/personal-action-generation";
+import { DAILY_DELIVERY_DAYS, getWeekdayIST } from "@/lib/personal-action-generation";
 import { ACTION_REMINDER_APP_URL } from "@/lib/action-reminders";
 
 const SUPERADMIN_EMAIL = (
@@ -111,7 +111,7 @@ function addDaysToDate(dateValue: string, days: number) {
 }
 
 function getReminderDays(subscription: ReminderSubscriptionRow) {
-  if (subscription.track === "daily") return [0, 1, 2, 3, 4, 5, 6];
+  if (subscription.track === "daily") return [...DAILY_DELIVERY_DAYS];
   return subscription.days_of_week?.length
     ? subscription.days_of_week
     : subscription.day_of_week != null
@@ -141,7 +141,7 @@ function getNextReminderOccurrence(subscription: ReminderSubscriptionRow) {
 }
 
 function getScheduleLabel(subscription: ReminderSubscriptionRow) {
-  if (subscription.track === "daily") return "Daily at 11:30 AM IST";
+  if (subscription.track === "daily") return "Weekdays at 11:30 AM IST";
   const days = getReminderDays(subscription)
     .sort((left, right) => left - right)
     .map((day) => WEEKDAYS[day])

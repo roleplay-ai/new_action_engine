@@ -153,7 +153,7 @@ export default function ActionReminderLogsPanel({
         <div className="border-t-2 border-black">
           <div className="px-4 py-2 bg-amber-100 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2">
             <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">
-              Runs daily at 11:30 AM IST · sends only on each participant&apos;s selected reminder day
+              Runs daily at 11:30 AM IST · daily plans send Monday–Friday; weekly plans send on the selected day
             </p>
             <button
               type="button"

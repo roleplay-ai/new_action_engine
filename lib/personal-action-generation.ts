@@ -3,7 +3,7 @@ import { getGeminiClient, isGeminiConfigured, GEMINI_MODEL } from "@/lib/gemini"
 import { ACTION_DECK } from "@/lib/constants";
 import type { ActionTheme } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { IST_OFFSET_MINUTES, getCurrentISTDate, getCurrentISTTime, utcToISTDate, utcToISTTime, utcToISTDateTime, istToUTCDateTime } from "@/lib/timezone-utils";
+import { IST_OFFSET_MINUTES, getCurrentISTDate, utcToISTDate, utcToISTTime, utcToISTDateTime, istToUTCDateTime } from "@/lib/timezone-utils";
 
 export type DraftAction = {
   theme: ActionTheme;
@@ -21,6 +21,8 @@ export const DEFAULT_BATCH_SIZE = 3;
 export const BATCH_SIZE = DEFAULT_BATCH_SIZE;
 /** Actions generated per call when background-filling a full multi-week plan. */
 export const BACKGROUND_BATCH_SIZE = 12;
+/** IST weekdays used by daily plans: Monday through Friday. */
+export const DAILY_DELIVERY_DAYS = [1, 2, 3, 4, 5] as const;
 
 const draftSchema = {
   type: Type.OBJECT,
@@ -43,14 +45,14 @@ const draftSchema = {
   required: ["actions"],
 };
 
-/** Weekly: duration x actions/week. Daily: duration x actions/day x 7 days. */
+/** Weekly: duration x actions/week. Daily: duration x actions/day x 5 weekdays. */
 export function computeTotalActionsNeeded(
   durationWeeks: number,
   dailyActionCount: number,
   track: DeliveryTrack,
   daysOfWeek?: number[] | null
 ): number {
-  const activeDaysPerWeek = track === "daily" ? 7 : 1;
+  const activeDaysPerWeek = track === "daily" ? DAILY_DELIVERY_DAYS.length : 1;
   return durationWeeks * dailyActionCount * activeDaysPerWeek;
 }
 
@@ -208,33 +210,11 @@ function daysUntilNextWeeklyDayAfter(fromDate: string, daysOfWeek: number[]): nu
   return 7 - fromDow + sorted[0];
 }
 
-/** Days until the next selected weekday on or after `fromDate` (IST), if time still allows today. */
-function daysUntilNextWeeklyDay(
-  fromDate: string,
-  daysOfWeek: number[],
-  istTime: string,
-  fromTime?: string
-): number {
-  const sorted = normaliseDaysOfWeek(daysOfWeek);
-  const fromDow = getWeekdayIST(fromDate);
-  const nowTime = fromTime ?? getCurrentISTTime();
-
-  if (sorted.includes(fromDow) && istTime > nowTime) {
-    return 0;
-  }
-
-  for (const target of sorted) {
-    if (target > fromDow) return target - fromDow;
-  }
-  return 7 - fromDow + sorted[0];
-}
-
 /**
- * First next_delivery_at for a new subscription — next occurrence of any
- * selected weekday at the chosen IST time. Both tracks now carry an explicit
- * daysOfWeek selection (daily = user-chosen subset of days, weekly = exactly
- * one day), so they share the same scheduling math; only a legacy
- * subscription with no daysOfWeek at all falls back to pure "every day".
+ * First next_delivery_at for a new subscription. A plan always begins on a
+ * future calendar day: daily starts on the next weekday, while weekly starts
+ * on the next occurrence of its selected weekday (the following week when
+ * today is that weekday).
  */
 export function computeNextDeliveryAt(
   track: DeliveryTrack,
@@ -243,14 +223,10 @@ export function computeNextDeliveryAt(
 ): string {
   const today = getCurrentISTDate();
   const istTime = utcToISTTime(timeOfDayUtc);
-  const nowTime = getCurrentISTTime();
-
-  if (!daysOfWeek?.length) {
-    const targetDate = istTime > nowTime ? today : addDaysToISTDate(today, 1);
-    return istToUTCDateTime(targetDate, istTime);
-  }
-
-  const daysToAdd = daysUntilNextWeeklyDay(today, daysOfWeek, istTime, nowTime);
+  const cadenceDays = track === "daily" ? [...DAILY_DELIVERY_DAYS] : daysOfWeek;
+  const daysToAdd = cadenceDays?.length
+    ? daysUntilNextWeeklyDayAfter(today, cadenceDays)
+    : 1;
   const targetDate = addDaysToISTDate(today, daysToAdd);
   return istToUTCDateTime(targetDate, istTime);
 }
@@ -265,11 +241,13 @@ export function advanceNextDeliveryAt(
   const prevDate = utcToISTDate(previousIso) || getCurrentISTDate();
   const istTime = utcToISTTime(timeOfDayUtc) || utcToISTDateTime(previousIso).time;
 
-  if (!daysOfWeek?.length) {
+  const cadenceDays = track === "daily" ? [...DAILY_DELIVERY_DAYS] : daysOfWeek;
+
+  if (!cadenceDays?.length) {
     return istToUTCDateTime(addDaysToISTDate(prevDate, 1), istTime);
   }
 
-  const daysToAdd = daysUntilNextWeeklyDayAfter(prevDate, daysOfWeek);
+  const daysToAdd = daysUntilNextWeeklyDayAfter(prevDate, cadenceDays);
   return istToUTCDateTime(addDaysToISTDate(prevDate, daysToAdd), istTime);
 }
 
@@ -344,6 +322,28 @@ export async function assignScheduledBatch(
   const admin = createAdminClient();
   const nowIso = new Date().toISOString();
   const batchSize = sub.daily_action_count ?? DEFAULT_BATCH_SIZE;
+
+  // Older daily subscriptions can still contain the previous seven-day
+  // cadence. Never release an action batch on Saturday or Sunday.
+  if (
+    sub.track === "daily"
+    && !DAILY_DELIVERY_DAYS.includes(
+      getWeekdayIST(getCurrentISTDate()) as (typeof DAILY_DELIVERY_DAYS)[number]
+    )
+  ) {
+    await admin
+      .from("personal_action_subscriptions")
+      .update({
+        next_delivery_at: computeNextDeliveryAt(
+          "daily",
+          [...DAILY_DELIVERY_DAYS],
+          sub.time_of_day_utc
+        ),
+        updated_at: nowIso,
+      })
+      .eq("id", sub.id);
+    return { assigned: 0 };
+  }
 
   const [{ data: candidateActions }, { data: existingUA }] = await Promise.all([
     admin

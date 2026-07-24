@@ -10,7 +10,9 @@ import {
   advanceNextDeliveryAt,
   BACKGROUND_BATCH_SIZE,
   buildTrainingContext,
-  assignScheduledBatch,
+  DAILY_DELIVERY_DAYS,
+  draftsToActionRows,
+  generateDraftActions,
   type DeliveryTrack,
 } from "@/lib/personal-action-generation";
 import { istToUTCTime, utcToISTTime } from "@/lib/timezone-utils";
@@ -112,12 +114,12 @@ export async function getDraftPlanSchedule(): Promise<{
       daysOfWeek,
       subscription.time_of_day_utc
     );
-    const releaseDates: string[] = [new Date().toISOString()];
+    const releaseDates: string[] = [];
     let nextRelease = firstCadenceAt;
     const batchCount = Math.ceil((count ?? 0) / actionCountPerRelease);
-    // The first batch is released immediately. The second batch uses the first
-    // upcoming cadence slot, then each later batch advances by one cycle.
-    for (let batchIndex = 1; batchIndex < batchCount; batchIndex += 1) {
+    // Every batch follows the chosen cadence. Daily plans begin on the next
+    // weekday; weekly plans begin on the next selected weekday.
+    for (let batchIndex = 0; batchIndex < batchCount; batchIndex += 1) {
       releaseDates.push(nextRelease);
       nextRelease = advanceNextDeliveryAt(
         nextRelease,
@@ -133,7 +135,7 @@ export async function getDraftPlanSchedule(): Promise<{
         const batchNumber = Math.floor(index / actionCountPerRelease) + 1;
         return {
           plannedAt: releaseDates[batchNumber - 1],
-          isImmediate: batchNumber === 1,
+          isImmediate: false,
           batchNumber,
         };
       }),
@@ -203,9 +205,9 @@ export async function saveGeneratedActions(params: {
     if (params.track !== "daily" && params.track !== "weekly") {
       return { error: "Invalid track" };
     }
-    // Daily plans always run every day. Weekly plans use exactly one chosen reminder day.
+    // Daily plans run Monday-Friday. Weekly plans use exactly one chosen reminder day.
     const uniqueDays = params.track === "daily"
-      ? [0, 1, 2, 3, 4, 5, 6]
+      ? [...DAILY_DELIVERY_DAYS]
       : [...new Set(params.daysOfWeek ?? [])].sort((a, b) => a - b);
     if (!uniqueDays.length || uniqueDays.some((d) => d < 0 || d > 6)) {
       return { error: "Select at least one day" };
@@ -334,7 +336,7 @@ export async function saveGeneratedActions(params: {
   }
 }
 
-/** Finalise a reviewed draft, activate its cadence, and release the first batch. */
+/** Finalise a reviewed draft and activate its future delivery cadence. */
 export async function activatePersonalActionPlan(): Promise<{ error?: string }> {
   try {
     const supabase = await createClient();
@@ -363,9 +365,6 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
       .eq("id", sub.id);
     if (updateError) return { error: updateError.message };
 
-    // Release the first reviewed batch now while keeping the first upcoming
-    // cadence slot intact for the next batch.
-    await assignScheduledBatch({ ...sub, next_delivery_at: nextDeliveryAt }, { advanceCadence: false });
     await supabase.from("profiles").update({ self_onboarding_completed_at: new Date().toISOString() }).eq("id", user.id);
     return {};
   } catch (e) {
@@ -515,6 +514,92 @@ export async function updatePersonalAction(
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to update action" };
+  }
+}
+
+/**
+ * Append one extra AI-generated action to a draft plan while the participant
+ * is still reviewing/editing. Finalised and archived plans stay view-only.
+ */
+export async function generateOneMorePersonalAction(): Promise<{ error?: string }> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError || !user) return { error: "Not authenticated" };
+
+    const cohortContext = await getSelectedPlanCohort(true);
+    if (!cohortContext.cohortId) return { error: cohortContext.error };
+    const cohortId = cohortContext.cohortId;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("company_id")
+      .eq("id", user.id)
+      .single();
+    const companyId = profile?.company_id;
+    if (!companyId) return { error: "You must be assigned to a company first" };
+
+    const { data: plan } = await supabase
+      .from("personal_action_subscriptions")
+      .select("id, training_text, focus_themes, is_active, archived_at, total_actions_planned")
+      .eq("user_id", user.id)
+      .eq("cohort_id", cohortId)
+      .maybeSingle();
+    if (!plan) return { error: "Create a plan first" };
+    if (plan.is_active || plan.archived_at) return { error: "Finalised plans are view-only" };
+
+    const { data: activeJob } = await supabase
+      .from("personal_action_generation_jobs")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("cohort_id", cohortId)
+      .eq("status", "generating")
+      .limit(1)
+      .maybeSingle();
+    if (activeJob) return { error: "Wait for the current generation to finish" };
+
+    const { data: existingActions, error: existingError } = await supabase
+      .from("actions")
+      .select("title, plan_order")
+      .eq("created_by", user.id)
+      .eq("cohort_id", cohortId)
+      .eq("is_personal", true)
+      .order("plan_order", { ascending: false, nullsFirst: false });
+    if (existingError) return { error: existingError.message };
+
+    const avoidTitles = (existingActions ?? []).map((action) => action.title).filter(Boolean);
+    const nextPlanOrder = ((existingActions ?? [])[0]?.plan_order ?? -1) + 1;
+    const focusThemes = (plan.focus_themes ?? []) as ActionTheme[];
+
+    const { drafts, error: generateError } = await generateDraftActions({
+      trainingText: plan.training_text ?? "",
+      focusThemes,
+      count: 1,
+      avoidTitles,
+    });
+    if (generateError || !drafts?.length) {
+      return { error: generateError ?? "AI did not return an action" };
+    }
+
+    const rows = draftsToActionRows(drafts.slice(0, 1), companyId, user.id, cohortId, nextPlanOrder);
+    const { error: insertError } = await supabase.from("actions").insert(rows);
+    if (insertError) return { error: insertError.message };
+
+    const totalActions = (existingActions?.length ?? 0) + 1;
+    await supabase
+      .from("personal_action_subscriptions")
+      .update({
+        total_actions_planned: Math.max(plan.total_actions_planned ?? 0, totalActions),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", plan.id);
+
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to generate another action" };
   }
 }
 

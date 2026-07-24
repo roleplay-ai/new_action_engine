@@ -131,17 +131,22 @@ export async function POST(request: Request) {
     })
     .eq("id", jobId);
 
-  // Bootstrap "My Actions" as soon as enough actions exist for the very first
-  // delivery — after that, only the daily/weekly cron (assignScheduledBatch)
-  // paces further deliveries, so completing an action mid-cycle never pulls
-  // in a replacement early.
+  // If generation finishes after an active plan's first delivery became due,
+  // fill that due batch here. Otherwise the daily/weekly cron owns delivery so
+  // no action is released before tomorrow/the selected weekday.
   const { data: sub } = await admin
     .from("personal_action_subscriptions")
     .select("id, user_id, cohort_id, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at, last_delivered_at, is_active, archived_at")
     .eq("user_id", job.user_id)
     .eq("cohort_id", job.cohort_id)
     .maybeSingle();
-  if (sub && sub.is_active && !sub.archived_at && !sub.last_delivered_at) {
+  if (
+    sub
+    && sub.is_active
+    && !sub.archived_at
+    && !sub.last_delivered_at
+    && Date.parse(sub.next_delivery_at) <= Date.now()
+  ) {
     await assignScheduledBatch(sub);
   }
 

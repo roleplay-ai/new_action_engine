@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, ArrowRight, Zap, CalendarDays, Mail, MailX } from "lucide-react";
+import { X, ArrowRight, Zap, CalendarDays, Mail } from "lucide-react";
 import {
   saveGeneratedActions,
   skipSelfOnboarding,
 } from "@/app/actions/ai-actions";
-import { computeTotalActionsNeeded, type DeliveryTrack } from "@/lib/personal-action-generation";
+import { computeTotalActionsNeeded, DAILY_DELIVERY_DAYS, type DeliveryTrack } from "@/lib/personal-action-generation";
 
 type Step = "qna" | "cadence";
 
@@ -28,7 +28,6 @@ const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: strin
   const [track, setTrack] = useState<DeliveryTrack>("weekly");
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([2]);
   const [dailyActionCount, setDailyActionCount] = useState<1 | 2 | 3 | 4 | 5>(2);
-  const [emailRemindersEnabled, setEmailRemindersEnabled] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -37,7 +36,7 @@ const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: strin
     if (next === "weekly") {
       setDaysOfWeek((prev) => [prev[0] ?? 2]);
     } else {
-      setDaysOfWeek([0, 1, 2, 3, 4, 5, 6]);
+      setDaysOfWeek([...DAILY_DELIVERY_DAYS]);
     }
   };
 
@@ -59,7 +58,7 @@ const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: strin
       dailyActionCount,
       daysOfWeek,
       durationWeeks,
-      emailRemindersEnabled,
+      emailRemindersEnabled: true,
     });
     setSaving(false);
     if (error) {
@@ -72,7 +71,7 @@ const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: strin
   const totalActions = computeTotalActionsNeeded(durationWeeks, dailyActionCount, track, daysOfWeek);
   const cadenceSummary = track === "weekly"
     ? `${dailyActionCount} action${dailyActionCount === 1 ? "" : "s"} each week for ${durationWeeks} weeks`
-    : `${dailyActionCount} action${dailyActionCount === 1 ? "" : "s"} each day for ${durationWeeks} weeks`;
+    : `${dailyActionCount} action${dailyActionCount === 1 ? "" : "s"} each weekday for ${durationWeeks} weeks`;
   const planWarning = totalActions > 100
     ? "This is a very intensive plan. Consider fewer daily actions or a shorter duration."
     : totalActions > 50
@@ -198,13 +197,13 @@ const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: strin
                   {track === "daily" && <span className="tag tag--featured">Selected</span>}
                 </div>
                 <h5 className="font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>Daily actions</h5>
-                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Use short workplace actions every day.</p>
+                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Use short workplace actions Monday to Friday.</p>
               </button>
             </div>
 
             <div className={`grid gap-4 mb-5 ${track === "weekly" ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
               <div className="form-group mb-0">
-                <label className="form-label">Actions per {track === "weekly" ? "week" : "day"}</label>
+                <label className="form-label">Actions per {track === "weekly" ? "week" : "weekday"}</label>
                 <select className="form-input" value={dailyActionCount} onChange={(event) => setDailyActionCount(Number(event.target.value) as 1 | 2 | 3 | 4 | 5)}>
                   {([1, 2, 3, 4, 5] as const).map((count) => <option key={count} value={count}>{count} action{count === 1 ? "" : "s"}</option>)}
                 </select>
@@ -219,37 +218,23 @@ const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: strin
                 <label className="form-label">Reminder time</label>
                 <div className="plan-fixed-reminder-time">
                   <strong>11:30 AM IST</strong>
-                  <small>Fixed daily processing time</small>
+                  <small>Fixed processing time</small>
                 </div>
               </div>
             </div>
 
-            <div className="form-group mb-5">
-              <label className="form-label">Email notifications</label>
-              <div className="plan-notification-choice" role="group" aria-label="Email reminder preference">
-                <button
-                  type="button"
-                  className={emailRemindersEnabled ? "selected" : ""}
-                  onClick={() => setEmailRemindersEnabled(true)}
-                  aria-pressed={emailRemindersEnabled}
-                >
-                  <Mail size={19} />
-                  <span><strong>Send email reminders</strong><small>Email me on my selected {track === "weekly" ? "day" : "days"} at 11:30 AM IST.</small></span>
-                </button>
-                <button
-                  type="button"
-                  className={!emailRemindersEnabled ? "selected" : ""}
-                  onClick={() => setEmailRemindersEnabled(false)}
-                  aria-pressed={!emailRemindersEnabled}
-                >
-                  <MailX size={19} />
-                  <span><strong>In-app only</strong><small>Keep my actions in Nudgeable without sending reminder emails.</small></span>
-                </button>
+            <div className="card__inset mb-4 flex items-start gap-3">
+              <Mail size={18} style={{ color: "var(--bright-amber)", flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p className="font-bold mb-0" style={{ color: "var(--color-text-primary)" }}>Email reminders included</p>
+                <p className="text-xs mb-0" style={{ color: "var(--color-text-muted)" }}>
+                  We&apos;ll email you on your selected {track === "weekly" ? "day" : "weekdays"} at 11:30 AM IST when new actions are ready.
+                </p>
               </div>
             </div>
 
             <div className="card__inset mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div><p className="font-bold" style={{ color: "var(--color-text-primary)" }}>{cadenceSummary}</p><p className="text-xs" style={{ color: "var(--color-text-muted)" }}>AI will generate your complete practice plan. {emailRemindersEnabled ? "Email reminders are on." : "Notifications will stay in-app."}</p></div>
+              <div><p className="font-bold" style={{ color: "var(--color-text-primary)" }}>{cadenceSummary}</p><p className="text-xs" style={{ color: "var(--color-text-muted)" }}>AI will generate your complete practice plan.</p></div>
               <p className="text-xl font-bold whitespace-nowrap" style={{ color: "var(--color-text-primary)" }}>{totalActions} actions</p>
             </div>
 

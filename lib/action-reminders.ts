@@ -17,7 +17,7 @@ import {
   getCurrentISTDate,
   istToUTCDateTime,
 } from "@/lib/timezone-utils";
-import { getWeekdayIST } from "@/lib/personal-action-generation";
+import { DAILY_DELIVERY_DAYS, getWeekdayIST } from "@/lib/personal-action-generation";
 
 export type ActionReminderRunSummary = {
   sent: number;
@@ -74,7 +74,7 @@ export const ACTION_REMINDER_APP_URL =
 
 function reminderScheduleLabel(sub: ReminderSubscription) {
   const time = `${formatReminderTime(FIXED_REMINDER_TIME_IST)} IST`;
-  if (sub.track === "daily") return `Daily at ${time}`;
+  if (sub.track === "daily") return `Weekdays at ${time}`;
   const day = WEEKDAYS[(sub.days_of_week ?? [sub.day_of_week ?? 1])[0] ?? 1];
   return `Every ${day} at ${time}`;
 }
@@ -124,7 +124,9 @@ export async function sendDailyActionReminders(
       continue;
     }
 
-    const days = sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null);
+    const days = sub.track === "daily"
+      ? [...DAILY_DELIVERY_DAYS]
+      : sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null);
     if (!days?.includes(todayWeekday)) {
       summary.skippedNotDue += 1;
       continue;

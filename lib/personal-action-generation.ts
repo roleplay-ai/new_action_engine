@@ -14,6 +14,8 @@ export type DraftAction = {
 };
 
 export const THEMES: ActionTheme[] = ["Collaboration", "Feedback", "Accountability", "Connection", "Coaching"];
+/** DB still requires action_theme; store a fixed default and never surface it in UI. */
+export const DEFAULT_ACTION_THEME: ActionTheme = "Collaboration";
 
 /** Default batch size for the interactive onboarding preview (before a plan duration is chosen). */
 export const DEFAULT_BATCH_SIZE = 3;
@@ -32,13 +34,12 @@ const draftSchema = {
       items: {
         type: Type.OBJECT,
         properties: {
-          theme: { type: Type.STRING, enum: THEMES },
           title: { type: Type.STRING },
           how: { type: Type.STRING },
           why: { type: Type.STRING },
           timeEstimate: { type: Type.STRING },
         },
-        required: ["theme", "title", "how", "why", "timeEstimate"],
+        required: ["title", "how", "why", "timeEstimate"],
       },
     },
   },
@@ -80,13 +81,11 @@ function buildPrompt(
   count: number,
   avoidTitles?: string[]
 ): string {
-  const examples = ACTION_DECK.filter(
-    (a) => focusThemes.length === 0 || focusThemes.includes(a.theme)
-  ).slice(0, 4);
-  const exampleBlock = (examples.length ? examples : ACTION_DECK.slice(0, 3))
+  const examples = ACTION_DECK.slice(0, 3);
+  const exampleBlock = examples
     .map(
       (a) =>
-        `- Theme: ${a.theme}\n  Title: ${a.title}\n  How: ${a.how}\n  Why: ${a.why}\n  Time: ${a.timeEstimate}`
+        `- Title: ${a.title}\n  How: ${a.how}\n  Why: ${a.why}\n  Time: ${a.timeEstimate}`
     )
     .join("\n\n");
 
@@ -94,11 +93,15 @@ function buildPrompt(
     ? `\n\nActions already suggested to this user — do NOT repeat these or close variants of them:\n${avoidTitles.map((t) => `- ${t}`).join("\n")}`
     : "";
 
+  const focusNote = focusThemes.length
+    ? focusThemes.join(", ")
+    : "(no preference)";
+
   return `You are the Nudgeable Action Engine, a behavioral science coach that turns training into small, concrete on-the-job micro-actions.
 
 A user completed training and answered:
 - What training did you do: "${trainingText.trim() || "(not specified)"}"
-- Focus areas they want to work on: ${focusThemes.length ? focusThemes.join(", ") : "(no preference)"}
+- Focus areas they want to work on: ${focusNote}
 
 Here are examples of the format and tone we use for micro-actions:
 
@@ -109,8 +112,7 @@ Generate ${count} NEW micro-actions tailored to this user's training and focus a
 - Have a "how" that is a literal, tactical script or step the user can do today.
 - Have a "why" that is a single sentence of behavioral-science rationale.
 - Have a "timeEstimate" like "2 mins", "5 mins", "15 mins", or "30 mins".
-- Have a "theme" that is exactly one of: ${THEMES.join(", ")}.
-Prefer themes from the user's stated focus areas when possible. Do not repeat actions already suggested before.${avoidBlock}`;
+Do not invent category tags or theme labels. Do not repeat actions already suggested before.${avoidBlock}`;
 }
 
 /** Calls Gemini to draft `count` new personal actions. Does not persist anything. */
@@ -141,7 +143,7 @@ export async function generateDraftActions(params: {
       return { error: "AI returned an empty response" };
     }
 
-    let parsed: { actions?: DraftAction[] };
+    let parsed: { actions?: Array<{ title?: string; how?: string; why?: string; timeEstimate?: string }> };
     try {
       parsed = JSON.parse(text);
     } catch {
@@ -149,7 +151,7 @@ export async function generateDraftActions(params: {
     }
 
     const drafts = (parsed.actions ?? []).filter(
-      (a) => a && a.title && a.how && a.why && a.theme
+      (a) => a && a.title && a.how && a.why
     );
     if (!drafts.length) {
       return { error: "AI did not return any actions" };
@@ -157,10 +159,10 @@ export async function generateDraftActions(params: {
 
     return {
       drafts: drafts.map((a) => ({
-        theme: a.theme,
-        title: a.title.trim(),
-        how: a.how.trim(),
-        why: a.why.trim(),
+        theme: DEFAULT_ACTION_THEME,
+        title: a.title!.trim(),
+        how: a.how!.trim(),
+        why: a.why!.trim(),
         timeEstimate: a.timeEstimate?.trim() || "5 mins",
       })),
     };
@@ -265,7 +267,7 @@ export function draftsToActionRows(
     cohort_id: cohortId,
     plan_order: startPlanOrder + index,
     is_personal: true,
-    theme: d.theme,
+    theme: DEFAULT_ACTION_THEME,
     title: d.title,
     how: d.how,
     why: d.why,

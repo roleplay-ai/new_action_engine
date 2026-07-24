@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, CalendarDays, Check, CheckCircle2, Clock3, GripVertical, Loader2, Pencil, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, Check, CheckCircle2, GripVertical, Loader2, Pencil, Sparkles, Trash2, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import Onboarding from "@/components/Onboarding";
 import GenerationStatus from "@/components/GenerationStatus";
@@ -59,7 +59,6 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
   const generatedActions = allActions.filter((action) => action.isPersonal);
   const generatedActionKey = JSON.stringify(generatedActions.map((action) => [
     action.id,
-    action.theme,
     action.title,
     action.how,
     action.why,
@@ -260,7 +259,6 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
               </span>
             </div>
             <div className="plan-action-copy">
-              <div><span>{action.theme}</span><em><Clock3 size={11} />{action.timeEstimate}</em></div>
               <div className={`plan-action-date${scheduleSlots[index]?.isImmediate ? " is-immediate" : ""}`}><CalendarDays size={14} /><span><strong>{schedule.date}</strong><small>{scheduleLoading ? "Calculating schedule…" : schedule.detail}</small></span></div>
               <h3>{action.title}</h3><p>{action.how}</p><small>{action.why}</small>
             </div>

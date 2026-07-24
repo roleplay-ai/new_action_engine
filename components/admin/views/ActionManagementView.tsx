@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { PlusCircle, Edit3, Check, Plus } from "lucide-react";
-import { ActionTheme } from "@/lib/types";
+import { PlusCircle, Edit3 } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { createAction, updateAction, deleteAction } from "@/app/actions/actions";
+import { DEFAULT_ACTION_THEME } from "@/lib/personal-action-generation";
 
 interface ActionManagementViewProps {
   companyId: string | null;
@@ -13,9 +13,7 @@ interface ActionManagementViewProps {
 
 export function ActionManagementView({ companyId, role }: ActionManagementViewProps) {
   const { allActions, refetch } = useEngine();
-  const [categoryFilter, setCategoryFilter] = useState<ActionTheme | "All">("All");
   const [form, setForm] = useState({
-    theme: "Collaboration" as ActionTheme,
     title: "",
     how: "",
     why: "",
@@ -24,7 +22,6 @@ export function ActionManagementView({ companyId, role }: ActionManagementViewPr
   const [successMsg, setSuccessMsg] = useState("");
   const [editingAction, setEditingAction] = useState<{
     id: string;
-    theme: ActionTheme;
     title: string;
     how: string;
     why: string;
@@ -32,11 +29,7 @@ export function ActionManagementView({ companyId, role }: ActionManagementViewPr
   } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const filteredActionBank = useMemo(() => {
-    return allActions.filter(
-      (a) => categoryFilter === "All" || a.theme === categoryFilter
-    );
-  }, [allActions, categoryFilter]);
+  const actionBank = useMemo(() => allActions, [allActions]);
 
   const handleQuickAdd = async () => {
     if (!form.title || !form.how || !form.why) return;
@@ -46,7 +39,7 @@ export function ActionManagementView({ companyId, role }: ActionManagementViewPr
       return;
     }
     const { error } = await createAction({
-      theme: form.theme,
+      theme: DEFAULT_ACTION_THEME,
       title: form.title,
       how: form.how,
       why: form.why,
@@ -67,7 +60,6 @@ export function ActionManagementView({ companyId, role }: ActionManagementViewPr
   const handleUpdateAction = async () => {
     if (!editingAction) return;
     const { error } = await updateAction(editingAction.id, {
-      theme: editingAction.theme,
       title: editingAction.title,
       how: editingAction.how,
       why: editingAction.why,
@@ -100,7 +92,6 @@ export function ActionManagementView({ companyId, role }: ActionManagementViewPr
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-8">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4" style={{ borderBottom: "1px solid var(--color-border)" }}>
         <div className="space-y-1">
           <h2 className="text-2xl font-bold" style={{ color: "var(--color-text-primary)" }}>
@@ -118,7 +109,6 @@ export function ActionManagementView({ companyId, role }: ActionManagementViewPr
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 1/3: Action Creator Form */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-2xl p-5 flex flex-col sticky top-24" style={{ border: "1px solid var(--color-border-yellow)", boxShadow: "var(--shadow-lg)" }}>
             <div className="flex items-center gap-2 mb-4">
@@ -129,35 +119,18 @@ export function ActionManagementView({ companyId, role }: ActionManagementViewPr
             </div>
 
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="form-group mb-0">
-                  <label className="form-label">Theme</label>
-                  <select
-                    className="form-input"
-                    style={{ fontSize: "var(--text-sm)" }}
-                    value={form.theme}
-                    onChange={(e) => setForm({ ...form, theme: e.target.value as ActionTheme })}
-                  >
-                    <option value="Collaboration">Collaboration</option>
-                    <option value="Accountability">Accountability</option>
-                    <option value="Feedback">Feedback</option>
-                    <option value="Connection">Connection</option>
-                    <option value="Coaching">Coaching</option>
-                  </select>
-                </div>
-                <div className="form-group mb-0">
-                  <label className="form-label">Est. Time</label>
-                  <select
-                    className="form-input"
-                    style={{ fontSize: "var(--text-sm)" }}
-                    value={form.timeEstimate}
-                    onChange={(e) => setForm({ ...form, timeEstimate: e.target.value })}
-                  >
-                    <option>2 mins</option>
-                    <option>5 mins</option>
-                    <option>15 mins</option>
-                  </select>
-                </div>
+              <div className="form-group mb-0">
+                <label className="form-label">Est. Time</label>
+                <select
+                  className="form-input"
+                  style={{ fontSize: "var(--text-sm)" }}
+                  value={form.timeEstimate}
+                  onChange={(e) => setForm({ ...form, timeEstimate: e.target.value })}
+                >
+                  <option>2 mins</option>
+                  <option>5 mins</option>
+                  <option>15 mins</option>
+                </select>
               </div>
 
               <div className="form-group mb-0">
@@ -201,57 +174,35 @@ export function ActionManagementView({ companyId, role }: ActionManagementViewPr
           </div>
         </div>
 
-        {/* Right 2/3: Action Bank */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Action Library (CRUD) */}
           <div className="bg-white rounded-2xl p-5" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-lg)" }}>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
               <h3 className="text-base font-bold flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
                 <Edit3 size={16} style={{ color: "var(--dodger-blue)" }} /> Action Library
               </h3>
-              <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--color-bg-muted)" }}>
-                {["All", "Collaboration", "Feedback", "Accountability", "Connection", "Coaching"].map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setCategoryFilter(cat as ActionTheme | "All")}
-                    className="px-2 py-1 rounded-lg text-xs font-semibold transition-all"
-                    style={
-                      categoryFilter === cat
-                        ? { background: "var(--bright-amber)", color: "var(--shadow-grey)" }
-                        : { color: "var(--color-text-muted)" }
-                    }
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
             </div>
             <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
                     <th className="px-3 py-2 text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Action</th>
-                    <th className="px-3 py-2 text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Theme</th>
                     <th className="px-3 py-2 text-xs font-semibold text-right" style={{ color: "var(--color-text-muted)" }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredActionBank.map((a) => (
+                  {actionBank.map((a) => (
                     <tr key={a.id} className="transition-colors" style={{ borderBottom: "1px solid var(--color-border)" }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-muted)")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >
                       <td className="px-3 py-2.5">
-                        <p className="text-xs font-semibold truncate max-w-[300px]" style={{ color: "var(--color-text-primary)" }}>
+                        <p className="text-xs font-semibold truncate max-w-[420px]" style={{ color: "var(--color-text-primary)" }}>
                           {a.title}
                         </p>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <span className="tag tag--blue">{a.theme}</span>
-                      </td>
                       <td className="px-3 py-2.5 text-right">
                         <button
-                          onClick={() => setEditingAction({ id: a.id, theme: a.theme, title: a.title, how: a.how, why: a.why, timeEstimate: a.timeEstimate })}
+                          onClick={() => setEditingAction({ id: a.id, title: a.title, how: a.how, why: a.why, timeEstimate: a.timeEstimate })}
                           className="btn btn--decline btn--sm mr-1"
                         >
                           Edit
@@ -270,7 +221,7 @@ export function ActionManagementView({ companyId, role }: ActionManagementViewPr
                 </tbody>
               </table>
             </div>
-            {filteredActionBank.length === 0 && (
+            {actionBank.length === 0 && (
               <p className="text-sm py-4 text-center" style={{ color: "var(--color-text-muted)" }}>
                 No actions yet. Create one using the form.
               </p>
@@ -279,7 +230,6 @@ export function ActionManagementView({ companyId, role }: ActionManagementViewPr
         </div>
       </div>
 
-      {/* Edit modal */}
       {editingAction && (
         <div
           className="fixed inset-0 flex items-center justify-center z-50 p-4"
@@ -293,18 +243,6 @@ export function ActionManagementView({ companyId, role }: ActionManagementViewPr
           >
             <h4 className="card__title">Edit Action</h4>
             <div className="space-y-4">
-              <div className="form-group mb-0">
-                <label className="form-label">Theme</label>
-                <select
-                  value={editingAction.theme}
-                  onChange={(e) => setEditingAction({ ...editingAction, theme: e.target.value as ActionTheme })}
-                  className="form-input"
-                >
-                  {["Collaboration", "Accountability", "Feedback", "Connection", "Coaching"].map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
               <div className="form-group mb-0">
                 <label className="form-label">Title</label>
                 <input
@@ -329,13 +267,22 @@ export function ActionManagementView({ companyId, role }: ActionManagementViewPr
                   className="form-input min-h-[60px]"
                 />
               </div>
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => setEditingAction(null)} className="btn btn--decline flex-1">
-                  Cancel
-                </button>
-                <button onClick={handleUpdateAction} className="btn btn--primary flex-1">
-                  Save Changes
-                </button>
+              <div className="form-group mb-0">
+                <label className="form-label">Est. Time</label>
+                <select
+                  value={editingAction.timeEstimate}
+                  onChange={(e) => setEditingAction({ ...editingAction, timeEstimate: e.target.value })}
+                  className="form-input"
+                >
+                  <option>2 mins</option>
+                  <option>5 mins</option>
+                  <option>15 mins</option>
+                  <option>30 mins</option>
+                </select>
+              </div>
+              <div className="flex gap-2 mt-2">
+                <button onClick={handleUpdateAction} className="btn btn--primary flex-1">Save</button>
+                <button onClick={() => setEditingAction(null)} className="btn btn--decline flex-1">Cancel</button>
               </div>
             </div>
           </div>

@@ -25,20 +25,10 @@ import {
 import SkillProgressBars from "@/components/admin/SkillProgressBars";
 import {
   getBehaviouralJourneyFunnel,
-  getDriversEffectiveness,
   getActionMetrics,
   getWeeklyActionChartData,
-  type DriversEffectivenessEntry,
   type ActionMetricEntry,
 } from "@/app/actions/admin-analytics";
-
-const THEME_CHART_COLORS: Record<string, string> = {
-  Collaboration: "#60a5fa",
-  Accountability: "#f87171",
-  Feedback: "#4ade80",
-  Connection: "#fbbf24",
-  Coaching: "#a78bfa",
-};
 
 interface FunnelData {
   usersCount: number;
@@ -64,11 +54,6 @@ export function DashboardView({ companyId }: DashboardViewProps) {
   const [funnel, setFunnel] = useState<FunnelData | null>(null);
   const [funnelError, setFunnelError] = useState<string | null>(null);
   const [funnelLoading, setFunnelLoading] = useState(true);
-  const [driversChartData, setDriversChartData] = useState<
-    { name: string; score: number; color: string }[]
-  >([]);
-  const [driversLoading, setDriversLoading] = useState(false);
-  const [driversError, setDriversError] = useState<string | null>(null);
   const [adoptionIndexMetrics, setAdoptionIndexMetrics] = useState<
     ActionMetricEntry[]
   >([]);
@@ -134,31 +119,6 @@ export function DashboardView({ companyId }: DashboardViewProps) {
         }
       })
       .finally(() => setFunnelLoading(false));
-  }, [companyId]);
-
-  useEffect(() => {
-    if (!companyId) {
-      setDriversChartData([]);
-      setDriversError(null);
-      return;
-    }
-    setDriversLoading(true);
-    setDriversError(null);
-    getDriversEffectiveness(companyId)
-      .then(({ entries, error }) => {
-        if (error) {
-          setDriversError(error);
-          setDriversChartData([]);
-          return;
-        }
-        const chart = (entries ?? []).map((e: DriversEffectivenessEntry) => ({
-          name: e.theme,
-          score: e.acceptancePct,
-          color: THEME_CHART_COLORS[e.theme] ?? "#94a3b8",
-        }));
-        setDriversChartData(chart);
-      })
-      .finally(() => setDriversLoading(false));
   }, [companyId]);
 
   useEffect(() => {
@@ -354,45 +314,9 @@ export function DashboardView({ companyId }: DashboardViewProps) {
         )}
       </div>
 
-      {/* ── DRIVERS EFFECTIVENESS & USER ENGAGEMENT ── */}
+      {/* ── USER ENGAGEMENT ── */}
       <div className="grid grid-cols-12 gap-4">
-
-        {/* Drivers — SkillProgressBars */}
-        <div className="col-span-12 lg:col-span-7 bg-white rounded-2xl p-5" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)" }}>
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-base font-semibold" style={{ color: "var(--color-text-primary)" }}>
-                Drivers Effectiveness
-              </h3>
-              <p className="text-xs font-medium mt-0.5" style={{ color: "var(--color-text-muted)" }}>
-                % of actions accepted by theme
-              </p>
-            </div>
-            <Download size={15} strokeWidth={2} style={{ color: "var(--color-text-muted)", flexShrink: 0 }} />
-          </div>
-
-          {driversLoading ? (
-            <div className="py-10 text-center text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>Loading…</div>
-          ) : driversError ? (
-            <div className="py-10 text-center text-sm font-semibold" style={{ color: "var(--color-danger)" }}>{driversError}</div>
-          ) : driversChartData.length === 0 ? (
-            <div className="py-10 text-center text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>No theme data yet</div>
-          ) : (
-            <SkillProgressBars
-              bars={driversChartData.map((d) => ({
-                label: d.name,
-                value: d.score,
-                color: d.color,
-                sublabel: `${d.score}% acceptance rate`,
-              }))}
-              animationDelay={100}
-              animationDuration={750}
-            />
-          )}
-        </div>
-
-        {/* User engagement breakdown — SkillProgressBars */}
-        <div className="col-span-12 lg:col-span-5 bg-white rounded-2xl p-5" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)" }}>
+        <div className="col-span-12 bg-white rounded-2xl p-5" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)" }}>
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-base font-semibold" style={{ color: "var(--color-text-primary)" }}>
@@ -496,7 +420,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                   label: `#${i + 1} ${a.title}`,
                   value: a.acceptedCount > 0 ? a.conversionPct : 0,
                   color: "#23CE6B",
-                  sublabel: `${a.theme} · ${a.conversionPct}% conversion`,
+                  sublabel: `${a.conversionPct}% conversion`,
                 }))}
                 animationDelay={110}
                 animationDuration={750}
@@ -523,7 +447,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                   label: `#${i + 1} ${a.title}`,
                   value: a.acceptedCount > 0 ? a.conversionPct : 0,
                   color: "#ED4551",
-                  sublabel: `${a.theme} · ${a.conversionPct}% conversion`,
+                  sublabel: `${a.conversionPct}% conversion`,
                 }))}
                 animationDelay={110}
                 animationDuration={750}

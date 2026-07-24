@@ -118,7 +118,6 @@ function renderWeeklyChallengesHtml(data: EmailTemplateData): string {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;border:1px solid #e5e7eb;border-radius:8px;">
       <tr>
         <td style="padding:14px 16px;">
-          ${a.theme ? `<p style="margin:0 0 4px;color:#6b7280;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">${esc(a.theme)}</p>` : ""}
           <p style="margin:0 0 6px;color:#111827;font-size:15px;font-weight:bold;">${esc(a.what)}</p>
           ${a.how ? `<p style="margin:0 0 6px;color:#374151;font-size:13px;">${esc(a.how)}</p>` : ""}
           ${a.why ? `<p style="margin:0;color:#6b7280;font-size:12px;font-style:italic;">${esc(a.why)}</p>` : ""}
@@ -342,7 +341,6 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
           </div>
         </td>
         <td style="padding:16px 16px 16px 10px;">
-          ${action.theme ? `<span style="display:inline-block;margin:0 0 7px;padding:4px 8px;border-radius:999px;background:#fff1ad;color:#725c00;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">${esc(action.theme)}</span>` : ""}
           <p style="margin:0 0 7px;color:#221d23;font-size:16px;line-height:1.35;font-weight:800;">${esc(action.title)}</p>
           ${action.how ? `<p style="margin:0;color:#5f5860;font-size:13px;line-height:1.55;">${esc(action.how)}</p>` : ""}
           ${action.timeEstimate ? `<p style="margin:10px 0 0;color:#8a8090;font-size:11px;font-weight:700;">&#9201;&nbsp; ${esc(action.timeEstimate)}</p>` : ""}

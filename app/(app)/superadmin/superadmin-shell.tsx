@@ -19,7 +19,7 @@ const NAV_ITEMS = [
   { href: "/superadmin/users", label: "Users", description: "Access and roles", icon: Users },
   { href: "/superadmin/content-library", label: "Content", description: "Learning library", icon: Library },
   { href: "/superadmin/emails", label: "Emails & reminders", description: "Queue and delivery", icon: Mail },
-  { href: "/admin/control-panel/cohorts", label: "Cohorts", description: "Cohort management", icon: GraduationCap },
+  { href: "/superadmin/cohorts", label: "Cohorts", description: "Cohort management", icon: GraduationCap },
 ];
 
 export default function SuperadminShell({

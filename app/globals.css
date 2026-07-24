@@ -925,12 +925,51 @@ input[type="range"] {
 .plan-order-spinner { animation: plan-order-spin 0.8s linear infinite; }
 @keyframes plan-order-spin { to { transform: rotate(360deg); } }
 
+.plan-generate-more {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--color-border);
+  border-radius: 14px;
+  background: #fff;
+}
+.plan-generate-more-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-muted);
+  font-size: 11px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+.plan-generate-more-button:hover:not(:disabled) {
+  border-color: var(--color-border-yellow);
+  background: rgba(255, 206, 0, 0.16);
+}
+.plan-generate-more-button:disabled { opacity: 0.55; cursor: not-allowed; }
+.plan-generate-more p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 @media (max-width: 620px) {
   .plan-review-action--reorderable { grid-template-columns: 48px minmax(0, 1fr); }
   .plan-action-order { grid-template-columns: 12px 31px; gap: 5px; }
   .plan-action-controls { grid-column: 2; }
   .plan-order-arrows { justify-content: center; }
   .plan-drag-handle { color: #8c848a; }
+  .plan-generate-more { align-items: stretch; flex-direction: column; gap: 9px; }
+  .plan-generate-more-button { width: 100%; }
 }
 
 /* Cohort management workspace */

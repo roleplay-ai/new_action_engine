@@ -3,7 +3,7 @@ import { getGeminiClient, isGeminiConfigured, GEMINI_MODEL } from "@/lib/gemini"
 import { ACTION_DECK } from "@/lib/constants";
 import type { ActionTheme } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { IST_OFFSET_MINUTES, getCurrentISTDate, getCurrentISTTime, utcToISTDate, utcToISTTime, utcToISTDateTime, istToUTCDateTime } from "@/lib/timezone-utils";
+import { IST_OFFSET_MINUTES, getCurrentISTDate, utcToISTDate, utcToISTTime, utcToISTDateTime, istToUTCDateTime } from "@/lib/timezone-utils";
 
 export type DraftAction = {
   theme: ActionTheme;
@@ -14,6 +14,8 @@ export type DraftAction = {
 };
 
 export const THEMES: ActionTheme[] = ["Collaboration", "Feedback", "Accountability", "Connection", "Coaching"];
+/** DB still requires action_theme; store a fixed default and never surface it in UI. */
+export const DEFAULT_ACTION_THEME: ActionTheme = "Collaboration";
 
 /** Default batch size for the interactive onboarding preview (before a plan duration is chosen). */
 export const DEFAULT_BATCH_SIZE = 3;
@@ -21,6 +23,8 @@ export const DEFAULT_BATCH_SIZE = 3;
 export const BATCH_SIZE = DEFAULT_BATCH_SIZE;
 /** Actions generated per call when background-filling a full multi-week plan. */
 export const BACKGROUND_BATCH_SIZE = 12;
+/** IST weekdays used by daily plans: Monday through Friday. */
+export const DAILY_DELIVERY_DAYS = [1, 2, 3, 4, 5] as const;
 
 const draftSchema = {
   type: Type.OBJECT,
@@ -30,27 +34,26 @@ const draftSchema = {
       items: {
         type: Type.OBJECT,
         properties: {
-          theme: { type: Type.STRING, enum: THEMES },
           title: { type: Type.STRING },
           how: { type: Type.STRING },
           why: { type: Type.STRING },
           timeEstimate: { type: Type.STRING },
         },
-        required: ["theme", "title", "how", "why", "timeEstimate"],
+        required: ["title", "how", "why", "timeEstimate"],
       },
     },
   },
   required: ["actions"],
 };
 
-/** Weekly: duration x actions/week. Daily: duration x actions/day x 7 days. */
+/** Weekly: duration x actions/week. Daily: duration x actions/day x 5 weekdays. */
 export function computeTotalActionsNeeded(
   durationWeeks: number,
   dailyActionCount: number,
   track: DeliveryTrack,
   daysOfWeek?: number[] | null
 ): number {
-  const activeDaysPerWeek = track === "daily" ? 7 : 1;
+  const activeDaysPerWeek = track === "daily" ? DAILY_DELIVERY_DAYS.length : 1;
   return durationWeeks * dailyActionCount * activeDaysPerWeek;
 }
 
@@ -78,13 +81,11 @@ function buildPrompt(
   count: number,
   avoidTitles?: string[]
 ): string {
-  const examples = ACTION_DECK.filter(
-    (a) => focusThemes.length === 0 || focusThemes.includes(a.theme)
-  ).slice(0, 4);
-  const exampleBlock = (examples.length ? examples : ACTION_DECK.slice(0, 3))
+  const examples = ACTION_DECK.slice(0, 3);
+  const exampleBlock = examples
     .map(
       (a) =>
-        `- Theme: ${a.theme}\n  Title: ${a.title}\n  How: ${a.how}\n  Why: ${a.why}\n  Time: ${a.timeEstimate}`
+        `- Title: ${a.title}\n  How: ${a.how}\n  Why: ${a.why}\n  Time: ${a.timeEstimate}`
     )
     .join("\n\n");
 
@@ -92,11 +93,15 @@ function buildPrompt(
     ? `\n\nActions already suggested to this user — do NOT repeat these or close variants of them:\n${avoidTitles.map((t) => `- ${t}`).join("\n")}`
     : "";
 
+  const focusNote = focusThemes.length
+    ? focusThemes.join(", ")
+    : "(no preference)";
+
   return `You are the Nudgeable Action Engine, a behavioral science coach that turns training into small, concrete on-the-job micro-actions.
 
 A user completed training and answered:
 - What training did you do: "${trainingText.trim() || "(not specified)"}"
-- Focus areas they want to work on: ${focusThemes.length ? focusThemes.join(", ") : "(no preference)"}
+- Focus areas they want to work on: ${focusNote}
 
 Here are examples of the format and tone we use for micro-actions:
 
@@ -107,8 +112,7 @@ Generate ${count} NEW micro-actions tailored to this user's training and focus a
 - Have a "how" that is a literal, tactical script or step the user can do today.
 - Have a "why" that is a single sentence of behavioral-science rationale.
 - Have a "timeEstimate" like "2 mins", "5 mins", "15 mins", or "30 mins".
-- Have a "theme" that is exactly one of: ${THEMES.join(", ")}.
-Prefer themes from the user's stated focus areas when possible. Do not repeat actions already suggested before.${avoidBlock}`;
+Do not invent category tags or theme labels. Do not repeat actions already suggested before.${avoidBlock}`;
 }
 
 /** Calls Gemini to draft `count` new personal actions. Does not persist anything. */
@@ -139,7 +143,7 @@ export async function generateDraftActions(params: {
       return { error: "AI returned an empty response" };
     }
 
-    let parsed: { actions?: DraftAction[] };
+    let parsed: { actions?: Array<{ title?: string; how?: string; why?: string; timeEstimate?: string }> };
     try {
       parsed = JSON.parse(text);
     } catch {
@@ -147,7 +151,7 @@ export async function generateDraftActions(params: {
     }
 
     const drafts = (parsed.actions ?? []).filter(
-      (a) => a && a.title && a.how && a.why && a.theme
+      (a) => a && a.title && a.how && a.why
     );
     if (!drafts.length) {
       return { error: "AI did not return any actions" };
@@ -155,10 +159,10 @@ export async function generateDraftActions(params: {
 
     return {
       drafts: drafts.map((a) => ({
-        theme: a.theme,
-        title: a.title.trim(),
-        how: a.how.trim(),
-        why: a.why.trim(),
+        theme: DEFAULT_ACTION_THEME,
+        title: a.title!.trim(),
+        how: a.how!.trim(),
+        why: a.why!.trim(),
         timeEstimate: a.timeEstimate?.trim() || "5 mins",
       })),
     };
@@ -208,33 +212,11 @@ function daysUntilNextWeeklyDayAfter(fromDate: string, daysOfWeek: number[]): nu
   return 7 - fromDow + sorted[0];
 }
 
-/** Days until the next selected weekday on or after `fromDate` (IST), if time still allows today. */
-function daysUntilNextWeeklyDay(
-  fromDate: string,
-  daysOfWeek: number[],
-  istTime: string,
-  fromTime?: string
-): number {
-  const sorted = normaliseDaysOfWeek(daysOfWeek);
-  const fromDow = getWeekdayIST(fromDate);
-  const nowTime = fromTime ?? getCurrentISTTime();
-
-  if (sorted.includes(fromDow) && istTime > nowTime) {
-    return 0;
-  }
-
-  for (const target of sorted) {
-    if (target > fromDow) return target - fromDow;
-  }
-  return 7 - fromDow + sorted[0];
-}
-
 /**
- * First next_delivery_at for a new subscription — next occurrence of any
- * selected weekday at the chosen IST time. Both tracks now carry an explicit
- * daysOfWeek selection (daily = user-chosen subset of days, weekly = exactly
- * one day), so they share the same scheduling math; only a legacy
- * subscription with no daysOfWeek at all falls back to pure "every day".
+ * First next_delivery_at for a new subscription. A plan always begins on a
+ * future calendar day: daily starts on the next weekday, while weekly starts
+ * on the next occurrence of its selected weekday (the following week when
+ * today is that weekday).
  */
 export function computeNextDeliveryAt(
   track: DeliveryTrack,
@@ -243,14 +225,10 @@ export function computeNextDeliveryAt(
 ): string {
   const today = getCurrentISTDate();
   const istTime = utcToISTTime(timeOfDayUtc);
-  const nowTime = getCurrentISTTime();
-
-  if (!daysOfWeek?.length) {
-    const targetDate = istTime > nowTime ? today : addDaysToISTDate(today, 1);
-    return istToUTCDateTime(targetDate, istTime);
-  }
-
-  const daysToAdd = daysUntilNextWeeklyDay(today, daysOfWeek, istTime, nowTime);
+  const cadenceDays = track === "daily" ? [...DAILY_DELIVERY_DAYS] : daysOfWeek;
+  const daysToAdd = cadenceDays?.length
+    ? daysUntilNextWeeklyDayAfter(today, cadenceDays)
+    : 1;
   const targetDate = addDaysToISTDate(today, daysToAdd);
   return istToUTCDateTime(targetDate, istTime);
 }
@@ -265,11 +243,13 @@ export function advanceNextDeliveryAt(
   const prevDate = utcToISTDate(previousIso) || getCurrentISTDate();
   const istTime = utcToISTTime(timeOfDayUtc) || utcToISTDateTime(previousIso).time;
 
-  if (!daysOfWeek?.length) {
+  const cadenceDays = track === "daily" ? [...DAILY_DELIVERY_DAYS] : daysOfWeek;
+
+  if (!cadenceDays?.length) {
     return istToUTCDateTime(addDaysToISTDate(prevDate, 1), istTime);
   }
 
-  const daysToAdd = daysUntilNextWeeklyDayAfter(prevDate, daysOfWeek);
+  const daysToAdd = daysUntilNextWeeklyDayAfter(prevDate, cadenceDays);
   return istToUTCDateTime(addDaysToISTDate(prevDate, daysToAdd), istTime);
 }
 
@@ -287,7 +267,7 @@ export function draftsToActionRows(
     cohort_id: cohortId,
     plan_order: startPlanOrder + index,
     is_personal: true,
-    theme: d.theme,
+    theme: DEFAULT_ACTION_THEME,
     title: d.title,
     how: d.how,
     why: d.why,
@@ -344,6 +324,28 @@ export async function assignScheduledBatch(
   const admin = createAdminClient();
   const nowIso = new Date().toISOString();
   const batchSize = sub.daily_action_count ?? DEFAULT_BATCH_SIZE;
+
+  // Older daily subscriptions can still contain the previous seven-day
+  // cadence. Never release an action batch on Saturday or Sunday.
+  if (
+    sub.track === "daily"
+    && !DAILY_DELIVERY_DAYS.includes(
+      getWeekdayIST(getCurrentISTDate()) as (typeof DAILY_DELIVERY_DAYS)[number]
+    )
+  ) {
+    await admin
+      .from("personal_action_subscriptions")
+      .update({
+        next_delivery_at: computeNextDeliveryAt(
+          "daily",
+          [...DAILY_DELIVERY_DAYS],
+          sub.time_of_day_utc
+        ),
+        updated_at: nowIso,
+      })
+      .eq("id", sub.id);
+    return { assigned: 0 };
+  }
 
   const [{ data: candidateActions }, { data: existingUA }] = await Promise.all([
     admin

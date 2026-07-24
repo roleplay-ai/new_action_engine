@@ -61,9 +61,7 @@ const Challenges: React.FC<Props> = ({ onEdit, onDelete }) => {
 
   const filteredActions = libraryActions.filter((action) => {
     const status = getStatus(action.id, action.isPersonal ?? false) as LibraryStatus;
-    const matchesSearch =
-      action.title.toLowerCase().includes(search.toLowerCase()) ||
-      action.theme.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = action.title.toLowerCase().includes(search.toLowerCase());
     const matchesFilter = filter === 'All' || status === filter;
     return matchesSearch && matchesFilter;
   });
@@ -191,7 +189,7 @@ const Challenges: React.FC<Props> = ({ onEdit, onDelete }) => {
         <Search size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-muted" />
         <input
           type="text"
-          placeholder="Search themes or titles..."
+          placeholder="Search titles..."
           className="form-input pl-10"
           value={search}
           onChange={(e) => setSearch(e.target.value)}

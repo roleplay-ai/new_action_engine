@@ -41,7 +41,7 @@ function formatScheduleSlot(slot: DraftPlanScheduleSlot | undefined) {
   return { date, detail: `${time} IST · planned release ${slot.batchNumber}` };
 }
 
-export default function PlanClient({ initialTrainingText }: { initialTrainingText: string }) {
+export default function PlanClient({ initialTrainingText, embedded = false }: { initialTrainingText: string; embedded?: boolean }) {
   const { personalPlanState, hasArchivedPlans, cohort, generationJob, refetch, allActions } = useEngine();
   const [editingSetup, setEditingSetup] = useState(false);
   const [editingAction, setEditingAction] = useState<ActionCard | null>(null);
@@ -192,6 +192,14 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
     await refetch();
   }
 
+  function openPlanSetup() {
+    if (!initialTrainingText.trim()) {
+      document.getElementById("notes")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    setEditingSetup(true);
+  }
+
   const heading = isPlanActive
     ? "Your plan is active"
     : isPlanArchived
@@ -208,15 +216,21 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
       : hasDraft
         ? "Drag actions into your preferred order, check their planned dates, and edit or remove anything before finalising."
         : canBuildPlan
-          ? "Choose your focus, duration, action pace and reminder schedule."
+          ? "Your saved notes will shape the plan. Choose only its duration, action pace and reminder schedule."
           : "Switch to your current cohort to build a new plan.";
 
-  return <div className="journey-page plan-page">
+  return <section className={`journey-page plan-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "action-plan" : undefined}>
     {editingSetup && <Onboarding initialTrainingText={initialTrainingText} onComplete={() => { setEditingSetup(false); refetch(); }} />}
 
-    <div className="participant-page-heading centered"><span className="participant-eyebrow">AI action planner</span><h1>Turn learning into a practical plan</h1><p>Generate personalised workplace actions, review every suggestion, then activate the plan when it feels right.</p></div>
+    {embedded ? <div className="unified-plan-section-heading"><span className="participant-eyebrow">Step 2 · Build</span><h2>Your action plan</h2><p>Generate personalised workplace actions, review every suggestion, and activate them when they feel right.</p></div> : <div className="participant-page-heading"><span className="participant-eyebrow">Private workspace</span><h1>My Plan</h1><p>Shape what you want to build, review every suggested action, then activate the plan when it feels right.</p></div>}
 
-    <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your cohort"}</span><h2>{heading}</h2><p>{summary}</p></div>{(hasDraft || canBuildPlan) && <button className="journey-primary-button" onClick={() => setEditingSetup(true)}>{hasDraft ? "Change setup" : "Build my plan"}</button>}</div>
+    <div className="journey-v2-progress-pills" aria-label="Plan progress">
+      <div className={hasDraft || isPlanActive || isPlanArchived ? "done" : "current"}><span>{hasDraft || isPlanActive || isPlanArchived ? <Check size={13} /> : 1}</span>My Plan</div>
+      <div className={generatedActions.length > 0 ? "done" : hasDraft ? "current" : ""}><span>{generatedActions.length > 0 ? <Check size={13} /> : 2}</span>Actions generated</div>
+      <div className={isPlanActive || isPlanArchived ? "done" : generatedActions.length > 0 ? "current" : ""}><span>{isPlanActive || isPlanArchived ? <Check size={13} /> : 3}</span>{isPlanActive ? "Active" : isPlanArchived ? "Archived" : "Activate"}</div>
+    </div>
+
+    <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your cohort"}</span><h2>{heading}</h2><p>{summary}</p></div>{(hasDraft || canBuildPlan) && <button className="journey-primary-button" onClick={openPlanSetup}>{!initialTrainingText.trim() ? "Add notes first" : hasDraft ? "Change setup" : "Build my plan"}</button>}</div>
 
     {canBuildPlan && hasArchivedPlans && <div className="journey-card plan-history-notice"><strong>Your earlier cohort plans are safely archived.</strong><p>Use the cohort switcher above whenever you want to revisit earlier actions and complete any that remain.</p></div>}
 
@@ -291,5 +305,5 @@ export default function PlanClient({ initialTrainingText }: { initialTrainingTex
     {!isPlanActive && !isPlanArchived && !hasDraft && <div className="plan-benefits-grid"><div className="journey-card"><CheckCircle2 size={22} /><h3>Review everything</h3><p>Edit or delete every AI suggestion before your plan begins.</p></div><div className="journey-card"><CalendarDays size={22} /><h3>Your pace</h3><p>Choose the days, frequency and time that work with your schedule.</p></div></div>}
 
     {typeof document !== "undefined" && editingAction && editForm && createPortal(<div className="plan-edit-overlay"><div className="plan-edit-modal"><button className="plan-edit-close" onClick={() => setEditingAction(null)}><X size={18} /></button><span className="participant-eyebrow">Edit action</span><h3>Make this action yours</h3><label>Action title<input value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} /></label><div className="plan-edit-how-why"><span className="plan-edit-how-why-label">How and why</span><label><span>How to do it</span><textarea value={editForm.how} onChange={(event) => setEditForm({ ...editForm, how: event.target.value })} rows={3} /></label><label><span>Why it works</span><textarea value={editForm.why} onChange={(event) => setEditForm({ ...editForm, why: event.target.value })} rows={3} /></label></div>{error && <p className="plan-review-error">{error}</p>}<button className="journey-primary-button" disabled={saving || !editForm.title.trim()} onClick={saveEdit}>{saving ? "Saving…" : "Save changes"}</button></div></div>, document.body)}
-  </div>;
+  </section>;
 }

@@ -61,7 +61,7 @@ export async function getMyPlanSettings(): Promise<{ settings: MyPlanSettings | 
   if (!data) return { settings: null };
   return { settings: {
     track: data.track as DeliveryTrack,
-    actionCount: data.daily_action_count ?? 1,
+    actionCount: data.track === "daily" ? 1 : data.daily_action_count ?? 1,
     durationWeeks: data.duration_weeks ?? 0,
     daysOfWeek: data.days_of_week ?? (data.day_of_week != null ? [data.day_of_week] : []),
     reminderTime: utcToISTTime(data.time_of_day_utc),
@@ -107,7 +107,9 @@ export async function getDraftPlanSchedule(): Promise<{
       return { slots: [], actionCountPerRelease: 1, error: "Only draft plans have a schedule preview" };
     }
 
-    const actionCountPerRelease = Math.max(1, subscription.daily_action_count ?? 1);
+    const actionCountPerRelease = subscription.track === "daily"
+      ? 1
+      : Math.max(1, subscription.daily_action_count ?? 1);
     const daysOfWeek = subscription.days_of_week ?? (subscription.day_of_week != null ? [subscription.day_of_week] : null);
     const firstCadenceAt = computeNextDeliveryAt(
       subscription.track as DeliveryTrack,
@@ -218,6 +220,7 @@ export async function saveGeneratedActions(params: {
     if (![1, 2, 3, 4, 5].includes(params.dailyActionCount)) {
       return { error: "Action count must be between 1 and 5" };
     }
+    const actionCount = params.track === "daily" ? 1 : params.dailyActionCount;
     if (!Number.isInteger(params.durationWeeks) || params.durationWeeks < 2 || params.durationWeeks > 24) {
       return { error: "Plan duration must be between 2 and 24 weeks" };
     }
@@ -228,7 +231,7 @@ export async function saveGeneratedActions(params: {
     const timeOfDayUtc = istToUTCTime("11:30");
     const totalActionsNeeded = computeTotalActionsNeeded(
       params.durationWeeks,
-      params.dailyActionCount,
+      actionCount,
       params.track,
       uniqueDays
     );
@@ -261,7 +264,7 @@ export async function saveGeneratedActions(params: {
         track: params.track,
         day_of_week: uniqueDays[0],
         days_of_week: uniqueDays,
-        daily_action_count: params.dailyActionCount,
+        daily_action_count: actionCount,
         time_of_day_utc: timeOfDayUtc,
         is_active: false,
         last_delivered_at: null,

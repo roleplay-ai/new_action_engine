@@ -13,7 +13,7 @@ const prompts = [
   "Something I want to try differently is…",
 ];
 
-export default function NotesClient() {
+export default function NotesClient({ embedded = false, onBodyChange }: { embedded?: boolean; onBodyChange?: (body: string) => void }) {
   const { cohort } = useEngine();
   const [body, setBody] = useState("");
   const [status, setStatus] = useState<"loading" | "saved" | "saving" | "error">("loading");
@@ -22,7 +22,7 @@ export default function NotesClient() {
   const loaded = useRef(false);
   const skipNextSave = useRef(false);
 
-  usePageLoading(initializing);
+  usePageLoading(embedded ? false : initializing);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,21 +58,23 @@ export default function NotesClient() {
     return () => window.clearTimeout(timer);
   }, [body, cohort?.id]);
 
+  useEffect(() => {
+    if (loaded.current) onBodyChange?.(body);
+  }, [body, onBodyChange]);
+
   const addPrompt = useCallback((prompt: string) => {
     setBody((current) => `${current}${current.trim() ? "\n\n" : ""}${prompt} `);
   }, []);
 
   const words = body.trim() ? body.trim().split(/\s+/).length : 0;
 
-  if (initializing) return null;
+  if (initializing) return embedded
+    ? <section className="unified-plan-section"><div className="unified-plan-section-heading"><span className="participant-eyebrow">Step 1 · Reflect</span><h2>Your private notes</h2><p>Loading your saved notes…</p></div><div className="journey-card unified-plan-loading" /></section>
+    : null;
 
   return (
-    <div className="journey-page notes-page">
-      <div className="participant-page-heading">
-        <span className="participant-eyebrow">Private workspace</span>
-        <h1>My session notes</h1>
-        <p>Capture what matters to you. Your notes stay private and can guide your AI action plan.</p>
-      </div>
+    <section className={`journey-page notes-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "notes" : undefined}>
+      {embedded ? <div className="unified-plan-section-heading"><span className="participant-eyebrow">Step 1 · Reflect</span><h2>Your private notes</h2><p>Capture what matters. These notes autosave and guide the actions generated below.</p></div> : <div className="participant-page-heading"><span className="participant-eyebrow">Private workspace</span><h1>My session notes</h1><p>Capture what matters to you. Your notes stay private and can guide your AI action plan.</p></div>}
       <div className="notes-layout">
         <section className="journey-card notes-editor-card">
           <div className="notes-editor-head">
@@ -118,12 +120,12 @@ export default function NotesClient() {
             <Sparkles size={22} />
             <h3>Use notes in your plan</h3>
             <p>Your saved notes become useful context when you build personalised workplace actions.</p>
-            <Link href="/plan" className="journey-primary-button">
-              Build my plan
+            <Link href={embedded ? "#action-plan" : "/plan"} className="journey-primary-button">
+              Continue to actions
             </Link>
           </div>
         </aside>
       </div>
-    </div>
+    </section>
   );
 }

@@ -1,14 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, ArrowRight, Zap, CalendarDays, Mail } from "lucide-react";
-import {
-  saveGeneratedActions,
-  skipSelfOnboarding,
-} from "@/app/actions/ai-actions";
+import { X, Zap, CalendarDays, Mail, NotebookPen, Check } from "lucide-react";
+import { saveGeneratedActions, skipSelfOnboarding } from "@/app/actions/ai-actions";
 import { computeTotalActionsNeeded, DAILY_DELIVERY_DAYS, type DeliveryTrack } from "@/lib/personal-action-generation";
-
-type Step = "qna" | "cadence";
 
 const WEEKDAYS = [
   { value: 0, label: "Sunday" },
@@ -20,24 +15,24 @@ const WEEKDAYS = [
   { value: 6, label: "Saturday" },
 ];
 
+const DURATIONS = [2, 4, 8, 12, 16, 20, 24] as const;
+
 const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: string }> = ({ onComplete, initialTrainingText = "" }) => {
-  const [step, setStep] = useState<Step>("qna");
-  const [trainingText, setTrainingText] = useState(initialTrainingText);
-  const [focusCustomText, setFocusCustomText] = useState("");
   const [durationWeeks, setDurationWeeks] = useState(8);
   const [track, setTrack] = useState<DeliveryTrack>("weekly");
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([2]);
-  const [dailyActionCount, setDailyActionCount] = useState<1 | 2 | 3 | 4 | 5>(2);
+  const [weeklyActionCount, setWeeklyActionCount] = useState<1 | 2 | 3 | 4 | 5>(2);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const trainingText = initialTrainingText.trim();
+  const actionCount = track === "daily" ? 1 : weeklyActionCount;
+
   const selectTrack = (next: DeliveryTrack) => {
     setTrack(next);
-    if (next === "weekly") {
-      setDaysOfWeek((prev) => [prev[0] ?? 2]);
-    } else {
-      setDaysOfWeek([...DAILY_DELIVERY_DAYS]);
-    }
+    setErrorMsg(null);
+    if (next === "weekly") setDaysOfWeek((previous) => [previous[0] ?? 2]);
+    else setDaysOfWeek([...DAILY_DELIVERY_DAYS]);
   };
 
   const handleSkip = async () => {
@@ -48,14 +43,17 @@ const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: strin
   };
 
   const handleFinish = async () => {
+    if (!trainingText) {
+      setErrorMsg("Add your session notes first. Your notes are the input for this plan.");
+      return;
+    }
     setSaving(true);
     setErrorMsg(null);
     const { error } = await saveGeneratedActions({
       trainingText,
       focusThemes: [],
-      focusCustomText,
       track,
-      dailyActionCount,
+      dailyActionCount: actionCount,
       daysOfWeek,
       durationWeeks,
       emailRemindersEnabled: true,
@@ -68,187 +66,55 @@ const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: strin
     onComplete();
   };
 
-  const totalActions = computeTotalActionsNeeded(durationWeeks, dailyActionCount, track, daysOfWeek);
+  const totalActions = computeTotalActionsNeeded(durationWeeks, actionCount, track, daysOfWeek);
   const cadenceSummary = track === "weekly"
-    ? `${dailyActionCount} action${dailyActionCount === 1 ? "" : "s"} each week for ${durationWeeks} weeks`
-    : `${dailyActionCount} action${dailyActionCount === 1 ? "" : "s"} each weekday for ${durationWeeks} weeks`;
+    ? `${actionCount} action${actionCount === 1 ? "" : "s"} each week for ${durationWeeks} weeks`
+    : `1 action each weekday for ${durationWeeks} weeks`;
   const planWarning = totalActions > 100
-    ? "This is a very intensive plan. Consider fewer daily actions or a shorter duration."
+    ? "This is a long daily plan. Consider a shorter duration if that feels more realistic."
     : totalActions > 50
-      ? "This is a busy plan. Make sure this pace is realistic for your schedule."
+      ? "This is a busy plan. Make sure this duration feels realistic for your schedule."
       : null;
 
   return (
-    <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-8"
-      style={{ background: "rgba(34,29,35,0.65)", backdropFilter: "blur(12px)" }}>
-      <div
-        className="card card--wide animate-pop w-full overflow-y-auto no-scrollbar"
-        style={{ maxHeight: "90vh", maxWidth: step === "cadence" ? "var(--max-width-wide)" : undefined }}
-      >
+    <div className="plan-setup-overlay">
+      <div className="plan-setup-modal" role="dialog" aria-modal="true" aria-labelledby="plan-setup-title">
+        <div className="plan-setup-head">
+          <div><span className="participant-eyebrow">Plan setup</span><h2 id="plan-setup-title">Choose your action pace</h2><p>Your saved notes will shape the actions. You only need to choose the schedule.</p></div>
+          <button type="button" onClick={handleSkip} disabled={saving} aria-label="Close plan setup"><X size={19} /></button>
+        </div>
 
-        {step === "qna" && (
-          <>
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <span className="tag tag--yellow mb-3 inline-block">Get Started</span>
-                <h3 className="card__title">Tell us about your training</h3>
-                <p className="card__subtitle mb-0">
-                  We&apos;ll use this to generate your personal action plan.
-                </p>
-              </div>
-              <button onClick={handleSkip} disabled={saving} className="btn btn--icon ml-4">
-                <X size={20} strokeWidth={2.5} />
-              </button>
-            </div>
+        <div className={`plan-notes-source ${trainingText ? "ready" : "missing"}`}>
+          <span>{trainingText ? <Check size={20} /> : <NotebookPen size={20} />}</span>
+          <div><strong>{trainingText ? "Your notes are ready" : "Add notes before generating"}</strong><p>{trainingText ? "AI will use the private notes above—there are no extra planning questions." : "Close this setup, write your notes, then return here to choose a pace."}</p></div>
+        </div>
 
-            <div className="form-group mb-5">
-              <label className="form-label">What training did you do?</label>
-              <textarea
-                placeholder="Your saved session notes will appear here, or describe the workshop in your own words…"
-                className="form-input"
-                style={{ minHeight: "100px", resize: "vertical" }}
-                value={trainingText}
-                onChange={(e) => setTrainingText(e.target.value)}
-              />
-            </div>
+        <div className="plan-setup-field">
+          <label>Frequency</label>
+          <div className="plan-track-segmented">
+            <button type="button" className={track === "weekly" ? "active" : ""} onClick={() => selectTrack("weekly")}><CalendarDays size={18} /><span><strong>Weekly</strong><small>On one selected day</small></span></button>
+            <button type="button" className={track === "daily" ? "active" : ""} onClick={() => selectTrack("daily")}><Zap size={18} /><span><strong>Daily</strong><small>Monday to Friday</small></span></button>
+          </div>
+        </div>
 
-            <div className="form-group mb-6">
-              <label className="form-label">What key areas do you want to focus on?</label>
-              <p className="text-xs mb-3" style={{ color: "var(--color-text-muted)" }}>
-                Tell us in your own words.
-              </p>
-              <textarea
-                placeholder="e.g. building trust with my remote team, handling difficult conversations..."
-                className="form-input"
-                style={{ minHeight: "80px", resize: "vertical" }}
-                value={focusCustomText}
-                onChange={(e) => setFocusCustomText(e.target.value)}
-              />
-            </div>
+        <div className={`plan-setup-grid ${track === "weekly" ? "weekly" : "daily"}`}>
+          <label className="plan-setup-field"><span>Duration</span><select value={durationWeeks} onChange={(event) => setDurationWeeks(Number(event.target.value))}>{DURATIONS.map((weeks) => <option key={weeks} value={weeks}>{weeks} weeks</option>)}</select></label>
 
-            <button onClick={() => setStep("cadence")} className="btn btn--primary btn--full">
-              Continue <ArrowRight size={18} strokeWidth={2.5} />
-            </button>
-          </>
-        )}
+          {track === "weekly" ? <label className="plan-setup-field"><span>Actions per week</span><select value={weeklyActionCount} onChange={(event) => setWeeklyActionCount(Number(event.target.value) as 1 | 2 | 3 | 4 | 5)}>{([1, 2, 3, 4, 5] as const).map((count) => <option key={count} value={count}>{count} action{count === 1 ? "" : "s"}</option>)}</select></label> : <div className="plan-setup-field"><span>Actions per weekday</span><div className="plan-fixed-action-count"><strong>1 action</strong><small>Fixed for a realistic daily pace</small></div></div>}
 
-        {step === "cadence" && (
-          <>
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <span className="tag tag--yellow mb-3 inline-block">Plan setup</span>
-                <h3 className="card__title">Choose your action pace</h3>
-                <p className="card__subtitle mb-0">
-                  Choose how long you want to practise, how many actions you want, and when to be reminded.
-                </p>
-              </div>
-              <button onClick={handleSkip} disabled={saving} className="btn btn--icon ml-4">
-                <X size={20} strokeWidth={2.5} />
-              </button>
-            </div>
+          {track === "weekly" && <label className="plan-setup-field"><span>Reminder day</span><select value={daysOfWeek[0]} onChange={(event) => setDaysOfWeek([Number(event.target.value)])}>{WEEKDAYS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label>}
 
-            <div className="form-group mb-5">
-              <label className="form-label">How long is this plan?</label>
-              <p className="text-xs mb-2" style={{ color: "var(--color-text-muted)" }}>
-                Pick anywhere from 2 to 24 weeks.
-              </p>
-              <div className="flex items-center gap-3">
-                <input
-                  type="range"
-                  min={2}
-                  max={24}
-                  step={1}
-                  value={durationWeeks}
-                  onChange={(e) => setDurationWeeks(Number(e.target.value))}
-                  style={{ flex: 1 }}
-                />
-                <span
-                  className="text-sm font-semibold whitespace-nowrap"
-                  style={{ color: "var(--color-text-primary)", minWidth: "72px", textAlign: "right" }}
-                >
-                  {durationWeeks} {durationWeeks === 1 ? "week" : "weeks"}
-                </span>
-              </div>
-            </div>
+          <div className="plan-setup-field"><span>Reminder time</span><div className="plan-fixed-action-count"><strong>11:30 AM IST</strong><small>Fixed processing time</small></div></div>
+        </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
-              <button
-                type="button"
-                onClick={() => selectTrack("weekly")}
-                className={`card__inset text-left transition-all ${track === "weekly" ? "ring-2 ring-offset-2" : "opacity-70 hover:opacity-100"}`}
-                style={track === "weekly" ? { borderColor: "var(--color-border-yellow)" } : {}}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <CalendarDays size={20} style={{ color: track === "weekly" ? "var(--bright-amber)" : "var(--color-text-muted)" }} />
-                  {track === "weekly" && <span className="tag tag--featured">Selected</span>}
-                </div>
-                <h5 className="font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>Weekly actions</h5>
-                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Practise on one selected day each week.</p>
-              </button>
+        <div className="plan-email-note"><Mail size={18} /><div><strong>Email reminders included</strong><p>We&apos;ll email you on {track === "weekly" ? "your selected day" : "weekdays"} when the next action is ready.</p></div></div>
 
-              <button
-                type="button"
-                onClick={() => selectTrack("daily")}
-                className={`card__inset text-left transition-all ${track === "daily" ? "ring-2 ring-offset-2" : "opacity-70 hover:opacity-100"}`}
-                style={track === "daily" ? { borderColor: "var(--color-border-yellow)" } as React.CSSProperties : {}}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <Zap size={20} style={{ color: track === "daily" ? "var(--bright-amber)" : "var(--color-text-muted)" }} />
-                  {track === "daily" && <span className="tag tag--featured">Selected</span>}
-                </div>
-                <h5 className="font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>Daily actions</h5>
-                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Use short workplace actions Monday to Friday.</p>
-              </button>
-            </div>
+        <div className="plan-setup-summary"><div><strong>{cadenceSummary}</strong><small>AI will generate the complete plan from your notes.</small></div><b>{totalActions} actions</b></div>
 
-            <div className={`grid gap-4 mb-5 ${track === "weekly" ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
-              <div className="form-group mb-0">
-                <label className="form-label">Actions per {track === "weekly" ? "week" : "weekday"}</label>
-                <select className="form-input" value={dailyActionCount} onChange={(event) => setDailyActionCount(Number(event.target.value) as 1 | 2 | 3 | 4 | 5)}>
-                  {([1, 2, 3, 4, 5] as const).map((count) => <option key={count} value={count}>{count} action{count === 1 ? "" : "s"}</option>)}
-                </select>
-              </div>
-              {track === "weekly" && <div className="form-group mb-0">
-                <label className="form-label">Reminder day</label>
-                <select className="form-input" value={daysOfWeek[0]} onChange={(event) => setDaysOfWeek([Number(event.target.value)])}>
-                  {WEEKDAYS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-                </select>
-              </div>}
-              <div className="form-group mb-0">
-                <label className="form-label">Reminder time</label>
-                <div className="plan-fixed-reminder-time">
-                  <strong>11:30 AM IST</strong>
-                  <small>Fixed processing time</small>
-                </div>
-              </div>
-            </div>
+        {planWarning && <p className="plan-setup-warning">{planWarning}</p>}
+        {errorMsg && <p className="plan-setup-error">{errorMsg}</p>}
 
-            <div className="card__inset mb-4 flex items-start gap-3">
-              <Mail size={18} style={{ color: "var(--bright-amber)", flexShrink: 0, marginTop: 2 }} />
-              <div>
-                <p className="font-bold mb-0" style={{ color: "var(--color-text-primary)" }}>Email reminders included</p>
-                <p className="text-xs mb-0" style={{ color: "var(--color-text-muted)" }}>
-                  We&apos;ll email you on your selected {track === "weekly" ? "day" : "weekdays"} at 11:30 AM IST when new actions are ready.
-                </p>
-              </div>
-            </div>
-
-            <div className="card__inset mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div><p className="font-bold" style={{ color: "var(--color-text-primary)" }}>{cadenceSummary}</p><p className="text-xs" style={{ color: "var(--color-text-muted)" }}>AI will generate your complete practice plan.</p></div>
-              <p className="text-xl font-bold whitespace-nowrap" style={{ color: "var(--color-text-primary)" }}>{totalActions} actions</p>
-            </div>
-
-            {planWarning && <div className="mb-5 rounded-xl px-4 py-3 text-xs font-semibold" style={{ color: totalActions > 100 ? "#9b2c35" : "#7a5f00", background: totalActions > 100 ? "#feecee" : "rgba(255,206,0,.14)", border: `1px solid ${totalActions > 100 ? "#facbd0" : "var(--color-border-yellow)"}` }}>{planWarning}</div>}
-
-            {errorMsg && (
-              <p className="text-sm font-semibold mb-4" style={{ color: "var(--color-danger)" }}>{errorMsg}</p>
-            )}
-
-            <button onClick={handleFinish} disabled={saving} className="btn btn--primary btn--full">
-              {saving ? "Generating…" : "Generate my actions"}
-            </button>
-          </>
-        )}
+        <button type="button" className="journey-primary-button plan-generate-button" onClick={handleFinish} disabled={saving || !trainingText}>{saving ? "Generating…" : "Generate my actions"}</button>
       </div>
     </div>
   );

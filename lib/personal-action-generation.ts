@@ -323,7 +323,10 @@ export async function assignScheduledBatch(
 ): Promise<{ assigned: number }> {
   const admin = createAdminClient();
   const nowIso = new Date().toISOString();
-  const batchSize = sub.daily_action_count ?? DEFAULT_BATCH_SIZE;
+  // Daily practice is intentionally one action per weekday. Normalise older
+  // subscriptions here as well as at plan creation so they cannot release a
+  // stacked daily batch.
+  const batchSize = sub.track === "daily" ? 1 : sub.daily_action_count ?? DEFAULT_BATCH_SIZE;
 
   // Older daily subscriptions can still contain the previous seven-day
   // cadence. Never release an action batch on Saturday or Sunday.

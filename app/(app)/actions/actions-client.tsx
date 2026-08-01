@@ -79,10 +79,14 @@ function archivedActionIsComplete(status: string | null) {
 }
 
 export default function ActionsClient() {
-  const { cohort, personalPlanState, allActions, userActions, completeAction } = useEngine();
+  const { profile, cohort, personalPlanState, allActions, userActions, completeAction } = useEngine();
   const [tab, setTab] = useState<Tab>("upcoming");
   const [completingId, setCompletingId] = useState<string | null>(null);
-  const [celebratingTitle, setCelebratingTitle] = useState<string | null>(null);
+  const [celebration, setCelebration] = useState<{
+    title: string;
+    pointsDelta?: number;
+    completedLate?: boolean;
+  } | null>(null);
   const [reflection, setReflection] = useState("");
   const [busy, setBusy] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -157,7 +161,11 @@ export default function ActionsClient() {
         setCompletingId(null);
         setReflection("");
         if (success) {
-          setCelebratingTitle(actionTitle ?? "Action completed");
+          setCelebration({
+            title: actionTitle ?? "Action completed",
+            pointsDelta: result.pointsDelta,
+            completedLate: result.completedLate,
+          });
         }
       }
     } finally {
@@ -166,7 +174,7 @@ export default function ActionsClient() {
   }
 
   function closeCelebration() {
-    setCelebratingTitle(null);
+    setCelebration(null);
   }
 
   async function skip(actionId: string) {
@@ -181,7 +189,10 @@ export default function ActionsClient() {
   return <div className="reference-actions animate-in fade-in duration-700">
     <div className="actions-overview-head">
       <div><span className="participant-eyebrow">Workplace practice</span><h1>Your practice plan</h1><p>One action appears when it is due. Completed actions move to your history.</p></div>
-      <span className={`actions-plan-badge ${planIsActive ? "active" : ""}`}>{planIsActive ? "Plan active" : planIsArchived ? "Archived plan" : "No active plan"}</span>
+      <div className="actions-overview-meta">
+        <span className="actions-score-badge"><small>Your points</small><strong>{profile.totalPoints.toLocaleString("en-IN")}</strong><em>of 2,000</em></span>
+        <span className={`actions-plan-badge ${planIsActive ? "active" : ""}`}>{planIsActive ? "Plan active" : planIsArchived ? "Archived plan" : "No active plan"}</span>
+      </div>
     </div>
 
     <nav className="actions-tabs" aria-label="Action views">
@@ -198,7 +209,7 @@ export default function ActionsClient() {
           <div className="actions-section-heading"><div><h3>Current actions</h3><p>{currentActions.length ? `${currentActions.length} action${currentActions.length === 1 ? " is" : "s are"} ready for this ${settings?.track === "daily" ? "day" : "week"}.` : "Actions ready for your current practice period."}</p></div>{currentActions.length > 0 && <span>{currentActions.length} ready</span>}</div>
           {currentActions.length === 0 ? <div className="actions-current-card"><div className="actions-empty-state"><ListChecks size={28} /><strong>{planIsArchived ? "No released actions remain" : "No action is due right now"}</strong><p>{planIsArchived ? "This archived cohort plan will not release more reminders." : planIsActive ? "Your next action will appear according to this cohort plan's schedule." : personalPlanState === "draft" ? "Finish reviewing and finalise this cohort's draft plan first." : "Build a practice plan for your current cohort to generate workplace actions."}</p>{!planCanPerform && <Link href="/plan" className="journey-primary-button">{personalPlanState === "draft" ? "Review draft plan" : "Build my plan"}</Link>}</div></div> : <div className="actions-current-list">
             {currentActions.map(({ userAction, action }, index) => <article className="actions-current-card" key={userAction.id}>
-              <div className="actions-current-top"><span>Current action {currentActions.length > 1 ? index + 1 : ""}</span><em>{action.timeEstimate}</em></div>
+              <div className="actions-current-top"><span>Current action {currentActions.length > 1 ? index + 1 : ""}</span><em>{action.timeEstimate}{action.planPoints ? ` · Protect ${action.planPoints} points today` : ""}</em></div>
               <h2>{action.title}</h2><p>{action.how}</p>
               <div className="actions-why"><strong>Why this works</strong><span>{action.why}</span></div>
               <div className="actions-current-buttons"><button className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(userAction.actionId)}><Check size={16} /> Mark completed</button><button disabled={busy} onClick={() => skip(userAction.actionId)}>Skip for now</button></div>
@@ -208,11 +219,11 @@ export default function ActionsClient() {
 
         <section className="actions-list-card"><h3>{planIsArchived ? "Remaining archived actions" : "Next reminders"}</h3><p>{planIsArchived ? "Reminder delivery is paused. You can still choose and complete any remaining action." : "Actions scheduled after your current action in this cohort plan."}</p><div className="actions-upcoming-list">
           {upcoming.length === 0 && <div className="actions-inline-empty">{planIsArchived ? "No archived actions remain." : "No additional actions are scheduled yet."}</div>}
-          {upcoming.map((action, index) => { const deliveryDate = projectedDeliveryDate(settings, index); return <div key={action.id}><b>{index + 1}</b><span><strong>{action.title}</strong><small><Clock3 size={11} /> {action.timeEstimate}{planIsArchived ? " · Available to revisit" : ` · ${formatDate(deliveryDate)}`}</small></span>{planIsArchived ? <button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>Do this action</button> : <ChevronRight size={16} />}</div>; })}
+          {upcoming.map((action, index) => { const deliveryDate = projectedDeliveryDate(settings, index); return <div key={action.id}><b>{index + 1}</b><span><strong>{action.title}</strong><small><Clock3 size={11} /> {action.timeEstimate}{action.planPoints ? ` · ${action.planPoints} points` : ""}{planIsArchived ? " · Available to revisit" : ` · ${formatDate(deliveryDate)}`}</small></span>{planIsArchived ? <button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>Do this action</button> : <ChevronRight size={16} />}</div>; })}
         </div></section>
       </div>
 
-      <aside className="actions-leaderboard-card"><div className="actions-card-heading"><div><h3>{cohort?.name ?? "Cohort"} leaderboard</h3><p>Points earned from this cohort&apos;s actions only</p></div><Trophy size={20} /></div><div className="actions-leaderboard-list">
+      <aside className="actions-leaderboard-card"><div className="actions-card-heading"><div><h3>{cohort?.name ?? "Cohort"} leaderboard</h3><p>Current cohort balance · everyone starts at 1,000</p></div><Trophy size={20} /></div><div className="actions-leaderboard-list">
         {leaderboard.length === 0 && <div className="actions-inline-empty">No rankings yet.</div>}
         {leaderboard.slice(0, 8).map((entry, index) => <div className={entry.isCurrentUser ? "me" : ""} key={entry.id}><b>{index === 0 ? <Medal size={17} /> : index + 1}</b><i>{entry.name.substring(0, 2).toUpperCase()}</i><span><strong>{entry.name}{entry.isCurrentUser ? " (You)" : ""}</strong><small>{entry.totalPoints} points</small></span></div>)}
       </div></aside>
@@ -220,12 +231,12 @@ export default function ActionsClient() {
 
     {tab === "completed" && <section className="actions-list-card actions-completed-card"><h3>Completed actions</h3><p>A record of the workplace actions you have finished.</p><div className="actions-completed-list">
       {completed.length === 0 && <div className="actions-empty-state"><CheckCircle2 size={28} /><strong>No completed actions yet</strong><p>Your completed workplace actions will appear here.</p></div>}
-      {completed.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CheckCircle2 size={19} /><span><strong>{action.title}</strong><small>{item.reflection || "Completed successfully"}</small></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em></div>; })}
+      {completed.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CheckCircle2 size={19} /><span><strong>{action.title}</strong><small>{item.completedLate ? "Completed late · no points" : `Completed on time${item.pointsDelta ? ` · +${item.pointsDelta} points` : ""}`}{item.reflection ? ` · ${item.reflection}` : ""}</small></span><em>{formatDate(item.completedAt || item.scheduledAt || item.scheduledDate)}</em></div>; })}
     </div></section>}
 
     {tab === "not-completed" && <section className="actions-list-card actions-completed-card"><h3>Actions not completed</h3><p>A record of workplace actions you skipped or could not complete.</p><div className="actions-completed-list actions-not-completed-list">
       {notCompleted.length === 0 && <div className="actions-empty-state"><CircleX size={28} /><strong>No uncompleted actions</strong><p>Actions you don&apos;t complete will appear here.</p></div>}
-      {notCompleted.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CircleX size={19} /><span><strong>{action.title}</strong><small>{item.reflection || (item.status === "skipped" ? "Skipped" : "Not completed")}</small></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em></div>; })}
+      {notCompleted.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CircleX size={19} /><span><strong>{action.title}</strong><small>{item.pointsDelta && item.pointsDelta < 0 ? `${item.pointsDelta} points · ` : ""}{item.reflection || (item.status === "skipped" ? "Skipped" : "Not completed")}</small></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em><button type="button" disabled={busy} onClick={() => setCompletingId(item.actionId)}>Complete late</button></div>; })}
     </div></section>}
 
     {tab === "archived" && <section className="actions-list-card actions-completed-card actions-archive-card"><h3>Archived actions</h3><p>Actions from all your earlier cohort plans stay visible here, whichever cohort you are viewing.</p><div className="actions-archive-list">
@@ -241,14 +252,16 @@ export default function ActionsClient() {
     </div></section>}
 
     {tab === "settings" && <section className="actions-list-card actions-settings-card"><div className="actions-card-heading"><div><h3>Plan overview</h3><p>Your current duration, pace and reminder schedule.</p></div><Settings2 size={20} /></div>
-      {!settings ? <div className="actions-empty-state"><CalendarDays size={28} /><strong>No plan for this cohort yet</strong><p>Generate, review and finalise your plan before actions appear here.</p>{cohort?.isCurrent && <Link href="/plan" className="journey-primary-button">Go to my plan</Link>}</div> : <><div className="actions-inline-empty">{settings.isArchived ? "Archived · reminders paused · plan settings are read-only" : settings.isActive ? "Finalised · plan settings are read-only" : "Draft · finalise this plan before reminders begin"}</div><div className="actions-settings-grid"><div><span>Action pace</span><strong>{settings.track === "weekly" ? "Weekly actions" : "Daily actions"}</strong></div><div><span>Plan duration</span><strong>{settings.durationWeeks} weeks</strong></div><div><span>Actions per {settings.track === "weekly" ? "week" : "weekday"}</span><strong>{settings.actionCount}</strong></div><div><span>Reminder</span><strong>{settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}{formatTime(settings.reminderTime)}</strong></div><div><span>Email notifications</span><strong className="actions-notification-status"><Mail size={15} />Email reminders on</strong></div><div><span>Total plan</span><strong>{settings.totalActionsPlanned} actions</strong></div></div></>}
+      {!settings ? <div className="actions-empty-state"><CalendarDays size={28} /><strong>No plan for this cohort yet</strong><p>Generate, review and finalise your plan before actions appear here.</p>{cohort?.isCurrent && <Link href="/plan" className="journey-primary-button">Go to my plan</Link>}</div> : <><div className="actions-inline-empty">{settings.isArchived ? "Archived · reminders paused · plan settings are read-only" : settings.isActive ? "Finalised · plan settings are read-only" : "Draft · finalise this plan before reminders begin"}</div><div className="actions-settings-grid"><div><span>Action pace</span><strong>{settings.track === "weekly" ? "Weekly actions" : "Daily actions"}</strong></div><div><span>Plan duration</span><strong>{settings.durationWeeks} weeks</strong></div><div><span>Actions per {settings.track === "weekly" ? "week" : "weekday"}</span><strong>{settings.actionCount}</strong></div><div><span>Reminder</span><strong>{settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}{formatTime(settings.reminderTime)}</strong></div><div><span>Email notifications</span><strong className="actions-notification-status"><Mail size={15} />Email reminders on</strong></div><div><span>Total plan</span><strong>{settings.totalActionsPlanned} actions</strong></div><div><span>Starting points</span><strong>1,000</strong></div><div><span>Score range</span><strong>0–2,000</strong></div></div><p className="actions-points-rule">Complete on the assigned day to protect the action&apos;s points and earn the same amount. Missed actions can still be completed later, but they earn no points and the deduction remains.</p></>}
     </section>}
 
     {typeof document !== "undefined" && completingId && createPortal(<div className="actions-checkin-overlay"><div className="actions-checkin-modal"><button onClick={() => setCompletingId(null)}><X size={18} /></button><span className="participant-eyebrow">Action check-in</span><h3>How did this action go?</h3><p>Add a short reflection. It helps you notice what worked and what to adjust.</p><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="What happened when you tried it?" /><div><button className="journey-primary-button" disabled={busy} onClick={() => finish(true)}>{busy ? "Saving…" : "Complete action"}</button><button disabled={busy} onClick={() => finish(false)}>I didn&apos;t complete it</button></div></div></div>, document.body)}
 
-    {typeof document !== "undefined" && celebratingTitle && createPortal(
+    {typeof document !== "undefined" && celebration && createPortal(
       <ConfettiCelebration
-        actionTitle={celebratingTitle}
+        actionTitle={celebration.title}
+        pointsDelta={celebration.pointsDelta}
+        completedLate={celebration.completedLate}
         onContinue={closeCelebration}
         onClose={closeCelebration}
       />,

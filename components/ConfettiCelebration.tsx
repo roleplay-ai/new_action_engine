@@ -29,6 +29,8 @@ interface Particle {
 
 interface ConfettiCelebrationProps {
   actionTitle?: string;
+  pointsDelta?: number;
+  completedLate?: boolean;
   onContinue: () => void;
   onClose: () => void;
 }
@@ -58,6 +60,8 @@ function makeParticles(): Particle[] {
 
 export default function ConfettiCelebration({
   actionTitle,
+  pointsDelta,
+  completedLate = false,
   onContinue,
   onClose,
 }: ConfettiCelebrationProps) {
@@ -178,7 +182,7 @@ export default function ConfettiCelebration({
             letterSpacing: "-0.01em",
           }}
         >
-          Action Verified!
+          Action completed!
         </h3>
 
         {actionTitle && (
@@ -209,7 +213,9 @@ export default function ConfettiCelebration({
             marginRight: "auto",
           }}
         >
-          Nice work closing the knowing-doing gap. Keep the momentum going with a weekly reminder.
+          {completedLate
+            ? "You completed this after its assigned day. The earlier points deduction stays unchanged."
+            : "Nice work closing the knowing-doing gap. Keep the momentum going."}
         </p>
 
         <div
@@ -222,9 +228,9 @@ export default function ConfettiCelebration({
           }}
         >
           {[
-            { label: "+50 XP", color: C.amber },
+            { label: completedLate ? "No points" : pointsDelta && pointsDelta > 0 ? `+${pointsDelta} points` : "Completed", color: C.amber },
             { label: "🔥 Streak", color: C.orange },
-            { label: "✅ Validated", color: C.green },
+            { label: completedLate ? "✅ Recorded late" : "✅ Recorded", color: C.green },
           ].map((b) => (
             <span
               key={b.label}

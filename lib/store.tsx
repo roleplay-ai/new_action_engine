@@ -16,9 +16,7 @@ import {
   completeAction as completeActionServer,
 } from "@/app/actions/user-actions";
 import { validateAction as validateActionServer } from "@/app/actions/validate-action";
-import { syncMyTotalPointsFromHistory } from "@/app/actions/points";
 import { utcToISTDateTime } from "@/lib/timezone-utils";
-import { calculatePointsFromHistory } from "@/lib/points";
 
 export type GenerationJobStatus = {
   totalNeeded: number;
@@ -46,7 +44,12 @@ interface EngineContextType {
   refetch: (options?: { syncPoints?: boolean }) => Promise<void>;
   completeOnboarding: (importance: number, goal: number) => Promise<void>;
   updatePoints: (amount: number) => Promise<void>;
-  completeAction: (actionId: string, success: boolean, reflection?: string) => Promise<{ error?: string }>;
+  completeAction: (actionId: string, success: boolean, reflection?: string) => Promise<{
+    error?: string;
+    pointsDelta?: number;
+    currentPoints?: number;
+    completedLate?: boolean;
+  }>;
   declineAction: (actionId: string) => Promise<void>;
   retryAction: (actionId: string) => Promise<void>;
   validateAction: (userActionId: string, success: boolean, reflection?: string) => Promise<void>;
@@ -57,7 +60,7 @@ interface EngineContextType {
 
 const EngineContext = createContext<EngineContextType | undefined>(undefined);
 
-function mapDbAction(row: { id: string; cohort_id?: string | null; plan_order?: number | null; theme: string; title: string; how: string; why: string; time_estimate: string; is_personal?: boolean | null }): ActionCard {
+function mapDbAction(row: { id: string; cohort_id?: string | null; plan_order?: number | null; theme: string; title: string; how: string; why: string; time_estimate: string; is_personal?: boolean | null; plan_points?: number | null }): ActionCard {
   return {
     id: row.id,
     cohortId: row.cohort_id,
@@ -68,6 +71,7 @@ function mapDbAction(row: { id: string; cohort_id?: string | null; plan_order?: 
     why: row.why,
     timeEstimate: row.time_estimate ?? "5 mins",
     isPersonal: row.is_personal ?? false,
+    planPoints: row.plan_points ?? undefined,
   };
 }
 
@@ -80,6 +84,10 @@ function mapDbUserAction(row: {
   accepted_at: string | null;
   reflection: string | null;
   is_calendar_synced: boolean;
+  points_delta?: number | null;
+  points_settled_at?: string | null;
+  completed_at?: string | null;
+  completed_late?: boolean | null;
 }): UserAction {
   // Convert UTC timestamps to IST for display
   const scheduledIST = row.scheduled_at ? utcToISTDateTime(row.scheduled_at) : null;
@@ -98,6 +106,10 @@ function mapDbUserAction(row: {
     acceptedTime: acceptedIST?.time,
     isCalendarSynced: row.is_calendar_synced ?? false,
     reflection: row.reflection ?? undefined,
+    pointsDelta: row.points_delta ?? undefined,
+    pointsSettledAt: row.points_settled_at ?? undefined,
+    completedAt: row.completed_at ?? undefined,
+    completedLate: row.completed_late ?? false,
   };
 }
 
@@ -147,9 +159,6 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       return;
     }
 
-    // Backfill/sync points from existing history so legacy users get correct totals.
-    if (options?.syncPoints !== false) await syncMyTotalPointsFromHistory();
-
     const { data: prof } = await supabase
       .from("profiles")
       .select("full_name, total_points, weekly_goal, league_index, streak")
@@ -160,7 +169,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
         name: prof.full_name?.trim() || user.email?.split("@")[0] || "User",
         importanceRating: (prof as any).league_index ?? 0,
         weeklyGoal: prof.weekly_goal ?? 3,
-        totalPoints: prof.total_points ?? 0,
+        totalPoints: 0,
         onboarded: true,
         streak: prof.streak ?? 0,
       });
@@ -192,6 +201,19 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
     const selectedCohortId = selectedCohort?.id ?? null;
     setCohorts(availableCohorts);
     setCohort(selectedCohort);
+
+    const { data: pointAccount } = selectedCohortId
+      ? await supabase
+          .from("cohort_point_accounts")
+          .select("current_points")
+          .eq("user_id", user.id)
+          .eq("cohort_id", selectedCohortId)
+          .maybeSingle()
+      : { data: null };
+    setProfile((current) => ({
+      ...current,
+      totalPoints: pointAccount?.current_points ?? (selectedCohortId ? 1000 : 0),
+    }));
 
     // Plan activation is cohort-specific. A previous finalised plan can be
     // archived while the newly assigned current cohort starts with no plan.
@@ -229,14 +251,25 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
     const companyId = adminCompanyId ?? profRow?.company_id;
     setHasCompany(!!companyId);
     if (companyId && selectedCohortId) {
-      const { data: actions } = await supabase
-        .from("actions")
-        .select("id, cohort_id, plan_order, theme, title, how, why, time_estimate, is_personal")
-        .eq("company_id", companyId)
-        .eq("cohort_id", selectedCohortId)
-        .order("plan_order", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: true });
-      setAllActions((actions ?? []).map(mapDbAction));
+      const [{ data: actions }, { data: allocations }] = await Promise.all([
+        supabase
+          .from("actions")
+          .select("id, cohort_id, plan_order, theme, title, how, why, time_estimate, is_personal")
+          .eq("company_id", companyId)
+          .eq("cohort_id", selectedCohortId)
+          .order("plan_order", { ascending: true, nullsFirst: false })
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("personal_action_point_allocations")
+          .select("action_id, points")
+          .eq("user_id", user.id)
+          .eq("cohort_id", selectedCohortId),
+      ]);
+      const pointsByAction = new Map((allocations ?? []).map((row) => [row.action_id, row.points]));
+      setAllActions((actions ?? []).map((row) => mapDbAction({
+        ...row,
+        plan_points: pointsByAction.get(row.id) ?? null,
+      })));
     } else {
       setAllActions([]);
     }
@@ -249,7 +282,6 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
           .eq("cohort_id", selectedCohortId)
       : { data: [] };
     setUserActions((uas ?? []).map(mapDbUserAction));
-    setProfile((current) => ({ ...current, totalPoints: calculatePointsFromHistory(uas ?? []) }));
 
     const { data: events } = selectedCohortId
       ? await supabase

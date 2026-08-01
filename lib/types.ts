@@ -13,6 +13,8 @@ export interface ActionCard {
   timeEstimate: string;
   /** True for AI-generated personal actions (visible only to their creator). */
   isPersonal?: boolean;
+  /** Whole-number share of the cohort plan's 1,000-point starting balance. */
+  planPoints?: number;
 }
 
 export interface UserAction {
@@ -29,6 +31,10 @@ export interface UserAction {
   acceptedTime?: string;
   isCalendarSynced?: boolean;
   reflection?: string;
+  pointsDelta?: number;
+  pointsSettledAt?: string;
+  completedAt?: string;
+  completedLate?: boolean;
 }
 
 export interface FeedItem {

@@ -2169,3 +2169,22 @@ input[type="range"] {
 @media (max-width: 560px) {
   .reference-actions .actions-tabs { width: 100%; margin-right: -14px; padding-right: 14px; }
 }
+
+/* Cohort points: compact savings balance and late-completion controls. */
+.actions-overview-meta { display: flex; align-items: center; gap: 9px; }
+.actions-score-badge { min-height: 48px; display: grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 5px; padding: 7px 12px; border: 1px solid #e6be31; border-radius: 14px; background: var(--journey-yellow-soft); }
+.actions-score-badge small { grid-column: 1 / -1; color: #806500; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.actions-score-badge strong { color: var(--journey-ink); font-size: 17px; line-height: 1; }
+.actions-score-badge em { color: var(--journey-muted); font-size: 8px; font-style: normal; font-weight: 800; }
+.actions-points-rule { margin: 0 !important; padding: 12px 14px; border-left: 3px solid var(--journey-yellow); border-radius: 0 12px 12px 0; color: var(--journey-muted) !important; background: var(--journey-yellow-soft); line-height: 1.55; }
+.actions-not-completed-list > div:not(.actions-empty-state) { grid-template-columns: 26px minmax(0, 1fr) auto auto; }
+.actions-not-completed-list > div > button { min-height: 34px; padding: 0 11px; border: 1px solid var(--journey-line); border-radius: 10px; color: var(--journey-ink); background: var(--journey-yellow-soft); font-size: 9px; font-weight: 850; white-space: nowrap; }
+.actions-not-completed-list > div > button:hover { border-color: #e6be31; background: #fff3bd; }
+.actions-not-completed-list > div > button:disabled { opacity: .55; cursor: not-allowed; }
+
+@media (max-width: 560px) {
+  .actions-overview-meta { width: 100%; justify-content: space-between; }
+  .actions-current-top { align-items: flex-start; flex-direction: column; }
+  .actions-not-completed-list > div:not(.actions-empty-state) { grid-template-columns: 24px minmax(0, 1fr); }
+  .actions-not-completed-list > div > button { grid-column: 2; justify-self: start; }
+}

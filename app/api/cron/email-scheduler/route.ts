@@ -43,6 +43,19 @@ export async function GET(request: Request) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
 
   // ── Personal action delivery (in-app, no email required) ───────────────────
+  // Close yesterday's unsettled actions before releasing today's action. The
+  // completion RPC also checks the IST date, so scoring stays correct between
+  // midnight and this daily cron run.
+  const { data: expiredResult, error: expireError } = await admin.rpc(
+    "expire_overdue_personal_actions"
+  );
+  if (expireError) {
+    console.error("[email-scheduler] failed to expire overdue personal actions", {
+      error: expireError.message,
+    });
+  }
+  const actionsExpired = typeof expiredResult === "number" ? expiredResult : 0;
+
   const dueSubscriptions = await getDueSubscriptions(nowIso);
   let subscriptionsDelivered = 0;
   for (const sub of dueSubscriptions) {
@@ -58,6 +71,7 @@ export async function GET(request: Request) {
       processed: 0,
       results: [],
       subscriptionsDelivered,
+      actionsExpired,
       reminders: {
         sent: 0,
         failed: 0,
@@ -191,6 +205,7 @@ export async function GET(request: Request) {
     processed: (schedules ?? []).length,
     results: summary,
     subscriptionsDelivered,
+    actionsExpired,
     reminders: reminderSummary,
   });
 }

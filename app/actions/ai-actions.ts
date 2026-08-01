@@ -362,11 +362,14 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
       sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
       sub.time_of_day_utc
     );
-    const { error: updateError } = await supabase
-      .from("personal_action_subscriptions")
-      .update({ is_active: true, next_delivery_at: nextDeliveryAt, last_delivered_at: null, updated_at: new Date().toISOString() })
-      .eq("id", sub.id);
-    if (updateError) return { error: updateError.message };
+    const { error: activateError } = await supabase.rpc(
+      "activate_my_personal_action_plan_with_points",
+      {
+        p_cohort_id: cohortContext.cohortId,
+        p_next_delivery_at: nextDeliveryAt,
+      }
+    );
+    if (activateError) return { error: activateError.message };
 
     await supabase.from("profiles").update({ self_onboarding_completed_at: new Date().toISOString() }).eq("id", user.id);
     return {};

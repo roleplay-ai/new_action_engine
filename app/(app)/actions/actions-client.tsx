@@ -3,10 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { CalendarDays, Check, CheckCircle2, ChevronRight, CircleX, Clock3, ListChecks, Mail, Medal, Settings2, Trophy, X } from "lucide-react";
+import { ArrowLeftRight, CalendarDays, Check, CheckCircle2, ChevronRight, CircleX, Clock3, ListChecks, Mail, Medal, MessageCircle, Settings2, Trophy, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getCohortLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard";
 import { getMyPlanSettings, type MyPlanSettings } from "@/app/actions/ai-actions";
+import {
+  getMyCommitmentBuddies,
+  markMyCommitmentBuddyRevealed,
+  type CommitmentBuddyGroup,
+  type CommitmentBuddyProgress,
+} from "@/app/actions/commitment-buddies";
 import { usePageLoading } from "@/components/PageLoadingProvider";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
 
@@ -78,6 +84,56 @@ function archivedActionIsComplete(status: string | null) {
   return status === "success" || status === "habit_started" || status === "cemented";
 }
 
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "CM";
+  return `${parts[0]?.[0] ?? ""}${parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : parts[0]?.[1] ?? ""}`.toUpperCase();
+}
+
+function buddyStatus(buddy: CommitmentBuddyProgress) {
+  if (buddy.done === 0 && buddy.pointsEarned === 0) return "Getting started";
+  if (buddy.missed >= 2) return "Could use a nudge";
+  if (buddy.done >= 5 && buddy.pointsEarned > buddy.pointsLost) return "Building momentum";
+  return "Making progress";
+}
+
+function buddyPrompt(buddy: CommitmentBuddyProgress) {
+  const firstName = buddy.name.split(/\s+/)[0] || buddy.name;
+  if (buddy.done === 0 && buddy.pointsEarned === 0) return `${firstName} may appreciate some encouragement as they get started.`;
+  if (buddy.missed >= 2) return `A quick check-in could help ${firstName} get back on track.`;
+  if (buddy.done >= 5 && buddy.pointsEarned > buddy.pointsLost) return `${firstName} is building momentum. A little recognition can help keep it going.`;
+  return `${firstName} is making progress. A little encouragement can help keep it going.`;
+}
+
+function CommitmentBuddyCard({ group }: { group: CommitmentBuddyGroup }) {
+  if (group.buddies.length === 0) {
+    return <section className="actions-buddy-card actions-buddy-waiting">
+      <div className="actions-buddy-waiting-icon"><UsersRound size={21} /></div>
+      <div><span>Your commitment buddy</span><strong>Waiting for another cohort member</strong><p>Your pairing will appear here as soon as another unpaired participant joins.</p></div>
+    </section>;
+  }
+
+  return <section className="actions-buddy-card" aria-label="Commitment buddy progress">
+    <div className="actions-buddy-card-head">
+      <div><span>{group.buddies.length === 1 ? "Your commitment buddy" : "Your commitment group"}</span><strong>{group.buddies.map((buddy) => buddy.name).join(" and ")}</strong><p>{group.buddies.length === 1 ? "You are each other’s buddy" : "The three of you support each other"}</p></div>
+      <em>{group.buddies.length === 1 ? "1-to-1" : "Group of 3"}</em>
+    </div>
+    <div className={`actions-buddy-people ${group.buddies.length > 1 ? "trio" : ""}`}>
+      {group.buddies.map((buddy) => <article key={buddy.id}>
+        <div className="actions-buddy-person-head"><i>{initials(buddy.name)}</i><span><strong>{buddy.name}</strong><small>{buddyStatus(buddy)}</small></span></div>
+        <div className="actions-buddy-stats">
+          <div><strong>{buddy.done}</strong><span>Done</span></div>
+          <div><strong>{buddy.skipped}</strong><span>Skipped</span></div>
+          <div><strong>{buddy.missed}</strong><span>Missed</span></div>
+          <div className="actions-buddy-points"><strong>+{buddy.pointsEarned}</strong><small>earned <em>−{buddy.pointsLost}</em></small><span>Points</span></div>
+        </div>
+        <p className="actions-buddy-message"><MessageCircle size={13} />{buddyPrompt(buddy)}</p>
+      </article>)}
+    </div>
+    <p className="actions-buddy-privacy">Only overall totals are shared. Actions, plans, schedules and reflections stay private.</p>
+  </section>;
+}
+
 export default function ActionsClient() {
   const { profile, cohort, personalPlanState, allActions, userActions, completeAction } = useEngine();
   const [tab, setTab] = useState<Tab>("upcoming");
@@ -91,6 +147,8 @@ export default function ActionsClient() {
   const [busy, setBusy] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [settings, setSettings] = useState<MyPlanSettings | null>(null);
+  const [buddyGroup, setBuddyGroup] = useState<CommitmentBuddyGroup | null>(null);
+  const [buddyReady, setBuddyReady] = useState(false);
   const [archivedActions, setArchivedActions] = useState<ArchivedActionEntry[]>([]);
   const [archiveReady, setArchiveReady] = useState(false);
   const [ready, setReady] = useState(false);
@@ -100,14 +158,18 @@ export default function ActionsClient() {
   useEffect(() => {
     let cancelled = false;
     setReady(false);
+    setBuddyReady(false);
     void (async () => {
-      const [leaderboardResult, settingsResult] = await Promise.allSettled([
+      const [leaderboardResult, settingsResult, buddyResult] = await Promise.allSettled([
         cohort?.id ? getCohortLeaderboard(cohort.id) : Promise.resolve({ entries: [] as LeaderboardEntry[] }),
         getMyPlanSettings(),
+        cohort?.id ? getMyCommitmentBuddies(cohort.id) : Promise.resolve({ group: null }),
       ]);
       if (cancelled) return;
       setLeaderboard(leaderboardResult.status === "fulfilled" ? leaderboardResult.value.entries ?? [] : []);
       setSettings(settingsResult.status === "fulfilled" ? settingsResult.value.settings : null);
+      setBuddyGroup(buddyResult.status === "fulfilled" ? buddyResult.value.group : null);
+      setBuddyReady(true);
       setReady(true);
     })();
     return () => {
@@ -177,6 +239,12 @@ export default function ActionsClient() {
     setCelebration(null);
   }
 
+  function dismissBuddyReveal() {
+    if (!cohort?.id) return;
+    setBuddyGroup((current) => current ? { ...current, revealPending: false } : current);
+    void markMyCommitmentBuddyRevealed(cohort.id);
+  }
+
   async function skip(actionId: string) {
     setBusy(true);
     const result = await completeAction(actionId, false, "Skipped");
@@ -217,6 +285,8 @@ export default function ActionsClient() {
           </div>}
         </section>
 
+        {planIsActive && buddyReady && buddyGroup && <CommitmentBuddyCard group={buddyGroup} />}
+
         <section className="actions-list-card"><h3>{planIsArchived ? "Remaining archived actions" : "Next reminders"}</h3><p>{planIsArchived ? "Reminder delivery is paused. You can still choose and complete any remaining action." : "Actions scheduled after your current action in this cohort plan."}</p><div className="actions-upcoming-list">
           {upcoming.length === 0 && <div className="actions-inline-empty">{planIsArchived ? "No archived actions remain." : "No additional actions are scheduled yet."}</div>}
           {upcoming.map((action, index) => { const deliveryDate = projectedDeliveryDate(settings, index); return <div key={action.id}><b>{index + 1}</b><span><strong>{action.title}</strong><small><Clock3 size={11} /> {action.timeEstimate}{action.planPoints ? ` · ${action.planPoints} points` : ""}{planIsArchived ? " · Available to revisit" : ` · ${formatDate(deliveryDate)}`}</small></span>{planIsArchived ? <button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>Do this action</button> : <ChevronRight size={16} />}</div>; })}
@@ -254,6 +324,28 @@ export default function ActionsClient() {
     {tab === "settings" && <section className="actions-list-card actions-settings-card"><div className="actions-card-heading"><div><h3>Plan overview</h3><p>Your current duration, pace and reminder schedule.</p></div><Settings2 size={20} /></div>
       {!settings ? <div className="actions-empty-state"><CalendarDays size={28} /><strong>No plan for this cohort yet</strong><p>Generate, review and finalise your plan before actions appear here.</p>{cohort?.isCurrent && <Link href="/plan" className="journey-primary-button">Go to my plan</Link>}</div> : <><div className="actions-inline-empty">{settings.isArchived ? "Archived · reminders paused · plan settings are read-only" : settings.isActive ? "Finalised · plan settings are read-only" : "Draft · finalise this plan before reminders begin"}</div><div className="actions-settings-grid"><div><span>Action pace</span><strong>{settings.track === "weekly" ? "Weekly actions" : "Daily actions"}</strong></div><div><span>Plan duration</span><strong>{settings.durationWeeks} weeks</strong></div><div><span>Actions per {settings.track === "weekly" ? "week" : "weekday"}</span><strong>{settings.actionCount}</strong></div><div><span>Reminder</span><strong>{settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}{formatTime(settings.reminderTime)}</strong></div><div><span>Email notifications</span><strong className="actions-notification-status"><Mail size={15} />Email reminders on</strong></div><div><span>Total plan</span><strong>{settings.totalActionsPlanned} actions</strong></div><div><span>Starting points</span><strong>1,000</strong></div><div><span>Score range</span><strong>0–2,000</strong></div></div><p className="actions-points-rule">Complete on the assigned day to protect the action&apos;s points and earn the same amount. Missed actions can still be completed later, but they earn no points and the deduction remains.</p></>}
     </section>}
+
+    {typeof document !== "undefined" && planIsActive && buddyGroup?.revealPending && buddyGroup.buddies.length > 0 && createPortal(
+      <div className="actions-buddy-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) dismissBuddyReveal(); }}>
+        <section className="actions-buddy-modal" role="dialog" aria-modal="true" aria-labelledby="commitment-buddy-title">
+          <div className="actions-buddy-modal-avatars" aria-hidden="true">
+            <i className="you">{initials(profile.name)}</i>
+            <span><ArrowLeftRight size={17} /></span>
+            {buddyGroup.buddies.map((buddy) => <i className="them" key={buddy.id}>{initials(buddy.name)}</i>)}
+          </div>
+          <span className="participant-eyebrow">Commitment buddy</span>
+          <h2 id="commitment-buddy-title">{buddyGroup.buddies.length === 1
+            ? `You are paired with ${buddyGroup.buddies[0].name}`
+            : `Your commitment group is ${buddyGroup.buddies.map((buddy) => buddy.name).join(" and ")}`}</h2>
+          <p>{buddyGroup.buddies.length === 1
+            ? "You are each other’s commitment buddy for this cohort. You can both see overall progress and encourage each other."
+            : "The three of you are commitment buddies for this cohort. Everyone can see each other’s overall progress and offer encouragement."}</p>
+          <div className="actions-buddy-modal-note">You will see totals only—not the content, schedule, plan or reflections behind each other’s actions.</div>
+          <button type="button" className="journey-primary-button" onClick={dismissBuddyReveal}>Got it</button>
+        </section>
+      </div>,
+      document.body,
+    )}
 
     {typeof document !== "undefined" && completingId && createPortal(<div className="actions-checkin-overlay"><div className="actions-checkin-modal"><button onClick={() => setCompletingId(null)}><X size={18} /></button><span className="participant-eyebrow">Action check-in</span><h3>How did this action go?</h3><p>Add a short reflection. It helps you notice what worked and what to adjust.</p><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="What happened when you tried it?" /><div><button className="journey-primary-button" disabled={busy} onClick={() => finish(true)}>{busy ? "Saving…" : "Complete action"}</button><button disabled={busy} onClick={() => finish(false)}>I didn&apos;t complete it</button></div></div></div>, document.body)}
 

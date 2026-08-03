@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, CalendarDays, Check, CheckCircle2, GripVertical, Loader2, Pencil, Sparkles, Trash2, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import Onboarding from "@/components/Onboarding";
@@ -42,6 +43,7 @@ function formatScheduleSlot(slot: DraftPlanScheduleSlot | undefined) {
 }
 
 export default function PlanClient({ initialTrainingText, embedded = false }: { initialTrainingText: string; embedded?: boolean }) {
+  const router = useRouter();
   const { personalPlanState, hasArchivedPlans, cohort, generationJob, refetch, allActions } = useEngine();
   const [editingSetup, setEditingSetup] = useState(false);
   const [editingAction, setEditingAction] = useState<ActionCard | null>(null);
@@ -180,6 +182,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
     setActivating(false);
     if (result.error) { setError(result.error); return; }
     await refetch();
+    router.push("/actions");
   }
 
   async function generateOneMore() {

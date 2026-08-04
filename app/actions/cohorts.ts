@@ -168,6 +168,28 @@ export async function archiveCohort(id: string): Promise<{ error?: string }> {
       .eq("id", id);
     if (error) return { error: error.message };
     revalidatePath("/admin");
+    revalidatePath("/admin/control-panel/cohorts");
+    revalidatePath("/superadmin/cohorts");
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export async function deleteCohort(id: string): Promise<{ error?: string }> {
+  try {
+    const { supabase, companyId, role } = await getAdminContext();
+
+    if (role === "admin") {
+      const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", id).single();
+      if (!cohort || cohort.company_id !== companyId) return { error: "Cohort not found or access denied" };
+    }
+
+    const { error } = await supabase.from("cohorts").delete().eq("id", id);
+    if (error) return { error: error.message };
+    revalidatePath("/admin");
+    revalidatePath("/admin/control-panel/cohorts");
+    revalidatePath("/superadmin/cohorts");
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed" };

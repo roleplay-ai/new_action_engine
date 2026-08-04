@@ -1611,6 +1611,16 @@ input[type="range"] {
   color: #504a50;
 }
 .cohort-admin-button--secondary:not(:disabled):hover { border-color: #cec6cb; background: var(--cohort-soft); }
+.cohort-admin-button--danger {
+  min-height: 33px;
+  padding: 0 9px;
+  border-color: #e8b4b8;
+  background: #fff7f7;
+  color: #9f1d2c;
+  font-size: 9px;
+  font-weight: 800;
+}
+.cohort-admin-button--danger:not(:disabled):hover { border-color: #d98990; background: #ffecee; }
 .cohort-admin-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

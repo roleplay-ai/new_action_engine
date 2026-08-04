@@ -15,6 +15,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Trash2,
   UserPlus,
   Users,
   X,
@@ -22,6 +23,7 @@ import {
 import {
   addMembersToCohort,
   createCohort,
+  deleteCohort,
   getCohortDetail,
   getCompanyUsers,
   listCohorts,
@@ -485,6 +487,31 @@ function CohortDetailPanel({
     });
   }
 
+  async function handleDeleteCohort() {
+    if (
+      !window.confirm(
+        `Permanently delete “${cohort.name}”? Members, content assignments, and related cohort data will be removed. This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    if (busyAction) return;
+    setBusyAction("delete-cohort");
+    setError(null);
+    try {
+      const result = await deleteCohort(cohort.id);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      await onChange();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "The update could not be completed");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   return (
     <div className="cohort-admin-detail">
       <div className="cohort-admin-detail-head">
@@ -503,6 +530,17 @@ function CohortDetailPanel({
             {cohort.logoUrl ? "Replace cohort logo" : "Upload cohort logo"}
             <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" disabled={!!busyAction} onChange={(event) => void handleCohortLogo(event)} />
           </label>
+          <button
+            type="button"
+            onClick={() => void handleDeleteCohort()}
+            disabled={Boolean(busyAction)}
+            className="cohort-admin-button cohort-admin-button--danger"
+            aria-label={`Delete ${cohort.name}`}
+            title="Delete cohort"
+          >
+            {busyAction === "delete-cohort" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Trash2 size={15} />}
+            {busyAction === "delete-cohort" ? "Deleting…" : "Delete cohort"}
+          </button>
         </div>
       </div>
 

@@ -208,8 +208,10 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
           return <div className={`journey-chat-message ${own ? "own" : ""} ${message.senderRole === "trainer" ? "trainer" : ""}`} key={message.id}>
             <div className="journey-chat-avatar">{initials(message.senderName)}</div>
             <div className="journey-chat-copy">
-              <strong>{own ? "You" : message.senderName}</strong>
-              <span>{message.senderRole === "trainer" ? "Trainer" : "Cohort participant"} · {formatMessageTime(message.createdAt)}</span>
+              <div className="journey-chat-meta">
+                <strong>{own ? "You" : message.senderName}</strong>
+                <span>{message.senderRole === "trainer" ? `Trainer · ${formatMessageTime(message.createdAt)}` : formatMessageTime(message.createdAt)}</span>
+              </div>
               <p>{message.message}</p>
             </div>
           </div>;

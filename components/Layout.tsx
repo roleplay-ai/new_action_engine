@@ -4,9 +4,8 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEngine } from "@/lib/store";
-import { Home, Sparkles, ListChecks, Bell, ShieldCheck, Flame } from "lucide-react";
+import { Home, Sparkles, ListChecks, ShieldCheck, Flame } from "lucide-react";
 import { LogoutButton } from "@/app/(app)/logout-button";
-import GenerationStatus from "@/components/GenerationStatus";
 import PageLoader from "@/components/PageLoader";
 import { usePageLoadingControls } from "@/components/PageLoadingProvider";
 import { selectMyCohort } from "@/app/actions/cohorts";
@@ -17,7 +16,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, role }) => {
-  const { profile, generationJob, isLoading, cohort, cohorts, refetch } = useEngine();
+  const { profile, isLoading, cohort, cohorts, refetch } = useEngine();
   const pathname = usePathname();
   const router = useRouter();
   const [switchingCohort, setSwitchingCohort] = useState(false);
@@ -53,14 +52,15 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       <aside className="participant-sidebar">
         <div>
           <Link href="/journey" className="participant-brand" onClick={() => beginNavigation("/journey")}>
-            <img src="/icon.png" alt="Nudgeable logo" />
-            <span><strong>Nudgeable</strong><small>Action Engine</small></span>
+            {cohort?.companyLogoUrl ? (
+              <img src={cohort.companyLogoUrl} alt={`${cohort.companyName || "Company"} logo`} />
+            ) : (
+              <span className="participant-brand-fallback">
+                {(cohort?.companyName || "Company").split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase()}
+              </span>
+            )}
+            <span><strong>{cohort?.companyName || "Your company"}</strong></span>
           </Link>
-
-          {cohort && <div className="participant-company-chip">
-            <span>{cohort.companyLogoUrl ? <img src={cohort.companyLogoUrl} alt={`${cohort.companyName || "Company"} logo`} /> : (cohort.companyName || cohort.name).split(/\s+/).slice(0, 2).map((word) => word[0]).join("")}</span>
-            <div><strong>{cohort.companyName || "Your company"}</strong><small>{cohort.name}</small></div>
-          </div>}
 
           <div className="participant-progress-card">
             <small>Your learning journey</small>
@@ -90,7 +90,14 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
         {showLoader && <PageLoader variant="main" />}
         <header className="participant-topbar" style={showLoader ? { visibility: "hidden" } : undefined} aria-hidden={showLoader}>
           <Link href="/journey" className="participant-mobile-brand" onClick={() => beginNavigation("/journey")}>
-            <img src="/icon.png" alt="" /><strong>Nudgeable</strong>
+            {cohort?.companyLogoUrl ? (
+              <img src={cohort.companyLogoUrl} alt="" />
+            ) : (
+              <span className="participant-brand-fallback participant-brand-fallback--sm">
+                {(cohort?.companyName || "C").split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase()}
+              </span>
+            )}
+            <strong>{cohort?.companyName || "Your company"}</strong>
           </Link>
           <div className="participant-topbar-actions">
             {cohorts.length > 0 && <label className="participant-cohort-switcher">
@@ -100,11 +107,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             </label>}
             <span className="participant-points-pill" title="Action points">{profile.totalPoints}<small>AP</small></span>
             <span className="participant-streak-pill" title="Current streak"><Flame size={15} fill="currentColor" />{profile.streak}</span>
-            <div className="participant-notifications">
-              <button className="participant-icon-button" aria-label="Notifications"><Bell size={17} />{generationJob && <span className="bell-badge" />}</button>
-              {generationJob && <div className="bell-status-popover"><GenerationStatus job={generationJob} /></div>}
-            </div>
-            <div className="participant-avatar participant-topbar-avatar" title={profile.name}>{profile.name.substring(0, 2).toUpperCase()}</div>
+            <img className="participant-topbar-favicon" src="/icon.png" alt="Nudgeable" title="Nudgeable" />
           </div>
         </header>
 

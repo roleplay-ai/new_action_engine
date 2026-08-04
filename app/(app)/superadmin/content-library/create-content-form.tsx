@@ -9,6 +9,7 @@ import {
   createQuizContentItem,
 } from "@/app/actions/prepare-content";
 import { VideoUploadField } from "@/components/admin/content/VideoUploadField";
+import { DocumentUploadField } from "@/components/admin/content/DocumentUploadField";
 import type { PrepareContentType } from "@/lib/types";
 
 type DraftOption = { optionText: string; isCorrect: boolean };
@@ -262,9 +263,12 @@ export default function CreateContentForm() {
 
       {type === "preread" && (
         <>
+          <DocumentUploadField onUploaded={(documentUrl) => setPrereadUrl(documentUrl)} disabled={loading} />
+          {prereadUrl.toLowerCase().includes(".pdf") && <p className="text-xs font-bold text-emerald-600">PDF uploaded ✓</p>}
+          <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-wider text-slate-400"><span className="h-px flex-1 bg-slate-200" />or use a link<span className="h-px flex-1 bg-slate-200" /></div>
           <input
             type="url"
-            placeholder="Resource URL (optional)"
+            placeholder="PDF or resource URL (optional)"
             value={prereadUrl}
             onChange={(e) => setPrereadUrl(e.target.value)}
             className="w-full px-4 py-2 border-2 border-black rounded-lg text-sm outline-none focus:border-[#3699FC]"

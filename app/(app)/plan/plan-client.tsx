@@ -55,6 +55,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [activating, setActivating] = useState(false);
+  const [confirmActivateOpen, setConfirmActivateOpen] = useState(false);
   const [orderedActions, setOrderedActions] = useState<ActionCard[]>([]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -181,7 +182,11 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
     setError("");
     const result = await activatePersonalActionPlan();
     setActivating(false);
-    if (result.error) { setError(result.error); return; }
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    setConfirmActivateOpen(false);
     await refetch();
     router.push("/actions");
   }
@@ -301,7 +306,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
           <p>Need another option? Add one more AI suggestion, then rename or reorder it like the rest.</p>
         </div>
       )}
-      <div className="plan-freeze-bar"><div><CheckCircle2 size={20} /><span><strong>Ready to start?</strong><small>Finalising locks this order and starts delivery on the first planned date shown above.</small></span></div><button className="journey-primary-button" disabled={!!generationJob || generatedActions.length === 0 || activating || savingOrder || generatingMore} onClick={activatePlan}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generationJob ? "Finish generating first" : "Finalise and start plan"}</button></div>
+      <div className="plan-freeze-bar"><div><CheckCircle2 size={20} /><span><strong>Ready to start?</strong><small>Finalising locks this order and starts delivery on the first planned date shown above.</small></span></div><button className="journey-primary-button" disabled={!!generationJob || generatedActions.length === 0 || activating || savingOrder || generatingMore} onClick={() => { setError(""); setConfirmActivateOpen(true); }}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generationJob ? "Finish generating first" : "Activate My Actions"}</button></div>
       {error && <p className="plan-review-error">{error}</p>}
     </section>}
 
@@ -312,5 +317,29 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
     {!isPlanActive && !isPlanArchived && !hasDraft && <div className="plan-benefits-grid"><div className="journey-card"><CheckCircle2 size={22} /><h3>Review everything</h3><p>Rename, reorder or delete every AI suggestion before your plan begins.</p></div><div className="journey-card"><CalendarDays size={22} /><h3>Your pace</h3><p>Choose the days, frequency and time that work with your schedule.</p></div></div>}
 
     {typeof document !== "undefined" && editingAction && editForm && createPortal(<div className="plan-edit-overlay"><div className="plan-edit-modal"><button className="plan-edit-close" onClick={() => setEditingAction(null)}><X size={18} /></button><span className="participant-eyebrow">Edit action</span><h3>Edit the action title</h3><label>Action title<input value={editForm.title} onChange={(event) => setEditForm({ title: event.target.value })} /></label><details className="plan-edit-details"><summary><span>How and why</span><small>View the original guidance</small></summary><div><strong>How to do it</strong><p>{editingAction.how}</p></div><div><strong>Why it works</strong><p>{editingAction.why}</p></div></details>{error && <p className="plan-review-error">{error}</p>}<button className="journey-primary-button" disabled={saving || !editForm.title.trim()} onClick={saveEdit}>{saving ? "Saving…" : "Save title"}</button></div></div>, document.body)}
+
+    {typeof document !== "undefined" && confirmActivateOpen && createPortal(
+      <div
+        className="plan-activate-overlay"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget && !activating) setConfirmActivateOpen(false);
+        }}
+      >
+        <section className="plan-activate-modal" role="dialog" aria-modal="true" aria-labelledby="plan-activate-title">
+          <div className="plan-activate-icon" aria-hidden="true"><CheckCircle2 size={22} /></div>
+          <h2 id="plan-activate-title">One commitment before you begin</h2>
+          <p>Your progress and rewards will be based on the actions you confirm as completed. We will not ask you to upload proof, so please confirm an action only when you have genuinely completed it.</p>
+          <strong>This keeps your progress meaningful and the rewards fair for everyone.</strong>
+          {error && <p className="plan-review-error">{error}</p>}
+          <div className="plan-activate-actions">
+            <button type="button" className="plan-activate-back" disabled={activating} onClick={() => setConfirmActivateOpen(false)}>Go back</button>
+            <button type="button" className="journey-primary-button" disabled={activating} onClick={activatePlan}>
+              {activating ? "Activating…" : "I agree and activate my actions"}
+            </button>
+          </div>
+        </section>
+      </div>,
+      document.body,
+    )}
   </section>;
 }

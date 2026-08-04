@@ -35,7 +35,17 @@ function resourceMeta(item: PrepareContentItem) {
     return `${minutes ? `${minutes}-minute video` : "Video"} · Recommended`;
   }
   if (item.type === "quiz") return `${item.questionCount ?? 0} questions · Required`;
-  return "Pre-read · Recommended";
+  return `${isPdfResource(item) ? "PDF" : "Pre-read"} · Recommended`;
+}
+
+function isPdfResource(item: PrepareContentItem) {
+  return item.type === "preread" && !!item.prereadUrl && /\.pdf(?:$|[?#])/i.test(item.prereadUrl);
+}
+
+function resourceKind(item: PrepareContentItem) {
+  if (item.type === "video") return "Video";
+  if (item.type === "quiz") return "Quiz";
+  return isPdfResource(item) ? "PDF" : "Resource";
 }
 
 export default function PrepareClient({ initialData }: { initialData: JourneyData }) {
@@ -100,16 +110,22 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
 
   return (
     <div className="reference-journey journey-v2 animate-in fade-in duration-700">
-      <p className="participant-eyebrow journey-v2-eyebrow">Your current skill</p>
+      <div className="journey-v2-company-brand">
+        <span className="journey-v2-company-logo">
+          {cohort.companyLogoUrl ? <img src={cohort.companyLogoUrl} alt={`${cohort.companyName || "Company"} logo`} /> : <span>{initials(cohort.companyName || cohort.name)}</span>}
+        </span>
+        <div><small>Your company workspace</small><strong>{cohort.companyName || "Your company"}</strong></div>
+      </div>
 
       <section className="journey-v2-skill-hero">
+        <div className="journey-v2-cohort-mark">{cohort.logoUrl ? <img src={cohort.logoUrl} alt={`${cohort.name} logo`} /> : <span>{initials(cohort.name)}</span>}</div>
         <div className="journey-v2-hero-copy">
-          <span>{cohort.name} · {selectedCohort?.isCurrent ? "Current cohort" : "Earlier cohort"}</span>
-          <h1>Build a skill you can carry forward</h1>
+          <span>{selectedCohort?.isCurrent ? "Current cohort" : "Earlier cohort"}</span>
+          <h1>{cohort.name}</h1>
           <p>{cohort.description || "Turn what you learn into something useful in your work and career."}</p>
         </div>
         <div className="journey-v2-promise">
-          <div><TrendingUp size={32} /></div>
+          <div><TrendingUp size={22} /></div>
           <strong>Choose what matters to you. Build a personal plan. Practise through small actions.</strong>
         </div>
         <div className="journey-v2-hero-meta">
@@ -140,29 +156,26 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
           <div><span><Users size={18} /></span><strong>{cohort.memberCount}</strong><small>Participants</small></div>
         </div>
 
-        <article className="journey-module-card" id="preparation">
-          <h3>Before you arrive</h3>
-          <p className="journey-card-subtitle">Only preparation assigned to this session.</p>
-          <div className="journey-resources">
+        <article className="journey-module-card journey-v2-resource-library" id="preparation">
+          <div className="journey-v2-resource-heading">
+            <div><span>Workspace library</span><h3>Videos, PDFs and session resources</h3><p className="journey-card-subtitle">Everything assigned to {cohort.name}, ready to open here.</p></div>
+            <strong>{completedCount}/{items.length} complete</strong>
+          </div>
+          <div className="journey-v2-media-grid">
             {items.length === 0 && <div className="journey-inline-empty">No preparation has been assigned yet.</div>}
             {items.map((item) => {
               const done = progress[item.id]?.status === "completed";
               const Icon = item.type === "video" ? Play : FileText;
-              return <div className={`journey-resource ${done ? "done" : ""}`} key={item.id}>
-                <div className="journey-resource-icon">{done ? <Check size={16} /> : <Icon size={16} />}</div>
-                <div><strong>{item.title}</strong><span>{resourceMeta(item)}</span></div>
-                <button onClick={() => setSelectedItem(item)}>{done ? "Review" : "Open"}</button>
-              </div>;
+              const kind = resourceKind(item);
+              return <button type="button" className={`journey-v2-media-card ${item.type} ${done ? "done" : ""}`} key={item.id} onClick={() => setSelectedItem(item)}>
+                <span className="journey-v2-media-preview">
+                  <span className="journey-v2-media-type">{kind}</span>
+                  <Icon size={item.type === "video" ? 30 : 27} fill={item.type === "video" ? "currentColor" : "none"} />
+                  {done && <span className="journey-v2-media-done"><Check size={13} /> Done</span>}
+                </span>
+                <span className="journey-v2-media-copy"><strong>{item.title}</strong><small>{resourceMeta(item)}</small><span>{done ? "Review resource" : "Open resource"}<ArrowRight size={14} /></span></span>
+              </button>;
             })}
-          </div>
-        </article>
-
-        <article className="journey-module-card journey-v2-guide-card">
-          <h3>How this works</h3>
-          <div className="journey-v2-guide-list">
-            <div><b>1</b><span><strong>Capture what matters</strong><small>Use private notes after your session.</small></span></div>
-            <div><b>2</b><span><strong>Choose your actions</strong><small>Edit every suggestion before it goes live.</small></span></div>
-            <div><b>3</b><span><strong>Follow through</strong><small>Practise in small steps at work.</small></span></div>
           </div>
         </article>
 

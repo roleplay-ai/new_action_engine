@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Cohort, CohortMember, CohortOption } from "@/lib/types";
+import type { Cohort, CohortMember, CohortOption, CompanyBrand } from "@/lib/types";
+
+const COHORT_LOGOS_BUCKET = "cohort-logos";
 
 function mapMemberRow(m: {
   user_id: string;
@@ -103,7 +105,7 @@ export async function createCohort(params: {
 
 export async function updateCohort(
   id: string,
-  params: { name?: string; description?: string; startDate?: string }
+  params: { name?: string; description?: string; startDate?: string; logoUrl?: string | null }
 ): Promise<{ error?: string }> {
   try {
     const { supabase, companyId, role } = await getAdminContext();
@@ -117,6 +119,7 @@ export async function updateCohort(
     if (params.name != null) updates.name = params.name.trim();
     if (params.description != null) updates.description = params.description.trim() || null;
     if (params.startDate != null) updates.start_date = params.startDate || null;
+    if (params.logoUrl !== undefined) updates.logo_url = params.logoUrl?.trim() || null;
 
     const { error } = await supabase.from("cohorts").update(updates).eq("id", id);
     if (error) return { error: error.message };
@@ -124,6 +127,29 @@ export async function updateCohort(
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export async function createSignedCohortLogoUploadUrl(
+  cohortId: string,
+  fileExtension: string
+): Promise<{ error?: string; path?: string; token?: string; publicUrl?: string }> {
+  try {
+    const { companyId, role } = await getAdminContext();
+    const admin = createAdminClient();
+    const { data: cohort } = await admin.from("cohorts").select("id, company_id").eq("id", cohortId).single();
+    if (!cohort) return { error: "Cohort not found" };
+    if (role === "admin" && cohort.company_id !== companyId) return { error: "Access denied" };
+
+    const safeExt = fileExtension.replace(/[^a-zA-Z0-9]/g, "").slice(0, 5).toLowerCase() || "png";
+    const path = `${cohortId}/${crypto.randomUUID()}.${safeExt}`;
+    const { data, error } = await admin.storage.from(COHORT_LOGOS_BUCKET).createSignedUploadUrl(path);
+    if (error || !data) return { error: error?.message ?? "Failed to prepare cohort logo upload" };
+
+    const { data: publicUrlData } = admin.storage.from(COHORT_LOGOS_BUCKET).getPublicUrl(path);
+    return { path, token: data.token, publicUrl: publicUrlData.publicUrl };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to prepare cohort logo upload" };
   }
 }
 
@@ -150,20 +176,25 @@ export async function archiveCohort(id: string): Promise<{ error?: string }> {
 
 export async function listCohorts(companyId: string): Promise<{
   error?: string;
+  company?: CompanyBrand;
   cohorts?: (Cohort & { contentCount: number })[];
 }> {
   try {
     const { supabase, companyId: myCompanyId, role } = await getAdminContext();
     if (role === "admin" && myCompanyId !== companyId) return { error: "Access denied" };
 
-    const { data: cohorts } = await supabase
-      .from("cohorts")
-      .select("id, name, description, start_date")
-      .eq("company_id", companyId)
-      .is("archived_at", null)
-      .order("created_at", { ascending: false });
+    const [{ data: company }, { data: cohorts }] = await Promise.all([
+      supabase.from("companies").select("id, name, logo_url").eq("id", companyId).single(),
+      supabase
+        .from("cohorts")
+        .select("id, name, description, start_date, logo_url")
+        .eq("company_id", companyId)
+        .is("archived_at", null)
+        .order("created_at", { ascending: false }),
+    ]);
 
-    if (!cohorts?.length) return { cohorts: [] };
+    const companyBrand = company ? { id: company.id, name: company.name, logoUrl: company.logo_url } : undefined;
+    if (!cohorts?.length) return { company: companyBrand, cohorts: [] };
     const cohortIds = cohorts.map((c: { id: string }) => c.id);
 
     const { data: members } = await supabase
@@ -185,11 +216,13 @@ export async function listCohorts(companyId: string): Promise<{
     }
 
     return {
-      cohorts: cohorts.map((c: { id: string; name: string; description: string | null; start_date: string | null }) => ({
+      company: companyBrand,
+      cohorts: cohorts.map((c: { id: string; name: string; description: string | null; start_date: string | null; logo_url: string | null }) => ({
         id: c.id,
         name: c.name,
         description: c.description,
         startDate: c.start_date,
+        logoUrl: c.logo_url,
         memberCount: memberCounts.get(c.id) ?? 0,
         contentCount: contentCounts.get(c.id) ?? 0,
       })),
@@ -209,7 +242,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
 
     const { data: cohort } = await supabase
       .from("cohorts")
-      .select("id, name, description, start_date, company_id")
+      .select("id, name, description, start_date, logo_url, company_id")
       .eq("id", cohortId)
       .single();
     if (!cohort) return { error: "Cohort not found" };
@@ -230,6 +263,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
         name: cohort.name,
         description: cohort.description,
         startDate: cohort.start_date,
+        logoUrl: cohort.logo_url,
         memberCount: members?.length ?? 0,
       },
       members: (members ?? []).map(mapMemberRow),
@@ -385,7 +419,7 @@ export async function getMyCohorts(): Promise<{
     const [{ data: cohortRows }, { data: memberRows }] = await Promise.all([
       admin
         .from("cohorts")
-        .select("id, name, description, start_date, company_id, archived_at")
+        .select("id, name, description, start_date, logo_url, company_id, archived_at")
         .in("id", orderedIds),
       admin
         .from("cohort_members")
@@ -394,6 +428,11 @@ export async function getMyCohorts(): Promise<{
     ]);
 
     const cohortById = new Map((cohortRows ?? []).map((cohort) => [cohort.id, cohort]));
+    const companyIds = Array.from(new Set((cohortRows ?? []).map((cohort) => cohort.company_id)));
+    const { data: companyRows } = companyIds.length
+      ? await admin.from("companies").select("id, name, logo_url").in("id", companyIds)
+      : { data: [] as { id: string; name: string; logo_url: string | null }[] };
+    const companyById = new Map((companyRows ?? []).map((company) => [company.id, company]));
     const memberCounts = new Map<string, number>();
     for (const row of memberRows ?? []) {
       memberCounts.set(row.cohort_id, (memberCounts.get(row.cohort_id) ?? 0) + 1);
@@ -413,13 +452,17 @@ export async function getMyCohorts(): Promise<{
 
     const cohorts: CohortOption[] = accessibleIds.map((id) => {
       const row = cohortById.get(id)!;
+      const company = companyById.get(row.company_id);
       return {
         id: row.id,
         name: row.name,
         description: row.description,
         startDate: row.start_date,
+        logoUrl: row.logo_url,
         memberCount: memberCounts.get(row.id) ?? 0,
         companyId: row.company_id,
+        companyName: company?.name ?? null,
+        companyLogoUrl: company?.logo_url ?? null,
         archivedAt: row.archived_at,
         isCurrent: row.id === currentCohortId,
         isSelected: row.id === selectedCohortId,
@@ -489,8 +532,11 @@ export async function getMyCohort(): Promise<{
         name: selected!.name,
         description: selected!.description,
         startDate: selected!.startDate,
+        logoUrl: selected!.logoUrl,
         memberCount: roster.length,
         companyId: selected!.companyId,
+        companyName: selected!.companyName,
+        companyLogoUrl: selected!.companyLogoUrl,
       },
       roster,
     };

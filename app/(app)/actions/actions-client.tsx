@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ArrowLeftRight, CalendarDays, Check, CheckCircle2, ChevronRight, CircleX, Clock3, ListChecks, Mail, Medal, MessageCircle, Settings2, Trophy, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getCohortLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard";
-import { getMyPlanSettings, type MyPlanSettings } from "@/app/actions/ai-actions";
+import { getMyPlanSettings, syncMyDuePersonalActions, type MyPlanSettings } from "@/app/actions/ai-actions";
 import {
   getMyCommitmentBuddies,
   markMyCommitmentBuddyRevealed,
@@ -37,7 +37,12 @@ function formatDate(value?: string) {
   if (!value) return "Scheduled by your plan";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return date.toLocaleDateString("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function formatTime(value: string) {
@@ -135,7 +140,7 @@ function CommitmentBuddyCard({ group }: { group: CommitmentBuddyGroup }) {
 }
 
 export default function ActionsClient() {
-  const { profile, cohort, personalPlanState, allActions, userActions, completeAction } = useEngine();
+  const { profile, cohort, personalPlanState, allActions, userActions, completeAction, refetch } = useEngine();
   const [tab, setTab] = useState<Tab>("upcoming");
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<{
@@ -160,6 +165,13 @@ export default function ActionsClient() {
     setReady(false);
     setBuddyReady(false);
     void (async () => {
+      // Release any batch whose IST delivery date is today or earlier, so
+      // Current actions does not wait for the once-daily cron.
+      const syncResult = await syncMyDuePersonalActions();
+      if (cancelled) return;
+      if (syncResult.assigned > 0) await refetch();
+      if (cancelled) return;
+
       const [leaderboardResult, settingsResult, buddyResult] = await Promise.allSettled([
         cohort?.id ? getCohortLeaderboard(cohort.id) : Promise.resolve({ entries: [] as LeaderboardEntry[] }),
         getMyPlanSettings(),
@@ -175,7 +187,7 @@ export default function ActionsClient() {
     return () => {
       cancelled = true;
     };
-  }, [cohort?.id]);
+  }, [cohort?.id, refetch]);
 
   useEffect(() => {
     let cancelled = false;

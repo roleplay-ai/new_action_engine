@@ -57,6 +57,11 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             <span><strong>Nudgeable</strong><small>Action Engine</small></span>
           </Link>
 
+          {cohort && <div className="participant-company-chip">
+            <span>{cohort.companyLogoUrl ? <img src={cohort.companyLogoUrl} alt={`${cohort.companyName || "Company"} logo`} /> : (cohort.companyName || cohort.name).split(/\s+/).slice(0, 2).map((word) => word[0]).join("")}</span>
+            <div><strong>{cohort.companyName || "Your company"}</strong><small>{cohort.name}</small></div>
+          </div>}
+
           <div className="participant-progress-card">
             <small>Your learning journey</small>
             <strong>Keep turning insight into action.</strong>

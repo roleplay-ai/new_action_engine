@@ -89,6 +89,15 @@ export interface Cohort {
   description?: string | null;
   startDate?: string | null;
   memberCount: number;
+  logoUrl?: string | null;
+  companyName?: string | null;
+  companyLogoUrl?: string | null;
+}
+
+export interface CompanyBrand {
+  id: string;
+  name: string;
+  logoUrl: string | null;
 }
 
 /** A cohort available in the participant-wide cohort switcher. */

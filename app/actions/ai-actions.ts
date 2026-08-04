@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionTheme } from "@/lib/types";
 import {
+  assignScheduledBatch,
   computeNextDeliveryAt,
   computeTotalActionsNeeded,
   advanceNextDeliveryAt,
@@ -15,7 +16,7 @@ import {
   generateDraftActions,
   type DeliveryTrack,
 } from "@/lib/personal-action-generation";
-import { istToUTCTime, utcToISTTime } from "@/lib/timezone-utils";
+import { getCurrentISTDate, istToUTCTime, utcToISTDate, utcToISTTime } from "@/lib/timezone-utils";
 import { getMyCohorts } from "@/app/actions/cohorts";
 
 export type MyPlanSettings = {
@@ -71,6 +72,40 @@ export async function getMyPlanSettings(): Promise<{ settings: MyPlanSettings | 
     isActive: data.is_active === true,
     isArchived: !!data.archived_at,
   } };
+}
+
+/**
+ * Release today's due personal-action batch for the selected cohort.
+ * Delivery normally waits for the daily cron, but Next reminders already show
+ * the IST calendar date. Syncing on the Actions page closes that gap so due
+ * actions appear under Current actions without waiting for 11:30 AM IST.
+ */
+export async function syncMyDuePersonalActions(): Promise<{ assigned: number; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { assigned: 0, error: "Not authenticated" };
+    const cohortContext = await getSelectedPlanCohort();
+    if (!cohortContext.cohortId) return { assigned: 0, error: cohortContext.error };
+
+    const { data: sub, error } = await supabase
+      .from("personal_action_subscriptions")
+      .select("id, user_id, cohort_id, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at, is_active, archived_at")
+      .eq("user_id", user.id)
+      .eq("cohort_id", cohortContext.cohortId)
+      .maybeSingle();
+    if (error) return { assigned: 0, error: error.message };
+    if (!sub || !sub.is_active || sub.archived_at) return { assigned: 0 };
+
+    const deliveryDay = utcToISTDate(sub.next_delivery_at);
+    const todayIST = getCurrentISTDate();
+    if (!deliveryDay || deliveryDay > todayIST) return { assigned: 0 };
+
+    const { assigned } = await assignScheduledBatch(sub);
+    return { assigned };
+  } catch (e) {
+    return { assigned: 0, error: e instanceof Error ? e.message : "Failed to sync due actions" };
+  }
 }
 
 /** Preview the release slots a reviewed draft will use when it is finalised. */

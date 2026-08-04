@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { PrepareContentItem, PrepareContentType } from "@/lib/types";
 
 const CONTENT_VIDEOS_BUCKET = "content-videos";
+const CONTENT_DOCUMENTS_BUCKET = "content-documents";
 
 const SUPERADMIN_EMAIL = (process.env.SUPERADMIN_EMAIL || "admin@actionengine").toLowerCase();
 
@@ -71,6 +72,27 @@ export async function createSignedVideoUploadUrl(fileExtension: string): Promise
     return { path, token: data.token, publicUrl: publicUrlData.publicUrl };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+/** Prepares a direct browser-to-storage upload for a cohort PDF resource. */
+export async function createSignedDocumentUploadUrl(): Promise<{
+  error?: string;
+  path?: string;
+  token?: string;
+  publicUrl?: string;
+}> {
+  try {
+    await ensureSuperadmin();
+    const admin = createAdminClient();
+    const path = `${crypto.randomUUID()}.pdf`;
+    const { data, error } = await admin.storage.from(CONTENT_DOCUMENTS_BUCKET).createSignedUploadUrl(path);
+    if (error || !data) return { error: error?.message ?? "Failed to prepare PDF upload" };
+
+    const { data: publicUrlData } = admin.storage.from(CONTENT_DOCUMENTS_BUCKET).getPublicUrl(path);
+    return { path, token: data.token, publicUrl: publicUrlData.publicUrl };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to prepare PDF upload" };
   }
 }
 

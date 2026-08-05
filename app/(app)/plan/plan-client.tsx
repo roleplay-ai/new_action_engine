@@ -42,9 +42,8 @@ function formatScheduleSlot(slot: DraftPlanScheduleSlot | undefined) {
   return { date, detail: `${time} IST · planned release ${slot.batchNumber}` };
 }
 
-function projectedPlanPoints(totalActions: number, index: number) {
-  if (totalActions < 1) return 0;
-  return Math.floor(1000 / totalActions) + (index < 1000 % totalActions ? 1 : 0);
+function projectedPlanPoints() {
+  return 50;
 }
 
 export default function PlanClient({ initialTrainingText, embedded = false }: { initialTrainingText: string; embedded?: boolean }) {
@@ -301,7 +300,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
               <h3 title={action.title}>{action.title}</h3>
               <div className={`plan-action-meta${scheduleSlots[index]?.isImmediate ? " is-immediate" : ""}`}>
                 <span title={scheduleLoading ? "Calculating schedule…" : schedule.detail}><CalendarDays size={13} />{scheduleLoading ? "Calculating…" : schedule.date}</span>
-                <span>{projectedPlanPoints(orderedActions.length, index)} CP</span>
+                <span>{projectedPlanPoints()} CP</span>
               </div>
             </div>
             <div className="plan-action-controls plan-action-controls--compact">

@@ -12,6 +12,7 @@ import PrereadCard from "@/components/prepare/PrereadCard";
 import PdfReader from "@/components/prepare/PdfReader";
 import QuizCard from "@/components/prepare/QuizCard";
 import CohortChat from "@/components/journey/CohortChat";
+import RcplWorkspace from "@/components/journey/RcplWorkspace";
 import { usePageLoading } from "@/components/PageLoadingProvider";
 import type { JourneyData, PrepareContentItem, UserPrepareProgress } from "@/lib/types";
 import { estimateMinutes } from "@/lib/prepare-estimate";
@@ -151,6 +152,56 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
   if (!cohort) return <div className="journey-empty"><CircleUserRound size={32} /><strong>Your learning journey will appear here</strong><p>Ask your administrator to add you to a cohort.</p></div>;
 
   const visibleRoster = roster.slice(0, 4);
+  const isRcplWorkspace = cohort.companyName?.trim().toLowerCase() === "rcpl university";
+
+  const quizModal = typeof document !== "undefined" && selectedItem?.type === "quiz" ? createPortal(<QuizCard
+    item={selectedItem}
+    completed={progress[selectedItem.id]?.status === "completed"}
+    lastScore={progress[selectedItem.id]?.lastScore}
+    lastTotalQuestions={progress[selectedItem.id]?.lastTotalQuestions}
+    onComplete={handleComplete}
+    autoOpen
+    modalOnly
+    onRequestClose={() => setSelectedItem(null)}
+  />, document.body) : null;
+
+  const resourceModal = typeof document !== "undefined" && selectedItem && selectedItem.type !== "quiz" ? createPortal(<div className="journey-resource-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedItem(null); }}>
+    <div className={`journey-resource-modal${isPdfResource(selectedItem) ? " journey-resource-modal--pdf" : ""}`} role="dialog" aria-modal="true" aria-labelledby="journey-resource-title">
+      <header className="journey-resource-modal-head">
+        <div><span>{selectedItem.type === "video" ? "Video" : isPdfResource(selectedItem) ? "PDF" : "Pre-read"}</span><strong id="journey-resource-title">{selectedItem.title}</strong></div>
+        <button className="journey-modal-close" onClick={() => setSelectedItem(null)} aria-label="Close resource"><X size={18} /></button>
+      </header>
+      <div className="journey-resource-modal-body">
+        {selectedItem.type === "video" ? (
+          <VideoCard item={selectedItem} completed={progress[selectedItem.id]?.status === "completed"} onComplete={handleComplete} accentColor="#FFEEA8" />
+        ) : isPdfResource(selectedItem) ? (
+          <PdfReader item={selectedItem} completed={progress[selectedItem.id]?.status === "completed"} onComplete={handleComplete} />
+        ) : (
+          <PrereadCard item={selectedItem} completed={progress[selectedItem.id]?.status === "completed"} onComplete={handleComplete} />
+        )}
+      </div>
+    </div>
+  </div>, document.body) : null;
+
+  if (isRcplWorkspace) {
+    return <>
+      <RcplWorkspace
+        cohort={cohort}
+        roster={roster}
+        items={items}
+        progress={progress}
+        completedCount={completedCount}
+        preparationComplete={preparationComplete}
+        nextTitle={nextTitle}
+        nextCopy={nextCopy}
+        nextHref={nextHref}
+        nextIncompleteItem={nextIncompleteItem}
+        onOpenResource={setSelectedItem}
+      />
+      {quizModal}
+      {resourceModal}
+    </>;
+  }
 
   return (
     <div className="reference-journey journey-v2 animate-in fade-in duration-700">
@@ -273,34 +324,8 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
 
       </div>
 
-      {typeof document !== "undefined" && selectedItem?.type === "quiz" && createPortal(<QuizCard
-        item={selectedItem}
-        completed={progress[selectedItem.id]?.status === "completed"}
-        lastScore={progress[selectedItem.id]?.lastScore}
-        lastTotalQuestions={progress[selectedItem.id]?.lastTotalQuestions}
-        onComplete={handleComplete}
-        autoOpen
-        modalOnly
-        onRequestClose={() => setSelectedItem(null)}
-      />, document.body)}
-
-      {typeof document !== "undefined" && selectedItem && selectedItem.type !== "quiz" && createPortal(<div className="journey-resource-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedItem(null); }}>
-        <div className={`journey-resource-modal${isPdfResource(selectedItem) ? " journey-resource-modal--pdf" : ""}`} role="dialog" aria-modal="true" aria-labelledby="journey-resource-title">
-          <header className="journey-resource-modal-head">
-            <div><span>{selectedItem.type === "video" ? "Video" : isPdfResource(selectedItem) ? "PDF" : "Pre-read"}</span><strong id="journey-resource-title">{selectedItem.title}</strong></div>
-            <button className="journey-modal-close" onClick={() => setSelectedItem(null)} aria-label="Close resource"><X size={18} /></button>
-          </header>
-          <div className="journey-resource-modal-body">
-            {selectedItem.type === "video" ? (
-              <VideoCard item={selectedItem} completed={progress[selectedItem.id]?.status === "completed"} onComplete={handleComplete} accentColor="#FFEEA8" />
-            ) : isPdfResource(selectedItem) ? (
-              <PdfReader item={selectedItem} completed={progress[selectedItem.id]?.status === "completed"} onComplete={handleComplete} />
-            ) : (
-              <PrereadCard item={selectedItem} completed={progress[selectedItem.id]?.status === "completed"} onComplete={handleComplete} />
-            )}
-          </div>
-        </div>
-      </div>, document.body)}
+      {quizModal}
+      {resourceModal}
     </div>
   );
 }

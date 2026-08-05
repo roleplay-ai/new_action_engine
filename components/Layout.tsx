@@ -2,9 +2,9 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEngine } from "@/lib/store";
-import { Home, Sparkles, ListChecks, ShieldCheck, Flame } from "lucide-react";
+import { ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ShieldCheck, Flame } from "lucide-react";
 import { LogoutButton } from "@/app/(app)/logout-button";
 import PageLoader from "@/components/PageLoader";
 import { usePageLoadingControls } from "@/components/PageLoadingProvider";
@@ -18,6 +18,7 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   const { profile, isLoading, cohort, cohorts, refetch } = useEngine();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [switchingCohort, setSwitchingCohort] = useState(false);
   const { contentLoading, pendingHref, beginNavigation } = usePageLoadingControls();
@@ -27,6 +28,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       { href: "/journey", label: "Workspace", icon: Home },
       { href: "/plan", label: "My Plan", icon: Sparkles },
       { href: "/actions", label: "My Actions", icon: ListChecks },
+      { href: "/wallet", label: "Wallet", icon: PiggyBank },
     ];
     if (role !== "user") items.push({ href: "/admin", label: "Admin", icon: ShieldCheck });
     return items;
@@ -35,6 +37,14 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   const activePath = pendingHref || pathname || "";
   const isActive = (href: string) => activePath.startsWith(href);
   const showLoader = isLoading || contentLoading;
+  const isRcpl = cohort?.companyName?.trim().toLowerCase() === "rcpl university";
+  const rcplPhase = ["1", "2", "3"].includes(searchParams.get("phase") ?? "") ? searchParams.get("phase")! : "1";
+  const rcplPhases = [
+    { id: "1", label: "Phase 1", title: "Leading Business & Future", window: "Month 1" },
+    { id: "2", label: "Phase 2", title: "Leading Self", window: "Month 3" },
+    { id: "3", label: "Phase 3", title: "Leading Others", window: "Month 5" },
+  ];
+  const currentRcplPhase = rcplPhases.find((phase) => phase.id === rcplPhase) ?? rcplPhases[0];
 
   async function switchCohort(cohortId: string) {
     if (!cohortId || cohortId === cohort?.id || switchingCohort) return;
@@ -48,7 +58,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   }
 
   return (
-    <div className="participant-shell participant-shell--sidebar">
+    <div className={`participant-shell participant-shell--sidebar${isRcpl ? " participant-shell--rcpl" : ""}`}>
       <aside className="participant-sidebar">
         <div>
           <Link href="/journey" className="participant-brand" onClick={() => beginNavigation("/journey")}>
@@ -62,12 +72,28 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             <span><strong>{cohort?.companyName || "Your company"}</strong></span>
           </Link>
 
-          <div className="participant-progress-card">
-            <small>Your learning journey</small>
-            <strong>Keep turning insight into action.</strong>
-            <div className="participant-progress-track"><span style={{ width: `${Math.min(100, Math.max(8, profile.weeklyGoal * 10))}%` }} /></div>
-            <p>{profile.streak > 0 ? `${profile.streak} day streak` : "Your progress appears here"}</p>
-          </div>
+          {isRcpl && pathname.startsWith("/journey") ? (
+            <details className="rcpl-sidebar-phase-picker">
+              <summary>
+                <span><small>Current phase</small><strong>{currentRcplPhase.label} · {currentRcplPhase.title}</strong></span>
+                <ChevronDown size={15} />
+              </summary>
+              <div>
+                {rcplPhases.map((phase) => (
+                  <Link key={phase.id} href={`/journey?phase=${phase.id}`} className={phase.id === rcplPhase ? "active" : ""}>
+                    <strong>{phase.label} · {phase.title}</strong><small>{phase.window}</small>
+                  </Link>
+                ))}
+              </div>
+            </details>
+          ) : (
+            <div className="participant-progress-card">
+              <small>Your learning journey</small>
+              <strong>Keep turning insight into action.</strong>
+              <div className="participant-progress-track"><span style={{ width: `${Math.min(100, Math.max(8, profile.weeklyGoal * 10))}%` }} /></div>
+              <p>{profile.streak > 0 ? `${profile.streak} day streak` : "Your progress appears here"}</p>
+            </div>
+          )}
 
           <nav className="participant-nav" aria-label="Participant navigation">
             {navItems.map((item) => (
@@ -89,6 +115,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       <section className="participant-main">
         {showLoader && <PageLoader variant="main" />}
         <header className="participant-topbar" style={showLoader ? { visibility: "hidden" } : undefined} aria-hidden={showLoader}>
+          {isRcpl && <span className="rcpl-topbar-title">Workspace</span>}
           <Link href="/journey" className="participant-mobile-brand" onClick={() => beginNavigation("/journey")}>
             {cohort?.companyLogoUrl ? (
               <img src={cohort.companyLogoUrl} alt="" />
@@ -117,7 +144,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       </section>
 
       <nav className="participant-bottom-nav" aria-label="Mobile participant navigation">
-        {navItems.slice(0, 3).map((item) => (
+        {navItems.slice(0, 4).map((item) => (
           <Link key={item.href} href={item.href} className={isActive(item.href) ? "active" : ""} onClick={() => beginNavigation(item.href)}>
             <item.icon size={20} /><span>{item.label}</span>
           </Link>

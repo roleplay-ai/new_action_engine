@@ -72,6 +72,7 @@ export async function createCompanyUser(params: {
       .upsert(
         {
           id: userId,
+          email: params.email.trim().toLowerCase(),
           full_name: params.fullName,
           company_id: targetCompanyId,
           role: "user",

@@ -16,6 +16,7 @@ export default function PrereadCard({
 }) {
   const [busy, setBusy] = useState(false);
   const minutes = estimateMinutes(item);
+  const isPdf = !!item.prereadUrl && /\.pdf(?:$|[?#])/i.test(item.prereadUrl);
 
   async function handleMarkRead() {
     setBusy(true);
@@ -50,6 +51,11 @@ export default function PrereadCard({
         {item.title}
       </h3>
       {item.description && <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>{item.description}</p>}
+      {isPdf && (
+        <div className="journey-pdf-frame">
+          <iframe src={`${item.prereadUrl}#view=FitH`} title={`${item.title} PDF`} />
+        </div>
+      )}
       {item.prereadBody && (
         <p className="text-sm mt-3" style={{ color: "var(--color-text-secondary)", lineHeight: "var(--leading-relaxed)" }}>
           {item.prereadBody}

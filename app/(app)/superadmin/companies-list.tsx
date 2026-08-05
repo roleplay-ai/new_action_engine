@@ -3,15 +3,18 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateCompany } from "@/app/actions/companies";
-import { Building2, CalendarDays, Pencil, Check, Loader2, X } from "lucide-react";
+import { uploadCompanyLogo } from "@/lib/company-logo-upload";
+import { Building2, CalendarDays, Pencil, Check, ImagePlus, Loader2, Trash2, X } from "lucide-react";
 
-type Company = { id: string; name: string; slug: string | null; created_at: string };
+type Company = { id: string; name: string; slug: string | null; logo_url: string | null; created_at: string };
 
 export default function CompaniesList({ companies }: { companies: Company[] }) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editSlug, setEditSlug] = useState("");
+  const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
+  const [editLogoFile, setEditLogoFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,13 +22,17 @@ export default function CompaniesList({ companies }: { companies: Company[] }) {
     setError(null);
     setLoading(true);
     try {
-      const result = await updateCompany(id, { name: editName, slug: editSlug || undefined });
+      const logoUrl = editLogoFile ? await uploadCompanyLogo(id, editLogoFile) : editLogoUrl;
+      const result = await updateCompany(id, { name: editName, slug: editSlug || undefined, logoUrl });
       if (result.error) {
         setError(result.error);
         return;
       }
       setEditingId(null);
+      setEditLogoFile(null);
       router.refresh();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Failed to update company");
     } finally {
       setLoading(false);
     }
@@ -35,6 +42,8 @@ export default function CompaniesList({ companies }: { companies: Company[] }) {
     setEditingId(c.id);
     setEditName(c.name);
     setEditSlug(c.slug ?? "");
+    setEditLogoUrl(c.logo_url);
+    setEditLogoFile(null);
     setError(null);
   }
 
@@ -56,6 +65,21 @@ export default function CompaniesList({ companies }: { companies: Company[] }) {
                   placeholder="Slug"
                   className="w-full sm:w-36"
                 />
+                <div className="superadmin-company-logo-editor">
+                  <span className="superadmin-company-logo">
+                    {editLogoUrl ? <img src={editLogoUrl} alt="" /> : <Building2 size={18} />}
+                  </span>
+                  <label>
+                    <ImagePlus size={15} />
+                    <span>{editLogoFile?.name || (editLogoUrl ? "Replace logo" : "Upload logo")}</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      onChange={(event) => setEditLogoFile(event.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  {(editLogoUrl || editLogoFile) && <button type="button" onClick={() => { setEditLogoUrl(null); setEditLogoFile(null); }}><Trash2 size={14} /> Remove</button>}
+                </div>
               </div>
               <div className="flex gap-2">
                 <button
@@ -78,7 +102,7 @@ export default function CompaniesList({ companies }: { companies: Company[] }) {
             </>
           ) : (
             <>
-              <div className="superadmin-company-identity"><span><Building2 size={17} /></span><div><strong>{c.name}</strong><small>{c.slug ? `/${c.slug}` : "No workspace slug"}</small></div></div>
+              <div className="superadmin-company-identity"><span className="superadmin-company-logo">{c.logo_url ? <img src={c.logo_url} alt={`${c.name} logo`} /> : <Building2 size={17} />}</span><div><strong>{c.name}</strong><small>{c.slug ? `/${c.slug}` : "No workspace slug"}</small></div></div>
               <div className="superadmin-company-date"><CalendarDays size={14} /><span>Created {new Date(c.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
               </div>
               <button

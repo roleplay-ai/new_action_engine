@@ -1,5 +1,5 @@
-import NotesClient from "./notes-client";
+import { redirect } from "next/navigation";
 
 export default function NotesPage() {
-  return <NotesClient />;
+  redirect("/plan#notes");
 }

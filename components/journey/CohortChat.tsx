@@ -90,7 +90,15 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
               senderRole: result.currentUserRole ?? "participant",
             });
           }
-          setMessages(nextMessages);
+          // Do not let a slower history request overwrite a message that was
+          // already confirmed by the send response or the realtime channel.
+          setMessages((current) => {
+            const merged = new Map(current.map((message) => [message.id, message]));
+            for (const message of nextMessages) merged.set(message.id, message);
+            return [...merged.values()]
+              .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+              .slice(-200);
+          });
           setCurrentUserId(currentUserIdRef.current);
           setError(null);
         }
@@ -162,6 +170,25 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
   }, [loadMessages]);
 
   useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadMessages(true);
+    };
+    const refreshOnFocus = () => void loadMessages(true);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshOnFocus);
+
+    const fallbackTimer = connectionState === "offline"
+      ? window.setInterval(() => void loadMessages(true), 5000)
+      : null;
+
+    return () => {
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", refreshOnFocus);
+      if (fallbackTimer) window.clearInterval(fallbackTimer);
+    };
+  }, [connectionState, loadMessages]);
+
+  useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: loading ? "auto" : "smooth", block: "nearest" });
   }, [newestMessageId, loading]);
 
@@ -175,9 +202,20 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
     const result = await sendCohortMessage(cohortId, message);
     if (result.error) {
       setError(result.error);
-    } else {
+    } else if (result.message) {
       setDraft("");
-      if (connectionState !== "live") await loadMessages(true);
+      const sentMessage = result.message;
+      senderDirectoryRef.current.set(sentMessage.senderId, {
+        senderName: sentMessage.senderName,
+        senderRole: sentMessage.senderRole,
+      });
+      setMessages((current) => current.some((item) => item.id === sentMessage.id)
+        ? current
+        : [...current, sentMessage].slice(-200));
+      setError(null);
+      if (connectionState !== "live") void loadMessages(true);
+    } else {
+      setError("The message was sent but could not be displayed");
     }
     setSending(false);
   }
@@ -208,8 +246,10 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
           return <div className={`journey-chat-message ${own ? "own" : ""} ${message.senderRole === "trainer" ? "trainer" : ""}`} key={message.id}>
             <div className="journey-chat-avatar">{initials(message.senderName)}</div>
             <div className="journey-chat-copy">
-              <strong>{own ? "You" : message.senderName}</strong>
-              <span>{message.senderRole === "trainer" ? "Trainer" : "Cohort participant"} · {formatMessageTime(message.createdAt)}</span>
+              <div className="journey-chat-meta">
+                <strong>{own ? "You" : message.senderName}</strong>
+                <span>{message.senderRole === "trainer" ? `Trainer · ${formatMessageTime(message.createdAt)}` : formatMessageTime(message.createdAt)}</span>
+              </div>
               <p>{message.message}</p>
             </div>
           </div>;

@@ -7,7 +7,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "seed:rcpl": "node --env-file=.env.local scripts/seed-rcpl-university.mjs",
+    "seed:rcpl:credentials": "node --env-file=.env.local scripts/seed-rcpl-university.mjs --provision-credentials"
   },
   "dependencies": {
     "@google/genai": "^2.10.0",

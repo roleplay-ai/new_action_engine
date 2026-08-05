@@ -16,14 +16,14 @@ import {
   completeAction as completeActionServer,
 } from "@/app/actions/user-actions";
 import { validateAction as validateActionServer } from "@/app/actions/validate-action";
-import { syncMyTotalPointsFromHistory } from "@/app/actions/points";
 import { utcToISTDateTime } from "@/lib/timezone-utils";
-import { calculatePointsFromHistory } from "@/lib/points";
 
 export type GenerationJobStatus = {
+  id: string;
   totalNeeded: number;
   totalGenerated: number;
   status: string;
+  errorMessage?: string;
 };
 
 interface EngineContextType {
@@ -43,10 +43,17 @@ interface EngineContextType {
   hasCompany: boolean;
   /** Live progress of the background action-plan generation job, while one is running. */
   generationJob: GenerationJobStatus | null;
+  generationError: string | null;
+  refreshGenerationStatus: (options?: { refreshActions?: boolean }) => Promise<GenerationJobStatus | null>;
   refetch: (options?: { syncPoints?: boolean }) => Promise<void>;
   completeOnboarding: (importance: number, goal: number) => Promise<void>;
   updatePoints: (amount: number) => Promise<void>;
-  completeAction: (actionId: string, success: boolean, reflection?: string) => Promise<{ error?: string }>;
+  completeAction: (actionId: string, success: boolean, reflection?: string) => Promise<{
+    error?: string;
+    pointsDelta?: number;
+    currentPoints?: number;
+    completedLate?: boolean;
+  }>;
   declineAction: (actionId: string) => Promise<void>;
   retryAction: (actionId: string) => Promise<void>;
   validateAction: (userActionId: string, success: boolean, reflection?: string) => Promise<void>;
@@ -57,7 +64,7 @@ interface EngineContextType {
 
 const EngineContext = createContext<EngineContextType | undefined>(undefined);
 
-function mapDbAction(row: { id: string; cohort_id?: string | null; plan_order?: number | null; theme: string; title: string; how: string; why: string; time_estimate: string; is_personal?: boolean | null }): ActionCard {
+function mapDbAction(row: { id: string; cohort_id?: string | null; plan_order?: number | null; theme: string; title: string; how: string; why: string; time_estimate: string; is_personal?: boolean | null; plan_points?: number | null }): ActionCard {
   return {
     id: row.id,
     cohortId: row.cohort_id,
@@ -68,6 +75,7 @@ function mapDbAction(row: { id: string; cohort_id?: string | null; plan_order?: 
     why: row.why,
     timeEstimate: row.time_estimate ?? "5 mins",
     isPersonal: row.is_personal ?? false,
+    planPoints: row.plan_points ?? undefined,
   };
 }
 
@@ -80,6 +88,10 @@ function mapDbUserAction(row: {
   accepted_at: string | null;
   reflection: string | null;
   is_calendar_synced: boolean;
+  points_delta?: number | null;
+  points_settled_at?: string | null;
+  completed_at?: string | null;
+  completed_late?: boolean | null;
 }): UserAction {
   // Convert UTC timestamps to IST for display
   const scheduledIST = row.scheduled_at ? utcToISTDateTime(row.scheduled_at) : null;
@@ -98,6 +110,10 @@ function mapDbUserAction(row: {
     acceptedTime: acceptedIST?.time,
     isCalendarSynced: row.is_calendar_synced ?? false,
     reflection: row.reflection ?? undefined,
+    pointsDelta: row.points_delta ?? undefined,
+    pointsSettledAt: row.points_settled_at ?? undefined,
+    completedAt: row.completed_at ?? undefined,
+    completedLate: row.completed_late ?? false,
   };
 }
 
@@ -134,7 +150,9 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [hasCompany, setHasCompany] = useState(false);
   const [generationJob, setGenerationJob] = useState<GenerationJobStatus | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const generationWasActive = useRef(false);
+  const refreshedSettledJobId = useRef<string | null>(null);
   const initialRefetchStarted = useRef(false);
 
   const refetch = useCallback(async (options?: { syncPoints?: boolean }) => {
@@ -147,9 +165,6 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       return;
     }
 
-    // Backfill/sync points from existing history so legacy users get correct totals.
-    if (options?.syncPoints !== false) await syncMyTotalPointsFromHistory();
-
     const { data: prof } = await supabase
       .from("profiles")
       .select("full_name, total_points, weekly_goal, league_index, streak")
@@ -160,7 +175,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
         name: prof.full_name?.trim() || user.email?.split("@")[0] || "User",
         importanceRating: (prof as any).league_index ?? 0,
         weeklyGoal: prof.weekly_goal ?? 3,
-        totalPoints: prof.total_points ?? 0,
+        totalPoints: 0,
         onboarded: true,
         streak: prof.streak ?? 0,
       });
@@ -192,6 +207,19 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
     const selectedCohortId = selectedCohort?.id ?? null;
     setCohorts(availableCohorts);
     setCohort(selectedCohort);
+
+    const { data: pointAccount } = selectedCohortId
+      ? await supabase
+          .from("cohort_point_accounts")
+          .select("current_points")
+          .eq("user_id", user.id)
+          .eq("cohort_id", selectedCohortId)
+          .maybeSingle()
+      : { data: null };
+    setProfile((current) => ({
+      ...current,
+      totalPoints: pointAccount?.current_points ?? (selectedCohortId ? 1000 : 0),
+    }));
 
     // Plan activation is cohort-specific. A previous finalised plan can be
     // archived while the newly assigned current cohort starts with no plan.
@@ -229,14 +257,25 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
     const companyId = adminCompanyId ?? profRow?.company_id;
     setHasCompany(!!companyId);
     if (companyId && selectedCohortId) {
-      const { data: actions } = await supabase
-        .from("actions")
-        .select("id, cohort_id, plan_order, theme, title, how, why, time_estimate, is_personal")
-        .eq("company_id", companyId)
-        .eq("cohort_id", selectedCohortId)
-        .order("plan_order", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: true });
-      setAllActions((actions ?? []).map(mapDbAction));
+      const [{ data: actions }, { data: allocations }] = await Promise.all([
+        supabase
+          .from("actions")
+          .select("id, cohort_id, plan_order, theme, title, how, why, time_estimate, is_personal")
+          .eq("company_id", companyId)
+          .eq("cohort_id", selectedCohortId)
+          .order("plan_order", { ascending: true, nullsFirst: false })
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("personal_action_point_allocations")
+          .select("action_id, points")
+          .eq("user_id", user.id)
+          .eq("cohort_id", selectedCohortId),
+      ]);
+      const pointsByAction = new Map((allocations ?? []).map((row) => [row.action_id, row.points]));
+      setAllActions((actions ?? []).map((row) => mapDbAction({
+        ...row,
+        plan_points: pointsByAction.get(row.id) ?? null,
+      })));
     } else {
       setAllActions([]);
     }
@@ -249,7 +288,6 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
           .eq("cohort_id", selectedCohortId)
       : { data: [] };
     setUserActions((uas ?? []).map(mapDbUserAction));
-    setProfile((current) => ({ ...current, totalPoints: calculatePointsFromHistory(uas ?? []) }));
 
     const { data: events } = selectedCohortId
       ? await supabase
@@ -275,49 +313,62 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
     refetch().finally(() => setIsLoading(false));
   }, [refetch, adminCompanyId]);
 
-  // Poll for background action-plan generation progress. Only surfaces the job
-  // while it's actively generating — the bell badge disappears on its own once
-  // it completes or fails. Also re-pulls allActions/userActions while a job is
-  // running so newly generated actions show up in the library live, not just
-  // the progress counter.
+  const refreshGenerationStatus = useCallback(async (options?: { refreshActions?: boolean }) => {
+    const response = await fetch("/api/generation-status", {
+      method: "GET",
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error("Could not check action generation");
+
+    const { job } = await response.json() as { job: GenerationJobStatus | null };
+    const isGenerating = job?.status === "generating";
+    const wasGenerating = generationWasActive.current;
+
+    setGenerationJob(isGenerating ? job : null);
+    setGenerationError(job?.status === "failed"
+      ? job.errorMessage ?? "AI could not finish generating your actions. Please try again."
+      : null);
+
+    if (isGenerating) {
+      generationWasActive.current = true;
+      if (refreshedSettledJobId.current === job.id) refreshedSettledJobId.current = null;
+    } else {
+      generationWasActive.current = false;
+    }
+
+    const newlySettled = !!job
+      && job.status !== "generating"
+      && refreshedSettledJobId.current !== job.id;
+    if (newlySettled) refreshedSettledJobId.current = job.id;
+
+    if (options?.refreshActions !== false && (isGenerating || wasGenerating || newlySettled)) {
+      await refetch({ syncPoints: false });
+    }
+    return job;
+  }, [refetch]);
+
+  // Poll for background action-plan generation progress and re-pull actions as
+  // they arrive. A completed job is refreshed once even when it finishes before
+  // the first poll, so a fast generation cannot leave the page stale.
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const controller = new AbortController();
     const poll = async () => {
       try {
-        const response = await fetch("/api/generation-status", {
-          method: "GET",
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        const { job } = await response.json() as { job: GenerationJobStatus | null };
+        const job = await refreshGenerationStatus({ refreshActions: true });
         if (cancelled) return;
         const isGenerating = job?.status === "generating";
-        setGenerationJob(isGenerating ? job : null);
-        if (isGenerating) {
-          generationWasActive.current = true;
-          // Refresh generated actions without running the points-sync mutation
-          // on every background status check.
-          await refetch({ syncPoints: false });
-        } else if (generationWasActive.current) {
-          generationWasActive.current = false;
-          await refetch({ syncPoints: false });
-        }
-        if (!cancelled) timer = setTimeout(poll, isGenerating ? 6000 : 15000);
+        if (!cancelled) timer = setTimeout(poll, isGenerating ? 3000 : 12000);
       } catch (error) {
-        if (!cancelled && !(error instanceof DOMException && error.name === "AbortError")) {
-          timer = setTimeout(poll, 15000);
-        }
+        if (!cancelled) timer = setTimeout(poll, 12000);
       }
     };
     void poll();
     return () => {
       cancelled = true;
-      controller.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [refetch]);
+  }, [refreshGenerationStatus, generationJob?.id]);
 
   const updatePoints = async () => { };
   const addFeedItem = async () => { };
@@ -359,6 +410,8 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       isLoading,
       hasCompany,
       generationJob,
+      generationError,
+      refreshGenerationStatus,
       refetch,
       completeOnboarding,
       updatePoints,
@@ -370,7 +423,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       likeFeedItem,
       addNewAction,
     }),
-    [profile, userActions, allActions, selfOnboardingCompletedAt, personalPlanState, hasArchivedPlans, cohort, cohorts, feed, isLoading, hasCompany, generationJob, refetch]
+    [profile, userActions, allActions, selfOnboardingCompletedAt, personalPlanState, hasArchivedPlans, cohort, cohorts, feed, isLoading, hasCompany, generationJob, generationError, refetch, refreshGenerationStatus]
   );
 
   return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;

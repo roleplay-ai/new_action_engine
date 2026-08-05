@@ -360,7 +360,12 @@ export async function completeAction(params: {
   actionId: string;
   success: boolean;
   reflection?: string;
-}): Promise<{ error?: string }> {
+}): Promise<{
+  error?: string;
+  pointsDelta?: number;
+  currentPoints?: number;
+  completedLate?: boolean;
+}> {
   const { actionId, success, reflection } = params;
   const supabase = await createClient();
 
@@ -375,9 +380,38 @@ export async function completeAction(params: {
 
   const { data: actionRow } = await supabase
     .from("actions")
-    .select("title, cohort_id")
+    .select("title, cohort_id, is_personal")
     .eq("id", actionId)
     .single();
+
+  if (actionRow?.is_personal && actionRow.cohort_id) {
+    const { data: settlementRows, error: settlementError } = await supabase.rpc(
+      "settle_my_personal_action",
+      {
+        p_action_id: actionId,
+        p_success: success,
+        p_reflection: reflection ?? null,
+      }
+    );
+    if (settlementError) return { error: settlementError.message };
+
+    if (success && actionRow.title) {
+      await supabase.from("feed_events").insert({
+        user_id: user.id,
+        cohort_id: actionRow.cohort_id,
+        action_title: actionRow.title,
+        type: "SUCCESS",
+      });
+    }
+
+    const settlement = Array.isArray(settlementRows) ? settlementRows[0] : settlementRows;
+    revalidatePath("/");
+    return {
+      pointsDelta: settlement?.points_delta ?? 0,
+      currentPoints: settlement?.current_points ?? undefined,
+      completedLate: settlement?.completed_late ?? false,
+    };
+  }
 
   const { data: existingUa } = await supabase
     .from("user_actions")

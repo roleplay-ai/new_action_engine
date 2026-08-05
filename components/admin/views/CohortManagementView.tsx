@@ -5,14 +5,17 @@ import {
   AlertCircle,
   ArrowRight,
   BookOpen,
+  Building2,
   CalendarDays,
   Check,
   ChevronRight,
   Info,
+  ImagePlus,
   Loader2,
   Plus,
   RefreshCw,
   Search,
+  Trash2,
   UserPlus,
   Users,
   X,
@@ -20,18 +23,21 @@ import {
 import {
   addMembersToCohort,
   createCohort,
+  deleteCohort,
   getCohortDetail,
   getCompanyUsers,
   listCohorts,
   removeMembersFromCohort,
+  updateCohort,
 } from "@/app/actions/cohorts";
+import { uploadCohortLogo } from "@/lib/cohort-logo-upload";
 import {
   assignContentToCohort,
   listActiveLibraryItems,
   listCohortContent,
   removeContentFromCohort,
 } from "@/app/actions/prepare-content";
-import type { PrepareContentItem } from "@/lib/types";
+import type { CompanyBrand, PrepareContentItem } from "@/lib/types";
 
 interface CohortManagementViewProps {
   companyId: string | null;
@@ -45,6 +51,7 @@ type CohortSummary = {
   startDate?: string | null;
   memberCount: number;
   contentCount: number;
+  logoUrl?: string | null;
 };
 
 type CompanyUser = { id: string; full_name: string | null };
@@ -81,6 +88,7 @@ function CohortListSkeleton() {
 
 export function CohortManagementView({ companyId }: CohortManagementViewProps) {
   const [cohorts, setCohorts] = useState<CohortSummary[]>([]);
+  const [company, setCompany] = useState<CompanyBrand | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -102,6 +110,7 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
         return;
       }
       const nextCohorts = result.cohorts ?? [];
+      setCompany(result.company ?? null);
       setCohorts(nextCohorts);
       setSelectedId((current) => {
         if (current && nextCohorts.some((cohort) => cohort.id === current)) return current;
@@ -116,6 +125,7 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
 
   useEffect(() => {
     setCohorts([]);
+    setCompany(null);
     setSelectedId(null);
     setCreating(false);
     setQuery("");
@@ -187,7 +197,10 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
       <header className="cohort-admin-header">
         <div>
           <p className="cohort-admin-eyebrow">People &amp; learning operations</p>
-          <h1>Cohort management</h1>
+          <div className="cohort-admin-company-heading">
+            <span>{company?.logoUrl ? <img src={company.logoUrl} alt={`${company.name} logo`} /> : <Building2 size={24} />}</span>
+            <div><h1>{company?.name || "Cohort management"}</h1><strong>Cohort management</strong></div>
+          </div>
           <p>Organise participants, assign preparation content, and keep every learning group ready.</p>
         </div>
         <div className="cohort-admin-header-actions">
@@ -276,7 +289,7 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
                     onClick={() => setSelectedId(cohort.id)}
                     aria-current={selected ? "true" : undefined}
                   >
-                    <span className="cohort-admin-cohort-mark">{initials(cohort.name)}</span>
+                    <span className="cohort-admin-cohort-mark">{cohort.logoUrl ? <img src={cohort.logoUrl} alt="" /> : initials(cohort.name)}</span>
                     <span className="cohort-admin-row-copy">
                       <strong>{cohort.name}</strong>
                       <span>{cohort.description || formatStartDate(cohort.startDate)}</span>
@@ -464,18 +477,71 @@ function CohortDetailPanel({
   const allVisibleMembersSelected = visibleAvailableUsers.length > 0 && visibleAvailableUsers.every((user) => pendingAddIds.has(user.id));
   const allVisibleContentSelected = visibleAvailableItems.length > 0 && visibleAvailableItems.every((item) => pendingContentIds.has(item.id));
 
+  async function handleCohortLogo(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    await runMutation("cohort-logo", async () => {
+      const logoUrl = await uploadCohortLogo(cohort.id, file);
+      return updateCohort(cohort.id, { logoUrl });
+    });
+  }
+
+  async function handleDeleteCohort() {
+    if (
+      !window.confirm(
+        `Permanently delete “${cohort.name}”? Members, content assignments, and related cohort data will be removed. This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    if (busyAction) return;
+    setBusyAction("delete-cohort");
+    setError(null);
+    try {
+      const result = await deleteCohort(cohort.id);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      await onChange();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "The update could not be completed");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   return (
     <div className="cohort-admin-detail">
       <div className="cohort-admin-detail-head">
         <div className="cohort-admin-detail-title">
-          <span className="cohort-admin-cohort-mark cohort-admin-cohort-mark--large">{initials(cohort.name)}</span>
+          <span className="cohort-admin-cohort-mark cohort-admin-cohort-mark--large">{cohort.logoUrl ? <img src={cohort.logoUrl} alt={`${cohort.name} logo`} /> : initials(cohort.name)}</span>
           <div>
             <p className="cohort-admin-eyebrow">Active cohort</p>
             <h2>{cohort.name}</h2>
             <p>{cohort.description || "No description added."}</p>
           </div>
         </div>
-        <span className="cohort-admin-date"><CalendarDays size={15} /> {formatStartDate(cohort.startDate)}</span>
+        <div className="cohort-admin-detail-brand-actions">
+          <span className="cohort-admin-date"><CalendarDays size={15} /> {formatStartDate(cohort.startDate)}</span>
+          <label className="cohort-admin-logo-upload">
+            {busyAction === "cohort-logo" ? <Loader2 size={14} className="cohort-admin-spin" /> : <ImagePlus size={14} />}
+            {cohort.logoUrl ? "Replace cohort logo" : "Upload cohort logo"}
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" disabled={!!busyAction} onChange={(event) => void handleCohortLogo(event)} />
+          </label>
+          <button
+            type="button"
+            onClick={() => void handleDeleteCohort()}
+            disabled={Boolean(busyAction)}
+            className="cohort-admin-button cohort-admin-button--danger"
+            aria-label={`Delete ${cohort.name}`}
+            title="Delete cohort"
+          >
+            {busyAction === "delete-cohort" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Trash2 size={15} />}
+            {busyAction === "delete-cohort" ? "Deleting…" : "Delete cohort"}
+          </button>
+        </div>
       </div>
 
       <div className="cohort-admin-tabs" role="tablist" aria-label="Cohort details">

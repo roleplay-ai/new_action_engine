@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, CalendarDays, Check, CheckCircle2, GripVertical, Loader2, Pencil, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, Check, CheckCircle2, GripVertical, ListChecks, Loader2, Pencil, Sparkles, Trash2, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import Onboarding from "@/components/Onboarding";
 import GenerationStatus from "@/components/GenerationStatus";
@@ -20,7 +20,7 @@ import {
 import type { ActionCard } from "@/lib/types";
 import { usePageLoading } from "@/components/PageLoadingProvider";
 
-type EditForm = { title: string };
+type EditForm = { title: string; how: string; why: string };
 
 function formatScheduleSlot(slot: DraftPlanScheduleSlot | undefined) {
   if (!slot) return { date: "Date calculating…", detail: "Plan schedule" };
@@ -85,6 +85,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
   const isPlanArchived = personalPlanState === "archived";
   const hasDraft = personalPlanState === "draft" || (personalPlanState === "none" && (generatedActions.length > 0 || !!generationJob));
   const canBuildPlan = !!cohort?.isCurrent && personalPlanState === "none";
+  const showInitialSetup = canBuildPlan && !hasDraft;
 
   useEffect(() => {
     setOrderedActions(generatedActions);
@@ -116,7 +117,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
 
   function openEdit(action: ActionCard) {
     setEditingAction(action);
-    setEditForm({ title: action.title });
+    setEditForm({ title: action.title, how: action.how, why: action.why });
     setError("");
   }
 
@@ -125,6 +126,8 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
     setSaving(true);
     const result = await updatePersonalAction(editingAction.id, {
       title: editForm.title,
+      how: editForm.how,
+      why: editForm.why,
     });
     setSaving(false);
     if (result.error) { setError(result.error); return; }
@@ -133,6 +136,8 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
         ? {
             ...action,
             title: editForm.title.trim(),
+            how: editForm.how.trim(),
+            why: editForm.why.trim(),
           }
         : action
     )));
@@ -238,14 +243,6 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
           : "Switch to your current cohort to build a new plan.";
 
   return <section className={`journey-page plan-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "action-plan" : undefined}>
-    {editingSetup && <Onboarding initialTrainingText={initialTrainingText} onComplete={async () => {
-      setEditingSetup(false);
-      await Promise.all([
-        refetch(),
-        refreshGenerationStatus({ refreshActions: false }),
-      ]);
-    }} />}
-
     {embedded ? <div className="unified-plan-section-heading"><span className="participant-eyebrow">Step 2 · Build</span><h2>Your action plan</h2><p>Generate personalised workplace actions, review every suggestion, and activate them when they feel right.</p></div> : <div className="participant-page-heading"><span className="participant-eyebrow">Private workspace</span><h1>My Plan</h1><p>Shape what you want to build, review every suggested action, then activate the plan when it feels right.</p></div>}
 
     <div className="journey-v2-progress-pills" aria-label="Plan progress">
@@ -254,14 +251,22 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
       <div className={isPlanActive || isPlanArchived ? "done" : generatedActions.length > 0 ? "current" : ""}><span>{isPlanActive || isPlanArchived ? <Check size={13} /> : 3}</span>{isPlanActive ? "Active" : isPlanArchived ? "Archived" : "Activate"}</div>
     </div>
 
-    <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your cohort"}</span><h2>{heading}</h2><p>{summary}</p></div>{!generationJob && !generationError && (hasDraft || canBuildPlan) && <button className="journey-primary-button" onClick={openPlanSetup}>{!initialTrainingText.trim() ? "Add notes first" : hasDraft ? "Change setup" : "Build my plan"}</button>}</div>
+    {(showInitialSetup || editingSetup) && <Onboarding inline initialTrainingText={initialTrainingText} onComplete={async () => {
+      setEditingSetup(false);
+      await Promise.all([
+        refetch(),
+        refreshGenerationStatus({ refreshActions: false }),
+      ]);
+    }} />}
+
+    {!showInitialSetup && !editingSetup && <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your cohort"}</span><h2>{heading}</h2><p>{summary}</p></div>{!generationJob && !generationError && hasDraft && <button className="journey-primary-button" onClick={openPlanSetup}>Change pace</button>}</div>}
 
     {canBuildPlan && hasArchivedPlans && <div className="journey-card plan-history-notice"><strong>Your earlier cohort plans are safely archived.</strong><p>Use the cohort switcher above whenever you want to revisit earlier actions and complete any that remain.</p></div>}
 
     {generationJob && <div className="journey-card plan-generation-status" role="status"><GenerationStatus job={generationJob} /><p>Keep this page open or come back later. New actions will appear here automatically as each batch is ready.</p></div>}
     {hasDraft && generationError && !generationJob && <div className="journey-card plan-generation-error" role="alert"><div><X size={18} /><span><strong>Generation paused</strong><small>{generationError}</small></span></div><button type="button" onClick={openPlanSetup}>Try again</button></div>}
 
-    {hasDraft && <section className="plan-review-shell">
+    {hasDraft && !editingSetup && <section className="plan-review-shell">
       <div className="plan-review-heading"><div><span className="participant-eyebrow">Review before finalising</span><h2>Your generated actions</h2><p>Move, rename or delete actions before activation. Daily plans begin on the next weekday; weekly plans begin on the next selected weekday.</p></div><strong>{savingOrder ? <><Loader2 size={12} className="plan-order-spinner" /> Saving order</> : `${generatedActions.length}${generationJob ? ` / ${generationJob.totalNeeded}` : ""} actions`}</strong></div>
       {!generationJob && orderedActions.length > 1 && <div className="plan-order-tip"><GripVertical size={17} /><span><strong>Set your preferred sequence</strong><small>Drag a card, or use its arrow buttons. Dates update with the new order.</small></span></div>}
       <div className="plan-review-list">
@@ -302,7 +307,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
             <div className="plan-action-controls plan-action-controls--compact">
               <button type="button" onClick={() => nudgeAction(action.id, -1)} disabled={locked || index === 0} aria-label={`Move ${action.title} up`} title="Move up"><ArrowUp size={15} /></button>
               <button type="button" onClick={() => nudgeAction(action.id, 1)} disabled={locked || index === orderedActions.length - 1} aria-label={`Move ${action.title} down`} title="Move down"><ArrowDown size={15} /></button>
-              <button type="button" disabled={locked} onClick={() => openEdit(action)} aria-label={`Edit ${action.title}`} title="Edit title"><Pencil size={15} /></button>
+              <button type="button" disabled={locked} onClick={() => openEdit(action)} aria-label={`Edit ${action.title}`} title="Edit action"><Pencil size={15} /></button>
               <button type="button" disabled={locked} onClick={() => removeAction(action)} aria-label={`Delete ${action.title}`} title="Delete action"><Trash2 size={15} /></button>
             </div>
           </article>;
@@ -322,7 +327,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
           <p>Need another option? Add one more AI suggestion, then rename or reorder it like the rest.</p>
         </div>
       )}
-      <div className="plan-freeze-bar"><div><CheckCircle2 size={20} /><span><strong>Ready to start?</strong><small>Finalising locks this order and starts delivery on the first planned date shown above.</small></span></div><button className="journey-primary-button" disabled={!!generationJob || !!generationError || generatedActions.length === 0 || activating || savingOrder || generatingMore} onClick={() => { setError(""); setConfirmActivateOpen(true); }}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generationJob ? "Finish generating first" : generationError ? "Retry generation first" : "Activate My Actions"}</button></div>
+      {!generationJob && !generationError && generatedActions.length > 0 && <div className="plan-freeze-bar plan-freeze-bar--primary"><div><CheckCircle2 size={20} /><span><strong>Your plan is ready</strong><small>Review the actions above, then activate when you are happy with the plan.</small></span></div><button className="journey-primary-button" disabled={activating || savingOrder || generatingMore} onClick={() => { setError(""); setConfirmActivateOpen(true); }}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generatingMore ? "Generating…" : "Activate My Plan"}</button></div>}
       {error && <p className="plan-review-error">{error}</p>}
     </section>}
 
@@ -330,9 +335,9 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
 
     {isPlanArchived && <div className="plan-active-callout"><div><Check size={20} /><span><strong>Archived cohort plan</strong><small>This plan is view-only. Its reminder schedule will not release new actions.</small></span></div><Link href="/actions" className="journey-primary-button">Revisit remaining actions</Link></div>}
 
-    {!isPlanActive && !isPlanArchived && !hasDraft && <div className="plan-benefits-grid"><div className="journey-card"><CheckCircle2 size={22} /><h3>Review everything</h3><p>Rename, reorder or delete every AI suggestion before your plan begins.</p></div><div className="journey-card"><CalendarDays size={22} /><h3>Your pace</h3><p>Choose the days, frequency and time that work with your schedule.</p></div></div>}
+    {!isPlanActive && !isPlanArchived && !hasDraft && <div className="journey-card plan-empty-preview"><span><ListChecks size={34} /></span><h3>Your actions will appear here</h3><p>Choose a realistic pace above, then generate them from your saved notes.</p></div>}
 
-    {typeof document !== "undefined" && editingAction && editForm && createPortal(<div className="plan-edit-overlay"><div className="plan-edit-modal"><button className="plan-edit-close" onClick={() => setEditingAction(null)}><X size={18} /></button><span className="participant-eyebrow">Edit action</span><h3>Edit the action title</h3><label>Action title<input value={editForm.title} onChange={(event) => setEditForm({ title: event.target.value })} /></label><details className="plan-edit-details"><summary><span>How and why</span><small>View the original guidance</small></summary><div><strong>How to do it</strong><p>{editingAction.how}</p></div><div><strong>Why it works</strong><p>{editingAction.why}</p></div></details>{error && <p className="plan-review-error">{error}</p>}<button className="journey-primary-button" disabled={saving || !editForm.title.trim()} onClick={saveEdit}>{saving ? "Saving…" : "Save title"}</button></div></div>, document.body)}
+    {typeof document !== "undefined" && editingAction && editForm && createPortal(<div className="plan-edit-overlay"><div className="plan-edit-modal"><button className="plan-edit-close" onClick={() => setEditingAction(null)}><X size={18} /></button><span className="participant-eyebrow">Edit action</span><h3>Edit your action</h3><label>Action title<input value={editForm.title} onChange={(event) => setEditForm((current) => current ? { ...current, title: event.target.value } : current)} /></label><div className="plan-edit-how-why"><label><span>How to do it</span><textarea value={editForm.how} onChange={(event) => setEditForm((current) => current ? { ...current, how: event.target.value } : current)} /></label><label><span>Why it works</span><textarea value={editForm.why} onChange={(event) => setEditForm((current) => current ? { ...current, why: event.target.value } : current)} /></label></div>{error && <p className="plan-review-error">{error}</p>}<button className="journey-primary-button" disabled={saving || !editForm.title.trim() || !editForm.how.trim() || !editForm.why.trim()} onClick={saveEdit}>{saving ? "Saving…" : "Save"}</button></div></div>, document.body)}
 
     {typeof document !== "undefined" && confirmActivateOpen && createPortal(
       <div
@@ -342,8 +347,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
         }}
       >
         <section className="plan-activate-modal" role="dialog" aria-modal="true" aria-labelledby="plan-activate-title">
-          <div className="plan-activate-icon" aria-hidden="true"><CheckCircle2 size={22} /></div>
-          <h2 id="plan-activate-title">One commitment before you begin</h2>
+          <div className="plan-activate-title-row"><div className="plan-activate-icon" aria-hidden="true"><CheckCircle2 size={29} /></div><h2 id="plan-activate-title">One commitment before you begin</h2></div>
           <p>Your progress and rewards will be based on the actions you confirm as completed. We will not ask you to upload proof, so please confirm an action only when you have genuinely completed it.</p>
           <strong>This keeps your progress meaningful and the rewards fair for everyone.</strong>
           {error && <p className="plan-review-error">{error}</p>}

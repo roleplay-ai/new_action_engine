@@ -9,13 +9,8 @@ export default async function PlanPage() {
     <div className="participant-page-heading">
       <span className="participant-eyebrow">Private workspace</span>
       <h1>My Plan</h1>
-      <p>Keep your thinking and your personalised workplace actions together in one private workspace.</p>
+      <p>Write this for yourself. AI can use your notes, but the final plan stays yours.</p>
     </div>
-    <nav className="unified-plan-flow" aria-label="My Plan sections">
-      <a href="#notes"><span>1</span><strong>Reflect in notes</strong><small>Capture what mattered</small></a>
-      <i aria-hidden="true" />
-      <a href="#action-plan"><span>2</span><strong>Build your actions</strong><small>Generate, review and activate</small></a>
-    </nav>
     <UnifiedPlanClient initialTrainingText={notes.body} />
   </div>;
 }

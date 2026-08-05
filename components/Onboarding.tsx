@@ -15,13 +15,13 @@ const WEEKDAYS = [
   { value: 6, label: "Saturday" },
 ];
 
-const DURATIONS = [2, 4, 8, 12, 16, 20, 24] as const;
+const DURATIONS = [2, 4, 6, 8, 10, 12] as const;
 
 const Onboarding: React.FC<{ onComplete: () => void | Promise<void>; initialTrainingText?: string; inline?: boolean }> = ({ onComplete, initialTrainingText = "", inline = false }) => {
-  const [durationWeeks, setDurationWeeks] = useState(8);
+  const [durationWeeks, setDurationWeeks] = useState(6);
   const [track, setTrack] = useState<DeliveryTrack>("weekly");
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([2]);
-  const [weeklyActionCount, setWeeklyActionCount] = useState<1 | 2 | 3 | 4 | 5>(2);
+  const [weeklyActionCount, setWeeklyActionCount] = useState<1 | 2 | 3 | 4 | 5>(3);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -78,7 +78,7 @@ const Onboarding: React.FC<{ onComplete: () => void | Promise<void>; initialTrai
 
   return (
     <div className={inline ? "plan-setup-inline" : "plan-setup-overlay"}>
-      <div className="plan-setup-modal" role="dialog" aria-modal="true" aria-labelledby="plan-setup-title">
+      <div className="plan-setup-modal" role={inline ? undefined : "dialog"} aria-modal={inline ? undefined : true} aria-labelledby="plan-setup-title">
         <div className="plan-setup-head">
           <div><span className="participant-eyebrow">Plan setup</span><h2 id="plan-setup-title">Choose your action pace</h2><p>Your saved notes will shape the actions. You only need to choose the schedule.</p></div>
           {!inline && <button type="button" onClick={handleSkip} disabled={saving} aria-label="Close plan setup"><X size={19} /></button>}
@@ -86,7 +86,7 @@ const Onboarding: React.FC<{ onComplete: () => void | Promise<void>; initialTrai
 
         <div className={`plan-notes-source ${trainingText ? "ready" : "missing"}`}>
           <span>{trainingText ? <Check size={20} /> : <NotebookPen size={20} />}</span>
-          <div><strong>{trainingText ? "Your notes are ready" : "Add notes before generating"}</strong><p>{trainingText ? "AI will use the private notes above—there are no extra planning questions." : "Close this setup, write your notes, then return here to choose a pace."}</p></div>
+          <div><strong>{trainingText ? "Your notes are ready" : "Add notes before generating"}</strong><p>{trainingText ? "AI will use the private notes above—there are no extra planning questions." : inline ? "Write in the private notes above, then choose a pace here." : "Close this setup, write your notes, then return here to choose a pace."}</p></div>
         </div>
 
         <div className="plan-setup-field">

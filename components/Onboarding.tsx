@@ -17,7 +17,7 @@ const WEEKDAYS = [
 
 const DURATIONS = [2, 4, 8, 12, 16, 20, 24] as const;
 
-const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: string }> = ({ onComplete, initialTrainingText = "" }) => {
+const Onboarding: React.FC<{ onComplete: () => void | Promise<void>; initialTrainingText?: string; inline?: boolean }> = ({ onComplete, initialTrainingText = "", inline = false }) => {
   const [durationWeeks, setDurationWeeks] = useState(8);
   const [track, setTrack] = useState<DeliveryTrack>("weekly");
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([2]);
@@ -39,7 +39,7 @@ const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: strin
     setSaving(true);
     await skipSelfOnboarding();
     setSaving(false);
-    onComplete();
+    await onComplete();
   };
 
   const handleFinish = async () => {
@@ -63,7 +63,7 @@ const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: strin
       setErrorMsg(error);
       return;
     }
-    onComplete();
+    await onComplete();
   };
 
   const totalActions = computeTotalActionsNeeded(durationWeeks, actionCount, track, daysOfWeek);
@@ -77,11 +77,11 @@ const Onboarding: React.FC<{ onComplete: () => void; initialTrainingText?: strin
       : null;
 
   return (
-    <div className="plan-setup-overlay">
+    <div className={inline ? "plan-setup-inline" : "plan-setup-overlay"}>
       <div className="plan-setup-modal" role="dialog" aria-modal="true" aria-labelledby="plan-setup-title">
         <div className="plan-setup-head">
           <div><span className="participant-eyebrow">Plan setup</span><h2 id="plan-setup-title">Choose your action pace</h2><p>Your saved notes will shape the actions. You only need to choose the schedule.</p></div>
-          <button type="button" onClick={handleSkip} disabled={saving} aria-label="Close plan setup"><X size={19} /></button>
+          {!inline && <button type="button" onClick={handleSkip} disabled={saving} aria-label="Close plan setup"><X size={19} /></button>}
         </div>
 
         <div className={`plan-notes-source ${trainingText ? "ready" : "missing"}`}>

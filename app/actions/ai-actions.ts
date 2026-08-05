@@ -315,7 +315,7 @@ export async function saveGeneratedActions(params: {
       return { error: subError.message };
     }
 
-    const { data: job } = await supabase
+    const { data: job, error: jobError } = await supabase
       .from("personal_action_generation_jobs")
       .insert({
         user_id: user.id,
@@ -330,7 +330,11 @@ export async function saveGeneratedActions(params: {
       .select("id")
       .single();
 
-    if (job?.id) {
+    if (jobError || !job?.id) {
+      return { error: jobError?.message ?? "Could not start action generation" };
+    }
+
+    {
       // Derive origin from the actual incoming request (not NEXT_PUBLIC_APP_URL,
       // which points at production and would misfire this self-trigger when
       // running locally or on a preview deployment).
@@ -349,11 +353,20 @@ export async function saveGeneratedActions(params: {
             },
             body: JSON.stringify({ jobId: job.id }),
           });
-          if (!res.ok) {
+          const contentType = res.headers.get("content-type") ?? "";
+          const payload = contentType.includes("application/json")
+            ? await res.json() as { ok?: boolean; error?: string }
+            : null;
+          if (!res.ok || !payload || payload.ok !== true) {
+            const failure = payload?.error
+              ?? (!contentType.includes("application/json")
+                ? "Generation endpoint returned an unexpected response"
+                : `Failed to start generation (HTTP ${res.status})`);
             await supabase
               .from("personal_action_generation_jobs")
-              .update({ status: "failed", error_message: `Failed to start generation (HTTP ${res.status})`, updated_at: new Date().toISOString() })
-              .eq("id", job.id);
+              .update({ status: "failed", error_message: failure, updated_at: new Date().toISOString() })
+              .eq("id", job.id)
+              .eq("status", "generating");
           }
         } catch (e) {
           await supabase
@@ -363,7 +376,8 @@ export async function saveGeneratedActions(params: {
               error_message: `Failed to reach ${origin}: ${e instanceof Error ? e.message : String(e)}`,
               updated_at: new Date().toISOString(),
             })
-            .eq("id", job.id);
+            .eq("id", job.id)
+            .eq("status", "generating");
         }
       });
     }
@@ -438,7 +452,7 @@ export async function skipSelfOnboarding(): Promise<{ error?: string }> {
 
 /** Latest background action-plan generation job for the current user, for live status polling. */
 export async function getActiveGenerationJob(): Promise<{
-  job: { totalNeeded: number; totalGenerated: number; status: string } | null;
+  job: { id: string; totalNeeded: number; totalGenerated: number; status: string; errorMessage?: string } | null;
 }> {
   const supabase = await createClient();
   const {
@@ -452,7 +466,7 @@ export async function getActiveGenerationJob(): Promise<{
 
   const { data } = await supabase
     .from("personal_action_generation_jobs")
-    .select("total_needed, total_generated, status")
+    .select("id, total_needed, total_generated, status, error_message")
     .eq("user_id", user.id)
     .eq("cohort_id", cohortContext.cohortId)
     .order("created_at", { ascending: false })
@@ -465,9 +479,11 @@ export async function getActiveGenerationJob(): Promise<{
 
   return {
     job: {
+      id: data.id,
       totalNeeded: data.total_needed,
       totalGenerated: data.total_generated,
       status: data.status,
+      errorMessage: data.error_message ?? undefined,
     },
   };
 }

@@ -49,7 +49,16 @@ function projectedPlanPoints(totalActions: number, index: number) {
 
 export default function PlanClient({ initialTrainingText, embedded = false }: { initialTrainingText: string; embedded?: boolean }) {
   const router = useRouter();
-  const { personalPlanState, hasArchivedPlans, cohort, generationJob, refetch, allActions } = useEngine();
+  const {
+    personalPlanState,
+    hasArchivedPlans,
+    cohort,
+    generationJob,
+    generationError,
+    refreshGenerationStatus,
+    refetch,
+    allActions,
+  } = useEngine();
   const [editingSetup, setEditingSetup] = useState(false);
   const [editingAction, setEditingAction] = useState<ActionCard | null>(null);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
@@ -229,7 +238,13 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
           : "Switch to your current cohort to build a new plan.";
 
   return <section className={`journey-page plan-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "action-plan" : undefined}>
-    {editingSetup && <Onboarding initialTrainingText={initialTrainingText} onComplete={() => { setEditingSetup(false); refetch(); }} />}
+    {editingSetup && <Onboarding initialTrainingText={initialTrainingText} onComplete={async () => {
+      setEditingSetup(false);
+      await Promise.all([
+        refetch(),
+        refreshGenerationStatus({ refreshActions: false }),
+      ]);
+    }} />}
 
     {embedded ? <div className="unified-plan-section-heading"><span className="participant-eyebrow">Step 2 · Build</span><h2>Your action plan</h2><p>Generate personalised workplace actions, review every suggestion, and activate them when they feel right.</p></div> : <div className="participant-page-heading"><span className="participant-eyebrow">Private workspace</span><h1>My Plan</h1><p>Shape what you want to build, review every suggested action, then activate the plan when it feels right.</p></div>}
 
@@ -239,11 +254,12 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
       <div className={isPlanActive || isPlanArchived ? "done" : generatedActions.length > 0 ? "current" : ""}><span>{isPlanActive || isPlanArchived ? <Check size={13} /> : 3}</span>{isPlanActive ? "Active" : isPlanArchived ? "Archived" : "Activate"}</div>
     </div>
 
-    <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your cohort"}</span><h2>{heading}</h2><p>{summary}</p></div>{(hasDraft || canBuildPlan) && <button className="journey-primary-button" onClick={openPlanSetup}>{!initialTrainingText.trim() ? "Add notes first" : hasDraft ? "Change setup" : "Build my plan"}</button>}</div>
+    <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your cohort"}</span><h2>{heading}</h2><p>{summary}</p></div>{!generationJob && !generationError && (hasDraft || canBuildPlan) && <button className="journey-primary-button" onClick={openPlanSetup}>{!initialTrainingText.trim() ? "Add notes first" : hasDraft ? "Change setup" : "Build my plan"}</button>}</div>
 
     {canBuildPlan && hasArchivedPlans && <div className="journey-card plan-history-notice"><strong>Your earlier cohort plans are safely archived.</strong><p>Use the cohort switcher above whenever you want to revisit earlier actions and complete any that remain.</p></div>}
 
-    {generationJob && <div className="journey-card plan-generation-status"><GenerationStatus job={generationJob} /><p>You can preview actions as they arrive. Editing unlocks when generation finishes.</p></div>}
+    {generationJob && <div className="journey-card plan-generation-status" role="status"><GenerationStatus job={generationJob} /><p>Keep this page open or come back later. New actions will appear here automatically as each batch is ready.</p></div>}
+    {hasDraft && generationError && !generationJob && <div className="journey-card plan-generation-error" role="alert"><div><X size={18} /><span><strong>Generation paused</strong><small>{generationError}</small></span></div><button type="button" onClick={openPlanSetup}>Try again</button></div>}
 
     {hasDraft && <section className="plan-review-shell">
       <div className="plan-review-heading"><div><span className="participant-eyebrow">Review before finalising</span><h2>Your generated actions</h2><p>Move, rename or delete actions before activation. Daily plans begin on the next weekday; weekly plans begin on the next selected weekday.</p></div><strong>{savingOrder ? <><Loader2 size={12} className="plan-order-spinner" /> Saving order</> : `${generatedActions.length}${generationJob ? ` / ${generationJob.totalNeeded}` : ""} actions`}</strong></div>
@@ -293,7 +309,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
         })}
         {generatedActions.length === 0 && <div className="actions-inline-empty">Your first actions are being generated…</div>}
       </div>
-      {!generationJob && generatedActions.length > 0 && (
+      {!generationJob && !generationError && generatedActions.length > 0 && (
         <div className="plan-generate-more">
           <button
             type="button"
@@ -306,7 +322,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
           <p>Need another option? Add one more AI suggestion, then rename or reorder it like the rest.</p>
         </div>
       )}
-      <div className="plan-freeze-bar"><div><CheckCircle2 size={20} /><span><strong>Ready to start?</strong><small>Finalising locks this order and starts delivery on the first planned date shown above.</small></span></div><button className="journey-primary-button" disabled={!!generationJob || generatedActions.length === 0 || activating || savingOrder || generatingMore} onClick={() => { setError(""); setConfirmActivateOpen(true); }}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generationJob ? "Finish generating first" : "Activate My Actions"}</button></div>
+      <div className="plan-freeze-bar"><div><CheckCircle2 size={20} /><span><strong>Ready to start?</strong><small>Finalising locks this order and starts delivery on the first planned date shown above.</small></span></div><button className="journey-primary-button" disabled={!!generationJob || !!generationError || generatedActions.length === 0 || activating || savingOrder || generatingMore} onClick={() => { setError(""); setConfirmActivateOpen(true); }}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generationJob ? "Finish generating first" : generationError ? "Retry generation first" : "Activate My Actions"}</button></div>
       {error && <p className="plan-review-error">{error}</p>}
     </section>}
 

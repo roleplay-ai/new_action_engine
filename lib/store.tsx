@@ -19,9 +19,11 @@ import { validateAction as validateActionServer } from "@/app/actions/validate-a
 import { utcToISTDateTime } from "@/lib/timezone-utils";
 
 export type GenerationJobStatus = {
+  id: string;
   totalNeeded: number;
   totalGenerated: number;
   status: string;
+  errorMessage?: string;
 };
 
 interface EngineContextType {
@@ -41,6 +43,8 @@ interface EngineContextType {
   hasCompany: boolean;
   /** Live progress of the background action-plan generation job, while one is running. */
   generationJob: GenerationJobStatus | null;
+  generationError: string | null;
+  refreshGenerationStatus: (options?: { refreshActions?: boolean }) => Promise<GenerationJobStatus | null>;
   refetch: (options?: { syncPoints?: boolean }) => Promise<void>;
   completeOnboarding: (importance: number, goal: number) => Promise<void>;
   updatePoints: (amount: number) => Promise<void>;
@@ -146,7 +150,9 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [hasCompany, setHasCompany] = useState(false);
   const [generationJob, setGenerationJob] = useState<GenerationJobStatus | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const generationWasActive = useRef(false);
+  const refreshedSettledJobId = useRef<string | null>(null);
   const initialRefetchStarted = useRef(false);
 
   const refetch = useCallback(async (options?: { syncPoints?: boolean }) => {
@@ -307,49 +313,62 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
     refetch().finally(() => setIsLoading(false));
   }, [refetch, adminCompanyId]);
 
-  // Poll for background action-plan generation progress. Only surfaces the job
-  // while it's actively generating — the bell badge disappears on its own once
-  // it completes or fails. Also re-pulls allActions/userActions while a job is
-  // running so newly generated actions show up in the library live, not just
-  // the progress counter.
+  const refreshGenerationStatus = useCallback(async (options?: { refreshActions?: boolean }) => {
+    const response = await fetch("/api/generation-status", {
+      method: "GET",
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error("Could not check action generation");
+
+    const { job } = await response.json() as { job: GenerationJobStatus | null };
+    const isGenerating = job?.status === "generating";
+    const wasGenerating = generationWasActive.current;
+
+    setGenerationJob(isGenerating ? job : null);
+    setGenerationError(job?.status === "failed"
+      ? job.errorMessage ?? "AI could not finish generating your actions. Please try again."
+      : null);
+
+    if (isGenerating) {
+      generationWasActive.current = true;
+      if (refreshedSettledJobId.current === job.id) refreshedSettledJobId.current = null;
+    } else {
+      generationWasActive.current = false;
+    }
+
+    const newlySettled = !!job
+      && job.status !== "generating"
+      && refreshedSettledJobId.current !== job.id;
+    if (newlySettled) refreshedSettledJobId.current = job.id;
+
+    if (options?.refreshActions !== false && (isGenerating || wasGenerating || newlySettled)) {
+      await refetch({ syncPoints: false });
+    }
+    return job;
+  }, [refetch]);
+
+  // Poll for background action-plan generation progress and re-pull actions as
+  // they arrive. A completed job is refreshed once even when it finishes before
+  // the first poll, so a fast generation cannot leave the page stale.
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const controller = new AbortController();
     const poll = async () => {
       try {
-        const response = await fetch("/api/generation-status", {
-          method: "GET",
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        const { job } = await response.json() as { job: GenerationJobStatus | null };
+        const job = await refreshGenerationStatus({ refreshActions: true });
         if (cancelled) return;
         const isGenerating = job?.status === "generating";
-        setGenerationJob(isGenerating ? job : null);
-        if (isGenerating) {
-          generationWasActive.current = true;
-          // Refresh generated actions without running the points-sync mutation
-          // on every background status check.
-          await refetch({ syncPoints: false });
-        } else if (generationWasActive.current) {
-          generationWasActive.current = false;
-          await refetch({ syncPoints: false });
-        }
-        if (!cancelled) timer = setTimeout(poll, isGenerating ? 6000 : 15000);
+        if (!cancelled) timer = setTimeout(poll, isGenerating ? 3000 : 12000);
       } catch (error) {
-        if (!cancelled && !(error instanceof DOMException && error.name === "AbortError")) {
-          timer = setTimeout(poll, 15000);
-        }
+        if (!cancelled) timer = setTimeout(poll, 12000);
       }
     };
     void poll();
     return () => {
       cancelled = true;
-      controller.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [refetch]);
+  }, [refreshGenerationStatus, generationJob?.id]);
 
   const updatePoints = async () => { };
   const addFeedItem = async () => { };
@@ -391,6 +410,8 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       isLoading,
       hasCompany,
       generationJob,
+      generationError,
+      refreshGenerationStatus,
       refetch,
       completeOnboarding,
       updatePoints,
@@ -402,7 +423,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       likeFeedItem,
       addNewAction,
     }),
-    [profile, userActions, allActions, selfOnboardingCompletedAt, personalPlanState, hasArchivedPlans, cohort, cohorts, feed, isLoading, hasCompany, generationJob, refetch]
+    [profile, userActions, allActions, selfOnboardingCompletedAt, personalPlanState, hasArchivedPlans, cohort, cohorts, feed, isLoading, hasCompany, generationJob, generationError, refetch, refreshGenerationStatus]
   );
 
   return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;

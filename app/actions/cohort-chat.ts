@@ -101,7 +101,10 @@ export async function getCohortMessages(cohortId: string): Promise<{
   }
 }
 
-export async function sendCohortMessage(cohortId: string, message: string): Promise<{ error?: string }> {
+export async function sendCohortMessage(cohortId: string, message: string): Promise<{
+  error?: string;
+  message?: CohortMessage;
+}> {
   try {
     const access = await getChatAccess(cohortId);
     if ("error" in access) return { error: access.error };
@@ -110,15 +113,30 @@ export async function sendCohortMessage(cohortId: string, message: string): Prom
     if (!cleanMessage) return { error: "Write a message before sending" };
     if (cleanMessage.length > 2000) return { error: "Messages can be up to 2,000 characters" };
 
-    const { error } = await access.supabase.from("cohort_messages").insert({
-      cohort_id: cohortId,
-      sender_id: access.userId,
-      message: cleanMessage,
-    });
+    const { data: row, error } = await access.supabase
+      .from("cohort_messages")
+      .insert({
+        cohort_id: cohortId,
+        sender_id: access.userId,
+        message: cleanMessage,
+      })
+      .select("id, cohort_id, sender_id, message, created_at")
+      .single();
     if (error) return { error: error.message };
+    if (!row) return { error: "The message was sent but could not be displayed" };
 
     revalidatePath("/journey");
-    return {};
+    return {
+      message: {
+        id: row.id,
+        cohortId: row.cohort_id,
+        senderId: row.sender_id,
+        senderName: access.userName,
+        senderRole: access.role === "admin" || access.role === "superadmin" ? "trainer" : "participant",
+        message: row.message,
+        createdAt: row.created_at,
+      },
+    };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not send message" };
   }

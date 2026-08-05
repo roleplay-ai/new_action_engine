@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { ArrowRight, Check, CheckSquare2, Cloud, NotebookPen, Sparkles } from "lucide-react";
+import { Check, Cloud, Loader2, Sparkles } from "lucide-react";
 import { useEngine } from "@/lib/store";
-import { getMySessionNotes, saveMySessionNotes } from "@/app/actions/session-notes";
+import { getMySessionNotes, refineMySessionNotes, saveMySessionNotes } from "@/app/actions/session-notes";
 import { usePageLoading } from "@/components/PageLoadingProvider";
 
 const prompts = [
@@ -13,13 +12,22 @@ const prompts = [
   "Where would you like to apply them?",
 ];
 
-export default function NotesClient({ embedded = false, onBodyChange, onGeneratePlan }: { embedded?: boolean; onBodyChange?: (body: string) => void; onGeneratePlan?: (body: string) => void | Promise<void> }) {
+export default function NotesClient({
+  embedded = false,
+  onBodyChange,
+  onSavePlan,
+}: {
+  embedded?: boolean;
+  onBodyChange?: (body: string) => void;
+  onSavePlan?: (body: string) => void | Promise<void>;
+}) {
   const { cohort } = useEngine();
   const [body, setBody] = useState("");
   const [status, setStatus] = useState<"loading" | "saved" | "saving" | "error">("loading");
   const [error, setError] = useState("");
   const [initializing, setInitializing] = useState(true);
-  const [continuing, setContinuing] = useState(false);
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [refining, setRefining] = useState(false);
   const loaded = useRef(false);
   const skipNextSave = useRef(false);
 
@@ -67,46 +75,80 @@ export default function NotesClient({ embedded = false, onBodyChange, onGenerate
     setBody((current) => `${current}${current.trim() ? "\n\n" : ""}${prompt} `);
   }, []);
 
-  const handleGeneratePlan = async () => {
+  const handleRefine = async () => {
     if (!body.trim()) {
-      setError("Add your notes before generating a plan.");
+      setError("Add some notes before refining with AI.");
       setStatus("error");
       return;
     }
-    setContinuing(true);
+    setRefining(true);
+    setError("");
+    const result = await refineMySessionNotes(body, cohort?.id);
+    setRefining(false);
+    if (result.error || !result.body) {
+      setError(result.error ?? "Failed to refine notes");
+      setStatus("error");
+      return;
+    }
+    skipNextSave.current = true;
+    setBody(result.body);
+    onBodyChange?.(result.body);
+    setStatus("saved");
+  };
+
+  const handleSavePlan = async () => {
+    if (!body.trim()) {
+      setError("Add your notes before saving your plan.");
+      setStatus("error");
+      return;
+    }
+    setSavingPlan(true);
     setStatus("saving");
     setError("");
     const result = await saveMySessionNotes(body, cohort?.id);
     if (result.error) {
       setError(result.error);
       setStatus("error");
-      setContinuing(false);
+      setSavingPlan(false);
       return;
     }
     setStatus("saved");
     onBodyChange?.(body);
-    await onGeneratePlan?.(body);
-    setContinuing(false);
+    await onSavePlan?.(body);
+    setSavingPlan(false);
   };
 
   const words = body.trim() ? body.trim().split(/\s+/).length : 0;
+  const busy = refining || savingPlan;
 
   if (initializing) return embedded
-    ? <section className="unified-plan-section"><div className="unified-plan-section-heading"><span className="participant-eyebrow">Step 1 · Reflect</span><h2>Your private notes</h2><p>Loading your saved notes…</p></div><div className="journey-card unified-plan-loading" /></section>
+    ? <section className="unified-plan-section"><div className="journey-card unified-plan-loading" /></section>
     : null;
 
   return (
     <section className={`journey-page notes-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "notes" : undefined}>
-      {embedded ? <div className="unified-plan-section-heading"><span className="participant-eyebrow">Step 1 · Reflect</span><h2>Your private notes</h2><p>Capture what matters. These notes autosave and guide the actions generated below.</p></div> : <div className="participant-page-heading"><span className="participant-eyebrow">Private workspace</span><h1>My session notes</h1><p>Capture what matters to you. Your notes stay private and can guide your AI action plan.</p></div>}
+      {!embedded && <div className="participant-page-heading"><span className="participant-eyebrow">Private workspace</span><h1>My session notes</h1><p>Capture what matters to you. Your notes stay private and can guide your AI action plan.</p></div>}
       <div className="notes-layout">
         <section className="journey-card notes-editor-card">
-          <div className="notes-editor-head">
-            <div>
-              <strong>{cohort?.name ?? "Learning session"}</strong>
-              <span>
-                {words} {words === 1 ? "word" : "words"}
-              </span>
-            </div>
+          <div className="note-prompts" aria-label="Questions to guide your notes">
+            {prompts.map((prompt, index) => (
+              <button className={body.includes(prompt) ? "used" : ""} key={prompt} type="button" onClick={() => addPrompt(prompt)} disabled={busy}>
+                <span>{index + 1}</span>{prompt}
+              </button>
+            ))}
+          </div>
+          <textarea
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            placeholder="Tap a question above to add it here, then write in your own words."
+            aria-label="Session notes"
+            disabled={busy}
+          />
+          {error && <p className="notes-error">{error}</p>}
+          <div className="notes-editor-hint">
+            <span>{words} {words === 1 ? "word" : "words"} · Private to you</span>
+          </div>
+          <div className="notes-editor-actions">
             <span className={`notes-save-state ${status}`}>
               {status === "saved" ? <Check size={14} /> : <Cloud size={14} />}
               {status === "loading"
@@ -117,32 +159,24 @@ export default function NotesClient({ embedded = false, onBodyChange, onGenerate
                     ? "Not saved"
                     : "Saved"}
             </span>
+            <button
+              type="button"
+              className="journey-secondary-button"
+              disabled={busy || !body.trim()}
+              onClick={handleRefine}
+            >
+              {refining ? <><Loader2 size={15} className="plan-order-spinner" /> Refining…</> : <><Sparkles size={15} /> Refine with AI</>}
+            </button>
+            <button
+              type="button"
+              className="journey-primary-button"
+              disabled={busy || !body.trim()}
+              onClick={handleSavePlan}
+            >
+              {savingPlan ? "Saving…" : "Save my plan"}
+            </button>
           </div>
-          <div className="note-prompts" aria-label="Questions to guide your notes">
-            {prompts.map((prompt, index) => (
-              <button className={body.includes(prompt) ? "used" : ""} key={prompt} type="button" onClick={() => addPrompt(prompt)}>
-                <span>{index + 1}</span>{prompt}
-              </button>
-            ))}
-          </div>
-          <textarea
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            placeholder="Tap a question above to add it here, then write in your own words."
-            aria-label="Session notes"
-          />
-          {error && <p className="notes-error">{error}</p>}
-          <div className="notes-editor-hint"><span>{words} {words === 1 ? "word" : "words"}</span><span>Private to you</span></div>
         </section>
-        <aside className="journey-card notes-plan-visual" aria-label="How your notes become actions">
-          <div><NotebookPen size={23} /><strong>Your words</strong></div>
-          <ArrowRight className="notes-plan-arrow" size={18} />
-          <div><Sparkles size={23} /><strong>AI shapes</strong></div>
-          <ArrowRight className="notes-plan-arrow" size={18} />
-          <div><CheckSquare2 size={23} /><strong>Your actions</strong></div>
-          {embedded && <button type="button" className="journey-primary-button" disabled={continuing || !body.trim()} onClick={handleGeneratePlan}>{continuing ? "Preparing plan…" : "Generate Plan"}</button>}
-          {!embedded && <Link href="/plan" className="journey-primary-button">Continue to actions</Link>}
-        </aside>
       </div>
     </section>
   );

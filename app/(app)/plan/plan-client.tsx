@@ -64,6 +64,8 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
   const [saving, setSaving] = useState(false);
   const [activating, setActivating] = useState(false);
   const [confirmActivateOpen, setConfirmActivateOpen] = useState(false);
+  const [deletingAction, setDeletingAction] = useState<ActionCard | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [orderedActions, setOrderedActions] = useState<ActionCard[]>([]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -145,10 +147,14 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
     await refetch();
   }
 
-  async function removeAction(action: ActionCard) {
-    if (!window.confirm(`Remove “${action.title}” from this plan?`)) return;
-    const result = await deletePersonalAction(action.id);
+  async function removeAction() {
+    if (!deletingAction || deleting) return;
+    setDeleting(true);
+    setError("");
+    const result = await deletePersonalAction(deletingAction.id);
+    setDeleting(false);
     if (result.error) { setError(result.error); return; }
+    setDeletingAction(null);
     await refetch();
   }
 
@@ -242,7 +248,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
           : "Switch to your current cohort to build a new plan.";
 
   return <section className={`journey-page plan-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "action-plan" : undefined}>
-    {embedded ? <div className="unified-plan-section-heading"><span className="participant-eyebrow">Step 2 · Build</span><h2>Your action plan</h2><p>Generate personalised workplace actions, review every suggestion, and activate them when they feel right.</p></div> : <div className="participant-page-heading"><span className="participant-eyebrow">Private workspace</span><h1>My Plan</h1><p>Shape what you want to build, review every suggested action, then activate the plan when it feels right.</p></div>}
+    {!embedded && <div className="participant-page-heading"><span className="participant-eyebrow">Private workspace</span><h1>My Plan</h1><p>Shape what you want to build, review every suggested action, then activate the plan when it feels right.</p></div>}
 
     <div className="journey-v2-progress-pills" aria-label="Plan progress">
       <div className={hasDraft || isPlanActive || isPlanArchived ? "done" : "current"}><span>{hasDraft || isPlanActive || isPlanArchived ? <Check size={13} /> : 1}</span>My Plan</div>
@@ -307,7 +313,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
               <button type="button" onClick={() => nudgeAction(action.id, -1)} disabled={locked || index === 0} aria-label={`Move ${action.title} up`} title="Move up"><ArrowUp size={15} /></button>
               <button type="button" onClick={() => nudgeAction(action.id, 1)} disabled={locked || index === orderedActions.length - 1} aria-label={`Move ${action.title} down`} title="Move down"><ArrowDown size={15} /></button>
               <button type="button" disabled={locked} onClick={() => openEdit(action)} aria-label={`Edit ${action.title}`} title="Edit action"><Pencil size={15} /></button>
-              <button type="button" disabled={locked} onClick={() => removeAction(action)} aria-label={`Delete ${action.title}`} title="Delete action"><Trash2 size={15} /></button>
+              <button type="button" disabled={locked} onClick={() => { setError(""); setDeletingAction(action); }} aria-label={`Delete ${action.title}`} title="Delete action"><Trash2 size={15} /></button>
             </div>
           </article>;
         })}
@@ -354,6 +360,32 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
             <button type="button" className="plan-activate-back" disabled={activating} onClick={() => setConfirmActivateOpen(false)}>Go back</button>
             <button type="button" className="journey-primary-button" disabled={activating} onClick={activatePlan}>
               {activating ? "Activating…" : "I agree and activate my actions"}
+            </button>
+          </div>
+        </section>
+      </div>,
+      document.body,
+    )}
+
+    {typeof document !== "undefined" && deletingAction && createPortal(
+      <div
+        className="plan-activate-overlay"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget && !deleting) setDeletingAction(null);
+        }}
+      >
+        <section className="plan-activate-modal" role="dialog" aria-modal="true" aria-labelledby="plan-delete-title">
+          <div className="plan-activate-title-row">
+            <div className="plan-activate-icon plan-activate-icon--danger" aria-hidden="true"><Trash2 size={26} /></div>
+            <h2 id="plan-delete-title">Remove this action?</h2>
+          </div>
+          <p>This will delete “{deletingAction.title}” from your draft plan. You can generate another action later if you change your mind.</p>
+          <strong>This cannot be undone.</strong>
+          {error && <p className="plan-review-error">{error}</p>}
+          <div className="plan-activate-actions">
+            <button type="button" className="plan-activate-back" disabled={deleting} onClick={() => setDeletingAction(null)}>Go back</button>
+            <button type="button" className="journey-primary-button plan-delete-confirm" disabled={deleting} onClick={removeAction}>
+              {deleting ? "Removing…" : "Remove action"}
             </button>
           </div>
         </section>

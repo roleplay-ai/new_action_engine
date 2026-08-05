@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ArrowLeftRight, CalendarDays, Check, CheckCircle2, ChevronRight, CircleX, Clock3, ListChecks, Mail, Medal, MessageCircle, Settings2, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowLeftRight, CalendarDays, Check, CheckCircle2, CircleX, Clock3, ListChecks, Mail, Medal, MessageCircle, Settings2, Trophy, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getCohortLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard";
 import { getMyPlanSettings, syncMyDuePersonalActions, type MyPlanSettings } from "@/app/actions/ai-actions";
@@ -283,7 +283,7 @@ export default function ActionsClient() {
       <button type="button" className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>Plan overview</button>
     </nav>
 
-    {tab === "upcoming" && <div className="actions-reference-layout">
+    {tab === "upcoming" && <div className={`actions-reference-layout${planIsActive && buddyReady && buddyGroup ? "" : " actions-reference-layout--solo"}`}>
       <div className="actions-primary-column">
         <section className="actions-current-group">
           <div className="actions-section-heading"><div><h3>Current actions</h3><p>{currentActions.length ? `${currentActions.length} action${currentActions.length === 1 ? " is" : "s are"} ready for this ${settings?.track === "daily" ? "day" : "week"}.` : "Actions ready for your current practice period."}</p></div>{currentActions.length > 0 && <span>{currentActions.length} ready</span>}</div>
@@ -297,18 +297,42 @@ export default function ActionsClient() {
           </div>}
         </section>
 
-        {planIsActive && buddyReady && buddyGroup && <CommitmentBuddyCard group={buddyGroup} />}
-
-        <section className="actions-list-card"><h3>{planIsArchived ? "Remaining archived actions" : "Next reminders"}</h3><p>{planIsArchived ? "Reminder delivery is paused. You can still choose and complete any remaining action." : "Actions scheduled after your current action in this cohort plan."}</p><div className="actions-upcoming-list">
+        <section className="actions-list-card"><h3>{planIsArchived ? "Remaining archived actions" : "Next reminders"}</h3><p>{planIsArchived ? "Reminder delivery is paused. You can still choose and complete any remaining action." : "Actions scheduled after your current action in this cohort plan."}</p><div className="actions-upcoming-list plan-review-list">
           {upcoming.length === 0 && <div className="actions-inline-empty">{planIsArchived ? "No archived actions remain." : "No additional actions are scheduled yet."}</div>}
-          {upcoming.map((action, index) => { const deliveryDate = projectedDeliveryDate(settings, index); return <div key={action.id}><b>{index + 1}</b><span><strong>{action.title}</strong><small><Clock3 size={11} /> {action.timeEstimate}{action.planPoints ? ` · ${action.planPoints} points` : ""}{planIsArchived ? " · Available to revisit" : ` · ${formatDate(deliveryDate)}`}</small></span>{planIsArchived ? <button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>Do this action</button> : <ChevronRight size={16} />}</div>; })}
+          {upcoming.map((action, index) => {
+            const deliveryDate = projectedDeliveryDate(settings, index);
+            const points = action.planPoints ?? 50;
+            return <article className={`plan-review-action${planIsArchived ? "" : " plan-review-action--reminder"}`} key={action.id}>
+              <div className="plan-action-order">
+                <div className="plan-action-number">{index + 1}</div>
+              </div>
+              <div className="plan-action-copy plan-action-copy--compact">
+                <h3 title={action.title}>{action.title}</h3>
+                <div className="plan-action-meta">
+                  <span><CalendarDays size={13} />{planIsArchived ? "Available to revisit" : formatDate(deliveryDate)}</span>
+                  <span>{points} CP</span>
+                </div>
+              </div>
+              {planIsArchived && (
+                <div className="plan-action-controls plan-action-controls--compact">
+                  <button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>Do this action</button>
+                </div>
+              )}
+            </article>;
+          })}
         </div></section>
       </div>
 
-      <aside className="actions-leaderboard-card"><div className="actions-card-heading"><div><h3>{cohort?.name ?? "Cohort"} leaderboard</h3><p>Current cohort balance · everyone starts at 1,000</p></div><Trophy size={20} /></div><div className="actions-leaderboard-list">
+      {planIsActive && buddyReady && buddyGroup && (
+        <aside className="actions-buddy-sidebar">
+          <CommitmentBuddyCard group={buddyGroup} />
+        </aside>
+      )}
+
+      {/* <aside className="actions-leaderboard-card"><div className="actions-card-heading"><div><h3>{cohort?.name ?? "Cohort"} leaderboard</h3><p>Current cohort balance · everyone starts at 1,000</p></div><Trophy size={20} /></div><div className="actions-leaderboard-list">
         {leaderboard.length === 0 && <div className="actions-inline-empty">No rankings yet.</div>}
         {leaderboard.slice(0, 8).map((entry, index) => <div className={entry.isCurrentUser ? "me" : ""} key={entry.id}><b>{index === 0 ? <Medal size={17} /> : index + 1}</b><i>{entry.name.substring(0, 2).toUpperCase()}</i><span><strong>{entry.name}{entry.isCurrentUser ? " (You)" : ""}</strong><small>{entry.totalPoints} points</small></span></div>)}
-      </div></aside>
+      </div></aside> */}
     </div>}
 
     {tab === "completed" && <section className="actions-list-card actions-completed-card"><h3>Completed actions</h3><p>A record of the workplace actions you have finished.</p><div className="actions-completed-list">
@@ -338,22 +362,27 @@ export default function ActionsClient() {
     </section>}
 
     {typeof document !== "undefined" && planIsActive && buddyGroup?.revealPending && buddyGroup.buddies.length > 0 && createPortal(
-      <div className="actions-buddy-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) dismissBuddyReveal(); }}>
-        <section className="actions-buddy-modal" role="dialog" aria-modal="true" aria-labelledby="commitment-buddy-title">
+      <div
+        className="plan-activate-overlay"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) dismissBuddyReveal();
+        }}
+      >
+        <section className="plan-activate-modal plan-activate-modal--buddy" role="dialog" aria-modal="true" aria-labelledby="commitment-buddy-title">
           <div className="actions-buddy-modal-avatars" aria-hidden="true">
             <i className="you">{initials(profile.name)}</i>
             <span><ArrowLeftRight size={17} /></span>
             {buddyGroup.buddies.map((buddy) => <i className="them" key={buddy.id}>{initials(buddy.name)}</i>)}
           </div>
-          <span className="participant-eyebrow">Commitment buddy</span>
           <h2 id="commitment-buddy-title">{buddyGroup.buddies.length === 1
             ? `You are paired with ${buddyGroup.buddies[0].name}`
             : `Your commitment group is ${buddyGroup.buddies.map((buddy) => buddy.name).join(" and ")}`}</h2>
           <p>{buddyGroup.buddies.length === 1
             ? "You are each other’s commitment buddy for this cohort. You can both see overall progress and encourage each other."
             : "The three of you are commitment buddies for this cohort. Everyone can see each other’s overall progress and offer encouragement."}</p>
-          <div className="actions-buddy-modal-note">You will see totals only—not the content, schedule, plan or reflections behind each other’s actions.</div>
-          <button type="button" className="journey-primary-button" onClick={dismissBuddyReveal}>Got it</button>
+          <div className="plan-activate-actions">
+            <button type="button" className="journey-primary-button" onClick={dismissBuddyReveal}>Got it</button>
+          </div>
         </section>
       </div>,
       document.body,

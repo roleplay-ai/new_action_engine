@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEngine } from "@/lib/store";
-import { Home, Sparkles, ListChecks, ShieldCheck, Flame } from "lucide-react";
+import { Home, Sparkles, ListChecks, PiggyBank, ShieldCheck, Flame } from "lucide-react";
 import { LogoutButton } from "@/app/(app)/logout-button";
 import PageLoader from "@/components/PageLoader";
 import { usePageLoadingControls } from "@/components/PageLoadingProvider";
@@ -27,6 +27,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       { href: "/journey", label: "Workspace", icon: Home },
       { href: "/plan", label: "My Plan", icon: Sparkles },
       { href: "/actions", label: "My Actions", icon: ListChecks },
+      { href: "/wallet", label: "Wallet", icon: PiggyBank },
     ];
     if (role !== "user") items.push({ href: "/admin", label: "Admin", icon: ShieldCheck });
     return items;
@@ -117,7 +118,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       </section>
 
       <nav className="participant-bottom-nav" aria-label="Mobile participant navigation">
-        {navItems.slice(0, 3).map((item) => (
+        {navItems.slice(0, 4).map((item) => (
           <Link key={item.href} href={item.href} className={isActive(item.href) ? "active" : ""} onClick={() => beginNavigation(item.href)}>
             <item.icon size={20} /><span>{item.label}</span>
           </Link>

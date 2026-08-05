@@ -11,6 +11,11 @@ export interface LeaderboardEntry {
   isCurrentUser: boolean;
 }
 
+export interface CohortWalletSummary {
+  totalPoints: number;
+  myContribution: number;
+}
+
 /** Get company-scoped leaderboard by profile total_points (desc). Current user is marked with isCurrentUser. */
 export async function getLeaderboard(): Promise<
   { entries: LeaderboardEntry[]; error?: string }> {
@@ -134,4 +139,20 @@ export async function getCohortLeaderboard(cohortId: string): Promise<
       error: e instanceof Error ? e.message : "Failed to load cohort leaderboard",
     };
   }
+}
+
+/** Aggregate-only cohort wallet data. Individual participant balances remain private. */
+export async function getCohortWalletSummary(cohortId: string): Promise<{
+  summary: CohortWalletSummary | null;
+  error?: string;
+}> {
+  const result = await getCohortLeaderboard(cohortId);
+  if (result.error) return { summary: null, error: result.error };
+
+  return {
+    summary: {
+      totalPoints: result.entries.reduce((total, entry) => total + entry.totalPoints, 0),
+      myContribution: result.entries.find((entry) => entry.isCurrentUser)?.totalPoints ?? 0,
+    },
+  };
 }

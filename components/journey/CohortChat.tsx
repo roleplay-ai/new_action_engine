@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
-import { LoaderCircle, MessageCircle } from "lucide-react";
+import { LoaderCircle, MessageCircle, Send } from "lucide-react";
 import { sendCohortMessage } from "@/app/actions/cohort-chat";
 import { createClient } from "@/lib/supabase/client";
 import type { CohortMessage } from "@/lib/types";
@@ -42,7 +42,7 @@ function formatMessageTime(value: string) {
     : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-export default function CohortChat({ cohortId, memberCount }: { cohortId: string; memberCount: number }) {
+export default function CohortChat({ cohortId, memberCount, variant = "default" }: { cohortId: string; memberCount: number; variant?: "default" | "rcpl" }) {
   const [messages, setMessages] = useState<CohortMessage[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -228,7 +228,7 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
   }
 
   return (
-    <article className="journey-module-card journey-chat-card">
+    <article className={`journey-module-card journey-chat-card${variant === "rcpl" ? " journey-chat-card--rcpl" : ""}`}>
       <div className="journey-chat-heading">
         <div>
           <h3>Cohort conversation</h3>
@@ -269,7 +269,8 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
         />
         <button type="submit" disabled={!draft.trim() || sending} aria-label="Send message">
           {sending && <LoaderCircle className="journey-chat-spinner" size={15} />}
-          <span>Share</span>
+          {!sending && <Send className="journey-chat-send-icon" size={15} fill="currentColor" />}
+          <span>{variant === "rcpl" ? "Send" : "Share"}</span>
         </button>
       </form>
       {error && messages.length > 0 && <p className="journey-chat-error">{error}</p>}

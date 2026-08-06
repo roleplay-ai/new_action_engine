@@ -1,14 +1,8 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  Backpack,
-  BookOpen,
   Check,
-  Gift,
-  HeartHandshake,
   Minus,
-  Soup,
-  Sprout,
 } from "lucide-react";
 import {
   getMyCommitmentWallet,
@@ -16,11 +10,11 @@ import {
 } from "@/app/actions/commitment-wallet";
 
 const MILESTONES = [
-  { percent: 5, label: "Plant a tree", Icon: Sprout },
-  { percent: 10, label: "Sponsor a nutritious meal for a child", Icon: Soup },
-  { percent: 25, label: "Donate books to a school", Icon: BookOpen },
-  { percent: 50, label: "Fund learning kits for children", Icon: Backpack },
-  { percent: 75, label: "Support a day of community meals", Icon: HeartHandshake },
+  { percent: 5, label: "Plant a tree", icon: "🌱" },
+  { percent: 10, label: "Sponsor a nutritious meal for a child", icon: "🍲" },
+  { percent: 25, label: "Donate books to a school", icon: "📚" },
+  { percent: 50, label: "Fund learning kits for children", icon: "🎒" },
+  { percent: 75, label: "Support a day of community meals", icon: "❤" },
 ] as const;
 
 function clamp(value: number, min: number, max: number) {
@@ -79,9 +73,7 @@ function PersonalWallet({ summary }: { summary: CommitmentWalletSummary }) {
           <div className="wallet-loss-chip">
             {summary.missedActions} missed action{summary.missedActions === 1 ? "" : "s"} · −{formatPercent(lossPercent)} commitment
           </div>
-        ) : (
-          <div className="wallet-kept-chip"><Check size={12} /> No missed actions</div>
-        )
+        ) : null
       ) : (
         <div className="wallet-plan-note">
           Your score starts at 100% when you finalise your action plan.
@@ -106,23 +98,30 @@ function TeamBucket({ summary }: { summary: CommitmentWalletSummary }) {
   const progress = summary.teamMaximumPoints
     ? clamp((summary.teamPoints / summary.teamMaximumPoints) * 100, 0, 100)
     : 0;
-  const fillHeight = (171 * progress) / 100;
-  const fillTop = 249 - fillHeight;
-  const markerData = [
-    { percent: 100, y: 91 },
-    { percent: 75, y: 132 },
-    { percent: 50, y: 174 },
-    { percent: 25, y: 216 },
-  ];
+  const planFillHeight = summary.teamMaximumPoints
+    ? (171 * clamp(summary.teamPlanPoints, 0, summary.teamMaximumPoints)) / summary.teamMaximumPoints
+    : 0;
+  const actionFillHeight = summary.teamMaximumPoints
+    ? (171 * clamp(summary.teamActionPoints, 0, summary.teamMaximumPoints - summary.teamPlanPoints)) / summary.teamMaximumPoints
+    : 0;
+  const planFillTop = 249 - planFillHeight;
+  const totalFillTop = planFillTop - actionFillHeight;
+  const markerData = MILESTONES.map((milestone) => ({
+    percent: milestone.percent,
+    value: milestonePoints(summary.teamMaximumPoints, milestone.percent),
+    y: 249 - (171 * milestone.percent) / 100,
+    x: 225 - milestone.percent * 0.24,
+  }));
+  const nextMarkerValue = markerData.find((marker) => marker.value > summary.teamPoints)?.value;
 
   return (
     <div className="wallet-bucket-wrap">
-      <div className="wallet-bucket-kicker"><strong>+50</strong> per on-time action</div>
+      <div className="wallet-bucket-kicker">just added to the team</div>
       <svg
         className="wallet-team-bucket"
         viewBox="0 0 280 300"
         role="img"
-        aria-label={`${formatNumber(summary.teamPoints)} of ${formatNumber(summary.teamMaximumPoints)} possible cohort Action Points`}
+        aria-label={`${formatNumber(summary.teamPoints)} of ${formatNumber(summary.teamMaximumPoints)} possible cohort points: ${formatNumber(summary.teamPlanPoints)} from finalised plans and ${formatNumber(summary.teamActionPoints)} from on-time actions`}
       >
         <defs>
           <clipPath id="commitmentWalletBucketClip">
@@ -133,23 +132,35 @@ function TeamBucket({ summary }: { summary: CommitmentWalletSummary }) {
         <path d="M72 80 Q140 5 208 80" fill="none" stroke="#fff" strokeWidth="7" strokeLinecap="round" opacity=".95" />
         <path d="M50 78 L230 78 L207 249 Q140 273 73 249 Z" fill="#332d34" stroke="#fff" strokeWidth="6" strokeLinejoin="round" />
 
-        {fillHeight > 0 && (
+        {planFillHeight > 0 && (
           <g clipPath="url(#commitmentWalletBucketClip)">
-            <rect x="45" y={fillTop} width="190" height={fillHeight + 18} fill="#ffce00" />
+            <rect x="45" y={planFillTop} width="190" height={planFillHeight + 18} fill="#f3ae45" />
+          </g>
+        )}
+
+        {actionFillHeight > 0 && (
+          <g clipPath="url(#commitmentWalletBucketClip)">
+            <rect x="45" y={totalFillTop} width="190" height={actionFillHeight + 2} fill="#ffce00" />
+          </g>
+        )}
+
+        {planFillHeight + actionFillHeight > 0 && (
+          <g clipPath="url(#commitmentWalletBucketClip)">
             <path
-              d={`M45 ${fillTop + 3} Q76 ${fillTop - 7} 107 ${fillTop + 3} T169 ${fillTop + 3} T235 ${fillTop + 3} L235 ${fillTop + 15} L45 ${fillTop + 15} Z`}
-              fill="#ffda33"
+              d={`M45 ${totalFillTop + 3} Q76 ${totalFillTop - 7} 107 ${totalFillTop + 3} T169 ${totalFillTop + 3} T235 ${totalFillTop + 3} L235 ${totalFillTop + 15} L45 ${totalFillTop + 15} Z`}
+              fill={actionFillHeight > 0 ? "#ffda33" : "#f7bd63"}
             />
           </g>
         )}
 
         {markerData.map((marker) => {
-          const value = Math.round((summary.teamMaximumPoints * marker.percent) / 100);
+          const active = marker.value > 0 && marker.value <= summary.teamPoints;
+          const next = marker.value > 0 && marker.value === nextMarkerValue;
           return (
             <g key={marker.percent}>
-              <line x1="218" y1={marker.y} x2="243" y2={marker.y} stroke={progress >= marker.percent ? "#ffce00" : "#716a72"} strokeWidth="2" />
-              <text x="248" y={marker.y + 4} fill={progress >= marker.percent ? "#ffce00" : "#afa7b1"} fontSize="8" fontWeight="700">
-                {formatNumber(value)}
+              <line x1={marker.x} y1={marker.y} x2="243" y2={marker.y} stroke={active || next ? "#ffce00" : "#716a72"} strokeWidth={next ? "3" : "2"} />
+              <text x="248" y={marker.y + 4} fill={active || next ? "#ffce00" : "#afa7b1"} fontSize="8" fontWeight={active || next ? "800" : "700"}>
+                {formatNumber(marker.value)}
               </text>
             </g>
           );
@@ -162,15 +173,12 @@ function TeamBucket({ summary }: { summary: CommitmentWalletSummary }) {
           ACTION POINTS
         </text>
       </svg>
-      <div className="wallet-rank-pill">
-        <strong>{summary.contributionRank ? `#${summary.contributionRank}` : "—"}</strong>
-        <span>of {summary.teamMemberCount || 0} contributors</span>
-      </div>
     </div>
   );
 }
 
 function TeamWallet({ summary }: { summary: CommitmentWalletSummary }) {
+  const teamActionCapacity = Math.max(0, summary.teamMaximumPoints / 50 - summary.teamMemberCount);
   const nextMilestone = MILESTONES.find(
     (milestone) => summary.teamPoints < milestonePoints(summary.teamMaximumPoints, milestone.percent)
   );
@@ -185,13 +193,12 @@ function TeamWallet({ summary }: { summary: CommitmentWalletSummary }) {
         <div>
           <div className="wallet-label">Our shared progress</div>
           <h2>Team Action Bank</h2>
-          <p>Every on-time action moves the whole cohort forward.</p>
         </div>
         <div className="wallet-team-total">
           <strong>{formatNumber(summary.teamPoints)}</strong>
           <span>Team Action Points</span>
           <small>
-            {formatNumber(summary.teamMaximumPoints)} possible · {formatNumber(summary.teamMaximumPoints / 50)} actions × 50
+            {formatNumber(summary.teamMaximumPoints)} possible · {formatNumber(teamActionCapacity)} actions + {formatNumber(summary.teamMemberCount)} finalised plans · 50 points each
           </small>
         </div>
       </div>
@@ -199,13 +206,13 @@ function TeamWallet({ summary }: { summary: CommitmentWalletSummary }) {
       <div className="wallet-bank-area">
         <div className="wallet-bank-copy">
           <div className="wallet-next-reward">
-            <div><Gift size={21} /></div>
+            <div aria-hidden="true">🎁</div>
             <span>
               <small>
                 {summary.teamMaximumPoints === 0
                   ? "Waiting for finalised plans"
                   : nextMilestone
-                    ? `Next · ${nextMilestone.percent}% · ${formatNumber(nextPoints)} points`
+                    ? `Next · ${formatNumber(nextPoints)} points`
                     : "All milestones unlocked"}
               </small>
               <strong>
@@ -220,7 +227,10 @@ function TeamWallet({ summary }: { summary: CommitmentWalletSummary }) {
 
           <div className="wallet-impact-grid">
             <div><strong>{formatNumber(summary.personalPoints)}</strong><span>Your Action Points</span></div>
-            <div><strong>{formatNumber(summary.personalMaximumPoints)}</strong><span>Your maximum contribution</span></div>
+            <div>
+              <strong>{summary.contributionRank ? `#${summary.contributionRank} of ${summary.teamMemberCount}` : "—"}</strong>
+              <span>Contribution rank</span>
+            </div>
           </div>
         </div>
 
@@ -239,7 +249,6 @@ function WalletMilestones({ summary }: { summary: CommitmentWalletSummary }) {
     <section className="wallet-milestone-section">
       <div className="wallet-milestone-head">
         <div><span className="wallet-label">Team impact rewards</span><h3>Every milestone creates a little more good</h3></div>
-        <p>Milestones scale with this cohort&apos;s finalised maximum.</p>
       </div>
 
       <div className="wallet-rewards">
@@ -253,8 +262,8 @@ function WalletMilestones({ summary }: { summary: CommitmentWalletSummary }) {
           });
           return (
             <div className={`wallet-reward-step ${done ? "done" : ""} ${next ? "next" : ""}`} key={milestone.percent}>
-              <div className="wallet-reward-dot"><milestone.Icon size={19} /></div>
-              <strong>{milestone.percent}% · {formatNumber(threshold)} points</strong>
+              <div className="wallet-reward-dot" aria-hidden="true">{milestone.icon}</div>
+              <strong>{formatNumber(threshold)} · {milestone.percent}%</strong>
               <span>{milestone.label}</span>
               {next && <em>NEXT · {formatNumber(Math.max(0, threshold - summary.teamPoints))} TO GO</em>}
             </div>
@@ -266,22 +275,21 @@ function WalletMilestones({ summary }: { summary: CommitmentWalletSummary }) {
 }
 
 export default async function WalletPage() {
-  const { summary, cohortName, error } = await getMyCommitmentWallet();
+  const { summary, error } = await getMyCommitmentWallet();
 
   return (
     <div className="commitment-wallet-page animate-in fade-in duration-700">
       <header className="wallet-page-heading">
         <span>Nudgeable · Commitment Wallet</span>
         <h1>Keep your commitment.<br />Move the team forward.</h1>
-        <p>{cohortName ? `${cohortName} · ` : ""}Your score protects the promise. Your on-time actions fill the shared bank.</p>
       </header>
 
       {error && <div className="wallet-error" role="alert">The Wallet could not be loaded: {error}</div>}
 
       <section className="wallet-rule-strip" aria-label="How the Commitment Wallet works">
-        <div><span className="good"><Check size={18} /></span><p>Complete on the assigned date <strong>+50 team points</strong></p></div>
+        <div><span className="good"><Check size={18} /></span><p>Complete <strong>+50 Action Points</strong></p></div>
         <i />
-        <div><span className="miss"><Minus size={18} /></span><p>Miss the date <strong>Commitment Score ↓</strong></p></div>
+        <div><span className="miss"><Minus size={18} /></span><p>Miss <strong>Commitment Score ↓</strong></p></div>
       </section>
 
       <section className="wallet-main-grid">
@@ -294,7 +302,6 @@ export default async function WalletPage() {
       <section className="wallet-footer-action">
         <div>
           <strong>{summary.hasFinalisedPlan ? "Your next on-time action can move the team 50 points closer." : "Finalise your plan to establish your commitment and cohort maximum."}</strong>
-          <span>Late completions remain part of your history, but do not restore the score or add points.</span>
         </div>
         <Link href={summary.hasFinalisedPlan ? "/actions" : "/plan"}>
           {summary.hasFinalisedPlan ? "View my next action" : "Go to my plan"} <ArrowRight size={14} />

@@ -8,9 +8,13 @@ export type CommitmentWalletSummary = {
   plannedActions: number;
   missedActions: number;
   completedOnTimeActions: number;
+  personalPlanPoints: number;
+  personalActionPoints: number;
   personalPoints: number;
   personalMaximumPoints: number;
   commitmentScore: number;
+  teamPlanPoints: number;
+  teamActionPoints: number;
   teamPoints: number;
   teamMaximumPoints: number;
   teamMemberCount: number;
@@ -22,9 +26,13 @@ const EMPTY_SUMMARY: CommitmentWalletSummary = {
   plannedActions: 0,
   missedActions: 0,
   completedOnTimeActions: 0,
+  personalPlanPoints: 0,
+  personalActionPoints: 0,
   personalPoints: 0,
   personalMaximumPoints: 0,
   commitmentScore: 0,
+  teamPlanPoints: 0,
+  teamActionPoints: 0,
   teamPoints: 0,
   teamMaximumPoints: 0,
   teamMemberCount: 0,
@@ -44,9 +52,13 @@ function mapSummary(value: unknown): CommitmentWalletSummary {
     plannedActions: numberFrom(row.plannedActions),
     missedActions: numberFrom(row.missedActions),
     completedOnTimeActions: numberFrom(row.completedOnTimeActions),
+    personalPlanPoints: numberFrom(row.personalPlanPoints),
+    personalActionPoints: numberFrom(row.personalActionPoints),
     personalPoints: numberFrom(row.personalPoints),
     personalMaximumPoints: numberFrom(row.personalMaximumPoints),
     commitmentScore: numberFrom(row.commitmentScore),
+    teamPlanPoints: numberFrom(row.teamPlanPoints),
+    teamActionPoints: numberFrom(row.teamActionPoints),
     teamPoints: numberFrom(row.teamPoints),
     teamMaximumPoints: numberFrom(row.teamMaximumPoints),
     teamMemberCount: numberFrom(row.teamMemberCount),

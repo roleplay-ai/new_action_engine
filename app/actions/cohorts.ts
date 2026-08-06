@@ -518,6 +518,7 @@ export async function selectMyCohort(cohortId: string): Promise<{ error?: string
   revalidatePath("/notes");
   revalidatePath("/plan");
   revalidatePath("/actions");
+  revalidatePath("/wallet");
   revalidatePath("/progress");
   return {};
 }

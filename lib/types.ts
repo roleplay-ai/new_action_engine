@@ -29,12 +29,13 @@ export interface UserAction {
   acceptedAt?: string;
   acceptedDate?: string;
   acceptedTime?: string;
+  completedAt?: string;
+  completedLate?: boolean;
+  missedAt?: string;
   isCalendarSynced?: boolean;
   reflection?: string;
   pointsDelta?: number;
   pointsSettledAt?: string;
-  completedAt?: string;
-  completedLate?: boolean;
 }
 
 export interface FeedItem {

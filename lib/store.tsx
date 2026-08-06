@@ -86,12 +86,13 @@ function mapDbUserAction(row: {
   status: string;
   scheduled_at: string | null;
   accepted_at: string | null;
+  completed_at?: string | null;
+  completed_late?: boolean | null;
+  missed_at?: string | null;
   reflection: string | null;
   is_calendar_synced: boolean;
   points_delta?: number | null;
   points_settled_at?: string | null;
-  completed_at?: string | null;
-  completed_late?: boolean | null;
 }): UserAction {
   // Convert UTC timestamps to IST for display
   const scheduledIST = row.scheduled_at ? utcToISTDateTime(row.scheduled_at) : null;
@@ -108,12 +109,13 @@ function mapDbUserAction(row: {
     acceptedAt: row.accepted_at ?? undefined,
     acceptedDate: acceptedIST?.date,
     acceptedTime: acceptedIST?.time,
+    completedAt: row.completed_at ?? undefined,
+    completedLate: row.completed_late === true,
+    missedAt: row.missed_at ?? undefined,
     isCalendarSynced: row.is_calendar_synced ?? false,
     reflection: row.reflection ?? undefined,
     pointsDelta: row.points_delta ?? undefined,
     pointsSettledAt: row.points_settled_at ?? undefined,
-    completedAt: row.completed_at ?? undefined,
-    completedLate: row.completed_late ?? false,
   };
 }
 

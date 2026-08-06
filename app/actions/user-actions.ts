@@ -383,6 +383,7 @@ export async function completeAction(params: {
     .select("title, cohort_id, is_personal")
     .eq("id", actionId)
     .single();
+  if (!actionRow) return { error: "Action not found" };
 
   if (actionRow?.is_personal && actionRow.cohort_id) {
     const { data: settlementRows, error: settlementError } = await supabase.rpc(
@@ -420,25 +421,27 @@ export async function completeAction(params: {
     .eq("action_id", actionId)
     .maybeSingle();
 
-  const acceptedAt = new Date().toISOString();
-  const newStatus = success ? "success" : "failed";
-
-  const { error: upsertError } = await supabase.from("user_actions").upsert(
-    {
-      user_id: user.id,
-      action_id: actionId,
-      cohort_id: actionRow?.cohort_id ?? null,
-      status: newStatus,
-      scheduled_at: null,
-      accepted_at: acceptedAt,
-      reflection: reflection || null,
-      is_calendar_synced: false,
-    },
-    { onConflict: "user_id,action_id" }
-  );
-
-  if (upsertError) {
-    return { error: upsertError.message };
+  if (actionRow.is_personal) {
+    const { error: walletError } = await supabase.rpc("settle_my_commitment_wallet_action", {
+      p_action_id: actionId,
+      p_success: success,
+      p_reflection: reflection || null,
+    });
+    if (walletError) return { error: walletError.message };
+  } else {
+    const { error: upsertError } = await supabase.from("user_actions").upsert(
+      {
+        user_id: user.id,
+        action_id: actionId,
+        cohort_id: actionRow.cohort_id,
+        status: success ? "success" : "failed",
+        accepted_at: new Date().toISOString(),
+        reflection: reflection || null,
+        is_calendar_synced: false,
+      },
+      { onConflict: "user_id,action_id" }
+    );
+    if (upsertError) return { error: upsertError.message };
   }
 
   const alreadyAccepted =
@@ -453,7 +456,7 @@ export async function completeAction(params: {
     await addPointsToProfile(user.id, getPointsForEvent("accept", false));
   }
 
-  if (success) {
+  if (success && existingUa?.status !== "success") {
     await addPointsToProfile(user.id, getPointsForEvent("success"));
     if (actionRow?.title) {
       await supabase.from("feed_events").insert({
@@ -463,10 +466,11 @@ export async function completeAction(params: {
         type: "SUCCESS",
       });
     }
-  } else if (existingUa?.status !== "failed") {
+  } else if (existingUa?.status !== "failed" && existingUa?.status !== "success") {
     await addPointsToProfile(user.id, getPointsForEvent("inaction"));
   }
 
   revalidatePath("/");
+  revalidatePath("/wallet");
   return {};
 }

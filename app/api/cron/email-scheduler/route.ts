@@ -42,6 +42,17 @@ export async function GET(request: Request) {
   const nowIso = now.toISOString();
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
 
+  // Settle yesterday's still-open Wallet actions before releasing a new batch.
+  const { data: expiredWalletActions, error: walletExpiryError } = await admin.rpc(
+    "expire_overdue_commitment_wallet_actions"
+  );
+  if (walletExpiryError) {
+    return NextResponse.json(
+      { error: `Commitment Wallet expiry failed: ${walletExpiryError.message}` },
+      { status: 500 }
+    );
+  }
+
   // ── Personal action delivery (in-app, no email required) ───────────────────
   // Close yesterday's unsettled actions before releasing today's action. The
   // completion RPC also checks the IST date, so scoring stays correct between
@@ -80,6 +91,7 @@ export async function GET(request: Request) {
         skippedDisabled: 0,
         skippedClaimed: 0,
       },
+      expiredWalletActions: expiredWalletActions ?? 0,
     });
   }
   const fromEmail = process.env.RESEND_FROM_EMAIL!;
@@ -207,5 +219,6 @@ export async function GET(request: Request) {
     subscriptionsDelivered,
     actionsExpired,
     reminders: reminderSummary,
+    expiredWalletActions: expiredWalletActions ?? 0,
   });
 }

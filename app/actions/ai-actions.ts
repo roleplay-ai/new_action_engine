@@ -2,6 +2,7 @@
 
 import { after } from "next/server";
 import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionTheme } from "@/lib/types";
 import {
@@ -411,16 +412,14 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
       sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
       sub.time_of_day_utc
     );
-    const { error: activateError } = await supabase.rpc(
-      "activate_my_personal_action_plan_with_points",
-      {
-        p_cohort_id: cohortContext.cohortId,
-        p_next_delivery_at: nextDeliveryAt,
-      }
-    );
-    if (activateError) return { error: activateError.message };
+    const { error: activationError } = await supabase.rpc("activate_my_commitment_wallet_plan", {
+      p_cohort_id: cohortContext.cohortId,
+      p_next_delivery_at: nextDeliveryAt,
+    });
+    if (activationError) return { error: activationError.message };
 
     await supabase.from("profiles").update({ self_onboarding_completed_at: new Date().toISOString() }).eq("id", user.id);
+    revalidatePath("/wallet");
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to activate plan" };

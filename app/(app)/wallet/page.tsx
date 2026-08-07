@@ -25,9 +25,9 @@ function formatNumber(value: number) {
   return Math.round(value).toLocaleString("en-IN");
 }
 
+/** Displays as a whole number; the underlying values keep decimal precision in calculations. */
 function formatPercent(value: number) {
-  const rounded = Math.round(value * 10) / 10;
-  return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}%`;
+  return `${Math.round(value)}%`;
 }
 
 function milestonePoints(maximum: number, percent: number) {
@@ -116,7 +116,6 @@ function TeamBucket({ summary }: { summary: CommitmentWalletSummary }) {
 
   return (
     <div className="wallet-bucket-wrap">
-      <div className="wallet-bucket-kicker">just added to the team</div>
       <svg
         className="wallet-team-bucket"
         viewBox="0 0 280 300"
@@ -178,14 +177,6 @@ function TeamBucket({ summary }: { summary: CommitmentWalletSummary }) {
 }
 
 function TeamWallet({ summary }: { summary: CommitmentWalletSummary }) {
-  const nextMilestone = MILESTONES.find(
-    (milestone) => summary.teamPoints < milestonePoints(summary.teamMaximumPoints, milestone.percent)
-  );
-  const nextPoints = nextMilestone
-    ? milestonePoints(summary.teamMaximumPoints, nextMilestone.percent)
-    : summary.teamMaximumPoints;
-  const pointsToGo = Math.max(0, nextPoints - summary.teamPoints);
-
   return (
     <article className="wallet-card wallet-team-card">
       <div className="wallet-team-top">
@@ -196,41 +187,27 @@ function TeamWallet({ summary }: { summary: CommitmentWalletSummary }) {
         <div className="wallet-team-total">
           <strong>{formatNumber(summary.teamPoints)}</strong>
           <span>Team Action Points</span>
+          <i className="wallet-team-badge">+50 · Just added to the team</i>
         </div>
       </div>
 
       <div className="wallet-bank-area">
-        <div className="wallet-bank-copy">
-          <div className="wallet-next-reward">
-            <div aria-hidden="true">🎁</div>
-            <span>
-              <small>
-                {summary.teamMaximumPoints === 0
-                  ? "Waiting for finalised plans"
-                  : nextMilestone
-                    ? `Next · ${formatNumber(nextPoints)} points`
-                    : "All milestones unlocked"}
-              </small>
-              <strong>
-                {summary.teamMaximumPoints === 0
-                  ? "The cohort maximum appears after a plan is finalised"
-                  : nextMilestone
-                    ? `${formatNumber(pointsToGo)} points to unlock`
-                    : "The cohort reached every current reward"}
-              </strong>
-            </span>
-          </div>
-
-          <div className="wallet-impact-grid">
-            <div><strong>{formatNumber(summary.personalPoints)}</strong><span>Your Action Points</span></div>
-            <div>
-              <strong>{summary.contributionRank ? `#${summary.contributionRank} of ${summary.teamMemberCount}` : "—"}</strong>
-              <span>Contribution rank</span>
-            </div>
-          </div>
-        </div>
-
         <TeamBucket summary={summary} />
+      </div>
+
+      <div className="wallet-impact-grid">
+        <div>
+          <strong>{formatNumber(summary.personalPoints)}</strong>
+          <span>Your Action Points</span>
+        </div>
+        <div>
+          <strong>
+            {summary.contributionRank
+              ? `#${summary.contributionRank} of ${summary.teamMemberCount}`
+              : "—"}
+          </strong>
+          <span>Contribution rank</span>
+        </div>
       </div>
     </article>
   );

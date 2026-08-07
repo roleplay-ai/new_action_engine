@@ -97,10 +97,10 @@ function initials(name: string) {
   return `${parts[0]?.[0] ?? ""}${parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : parts[0]?.[1] ?? ""}`.toUpperCase();
 }
 
+/** Displays as a whole number; the underlying score keeps decimal precision in calculations. */
 function formatCommitmentScore(value: number) {
   const clamped = Math.min(100, Math.max(0, value));
-  const rounded = Math.round(clamped * 10) / 10;
-  return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
+  return String(Math.round(clamped));
 }
 
 type BuddyCardState = "pending-plan" | "new" | "dipped" | "steady";

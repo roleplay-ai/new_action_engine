@@ -1698,7 +1698,7 @@ input[type="range"] {
 }
 .wallet-main-grid {
   display: grid;
-  grid-template-columns: minmax(300px, .88fr) minmax(0, 1.45fr);
+  grid-template-columns: 1fr 1fr;
   gap: 18px;
   align-items: stretch;
 }
@@ -1844,6 +1844,8 @@ input[type="range"] {
   text-decoration: none;
 }
 .wallet-team-card {
+  display: flex;
+  flex-direction: column;
   color: #fff;
   border-color: #221d23;
   background: #221d23;
@@ -1895,110 +1897,64 @@ input[type="range"] {
   font-size: 9px;
   line-height: 1.35;
 }
-.wallet-bank-area {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
+.wallet-team-badge {
+  display: inline-flex;
   align-items: center;
-  gap: 26px;
-  margin-top: 26px;
-}
-.wallet-next-reward {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  padding: 18px 20px;
-  border: 1px solid #463e46;
-  border-radius: 18px;
-  background: #302a31;
-}
-.wallet-next-reward > div {
-  width: 46px;
-  height: 46px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  border-radius: 13px;
-  color: #221d23;
-  background: #fff6cf;
-  font-size: 22px;
-}
-.wallet-next-reward span,
-.wallet-next-reward small,
-.wallet-next-reward strong {
-  display: block;
-  min-width: 0;
-}
-.wallet-next-reward > span {
-  flex: 1 1 auto;
-}
-.wallet-next-reward small {
-  color: #bdb5bf;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.35;
-  letter-spacing: .08em;
+  margin-top: 10px;
+  padding: 6px 10px;
+  border: 1px solid #286844;
+  border-radius: 999px;
+  color: #79e9a7;
+  background: #173d2b;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 850;
+  letter-spacing: .07em;
   text-transform: uppercase;
 }
-.wallet-next-reward strong {
-  margin-top: 4px;
-  font-size: 16px;
-  line-height: 1.4;
+.wallet-bank-area {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 26px;
+  flex: 1 1 auto;
 }
 .wallet-impact-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 18px;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid #433b43;
   width: 100%;
 }
-.wallet-impact-grid > div {
-  min-width: 0;
-  padding: 18px 20px;
-  border: 1px solid #433b43;
-  border-radius: 15px;
-  background: #2e282f;
+.wallet-impact-grid > div + div {
+  padding-left: 18px;
+  border-left: 1px solid #433b43;
 }
 .wallet-impact-grid strong,
 .wallet-impact-grid span {
   display: block;
 }
 .wallet-impact-grid strong {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   color: #fff;
-  font-size: 28px;
+  font-size: 20px;
   line-height: 1.1;
   letter-spacing: -.02em;
 }
 .wallet-impact-grid span {
   color: #bdb5bf;
-  font-size: 12px;
+  font-size: 10px;
   line-height: 1.35;
-  white-space: nowrap;
 }
 .wallet-bucket-wrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   position: relative;
+  width: min(280px, 100%);
   text-align: center;
-}
-.wallet-bucket-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 10px;
-  margin-bottom: 4px;
-  border: 1px solid #286844;
-  border-radius: 999px;
-  color: #79e9a7;
-  background: #173d2b;
-  font-size: 9px;
-  font-weight: 850;
-  letter-spacing: .07em;
-  text-transform: uppercase;
-}
-.wallet-bucket-kicker::before {
-  content: "+50";
-  color: #fff;
-  font-size: 10px;
 }
 .wallet-team-bucket {
   display: block;
@@ -2204,13 +2160,11 @@ input[type="range"] {
     display: none;
   }
   .wallet-bank-area {
-    grid-template-columns: 1fr;
-    gap: 9px;
+    margin-top: 16px;
   }
   .wallet-bucket-wrap {
     width: min(255px, 100%);
     margin: 0 auto 8px;
-    order: -1;
   }
 }
 
@@ -2330,23 +2284,15 @@ input[type="range"] {
   .wallet-bank-area {
     margin-top: 13px;
   }
-  .wallet-next-reward {
-    padding: 12px 13px;
-    border-radius: 14px;
-  }
   .wallet-impact-grid {
-    gap: 8px;
-    margin-top: 14px;
+    gap: 12px;
+    padding-top: 15px;
   }
-  .wallet-impact-grid > div {
-    padding: 14px 16px;
+  .wallet-impact-grid > div + div {
+    padding-left: 12px;
   }
   .wallet-impact-grid strong {
-    font-size: 22px;
-  }
-  .wallet-impact-grid span {
-    font-size: 11px;
-    white-space: normal;
+    font-size: 18px;
   }
   .wallet-milestone-section {
     margin-top: 24px;
@@ -2380,9 +2326,6 @@ input[type="range"] {
   .participant-bottom-nav a svg {
     width: 18px;
     height: 18px;
-  }
-  .wallet-impact-grid {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -4455,6 +4398,8 @@ textarea.commitment-buddy-contact-selectable { min-height: 112px; resize: vertic
 .wallet-bank-copy {
   width: 100%;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
   position: relative;
   z-index: 2;
 }

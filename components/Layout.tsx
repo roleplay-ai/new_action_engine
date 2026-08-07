@@ -1,36 +1,47 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEngine } from "@/lib/store";
-import { ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ShieldCheck, Flame } from "lucide-react";
+import { ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ShieldCheck } from "lucide-react";
 import { LogoutButton } from "@/app/(app)/logout-button";
 import PageLoader from "@/components/PageLoader";
 import { usePageLoadingControls } from "@/components/PageLoadingProvider";
 import { selectMyCohort } from "@/app/actions/cohorts";
+import { getMyCommitmentWallet } from "@/app/actions/commitment-wallet";
 
 interface LayoutProps {
   children: React.ReactNode;
   role: string;
 }
 
+function formatCommitmentScore(value: number) {
+  const clamped = Math.min(100, Math.max(0, value));
+  const rounded = Math.round(clamped * 10) / 10;
+  return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
+}
+
 const Layout: React.FC<LayoutProps> = ({ children, role }) => {
-  const { profile, isLoading, cohort, cohorts, refetch } = useEngine();
+  const { profile, isLoading, cohort, cohorts, refetch, personalPlanState, userActions } = useEngine();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [switchingCohort, setSwitchingCohort] = useState(false);
+  const [commitmentScore, setCommitmentScore] = useState<{
+    hasFinalisedPlan: boolean;
+    score: number;
+  } | null>(null);
   const { contentLoading, pendingHref, beginNavigation } = usePageLoadingControls();
 
   const navItems = useMemo(() => {
     const items = [
-      { href: "/journey", label: "Workspace", icon: Home },
-      { href: "/plan", label: "My Plan", icon: Sparkles },
-      { href: "/actions", label: "My Actions", icon: ListChecks },
-      { href: "/wallet", label: "Wallet", icon: PiggyBank },
+      { href: "/journey", label: "Base Camp", shortLabel: "Camp", icon: Home },
+      { href: "/plan", label: "My Plan", shortLabel: "Plan", icon: Sparkles },
+      { href: "/actions", label: "My Actions", shortLabel: "Actions", icon: ListChecks },
+      { href: "/wallet", label: "Commitment Bank", shortLabel: "Bank", icon: PiggyBank },
     ];
-    if (role !== "user") items.push({ href: "/admin", label: "Admin", icon: ShieldCheck });
+    if (role !== "user") items.push({ href: "/admin", label: "Admin", shortLabel: "Admin", icon: ShieldCheck });
     return items;
   }, [role]);
 
@@ -57,6 +68,32 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
     setSwitchingCohort(false);
   }
 
+  const actionProgressKey = useMemo(
+    () =>
+      userActions
+        .map((action) => `${action.id}:${action.status}:${action.completedLate ? 1 : 0}`)
+        .join("|"),
+    [userActions]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void getMyCommitmentWallet().then((result) => {
+      if (cancelled) return;
+      setCommitmentScore({
+        hasFinalisedPlan: result.summary.hasFinalisedPlan,
+        score: result.summary.commitmentScore,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [cohort?.id, personalPlanState, actionProgressKey]);
+
+  const commitmentLabel = commitmentScore?.hasFinalisedPlan
+    ? `${formatCommitmentScore(commitmentScore.score)}%`
+    : "—";
+
   return (
     <div className={`participant-shell participant-shell--sidebar${isRcpl ? " participant-shell--rcpl" : ""}`}>
       <aside className="participant-sidebar">
@@ -72,7 +109,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             <span><strong>{cohort?.companyName || "Your company"}</strong></span>
           </Link>
 
-          {isRcpl && pathname.startsWith("/journey") ? (
+          {isRcpl && pathname.startsWith("/journey") && (
             <details className="rcpl-sidebar-phase-picker">
               <summary>
                 <span><small>Current phase</small><strong>{currentRcplPhase.label} · {currentRcplPhase.title}</strong></span>
@@ -86,13 +123,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
                 ))}
               </div>
             </details>
-          ) : (
-            <div className="participant-progress-card">
-              <small>Your learning journey</small>
-              <strong>Keep turning insight into action.</strong>
-              <div className="participant-progress-track"><span style={{ width: `${Math.min(100, Math.max(8, profile.weeklyGoal * 10))}%` }} /></div>
-              <p>{profile.streak > 0 ? `${profile.streak} day streak` : "Your progress appears here"}</p>
-            </div>
           )}
 
           <nav className="participant-nav" aria-label="Participant navigation">
@@ -132,9 +162,10 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
                 {cohorts.map((option) => <option key={option.id} value={option.id}>{option.name}{option.isCurrent ? " · Current" : " · Earlier"}</option>)}
               </select>
             </label>}
-            <span className="participant-points-pill" title="Action points">{profile.totalPoints}<small>AP</small></span>
-            <span className="participant-streak-pill" title="Current streak"><Flame size={15} fill="currentColor" />{profile.streak}</span>
-            <img className="participant-topbar-favicon" src="/icon.png" alt="Nudgeable" title="Nudgeable" />
+            <Link href="/wallet" className="participant-points-pill" title="Commitment score" onClick={() => beginNavigation("/wallet")}>
+              {commitmentLabel}
+              <small>CS</small>
+            </Link>
           </div>
         </header>
 
@@ -146,7 +177,11 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       <nav className="participant-bottom-nav" aria-label="Mobile participant navigation">
         {navItems.slice(0, 4).map((item) => (
           <Link key={item.href} href={item.href} className={isActive(item.href) ? "active" : ""} onClick={() => beginNavigation(item.href)}>
-            <item.icon size={20} /><span>{item.label}</span>
+            <item.icon size={20} />
+            <span className="participant-nav-label">
+              <span className="participant-nav-label-full">{item.label}</span>
+              <span className="participant-nav-label-short">{item.shortLabel}</span>
+            </span>
           </Link>
         ))}
       </nav>

@@ -35,7 +35,7 @@ export default async function SuperadminCompaniesPage() {
   return (
     <div className="superadmin-page">
       <div className="superadmin-page-heading">
-        <div><span>Organisation management</span><h1>Companies</h1><p>Create and maintain the organisations using Nudgeable.</p></div>
+        <div><h1>Companies</h1><p>Create and maintain the organisations using Nudgeable.</p></div>
         <CreateCompanyForm />
       </div>
 

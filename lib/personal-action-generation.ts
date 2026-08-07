@@ -104,7 +104,7 @@ Why: Understanding the numbers behind the business helps you make faster, better
 
 INPUTS
 TRAINING_CONTENT:
-${trainingContent.trim()}
+${trainingContent.trim() || "No cohort training content was provided. Rely on USER_NOTES and BUSINESS_CONTEXT."}
 
 USER_NOTES:
 ${userNotes.trim() || "The participant did not provide detailed notes."}
@@ -115,10 +115,10 @@ ADDITIONAL_FOCUS_AREAS:
 ${focusNote}
 
 BUSINESS_CONTEXT:
-${businessContext.trim()}
+${businessContext.trim() || "No cohort business context was provided. Keep situations realistic for a typical workplace."}
 
 TASK
-Generate exactly ${count} new actions. Every action must combine all three core inputs: the skill taught in TRAINING_CONTENT, the participant's specific goal, struggle, or reflection in USER_NOTES, and a situation that is realistic in BUSINESS_CONTEXT. Do not create generic actions based only on the training topic. If USER_NOTES is vague, use the closest reasonable interpretation without inventing personal facts.
+Generate exactly ${count} new actions. Prefer combining available inputs: the skill from TRAINING_CONTENT when present, the participant's specific goal, struggle, or reflection in USER_NOTES, and a situation that is realistic in BUSINESS_CONTEXT when present. Do not create generic actions when USER_NOTES has usable detail. If USER_NOTES is vague, use the closest reasonable interpretation without inventing personal facts. Missing TRAINING_CONTENT or BUSINESS_CONTEXT is allowed — work with whatever inputs are present.
 
 FORMAT AND QUALITY RULES
 - "title" is the What: one short, specific, observable action statement that starts with a strong verb.
@@ -128,7 +128,7 @@ FORMAT AND QUALITY RULES
 - Keep the actions practical, distinct from one another, and realistic during normal work.
 - Do not add theme labels, category tags, bullets inside fields, or commentary outside the required JSON.${avoidBlock}
 
-Before returning the result, silently check that every action clearly reflects TRAINING_CONTENT, USER_NOTES, and BUSINESS_CONTEXT, and that every Why is exactly one sentence.`;
+Before returning the result, silently check that every action reflects the available inputs, and that every Why is exactly one sentence.`;
 }
 
 /** Calls Gemini to draft `count` new personal actions. Does not persist anything. */
@@ -143,9 +143,6 @@ export async function generateDraftActions(params: {
   try {
     if (!isGeminiConfigured()) {
       return { error: "AI generation is not configured (GEMINI_API_KEY missing)" };
-    }
-    if (!params.trainingContent.trim() || !params.businessContext.trim()) {
-      return { error: "This cohort needs training content and business context before actions can be generated" };
     }
 
     const count = params.count ?? DEFAULT_BATCH_SIZE;

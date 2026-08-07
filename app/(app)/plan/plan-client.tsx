@@ -8,6 +8,7 @@ import { ArrowDown, ArrowUp, CalendarDays, Check, CheckCircle2, GripVertical, Li
 import { useEngine } from "@/lib/store";
 import Onboarding from "@/components/Onboarding";
 import GenerationStatus from "@/components/GenerationStatus";
+import ActionGenerationStory from "@/components/ActionGenerationStory";
 import {
   activatePersonalActionPlan,
   deletePersonalAction,
@@ -71,6 +72,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const [generatingMore, setGeneratingMore] = useState(false);
+  const [setupGenerationPending, setSetupGenerationPending] = useState(false);
   const [scheduleSlots, setScheduleSlots] = useState<DraftPlanScheduleSlot[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [error, setError] = useState("");
@@ -229,13 +231,13 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
   }
 
   const heading = isPlanActive
-    ? "Your plan is active"
+    ? "My plan is active"
     : isPlanArchived
       ? "This earlier plan is archived"
       : hasDraft
-        ? "Review your draft plan"
+        ? "Review my draft plan"
         : canBuildPlan
-          ? "Build your plan for this cohort"
+          ? "Build my plan for this cohort"
           : "No plan was created for this cohort";
   const summary = isPlanActive
     ? `${generatedActions.length} personalised actions are part of this cohort's read-only practice plan.`
@@ -248,7 +250,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
           : "Switch to your current cohort to build a new plan.";
 
   return <section className={`journey-page plan-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "action-plan" : undefined}>
-    {!embedded && <div className="participant-page-heading"><span className="participant-eyebrow">Private workspace</span><h1>My Plan</h1><p>Shape what you want to build, review every suggested action, then activate the plan when it feels right.</p></div>}
+    {!embedded && <div className="participant-page-heading"><h1>My Plan</h1><p>Shape what you want to build, review every suggested action, then activate the plan when it feels right.</p></div>}
 
     <div className="journey-v2-progress-pills" aria-label="Plan progress">
       <div className={hasDraft || isPlanActive || isPlanArchived ? "done" : "current"}><span>{hasDraft || isPlanActive || isPlanArchived ? <Check size={13} /> : 1}</span>My Plan</div>
@@ -256,7 +258,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
       <div className={isPlanActive || isPlanArchived ? "done" : generatedActions.length > 0 ? "current" : ""}><span>{isPlanActive || isPlanArchived ? <Check size={13} /> : 3}</span>{isPlanActive ? "Active" : isPlanArchived ? "Archived" : "Activate"}</div>
     </div>
 
-    {(showInitialSetup || editingSetup) && <Onboarding inline initialTrainingText={initialTrainingText} onComplete={async () => {
+    {(showInitialSetup || editingSetup) && <Onboarding inline initialTrainingText={initialTrainingText} onGeneratingChange={setSetupGenerationPending} onComplete={async () => {
       setEditingSetup(false);
       await Promise.all([
         refetch(),
@@ -264,7 +266,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
       ]);
     }} />}
 
-    {!showInitialSetup && !editingSetup && <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your cohort"}</span><h2>{heading}</h2><p>{summary}</p></div>{!generationJob && !generationError && hasDraft && <button className="journey-primary-button" onClick={openPlanSetup}>Change pace</button>}</div>}
+    {!showInitialSetup && !editingSetup && !isPlanActive && <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your cohort"}</span><h2>{heading}</h2><p>{summary}</p></div>{!generationJob && !generationError && hasDraft && <button className="journey-primary-button" onClick={openPlanSetup}>Change pace</button>}</div>}
 
     {canBuildPlan && hasArchivedPlans && <div className="journey-card plan-history-notice"><strong>Your earlier cohort plans are safely archived.</strong><p>Use the cohort switcher above whenever you want to revisit earlier actions and complete any that remain.</p></div>}
 
@@ -272,7 +274,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
     {hasDraft && generationError && !generationJob && <div className="journey-card plan-generation-error" role="alert"><div><X size={18} /><span><strong>Generation paused</strong><small>{generationError}</small></span></div><button type="button" onClick={openPlanSetup}>Try again</button></div>}
 
     {hasDraft && !editingSetup && <section className="plan-review-shell">
-      <div className="plan-review-heading"><div><span className="participant-eyebrow">Review before finalising</span><h2>Your generated actions</h2><p>Move, rename or delete actions before activation. Daily plans begin on the next weekday; weekly plans begin on the next selected weekday.</p></div><strong>{savingOrder ? <><Loader2 size={12} className="plan-order-spinner" /> Saving order</> : `${generatedActions.length}${generationJob ? ` / ${generationJob.totalNeeded}` : ""} actions`}</strong></div>
+      <div className="plan-review-heading"><div><span className="participant-eyebrow">Review before finalising</span><h2>Your generated actions</h2><p>Reorder, rename, or remove any action before you activate. Daily plans start on the next weekday. Weekly plans start on the next selected weekday.</p></div><strong>{savingOrder ? <><Loader2 size={12} className="plan-order-spinner" /> Saving order</> : `${generatedActions.length}${generationJob ? ` / ${generationJob.totalNeeded}` : ""} actions`}</strong></div>
       {!generationJob && orderedActions.length > 1 && <div className="plan-order-tip"><GripVertical size={17} /><span><strong>Set your preferred sequence</strong><small>Drag a card, or use its arrow buttons. Dates update with the new order.</small></span></div>}
       <div className="plan-review-list">
         {orderedActions.map((action, index) => {
@@ -306,7 +308,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
               <h3 title={action.title}>{action.title}</h3>
               <div className={`plan-action-meta${scheduleSlots[index]?.isImmediate ? " is-immediate" : ""}`}>
                 <span title={scheduleLoading ? "Calculating schedule…" : schedule.detail}><CalendarDays size={13} />{scheduleLoading ? "Calculating…" : schedule.date}</span>
-                <span>{projectedPlanPoints()} CP</span>
+                <span className="plan-action-points">{projectedPlanPoints()}<i className="plan-gold-coin" aria-hidden="true" /></span>
               </div>
             </div>
             <div className="plan-action-controls plan-action-controls--compact">
@@ -332,11 +334,11 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
           <p>Need another option? Add one more AI suggestion, then rename or reorder it like the rest.</p>
         </div>
       )}
-      {!generationJob && !generationError && generatedActions.length > 0 && <div className="plan-freeze-bar plan-freeze-bar--primary"><div><CheckCircle2 size={20} /><span><strong>Your plan is ready</strong><small>Review the actions above, then activate when you are happy with the plan.</small></span></div><button className="journey-primary-button" disabled={activating || savingOrder || generatingMore} onClick={() => { setError(""); setConfirmActivateOpen(true); }}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generatingMore ? "Generating…" : "Activate My Plan"}</button></div>}
+      {!generationJob && !generationError && generatedActions.length > 0 && <div className="plan-freeze-bar plan-freeze-bar--primary"><div><CheckCircle2 size={20} /><span><strong>My plan is ready</strong><small>Review the actions above, then activate when you are happy with the plan.</small></span></div><button className="journey-primary-button" disabled={activating || savingOrder || generatingMore} onClick={() => { setError(""); setConfirmActivateOpen(true); }}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generatingMore ? "Generating…" : "Activate My Plan"}</button></div>}
       {error && <p className="plan-review-error">{error}</p>}
     </section>}
 
-    {isPlanActive && <div className="plan-active-callout"><div><Check size={20} /><span><strong>Your plan is live</strong><small>Current actions and future reminders are available on the Actions page.</small></span></div><Link href="/actions" className="journey-primary-button">View my actions</Link></div>}
+    {isPlanActive && <div className="plan-active-callout"><div><Check size={20} /><span><strong>My actions are live</strong><small>Current actions and future reminders are available on the Actions page.</small></span></div><Link href="/actions" className="journey-primary-button">View my actions</Link></div>}
 
     {isPlanArchived && <div className="plan-active-callout"><div><Check size={20} /><span><strong>Archived cohort plan</strong><small>This plan is view-only. Its reminder schedule will not release new actions.</small></span></div><Link href="/actions" className="journey-primary-button">Revisit remaining actions</Link></div>}
 
@@ -379,7 +381,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
             <div className="plan-activate-icon plan-activate-icon--danger" aria-hidden="true"><Trash2 size={26} /></div>
             <h2 id="plan-delete-title">Remove this action?</h2>
           </div>
-          <p>This will delete “{deletingAction.title}” from your draft plan. You can generate another action later if you change your mind.</p>
+          <p>This will delete “{deletingAction.title}” from my draft plan. You can generate another action later if you change your mind.</p>
           <strong>This cannot be undone.</strong>
           {error && <p className="plan-review-error">{error}</p>}
           <div className="plan-activate-actions">
@@ -390,6 +392,11 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
           </div>
         </section>
       </div>,
+      document.body,
+    )}
+
+    {typeof document !== "undefined" && (setupGenerationPending || generationJob || generatingMore) && createPortal(
+      <ActionGenerationStory job={generationJob} generatingOne={generatingMore} />,
       document.body,
     )}
   </section>;

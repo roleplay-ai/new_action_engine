@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, Check, FileText, Play, Search, X } from "lucide-react";
+import { ArrowRight, Check, FileText, Play, X } from "lucide-react";
 import CohortChat from "@/components/journey/CohortChat";
 import type { Cohort, CohortMember, PrepareContentItem, UserPrepareProgress } from "@/lib/types";
-import { estimateMinutes } from "@/lib/prepare-estimate";
 import { resolveVideoEmbed, resolveVideoThumbnail } from "@/lib/video-embed";
 
 type PhaseBlock = { time: string; name: string; description: string };
@@ -142,15 +142,6 @@ function resourceKind(item: PrepareContentItem) {
   return isPdfResource(item) ? "PDF" : "Resource";
 }
 
-function resourceMeta(item: PrepareContentItem) {
-  if (item.type === "video") {
-    const minutes = estimateMinutes(item);
-    return `${minutes ? `${minutes} min` : "Video"} · Recommended`;
-  }
-  if (item.type === "quiz") return `${item.questionCount ?? 0} questions · Required`;
-  return `${isPdfResource(item) ? "PDF" : "Pre-read"} · Recommended`;
-}
-
 function ResourcePreview({ item }: { item: PrepareContentItem }) {
   if (item.type === "video" && item.videoUrl) {
     const thumbnail = resolveVideoThumbnail(item.videoUrl);
@@ -180,10 +171,6 @@ type RcplWorkspaceProps = {
   onOpenResource: (item: PrepareContentItem) => void;
 };
 
-type AgendaModal =
-  | { mode: "day"; day: PhaseDay }
-  | { mode: "schedule" };
-
 export default function RcplWorkspace({
   cohort,
   roster,
@@ -200,24 +187,13 @@ export default function RcplWorkspace({
   const searchParams = useSearchParams();
   const phaseId = searchParams.get("phase") ?? "1";
   const phase = RCPL_PHASES.find((item) => item.id === phaseId) ?? RCPL_PHASES[0];
-  const [participantQuery, setParticipantQuery] = useState("");
-  const [showAllParticipants, setShowAllParticipants] = useState(false);
-  const [agendaModal, setAgendaModal] = useState<AgendaModal | null>(null);
   const [buddyInfoOpen, setBuddyInfoOpen] = useState(false);
-  const filteredRoster = useMemo(() => {
-    const query = participantQuery.trim().toLowerCase();
-    const matches = query ? roster.filter((member) => member.fullName?.toLowerCase().includes(query)) : roster;
-    return showAllParticipants ? matches : matches.slice(0, 8);
-  }, [participantQuery, roster, showAllParticipants]);
 
   useEffect(() => {
-    if (!agendaModal && !buddyInfoOpen) return;
+    if (!buddyInfoOpen) return;
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setAgendaModal(null);
-        setBuddyInfoOpen(false);
-      }
+      if (event.key === "Escape") setBuddyInfoOpen(false);
     };
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", closeOnEscape);
@@ -225,13 +201,13 @@ export default function RcplWorkspace({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [agendaModal, buddyInfoOpen]);
+  }, [buddyInfoOpen]);
 
   return (
     <div className="rcpl-workspace animate-in fade-in duration-700">
       <header className="rcpl-page-heading">
         <span>{cohort.companyLogoUrl ? <img src={cohort.companyLogoUrl} alt="RCPL University logo" /> : initials(cohort.companyName ?? null)}</span>
-        <div><small>Your company workspace</small><h1>RCPL University</h1></div>
+        <div><small>Your workspace</small><h1>RCPL University</h1></div>
       </header>
 
       <section className="rcpl-program-hero">
@@ -274,9 +250,24 @@ export default function RcplWorkspace({
             {nextHref ? <Link href={nextHref}>Continue</Link> : <button type="button" disabled={!nextIncompleteItem} onClick={() => nextIncompleteItem && onOpenResource(nextIncompleteItem)}>Open</button>}
           </section>
 
+          <section className="rcpl-card rcpl-agenda" id="rcpl-agenda">
+            <header>
+              <div><h3>{phase.title}</h3><p>{phase.subtitle}</p></div>
+            </header>
+            <div className="rcpl-agenda-focus"><div><strong>{phase.focus}</strong><p>{phase.summary}</p></div></div>
+            <div className="rcpl-agenda-days">
+              {phase.days.map((day) => (
+                <div className="rcpl-agenda-day" key={day.name}>
+                  <small>{day.date}</small><h4>{day.name}</h4>
+                  <ol>{day.blocks.map((block) => <li key={`${day.name}-${block.time}`}><span>{block.time}</span><strong>{block.name}</strong></li>)}</ol>
+                </div>
+              ))}
+            </div>
+          </section>
+
           <section className="rcpl-card rcpl-library" id="preparation">
             <header>
-              <div><small>Workspace library</small><h3>Pre-reads, videos and session resources</h3><p>Everything assigned to {cohort.name}, ready to open here.</p></div>
+              <div><small>Base Camp library</small><h3>Pre-reads, videos and session resources</h3></div>
               <strong>{completedCount}/{items.length} complete</strong>
             </header>
             <div className="rcpl-resource-row">
@@ -290,92 +281,76 @@ export default function RcplWorkspace({
                       <ResourcePreview item={item} />
                       {done && <em><Check size={12} /> Done</em>}
                     </span>
-                    <span className="rcpl-resource-copy"><strong>{item.title}</strong><small>{resourceMeta(item)}</small><span>{done ? "Review resource" : "Open resource"}<ArrowRight size={13} /></span></span>
+                    <span className="rcpl-resource-copy"><strong>{item.title}</strong><span>View<ArrowRight size={13} /></span></span>
                   </button>
                 );
               })}
-            </div>
-          </section>
-
-          <section className="rcpl-card rcpl-agenda" id="rcpl-agenda">
-            <header>
-              <div><h3>{phase.title}</h3><p>{phase.subtitle}</p></div>
-              <button className="rcpl-agenda-link" type="button" onClick={() => setAgendaModal({ mode: "schedule" })}>View detailed agenda <ArrowRight size={13} /></button>
-            </header>
-            <div className="rcpl-agenda-focus"><div><strong>{phase.focus}</strong><p>{phase.summary}</p></div><button type="button" onClick={() => setAgendaModal({ mode: "schedule" })}>View full schedule</button></div>
-            <div className="rcpl-agenda-days">
-              {phase.days.map((day) => (
-                <button className="rcpl-agenda-day" type="button" key={day.name} onClick={() => setAgendaModal({ mode: "day", day })}>
-                  <small>{day.date}</small><h4>{day.name}</h4>
-                  <ol>{day.blocks.map((block) => <li key={`${day.name}-${block.time}`}><span>{block.time}</span><strong>{block.name}</strong></li>)}</ol>
-                  <span className="rcpl-agenda-day-link">View this day <ArrowRight size={13} /></span>
-                </button>
-              ))}
             </div>
           </section>
         </main>
 
         <aside className="rcpl-side-rail">
           <section className="rcpl-card rcpl-participants">
-            <header><h3>Participants</h3><span>{cohort.memberCount} in this cohort</span></header>
-            <label><Search size={15} /><input value={participantQuery} onChange={(event) => setParticipantQuery(event.target.value)} type="search" placeholder="Search participants" aria-label="Search participants" /></label>
+            <header><h3>Participants</h3></header>
             <div>
-              {filteredRoster.map((member, index) => <div className="rcpl-participant" key={member.id}><b style={{ background: ["#1D3C66", "#B8862B", "#D03A2C", "#2E9E63", "#7A5CC9"][index % 5] }}>{initials(member.fullName)}</b><span><strong>{member.fullName || "Participant"}</strong><small>RCPL University</small></span></div>)}
-              {filteredRoster.length === 0 && <p className="rcpl-no-results">No participants found.</p>}
+              {roster.map((member, index) => <div className="rcpl-participant" key={member.id}><b style={{ background: ["#1D3C66", "#B8862B", "#D03A2C", "#2E9E63", "#7A5CC9"][index % 5] }}>{initials(member.fullName)}</b><span><strong>{member.fullName || "Participant"}</strong><small>{member.email || "—"}</small></span></div>)}
+              {roster.length === 0 && <p className="rcpl-no-results">No participants found.</p>}
             </div>
-            {roster.length > 8 && <button className="rcpl-full-button" type="button" onClick={() => setShowAllParticipants((current) => !current)}>{showAllParticipants ? "Show fewer participants" : "View all participants"}</button>}
           </section>
 
-          <CohortChat cohortId={cohort.id} memberCount={cohort.memberCount} variant="rcpl" />
+          <CohortChat cohortId={cohort.id} variant="rcpl" />
 
           <section className="rcpl-card rcpl-buddy-card">
-            <header><h3>Your commitment buddy</h3><button type="button" onClick={() => setBuddyInfoOpen(true)}>How this works</button></header>
+            <header>
+              <h3>Your commitment buddy</h3>
+              <button type="button" onClick={() => setBuddyInfoOpen(true)}>How this works</button>
+            </header>
             <p>Buddies are revealed on My Actions after your personal action plan goes live.</p>
           </section>
 
         </aside>
       </div>
 
-      {agendaModal && (
-        <div className="rcpl-agenda-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setAgendaModal(null); }}>
-          <section className="rcpl-agenda-modal" role="dialog" aria-modal="true" aria-labelledby="rcpl-agenda-modal-title">
+      {typeof document !== "undefined" && buddyInfoOpen && createPortal(
+        <div className="rcpl-agenda-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setBuddyInfoOpen(false); }}>
+          <section className="rcpl-buddy-modal" role="dialog" aria-modal="true" aria-labelledby="rcpl-buddy-modal-title">
             <header>
               <div>
-                <small>{agendaModal.mode === "day" ? agendaModal.day.date : "Full schedule"}</small>
-                <h3 id="rcpl-agenda-modal-title">{agendaModal.mode === "day" ? agendaModal.day.name : phase.focus}</h3>
-                <p>{agendaModal.mode === "day" ? agendaModal.day.takeaway : phase.summary}</p>
+                <small>Accountability</small>
+                <h3 id="rcpl-buddy-modal-title">How commitment buddies work</h3>
+                <p>Everyone in the cohort is paired with one other person, with one group of three when needed.</p>
               </div>
-              <button type="button" onClick={() => setAgendaModal(null)} aria-label="Close agenda"><X size={17} /></button>
-            </header>
-            <div className="rcpl-agenda-modal-body">
-              {(agendaModal.mode === "day" ? [agendaModal.day] : phase.days).map((day) => (
-                <section key={day.name}>
-                  {agendaModal.mode === "schedule" && <h4>{day.name} · {day.date}</h4>}
-                  <ol>
-                    {day.blocks.map((block) => <li key={`${day.name}-modal-${block.time}`}><span>{block.time}</span><strong>{block.name}</strong><p>{block.description}</p></li>)}
-                  </ol>
-                </section>
-              ))}
-              <p className="rcpl-agenda-note">Trainer names and room details are sent three days before.</p>
-            </div>
-          </section>
-        </div>
-      )}
-
-      {buddyInfoOpen && (
-        <div className="rcpl-agenda-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setBuddyInfoOpen(false); }}>
-          <section className="rcpl-agenda-modal rcpl-buddy-modal" role="dialog" aria-modal="true" aria-labelledby="rcpl-buddy-modal-title">
-            <header>
-              <div><small>Accountability</small><h3 id="rcpl-buddy-modal-title">Your commitment buddy</h3><p>Everyone in the cohort is paired with one other person, with one group of three when needed.</p></div>
               <button type="button" onClick={() => setBuddyInfoOpen(false)} aria-label="Close commitment buddy explanation"><X size={17} /></button>
             </header>
-            <div className="rcpl-buddy-modal-body">
-              <div><b>1</b><span><strong>Assigned at random</strong><p>Your buddy or group is created within your cohort and revealed after your personal action plan goes live.</p></span></div>
-              <div><b>2</b><span><strong>See overall progress</strong><p>You can see each other&apos;s done, skipped and missed totals, plus points earned and lost. Actions, plans, schedules and reflections stay private.</p></span></div>
-              <div><b>3</b><span><strong>Nudge, do not audit</strong><p>The progress view helps you notice when encouragement or a quick check-in could be useful.</p></span></div>
-            </div>
+            <ol className="rcpl-buddy-modal-body">
+              <li>
+                <b aria-hidden="true">1</b>
+                <span>
+                  <strong>Assigned at random</strong>
+                  <p>Your buddy or group is created within your cohort and revealed after your personal action plan goes live.</p>
+                </span>
+              </li>
+              <li>
+                <b aria-hidden="true">2</b>
+                <span>
+                  <strong>See overall progress</strong>
+                  <p>You can see each other&apos;s done, skipped and missed totals, plus points earned and lost. Actions, plans, schedules and reflections stay private.</p>
+                </span>
+              </li>
+              <li>
+                <b aria-hidden="true">3</b>
+                <span>
+                  <strong>Nudge, do not audit</strong>
+                  <p>Use the progress view to notice when encouragement or a quick check-in could help — not to police the detail of their work.</p>
+                </span>
+              </li>
+            </ol>
+            <footer>
+              <button type="button" onClick={() => setBuddyInfoOpen(false)}>Got it</button>
+            </footer>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

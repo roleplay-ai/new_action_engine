@@ -220,16 +220,6 @@ export async function saveGeneratedActions(params: {
     if (!cohortContext.cohortId) return { error: cohortContext.error };
     const cohortId = cohortContext.cohortId;
 
-    const { data: cohortGenerationContext, error: cohortGenerationContextError } = await supabase
-      .from("cohorts")
-      .select("training_content, business_context")
-      .eq("id", cohortId)
-      .single();
-    if (cohortGenerationContextError) return { error: cohortGenerationContextError.message };
-    if (!cohortGenerationContext?.training_content?.trim() || !cohortGenerationContext.business_context?.trim()) {
-      return { error: "Your cohort is not ready for action generation. Ask the superadmin to add its training content and business context." };
-    }
-
     const { data: profile } = await supabase
       .from("profiles")
       .select("company_id")
@@ -646,14 +636,11 @@ export async function generateOneMorePersonalAction(): Promise<{ error?: string 
       .eq("id", cohortId)
       .single();
     if (cohortGenerationContextError) return { error: cohortGenerationContextError.message };
-    if (!cohortGenerationContext?.training_content?.trim() || !cohortGenerationContext.business_context?.trim()) {
-      return { error: "Your cohort is not ready for action generation. Ask the superadmin to add its training content and business context." };
-    }
 
     const { drafts, error: generateError } = await generateDraftActions({
-      trainingContent: cohortGenerationContext.training_content,
+      trainingContent: cohortGenerationContext?.training_content ?? "",
       userNotes: plan.training_text ?? "",
-      businessContext: cohortGenerationContext.business_context,
+      businessContext: cohortGenerationContext?.business_context ?? "",
       focusThemes,
       count: 1,
       avoidTitles,

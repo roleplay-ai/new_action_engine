@@ -114,6 +114,7 @@ export interface CohortOption extends Cohort {
 export interface CohortMember {
   id: string;
   fullName: string | null;
+  email: string | null;
 }
 
 export interface CohortMessage {

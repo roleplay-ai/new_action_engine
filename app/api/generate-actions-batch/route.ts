@@ -95,19 +95,11 @@ export async function POST(request: Request) {
     .select("training_content, business_context")
     .eq("id", job.cohort_id)
     .single();
-  if (!cohortGenerationContext?.training_content?.trim() || !cohortGenerationContext.business_context?.trim()) {
-    const contextError = "Cohort training content and business context are required for action generation";
-    await admin
-      .from("personal_action_generation_jobs")
-      .update({ status: "failed", error_message: contextError, updated_at: nowIso })
-      .eq("id", jobId);
-    return NextResponse.json({ ok: false, error: contextError });
-  }
 
   let generationResult = await generateDraftActions({
-    trainingContent: cohortGenerationContext.training_content,
+    trainingContent: cohortGenerationContext?.training_content ?? "",
     userNotes: job.training_text,
-    businessContext: cohortGenerationContext.business_context,
+    businessContext: cohortGenerationContext?.business_context ?? "",
     focusThemes: job.focus_themes ?? [],
     count,
     avoidTitles,
@@ -116,9 +108,9 @@ export async function POST(request: Request) {
     // A temporary provider/network failure should not discard the participant's
     // whole plan. Retry this batch once before surfacing a failure.
     generationResult = await generateDraftActions({
-      trainingContent: cohortGenerationContext.training_content,
+      trainingContent: cohortGenerationContext?.training_content ?? "",
       userNotes: job.training_text,
-      businessContext: cohortGenerationContext.business_context,
+      businessContext: cohortGenerationContext?.business_context ?? "",
       focusThemes: job.focus_themes ?? [],
       count,
       avoidTitles,

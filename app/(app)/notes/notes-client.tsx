@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Cloud } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Cloud, Loader2, Sparkles } from "lucide-react";
 import { useEngine } from "@/lib/store";
-import { getMySessionNotes, saveMySessionNotes } from "@/app/actions/session-notes";
+import { getMySessionNotes, refineMySessionNotes, saveMySessionNotes } from "@/app/actions/session-notes";
 import { usePageLoading } from "@/components/PageLoadingProvider";
 import {
   buildUserNotesPayload,
@@ -31,6 +31,7 @@ export default function NotesClient({
   const [error, setError] = useState("");
   const [initializing, setInitializing] = useState(true);
   const [savingPlan, setSavingPlan] = useState(false);
+  const [refining, setRefining] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<string | undefined>();
   const loaded = useRef(false);
@@ -41,6 +42,7 @@ export default function NotesClient({
     const combined = Object.values(answers).join(" ").trim();
     return combined ? combined.split(/\s+/).length : 0;
   }, [answers]);
+  const busy = refining || savingPlan;
 
   usePageLoading(embedded ? false : initializing);
 
@@ -93,6 +95,27 @@ export default function NotesClient({
   const updateAnswer = (field: keyof MyPlanAnswers, value: string) => {
     setAnswers((current) => ({ ...current, [field]: value }));
     setError("");
+  };
+
+  const handleRefine = async () => {
+    if (!hasMyPlanAnswers(answers)) {
+      setError("Add at least one answer before refining with AI.");
+      setStatus("error");
+      return;
+    }
+    setRefining(true);
+    setError("");
+    const result = await refineMySessionNotes(answers, cohort?.id);
+    setRefining(false);
+    if (result.error || !result.answers) {
+      setError(result.error ?? "Failed to refine answers");
+      setStatus("error");
+      return;
+    }
+    skipNextSave.current = true;
+    setAnswers(normaliseMyPlanAnswers(result.answers));
+    onBodyChange?.(result.body ?? buildUserNotesPayload(result.answers));
+    setStatus("saved");
   };
 
   const handleSavePlan = async () => {
@@ -175,9 +198,9 @@ export default function NotesClient({
               <p>This helps us personalize your plan to your role and team.</p>
             </div>
             <div className="my-plan-details-grid">
-              <label><span>Name</span><input value={answers.name} onChange={(event) => updateAnswer("name", event.target.value)} placeholder="Your name" maxLength={200} disabled={savingPlan} /></label>
-              <label><span>Designation</span><input value={answers.designation} onChange={(event) => updateAnswer("designation", event.target.value)} placeholder="e.g. Team Lead" maxLength={200} disabled={savingPlan} /></label>
-              <label><span>Team</span><input value={answers.team} onChange={(event) => updateAnswer("team", event.target.value)} placeholder="e.g. Customer Success" maxLength={200} disabled={savingPlan} /></label>
+              <label><span>Name</span><input value={answers.name} onChange={(event) => updateAnswer("name", event.target.value)} placeholder="Your name" maxLength={200} disabled={busy} /></label>
+              <label><span>Designation</span><input value={answers.designation} onChange={(event) => updateAnswer("designation", event.target.value)} placeholder="e.g. Team Lead" maxLength={200} disabled={busy} /></label>
+              <label><span>Team</span><input value={answers.team} onChange={(event) => updateAnswer("team", event.target.value)} placeholder="e.g. Customer Success" maxLength={200} disabled={busy} /></label>
             </div>
           </div>
 
@@ -186,7 +209,7 @@ export default function NotesClient({
               <strong>1. What kind of work do you do every day?</strong>
               <em>Your role, your team, who you work with most.</em>
             </span>
-            <textarea value={answers.dailyWork} onChange={(event) => updateAnswer("dailyWork", event.target.value)} placeholder="Write your answer here..." rows={3} maxLength={12000} disabled={savingPlan} />
+            <textarea value={answers.dailyWork} onChange={(event) => updateAnswer("dailyWork", event.target.value)} placeholder="Write your answer here..." rows={3} maxLength={12000} disabled={busy} />
           </label>
 
           <label className="my-plan-question">
@@ -194,7 +217,7 @@ export default function NotesClient({
               <strong>2. What skill do you want to build, and why does it matter to you?</strong>
               <em>Be specific, not &quot;communication&quot; but &quot;speaking up without hesitating.&quot; List more than one if you like.</em>
             </span>
-            <textarea value={answers.skillGoal} onChange={(event) => updateAnswer("skillGoal", event.target.value)} placeholder="Write your answer here..." rows={3} maxLength={12000} disabled={savingPlan} />
+            <textarea value={answers.skillGoal} onChange={(event) => updateAnswer("skillGoal", event.target.value)} placeholder="Write your answer here..." rows={3} maxLength={12000} disabled={busy} />
           </label>
 
           <label className="my-plan-question">
@@ -202,7 +225,7 @@ export default function NotesClient({
               <strong>3. Where will you get chances to practice these, regularly, at work?</strong>
               <em>Things that happen often, like meetings or 1:1s.</em>
             </span>
-            <textarea value={answers.practiceOpportunities} onChange={(event) => updateAnswer("practiceOpportunities", event.target.value)} placeholder="Write your answer here..." rows={3} maxLength={12000} disabled={savingPlan} />
+            <textarea value={answers.practiceOpportunities} onChange={(event) => updateAnswer("practiceOpportunities", event.target.value)} placeholder="Write your answer here..." rows={3} maxLength={12000} disabled={busy} />
           </label>
 
           {error && <p className="notes-error">{error}</p>}
@@ -215,9 +238,19 @@ export default function NotesClient({
                   ? "Saving…"
                   : status === "error"
                     ? "Not saved"
-                    : `Saved · ${words} ${words === 1 ? "word" : "words"}`}
+                    : refining
+                      ? "Refining…"
+                      : `Saved · ${words} ${words === 1 ? "word" : "words"}`}
             </span>
-            <button type="button" className="journey-primary-button" disabled={savingPlan || !hasMyPlanAnswers(answers)} onClick={handleSavePlan}>
+            <button
+              type="button"
+              className="journey-secondary-button"
+              disabled={busy || !hasMyPlanAnswers(answers)}
+              onClick={() => void handleRefine()}
+            >
+              {refining ? <><Loader2 size={15} className="plan-order-spinner" /> Refining…</> : <><Sparkles size={15} /> Refine with AI</>}
+            </button>
+            <button type="button" className="journey-primary-button" disabled={busy || !hasMyPlanAnswers(answers)} onClick={() => void handleSavePlan()}>
               {savingPlan ? "Saving…" : "Save my plan"}
             </button>
           </div>

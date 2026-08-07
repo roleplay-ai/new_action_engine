@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, Check, FileText, Play, Search, X } from "lucide-react";
@@ -329,14 +330,17 @@ export default function RcplWorkspace({
           <CohortChat cohortId={cohort.id} memberCount={cohort.memberCount} variant="rcpl" />
 
           <section className="rcpl-card rcpl-buddy-card">
-            <header><h3>Your commitment buddy</h3><button type="button" onClick={() => setBuddyInfoOpen(true)}>How this works</button></header>
+            <header>
+              <h3>Your commitment buddy</h3>
+              <button type="button" onClick={() => setBuddyInfoOpen(true)}>How this works</button>
+            </header>
             <p>Buddies are revealed on My Actions after your personal action plan goes live.</p>
           </section>
 
         </aside>
       </div>
 
-      {agendaModal && (
+      {typeof document !== "undefined" && agendaModal && createPortal(
         <div className="rcpl-agenda-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setAgendaModal(null); }}>
           <section className="rcpl-agenda-modal" role="dialog" aria-modal="true" aria-labelledby="rcpl-agenda-modal-title">
             <header>
@@ -359,23 +363,50 @@ export default function RcplWorkspace({
               <p className="rcpl-agenda-note">Trainer names and room details are sent three days before.</p>
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {buddyInfoOpen && (
+      {typeof document !== "undefined" && buddyInfoOpen && createPortal(
         <div className="rcpl-agenda-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setBuddyInfoOpen(false); }}>
-          <section className="rcpl-agenda-modal rcpl-buddy-modal" role="dialog" aria-modal="true" aria-labelledby="rcpl-buddy-modal-title">
+          <section className="rcpl-buddy-modal" role="dialog" aria-modal="true" aria-labelledby="rcpl-buddy-modal-title">
             <header>
-              <div><small>Accountability</small><h3 id="rcpl-buddy-modal-title">Your commitment buddy</h3><p>Everyone in the cohort is paired with one other person, with one group of three when needed.</p></div>
+              <div>
+                <small>Accountability</small>
+                <h3 id="rcpl-buddy-modal-title">How commitment buddies work</h3>
+                <p>Everyone in the cohort is paired with one other person, with one group of three when needed.</p>
+              </div>
               <button type="button" onClick={() => setBuddyInfoOpen(false)} aria-label="Close commitment buddy explanation"><X size={17} /></button>
             </header>
-            <div className="rcpl-buddy-modal-body">
-              <div><b>1</b><span><strong>Assigned at random</strong><p>Your buddy or group is created within your cohort and revealed after your personal action plan goes live.</p></span></div>
-              <div><b>2</b><span><strong>See overall progress</strong><p>You can see each other&apos;s done, skipped and missed totals, plus points earned and lost. Actions, plans, schedules and reflections stay private.</p></span></div>
-              <div><b>3</b><span><strong>Nudge, do not audit</strong><p>The progress view helps you notice when encouragement or a quick check-in could be useful.</p></span></div>
-            </div>
+            <ol className="rcpl-buddy-modal-body">
+              <li>
+                <b aria-hidden="true">1</b>
+                <span>
+                  <strong>Assigned at random</strong>
+                  <p>Your buddy or group is created within your cohort and revealed after your personal action plan goes live.</p>
+                </span>
+              </li>
+              <li>
+                <b aria-hidden="true">2</b>
+                <span>
+                  <strong>See overall progress</strong>
+                  <p>You can see each other&apos;s done, skipped and missed totals, plus points earned and lost. Actions, plans, schedules and reflections stay private.</p>
+                </span>
+              </li>
+              <li>
+                <b aria-hidden="true">3</b>
+                <span>
+                  <strong>Nudge, do not audit</strong>
+                  <p>Use the progress view to notice when encouragement or a quick check-in could help — not to police the detail of their work.</p>
+                </span>
+              </li>
+            </ol>
+            <footer>
+              <button type="button" onClick={() => setBuddyInfoOpen(false)}>Got it</button>
+            </footer>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

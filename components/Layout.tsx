@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEngine } from "@/lib/store";
@@ -9,18 +9,29 @@ import { LogoutButton } from "@/app/(app)/logout-button";
 import PageLoader from "@/components/PageLoader";
 import { usePageLoadingControls } from "@/components/PageLoadingProvider";
 import { selectMyCohort } from "@/app/actions/cohorts";
+import { getMyCommitmentWallet } from "@/app/actions/commitment-wallet";
 
 interface LayoutProps {
   children: React.ReactNode;
   role: string;
 }
 
+function formatCommitmentScore(value: number) {
+  const clamped = Math.min(100, Math.max(0, value));
+  const rounded = Math.round(clamped * 10) / 10;
+  return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
+}
+
 const Layout: React.FC<LayoutProps> = ({ children, role }) => {
-  const { profile, isLoading, cohort, cohorts, refetch } = useEngine();
+  const { profile, isLoading, cohort, cohorts, refetch, personalPlanState, userActions } = useEngine();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [switchingCohort, setSwitchingCohort] = useState(false);
+  const [commitmentScore, setCommitmentScore] = useState<{
+    hasFinalisedPlan: boolean;
+    score: number;
+  } | null>(null);
   const { contentLoading, pendingHref, beginNavigation } = usePageLoadingControls();
 
   const navItems = useMemo(() => {
@@ -56,6 +67,32 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
     }
     setSwitchingCohort(false);
   }
+
+  const actionProgressKey = useMemo(
+    () =>
+      userActions
+        .map((action) => `${action.id}:${action.status}:${action.completedLate ? 1 : 0}`)
+        .join("|"),
+    [userActions]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void getMyCommitmentWallet().then((result) => {
+      if (cancelled) return;
+      setCommitmentScore({
+        hasFinalisedPlan: result.summary.hasFinalisedPlan,
+        score: result.summary.commitmentScore,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [cohort?.id, personalPlanState, actionProgressKey]);
+
+  const commitmentLabel = commitmentScore?.hasFinalisedPlan
+    ? `${formatCommitmentScore(commitmentScore.score)}%`
+    : "—";
 
   return (
     <div className={`participant-shell participant-shell--sidebar${isRcpl ? " participant-shell--rcpl" : ""}`}>
@@ -125,7 +162,10 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
                 {cohorts.map((option) => <option key={option.id} value={option.id}>{option.name}{option.isCurrent ? " · Current" : " · Earlier"}</option>)}
               </select>
             </label>}
-            <span className="participant-points-pill" title="Action points">{profile.totalPoints}<small>AP</small></span>
+            <Link href="/wallet" className="participant-points-pill" title="Commitment score" onClick={() => beginNavigation("/wallet")}>
+              {commitmentLabel}
+              <small>CS</small>
+            </Link>
             <span className="participant-streak-pill" title="Current streak"><Flame size={15} fill="currentColor" />{profile.streak}</span>
             <img className="participant-topbar-favicon" src="/icon.png" alt="Nudgeable" title="Nudgeable" />
           </div>

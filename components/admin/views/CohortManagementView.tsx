@@ -355,11 +355,11 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
               {role === "superadmin" && (
                 <>
                   <label className="cohort-admin-field">
-                    <span>Training content <em>Required for action generation</em></span>
+                    <span>Training content <em>Optional</em></span>
                     <textarea value={trainingContent} onChange={(event) => setTrainingContent(event.target.value)} placeholder="Session topics, agenda, skills, and learning outcomes" rows={4} />
                   </label>
                   <label className="cohort-admin-field">
-                    <span>Business context <em>Required for action generation</em></span>
+                    <span>Business context <em>Optional</em></span>
                     <textarea value={businessContext} onChange={(event) => setBusinessContext(event.target.value)} placeholder="Company, industry, operating environment, and realistic work situations" rows={4} />
                   </label>
                 </>
@@ -721,19 +721,19 @@ function CohortDetailPanel({
             <div className="cohort-admin-context-form">
               <div className="cohort-admin-notice"><Info size={17} /><p><strong>Used for every participant in this cohort</strong><span>Training content defines the skill. Business context keeps each action realistic for the company and its work.</span></p></div>
               <label className="cohort-admin-field">
-                <span>Training content <em>Required</em></span>
+                <span>Training content <em>Optional</em></span>
                 <textarea value={trainingContent} onChange={(event) => setTrainingContent(event.target.value)} placeholder="Add session topics, agenda, skills, and learning outcomes" rows={8} disabled={Boolean(busyAction)} />
               </label>
               <label className="cohort-admin-field">
-                <span>Business context <em>Required</em></span>
+                <span>Business context <em>Optional</em></span>
                 <textarea value={businessContext} onChange={(event) => setBusinessContext(event.target.value)} placeholder="Add the company, industry, nature of the business, and realistic work situations" rows={8} disabled={Boolean(busyAction)} />
               </label>
               <div className="cohort-admin-context-actions">
-                <span>{trainingContent.trim() && businessContext.trim() ? "Ready for action generation" : "Complete both fields to enable action generation"}</span>
+                <span>{trainingContent.trim() || businessContext.trim() ? "Saved context improves action quality" : "Optional — actions can still generate from participant notes"}</span>
                 <button
                   type="button"
                   onClick={() => void runMutation("save-generation-context", () => updateCohort(cohort.id, { trainingContent, businessContext }))}
-                  disabled={Boolean(busyAction) || !trainingContent.trim() || !businessContext.trim()}
+                  disabled={Boolean(busyAction)}
                   className="cohort-admin-button cohort-admin-button--primary"
                 >
                   {busyAction === "save-generation-context" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}

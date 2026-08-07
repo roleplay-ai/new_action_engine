@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getMyCohort } from "@/app/actions/cohorts";
+import { Type } from "@google/genai";
 import { getGeminiClient, isGeminiConfigured, GEMINI_MODEL } from "@/lib/gemini";
 import {
   buildUserNotesPayload,
@@ -76,17 +77,22 @@ export async function saveMySessionNotes(
   return { updatedAt: data.updated_at };
 }
 
-/** Rewrite session notes into a clearer, well-structured draft without inventing new goals. */
+/** Rewrite My Plan answers into clearer wording without inventing new goals. */
 export async function refineMySessionNotes(
-  body: string,
+  input: string | MyPlanAnswers,
   cohortId?: string | null,
-): Promise<{ body?: string; error?: string }> {
+): Promise<{ body?: string; answers?: MyPlanAnswers; error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
-  const trimmed = body.trim();
-  if (!trimmed) return { error: "Add some notes before refining with AI" };
-  if (trimmed.length > 50000) return { error: "Notes must be shorter than 50,000 characters" };
+
+  const answers = typeof input === "string"
+    ? parseStoredMyPlanAnswers(input)
+    : parseStoredMyPlanAnswers(null, input);
+  const body = buildUserNotesPayload(answers);
+  if (!body.trim()) return { error: "Add some answers before refining with AI" };
+  if (body.length > 50000) return { error: "Notes must be shorter than 50,000 characters" };
+
   const { cohort, error: cohortError } = await getMyCohort();
   if (cohortError) return { error: cohortError };
   if ((cohort?.id ?? null) !== (cohortId ?? null)) return { error: "Select this cohort before editing its notes" };
@@ -96,31 +102,64 @@ export async function refineMySessionNotes(
     const ai = getGeminiClient();
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
-      contents: `You help a learner tidy private session notes that will later guide a workplace action plan.
+      contents: `You help a learner tidy private plan answers that will later guide a workplace action plan.
 
-Rewrite the notes below so they are clearer and more meaningful, while staying faithful to the writer's intent.
+Rewrite the answers below so they are clearer and more meaningful, while staying faithful to the writer's intent.
 
 Rules:
 - Keep the writer's meaning, priorities, and specific details.
-- Do not invent new skills, goals, workplaces, or commitments.
-- Organise into short sections when helpful (for example: Skills I want to build, Why this matters, Where I will apply this).
+- Do not invent new skills, goals, workplaces, teams, or commitments.
 - Fix grammar and spelling lightly; keep a natural first-person voice.
-- Use plain text only: short headings and paragraphs, no markdown bullets or code fences.
-- Return only the rewritten notes, nothing else.
+- Keep name, designation, and team factual — only lightly clean them up if needed.
+- Refine dailyWork, skillGoal, and practiceOpportunities into clearer short paragraphs.
+- Return JSON only matching the schema. No markdown.
 
-Notes:
+Answers:
 """
-${trimmed}
+${body}
 """`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            name: { type: Type.STRING },
+            designation: { type: Type.STRING },
+            team: { type: Type.STRING },
+            dailyWork: { type: Type.STRING },
+            skillGoal: { type: Type.STRING },
+            practiceOpportunities: { type: Type.STRING },
+          },
+          required: ["name", "designation", "team", "dailyWork", "skillGoal", "practiceOpportunities"],
+        },
+      },
     });
 
-    const refined = response.text?.trim();
-    if (!refined) return { error: "AI returned an empty response" };
-    if (refined.length > 50000) return { error: "Refined notes are too long. Try shortening your draft first." };
+    const text = response.text?.trim();
+    if (!text) return { error: "AI returned an empty response" };
+
+    let parsed: Partial<MyPlanAnswers>;
+    try {
+      parsed = JSON.parse(text) as Partial<MyPlanAnswers>;
+    } catch {
+      return { error: "AI returned malformed output" };
+    }
+
+    const refined = parseStoredMyPlanAnswers(null, {
+      name: parsed.name ?? answers.name,
+      designation: parsed.designation ?? answers.designation,
+      team: parsed.team ?? answers.team,
+      dailyWork: parsed.dailyWork ?? answers.dailyWork,
+      skillGoal: parsed.skillGoal ?? answers.skillGoal,
+      practiceOpportunities: parsed.practiceOpportunities ?? answers.practiceOpportunities,
+    });
+    const refinedBody = buildUserNotesPayload(refined);
+    if (!refinedBody.trim()) return { error: "AI returned an empty response" };
+    if (refinedBody.length > 50000) return { error: "Refined answers are too long. Try shortening your draft first." };
 
     const saved = await saveMySessionNotes(refined, cohortId);
     if (saved.error) return { error: saved.error };
-    return { body: refined };
+    return { body: refinedBody, answers: refined };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to refine notes" };
   }

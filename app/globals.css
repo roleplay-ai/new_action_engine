@@ -254,7 +254,8 @@ input[type="range"] {
 .participant-progress-card p { margin: 7px 0 0; color: rgba(255,255,255,.52); font-size: 11px; }
 .participant-progress-track { height: 7px; margin-top: 13px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.12); }
 .participant-progress-track span { display: block; height: 100%; border-radius: inherit; background: var(--bright-amber); }
-.participant-nav { display: grid; gap: 7px; }
+.participant-nav { display: grid; gap: 7px; margin-top: 32px; }
+.rcpl-sidebar-phase-picker + .participant-nav { margin-top: 18px; }
 .participant-nav > a { display: flex; align-items: center; gap: 11px; padding: 10px 11px; border-radius: 13px; color: rgba(255,255,255,.67); font-size: 13px; font-weight: 700; text-decoration: none; transition: .18s ease; }
 .participant-nav > a:hover { color: #fff; background: rgba(255,255,255,.06); }
 .participant-nav > a.active { color: var(--color-text-primary); background: #fff; }
@@ -868,6 +869,7 @@ input[type="range"] {
   font-size: 12px;
   font-weight: 950;
   white-space: nowrap;
+  text-decoration: none;
 }
 .participant-points-pill small { font-size: 9px; }
 .participant-streak-pill { color: #a44800; background: var(--journey-orange-soft); }
@@ -1227,7 +1229,18 @@ input[type="range"] {
 .rcpl-agenda-days li > strong { font-size: 10px; line-height: 1.35; }
 .rcpl-agenda-day-link { display: inline-flex; align-items: center; gap: 5px; margin-top: 3px; color: var(--rcpl-navy-800); font-size: 10px; font-weight: 850; }
 
-.rcpl-agenda-overlay { position: fixed; inset: 0; z-index: 220; display: grid; place-items: center; padding: 20px; background: rgba(12, 31, 63, .52); }
+.rcpl-agenda-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+  background: rgba(12, 31, 63, .58);
+  backdrop-filter: blur(4px);
+}
 .rcpl-agenda-modal { width: min(100%, 640px); max-height: min(88vh, 780px); display: flex; flex-direction: column; overflow: hidden; border-radius: 18px; background: #fff; box-shadow: 0 18px 48px rgba(12, 31, 63, .28); }
 .rcpl-agenda-modal > header { display: grid; grid-template-columns: minmax(0, 1fr) 32px; align-items: start; gap: 14px; padding: 21px 23px 15px; border-bottom: 1px solid var(--rcpl-line); }
 .rcpl-agenda-modal > header small { color: var(--rcpl-gold-deep); font-size: 9px; font-weight: 850; letter-spacing: .15em; text-transform: uppercase; }
@@ -1280,16 +1293,118 @@ input[type="range"] {
 .rcpl-side-rail .journey-chat-composer button span { display: none; }
 
 .rcpl-buddy-card > header { align-items: center; }
-.rcpl-buddy-card > header > button { padding: 0; border: 0; color: var(--rcpl-navy-800); background: transparent; font-size: 9px; font-weight: 850; white-space: nowrap; cursor: pointer; }
-.rcpl-buddy-card > header > button:hover { color: #d03a2c; }
-.rcpl-buddy-card > p { margin: 10px 0 0; color: var(--rcpl-muted); font-size: 10px; }
-.rcpl-buddy-modal { max-width: 470px; }
-.rcpl-buddy-modal-body { display: grid; gap: 0; padding: 16px 23px 22px; }
-.rcpl-buddy-modal-body > div { display: grid; grid-template-columns: 27px minmax(0, 1fr); align-items: start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--rcpl-line); }
-.rcpl-buddy-modal-body > div:last-child { border-bottom: 0; }
-.rcpl-buddy-modal-body > div > b { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; color: var(--rcpl-gold); background: var(--rcpl-navy-900); font-size: 10px; }
-.rcpl-buddy-modal-body span > strong { display: block; font-size: 12px; }
-.rcpl-buddy-modal-body span > p { margin: 3px 0 0; color: var(--rcpl-muted); font-size: 10px; line-height: 1.5; }
+.rcpl-buddy-card > header > button {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border: 1px solid var(--rcpl-line);
+  border-radius: 999px;
+  color: var(--rcpl-navy-800);
+  background: var(--rcpl-paper);
+  font-size: 10px;
+  font-weight: 850;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.rcpl-buddy-card > header > button:hover { border-color: var(--rcpl-gold-deep); color: #d03a2c; background: var(--rcpl-cream); }
+.rcpl-buddy-card > p { margin: 10px 0 0; color: var(--rcpl-muted); font-size: 11px; line-height: 1.45; }
+
+.rcpl-buddy-modal {
+  width: min(100%, 420px);
+  max-height: min(88vh, 640px);
+  display: flex;
+  flex-direction: column;
+  margin: auto;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 22px 60px rgba(12, 31, 63, .32);
+}
+.rcpl-buddy-modal > header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: start;
+  gap: 12px;
+  flex: 0 0 auto;
+  padding: 20px 20px 14px;
+  border-bottom: 1px solid var(--rcpl-line);
+  background: linear-gradient(180deg, var(--rcpl-cream) 0%, #fff 100%);
+}
+.rcpl-buddy-modal > header small {
+  display: block;
+  color: var(--rcpl-gold-deep);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.rcpl-buddy-modal > header h3 { margin: 5px 0 0; color: var(--rcpl-navy-900); font-size: 18px; font-weight: 900; line-height: 1.2; letter-spacing: -.02em; }
+.rcpl-buddy-modal > header p { margin: 7px 0 0; color: var(--rcpl-muted); font-size: 12px; line-height: 1.45; }
+.rcpl-buddy-modal > header > button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--rcpl-navy-900);
+  background: rgba(255, 255, 255, .9);
+  cursor: pointer;
+}
+.rcpl-buddy-modal > header > button:hover { background: #fff; }
+
+.rcpl-buddy-modal-body {
+  display: grid;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 14px 20px;
+  overflow-y: auto;
+  list-style: none;
+}
+.rcpl-buddy-modal-body > li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 11px;
+  padding: 11px 12px;
+  border: 1px solid var(--rcpl-line);
+  border-radius: 12px;
+  background: var(--rcpl-paper);
+}
+.rcpl-buddy-modal-body > li > b {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--rcpl-navy-900);
+  background: var(--rcpl-gold);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+.rcpl-buddy-modal-body span > strong { display: block; color: var(--rcpl-navy-900); font-size: 13px; font-weight: 850; line-height: 1.3; }
+.rcpl-buddy-modal-body span > p { margin: 3px 0 0; color: var(--rcpl-muted); font-size: 11px; line-height: 1.45; }
+
+.rcpl-buddy-modal > footer {
+  flex: 0 0 auto;
+  padding: 0 20px 18px;
+}
+.rcpl-buddy-modal > footer > button {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--rcpl-navy-900);
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+.rcpl-buddy-modal > footer > button:hover { background: var(--rcpl-navy-800); }
 .rcpl-outcomes-card { border-color: var(--rcpl-gold); background: var(--rcpl-cream); }
 .rcpl-outcomes-card > ol { display: grid; margin: 10px 0 0; padding: 0; list-style: none; }
 .rcpl-outcomes-card li { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: start; gap: 9px; padding: 9px 0; border-bottom: 1px solid rgba(231, 185, 77, .32); }
@@ -3295,7 +3410,8 @@ input[type="range"] {
   .participant-shell--sidebar .participant-progress-card p { margin: 7px 0 0; color: rgba(255, 255, 255, .5); font-size: 10px; }
   .participant-shell--sidebar .participant-progress-track { height: 7px; margin-top: 13px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, .12); }
   .participant-shell--sidebar .participant-progress-track span { display: block; height: 100%; border-radius: inherit; background: var(--journey-yellow); }
-  .participant-shell--sidebar .participant-nav { display: grid; gap: 7px; }
+  .participant-shell--sidebar .participant-nav { display: grid; gap: 7px; margin-top: 32px; }
+  .participant-shell--sidebar .rcpl-sidebar-phase-picker + .participant-nav { margin-top: 18px; }
   .participant-shell--sidebar .participant-nav a { min-height: 50px; display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 13px; color: rgba(255, 255, 255, .67); font-size: 12px; font-weight: 800; text-decoration: none; }
   .participant-shell--sidebar .participant-nav a:hover { color: #fff; background: rgba(255, 255, 255, .06); }
   .participant-shell--sidebar .participant-nav a.active { color: var(--journey-ink); background: #fff; }

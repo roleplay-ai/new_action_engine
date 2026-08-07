@@ -10,11 +10,11 @@ import {
 } from "@/app/actions/commitment-wallet";
 
 const MILESTONES = [
-  { percent: 5, label: "Plant a tree", icon: "🌱" },
-  { percent: 10, label: "Sponsor a nutritious meal for a child", icon: "🍲" },
-  { percent: 25, label: "Donate books to a school", icon: "📚" },
-  { percent: 50, label: "Fund learning kits for children", icon: "🎒" },
-  { percent: 75, label: "Support a day of community meals", icon: "❤" },
+  { percent: 5, headline: "A tree gets planted", feeling: "Your team helped nature grow.", icon: "🌱" },
+  { percent: 10, headline: "A child gets a meal", feeling: "Your team helped feed a hungry child.", icon: "🍲" },
+  { percent: 25, headline: "An elder gets a meal", feeling: "Your team helped care for an elder.", icon: "🍱" },
+  { percent: 50, headline: "Someone gets crutches", feeling: "Your team helped a person walk again.", icon: "🩼" },
+  { percent: 75, headline: "A child goes to school", feeling: "Your team is helping a child study for 6 months.", icon: "🏫" },
 ] as const;
 
 function clamp(value: number, min: number, max: number) {
@@ -43,8 +43,8 @@ function PersonalWallet({ summary }: { summary: CommitmentWalletSummary }) {
 
   return (
     <article className="wallet-card wallet-personal-card">
-      <div className="wallet-label">Your commitment</div>
-      <h2>Commitment Score</h2>
+      <div className="wallet-label">Your consistency</div>
+      <h2>Your Commitment Score</h2>
 
       <div className="wallet-gauge-wrap">
         <div
@@ -191,8 +191,8 @@ function TeamWallet({ summary }: { summary: CommitmentWalletSummary }) {
     <article className="wallet-card wallet-team-card">
       <div className="wallet-team-top">
         <div>
-          <div className="wallet-label">Our shared progress</div>
-          <h2>Team Action Bank</h2>
+          <div className="wallet-label">Our shared impact</div>
+          <h2>Cohort Action Bank</h2>
         </div>
         <div className="wallet-team-total">
           <strong>{formatNumber(summary.teamPoints)}</strong>
@@ -241,32 +241,50 @@ function TeamWallet({ summary }: { summary: CommitmentWalletSummary }) {
 }
 
 function WalletMilestones({ summary }: { summary: CommitmentWalletSummary }) {
-  const progress = summary.teamMaximumPoints
-    ? clamp((summary.teamPoints / summary.teamMaximumPoints) * 100, 0, 100)
-    : 0;
+  const milestoneStates = MILESTONES.map((milestone) => {
+    const threshold = milestonePoints(summary.teamMaximumPoints, milestone.percent);
+    return {
+      ...milestone,
+      threshold,
+      done: threshold > 0 && summary.teamPoints >= threshold,
+    };
+  });
+  const nextMilestonePercent = milestoneStates.find((milestone) => !milestone.done && milestone.threshold > 0)?.percent;
 
   return (
     <section className="wallet-milestone-section">
       <div className="wallet-milestone-head">
-        <div><span className="wallet-label">Team impact rewards</span><h3>Every milestone creates a little more good</h3></div>
+        <div>
+          <span className="wallet-label">Team impact rewards</span>
+          <h3>Turn consistent action into real-world good</h3>
+          <p>Every completed action moves your cohort closer to a meaningful reward. Small steps together can create a real difference.</p>
+        </div>
       </div>
 
       <div className="wallet-rewards">
-        <div className="wallet-rewards-track"><span style={{ width: `${progress}%` }} /></div>
-        {MILESTONES.map((milestone) => {
-          const threshold = milestonePoints(summary.teamMaximumPoints, milestone.percent);
-          const done = threshold > 0 && summary.teamPoints >= threshold;
-          const next = threshold > 0 && !done && MILESTONES.every((candidate) => {
-            const candidateThreshold = milestonePoints(summary.teamMaximumPoints, candidate.percent);
-            return candidate.percent >= milestone.percent || summary.teamPoints >= candidateThreshold;
-          });
+        {milestoneStates.map((milestone) => {
+          const next = milestone.percent === nextMilestonePercent;
+          const state = milestone.done ? "unlocked" : next ? "next" : "locked";
+          const progress = next && milestone.threshold > 0
+            ? clamp((summary.teamPoints / milestone.threshold) * 100, 0, 100)
+            : 0;
           return (
-            <div className={`wallet-reward-step ${done ? "done" : ""} ${next ? "next" : ""}`} key={milestone.percent}>
+            <article className={`wallet-reward-step ${state}`} key={milestone.percent}>
               <div className="wallet-reward-dot" aria-hidden="true">{milestone.icon}</div>
-              <strong>{formatNumber(threshold)} · {milestone.percent}%</strong>
-              <span>{milestone.label}</span>
-              {next && <em>NEXT · {formatNumber(Math.max(0, threshold - summary.teamPoints))} TO GO</em>}
-            </div>
+              <div className="wallet-reward-pill">
+                {milestone.done ? `${milestone.percent}% REACHED` : next ? `${milestone.percent}% · NEXT UP` : `${milestone.percent}%`}
+              </div>
+              <strong>{milestone.headline}</strong>
+              <p>{milestone.feeling}</p>
+              <div className="wallet-reward-status">
+                {milestone.done ? "Unlocked" : next ? "In progress" : "Locked"}
+              </div>
+              {next && (
+                <div className="wallet-reward-progress" aria-label={`${formatPercent(progress)} progress toward this milestone`}>
+                  <span style={{ width: `${progress}%` }} />
+                </div>
+              )}
+            </article>
           );
         })}
       </div>
@@ -280,8 +298,9 @@ export default async function WalletPage() {
   return (
     <div className="commitment-wallet-page animate-in fade-in duration-700">
       <header className="wallet-page-heading">
-        <span>Nudgeable · Commitment Wallet</span>
-        <h1>Keep your commitment.<br />Move the team forward.</h1>
+        <span>Commitment Wallet</span>
+        <h1>Keep your promise.<br />Grow your team&apos;s impact.</h1>
+        <p>Stay consistent, build shared Action Points, and unlock meaningful rewards together.</p>
       </header>
 
       {error && <div className="wallet-error" role="alert">The Wallet could not be loaded: {error}</div>}

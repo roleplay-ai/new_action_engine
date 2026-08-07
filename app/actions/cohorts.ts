@@ -75,6 +75,8 @@ export async function getCompanyUsers(companyId: string): Promise<
 export async function createCohort(params: {
   name: string;
   description?: string;
+  trainingContent?: string;
+  businessContext?: string;
   startDate?: string;
   companyId?: string;
 }): Promise<{ error?: string; id?: string }> {
@@ -90,6 +92,8 @@ export async function createCohort(params: {
         created_by: userId,
         name: params.name.trim(),
         description: params.description?.trim() || null,
+        training_content: role === "superadmin" ? params.trainingContent?.trim() || null : null,
+        business_context: role === "superadmin" ? params.businessContext?.trim() || null : null,
         start_date: params.startDate || null,
       })
       .select("id")
@@ -105,7 +109,14 @@ export async function createCohort(params: {
 
 export async function updateCohort(
   id: string,
-  params: { name?: string; description?: string; startDate?: string; logoUrl?: string | null }
+  params: {
+    name?: string;
+    description?: string;
+    trainingContent?: string;
+    businessContext?: string;
+    startDate?: string;
+    logoUrl?: string | null;
+  }
 ): Promise<{ error?: string }> {
   try {
     const { supabase, companyId, role } = await getAdminContext();
@@ -113,11 +124,16 @@ export async function updateCohort(
     if (role === "admin") {
       const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", id).single();
       if (!cohort || cohort.company_id !== companyId) return { error: "Cohort not found or access denied" };
+      if (params.trainingContent !== undefined || params.businessContext !== undefined) {
+        return { error: "Only a superadmin can change action generation context" };
+      }
     }
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (params.name != null) updates.name = params.name.trim();
     if (params.description != null) updates.description = params.description.trim() || null;
+    if (params.trainingContent != null) updates.training_content = params.trainingContent.trim() || null;
+    if (params.businessContext != null) updates.business_context = params.businessContext.trim() || null;
     if (params.startDate != null) updates.start_date = params.startDate || null;
     if (params.logoUrl !== undefined) updates.logo_url = params.logoUrl?.trim() || null;
 
@@ -209,7 +225,7 @@ export async function listCohorts(companyId: string): Promise<{
       supabase.from("companies").select("id, name, logo_url").eq("id", companyId).single(),
       supabase
         .from("cohorts")
-        .select("id, name, description, start_date, logo_url")
+        .select("id, name, description, training_content, business_context, start_date, logo_url")
         .eq("company_id", companyId)
         .is("archived_at", null)
         .order("created_at", { ascending: false }),
@@ -239,10 +255,12 @@ export async function listCohorts(companyId: string): Promise<{
 
     return {
       company: companyBrand,
-      cohorts: cohorts.map((c: { id: string; name: string; description: string | null; start_date: string | null; logo_url: string | null }) => ({
+      cohorts: cohorts.map((c: { id: string; name: string; description: string | null; training_content: string | null; business_context: string | null; start_date: string | null; logo_url: string | null }) => ({
         id: c.id,
         name: c.name,
         description: c.description,
+        trainingContent: c.training_content,
+        businessContext: c.business_context,
         startDate: c.start_date,
         logoUrl: c.logo_url,
         memberCount: memberCounts.get(c.id) ?? 0,
@@ -264,7 +282,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
 
     const { data: cohort } = await supabase
       .from("cohorts")
-      .select("id, name, description, start_date, logo_url, company_id")
+      .select("id, name, description, training_content, business_context, start_date, logo_url, company_id")
       .eq("id", cohortId)
       .single();
     if (!cohort) return { error: "Cohort not found" };
@@ -284,6 +302,8 @@ export async function getCohortDetail(cohortId: string): Promise<{
         id: cohort.id,
         name: cohort.name,
         description: cohort.description,
+        trainingContent: cohort.training_content,
+        businessContext: cohort.business_context,
         startDate: cohort.start_date,
         logoUrl: cohort.logo_url,
         memberCount: members?.length ?? 0,

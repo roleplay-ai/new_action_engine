@@ -1,35 +1,46 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Cloud, Loader2, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Check, Cloud } from "lucide-react";
 import { useEngine } from "@/lib/store";
-import { getMySessionNotes, refineMySessionNotes, saveMySessionNotes } from "@/app/actions/session-notes";
+import { getMySessionNotes, saveMySessionNotes } from "@/app/actions/session-notes";
 import { usePageLoading } from "@/components/PageLoadingProvider";
-
-const prompts = [
-  "What skills do you want to build?",
-  "Why do they matter to you?",
-  "Where would you like to apply them?",
-];
+import {
+  buildUserNotesPayload,
+  EMPTY_MY_PLAN_ANSWERS,
+  hasMyPlanAnswers,
+  normaliseMyPlanAnswers,
+  parseStoredMyPlanAnswers,
+  type MyPlanAnswers,
+} from "@/lib/my-plan-notes";
 
 export default function NotesClient({
   embedded = false,
   onBodyChange,
   onSavePlan,
+  onReviewChange,
 }: {
   embedded?: boolean;
   onBodyChange?: (body: string) => void;
   onSavePlan?: (body: string) => void | Promise<void>;
+  onReviewChange?: (reviewing: boolean) => void;
 }) {
   const { cohort } = useEngine();
-  const [body, setBody] = useState("");
+  const [answers, setAnswers] = useState<MyPlanAnswers>({ ...EMPTY_MY_PLAN_ANSWERS });
   const [status, setStatus] = useState<"loading" | "saved" | "saving" | "error">("loading");
   const [error, setError] = useState("");
   const [initializing, setInitializing] = useState(true);
   const [savingPlan, setSavingPlan] = useState(false);
-  const [refining, setRefining] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<string | undefined>();
   const loaded = useRef(false);
   const skipNextSave = useRef(false);
+
+  const userNotes = useMemo(() => buildUserNotesPayload(answers), [answers]);
+  const words = useMemo(() => {
+    const combined = Object.values(answers).join(" ").trim();
+    return combined ? combined.split(/\s+/).length : 0;
+  }, [answers]);
 
   usePageLoading(embedded ? false : initializing);
 
@@ -41,7 +52,15 @@ export default function NotesClient({
     getMySessionNotes(cohort?.id).then((result) => {
       if (cancelled) return;
       skipNextSave.current = true;
-      setBody(result.body);
+      setAnswers(result.answers
+        ? normaliseMyPlanAnswers(result.answers)
+        : parseStoredMyPlanAnswers(result.body));
+      const hasSavedAnswers = result.answers
+        ? hasMyPlanAnswers(normaliseMyPlanAnswers(result.answers))
+        : Boolean(result.body.trim());
+      setReviewing(hasSavedAnswers);
+      onReviewChange?.(hasSavedAnswers);
+      setUpdatedAt(result.updatedAt);
       setError(result.error ?? "");
       setStatus(result.error ? "error" : "saved");
       loaded.current = true;
@@ -50,7 +69,7 @@ export default function NotesClient({
     return () => {
       cancelled = true;
     };
-  }, [cohort?.id]);
+  }, [cohort?.id, onReviewChange]);
 
   useEffect(() => {
     if (!loaded.current) return;
@@ -60,95 +79,134 @@ export default function NotesClient({
     }
     setStatus("saving");
     const timer = window.setTimeout(async () => {
-      const result = await saveMySessionNotes(body, cohort?.id);
+      const result = await saveMySessionNotes(answers, cohort?.id);
       setError(result.error ?? "");
       setStatus(result.error ? "error" : "saved");
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [body, cohort?.id]);
+  }, [answers, cohort?.id]);
 
   useEffect(() => {
-    if (loaded.current) onBodyChange?.(body);
-  }, [body, onBodyChange]);
+    if (loaded.current) onBodyChange?.(userNotes);
+  }, [userNotes, onBodyChange]);
 
-  const addPrompt = useCallback((prompt: string) => {
-    setBody((current) => `${current}${current.trim() ? "\n\n" : ""}${prompt} `);
-  }, []);
-
-  const handleRefine = async () => {
-    if (!body.trim()) {
-      setError("Add some notes before refining with AI.");
-      setStatus("error");
-      return;
-    }
-    setRefining(true);
+  const updateAnswer = (field: keyof MyPlanAnswers, value: string) => {
+    setAnswers((current) => ({ ...current, [field]: value }));
     setError("");
-    const result = await refineMySessionNotes(body, cohort?.id);
-    setRefining(false);
-    if (result.error || !result.body) {
-      setError(result.error ?? "Failed to refine notes");
-      setStatus("error");
-      return;
-    }
-    skipNextSave.current = true;
-    setBody(result.body);
-    onBodyChange?.(result.body);
-    setStatus("saved");
   };
 
   const handleSavePlan = async () => {
-    if (!body.trim()) {
-      setError("Add your notes before saving your plan.");
+    if (!hasMyPlanAnswers(answers)) {
+      setError("Add at least one answer before saving your plan.");
       setStatus("error");
       return;
     }
     setSavingPlan(true);
     setStatus("saving");
     setError("");
-    const result = await saveMySessionNotes(body, cohort?.id);
+    const result = await saveMySessionNotes(answers, cohort?.id);
     if (result.error) {
       setError(result.error);
       setStatus("error");
       setSavingPlan(false);
       return;
     }
+    setUpdatedAt(result.updatedAt);
     setStatus("saved");
-    onBodyChange?.(body);
-    await onSavePlan?.(body);
+    onBodyChange?.(userNotes);
+    setReviewing(true);
+    onReviewChange?.(true);
     setSavingPlan(false);
   };
 
-  const words = body.trim() ? body.trim().split(/\s+/).length : 0;
-  const busy = refining || savingPlan;
+  const editPlan = () => {
+    setReviewing(false);
+    onReviewChange?.(false);
+  };
+
+  const generateActions = async () => {
+    await onSavePlan?.(userNotes);
+  };
+
+  const savedDate = new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(updatedAt ? new Date(updatedAt) : new Date());
+  const roleLine = [answers.designation.trim(), answers.team.trim()].filter(Boolean).join("  •  ");
+  const workAndSkill = [answers.dailyWork.trim(), answers.skillGoal.trim()].filter(Boolean).join(" ");
 
   if (initializing) return embedded
     ? <section className="unified-plan-section"><div className="journey-card unified-plan-loading" /></section>
     : null;
 
+  if (reviewing) {
+    return (
+      <section className={`journey-page notes-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "notes" : undefined}>
+        {!embedded && <div className="participant-page-heading"><span className="participant-eyebrow">My Plan</span><h1>Your Plan</h1><p>A clean, shareable version of what you wrote.</p></div>}
+        <article className="my-plan-review-card">
+          <header>
+            <span>My Plan</span>
+            <h2>{answers.name.trim() || "Your Plan"}</h2>
+            {roleLine && <p>{roleLine}</p>}
+            <time dateTime={updatedAt}>{savedDate}</time>
+          </header>
+          <div className="my-plan-review-body">
+            {workAndSkill && <p>{workAndSkill}</p>}
+            {answers.practiceOpportunities.trim() && <p>{answers.practiceOpportunities.trim()}</p>}
+          </div>
+          <footer>
+            <button type="button" className="my-plan-edit-button" onClick={editPlan}><ArrowLeft size={15} /> Edit my plan</button>
+            <button type="button" className="journey-primary-button" onClick={() => void generateActions()}>Generate My Actions <ArrowRight size={16} /></button>
+          </footer>
+        </article>
+      </section>
+    );
+  }
+
   return (
     <section className={`journey-page notes-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "notes" : undefined}>
-      {!embedded && <div className="participant-page-heading"><span className="participant-eyebrow">Private workspace</span><h1>My session notes</h1><p>Capture what matters to you. Your notes stay private and can guide your AI action plan.</p></div>}
+      {!embedded && <div className="participant-page-heading"><span className="participant-eyebrow">Private workspace</span><h1>My Plan</h1><p>Answer in your own words. This becomes your personal plan.</p></div>}
       <div className="notes-layout">
-        <section className="journey-card notes-editor-card">
-          <div className="note-prompts" aria-label="Questions to guide your notes">
-            {prompts.map((prompt, index) => (
-              <button className={body.includes(prompt) ? "used" : ""} key={prompt} type="button" onClick={() => addPrompt(prompt)} disabled={busy}>
-                <span>{index + 1}</span>{prompt}
-              </button>
-            ))}
+        <section className="journey-card notes-editor-card my-plan-answer-card">
+          <div className="my-plan-question my-plan-details">
+            <div className="my-plan-question-heading">
+              <h2>Your details</h2>
+              <p>This helps us personalize your plan to your role and team.</p>
+            </div>
+            <div className="my-plan-details-grid">
+              <label><span>Name</span><input value={answers.name} onChange={(event) => updateAnswer("name", event.target.value)} placeholder="Your name" maxLength={200} disabled={savingPlan} /></label>
+              <label><span>Designation</span><input value={answers.designation} onChange={(event) => updateAnswer("designation", event.target.value)} placeholder="e.g. Team Lead" maxLength={200} disabled={savingPlan} /></label>
+              <label><span>Team</span><input value={answers.team} onChange={(event) => updateAnswer("team", event.target.value)} placeholder="e.g. Customer Success" maxLength={200} disabled={savingPlan} /></label>
+            </div>
           </div>
-          <textarea
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            placeholder="Tap a question above to add it here, then write in your own words."
-            aria-label="Session notes"
-            disabled={busy}
-          />
+
+          <label className="my-plan-question">
+            <span className="my-plan-question-heading">
+              <strong>1. What kind of work do you do every day?</strong>
+              <em>Your role, your team, who you work with most.</em>
+            </span>
+            <textarea value={answers.dailyWork} onChange={(event) => updateAnswer("dailyWork", event.target.value)} placeholder="Write your answer here..." rows={3} maxLength={12000} disabled={savingPlan} />
+          </label>
+
+          <label className="my-plan-question">
+            <span className="my-plan-question-heading">
+              <strong>2. What skill do you want to build, and why does it matter to you?</strong>
+              <em>Be specific, not &quot;communication&quot; but &quot;speaking up without hesitating.&quot; List more than one if you like.</em>
+            </span>
+            <textarea value={answers.skillGoal} onChange={(event) => updateAnswer("skillGoal", event.target.value)} placeholder="Write your answer here..." rows={3} maxLength={12000} disabled={savingPlan} />
+          </label>
+
+          <label className="my-plan-question">
+            <span className="my-plan-question-heading">
+              <strong>3. Where will you get chances to practice these, regularly, at work?</strong>
+              <em>Things that happen often, like meetings or 1:1s.</em>
+            </span>
+            <textarea value={answers.practiceOpportunities} onChange={(event) => updateAnswer("practiceOpportunities", event.target.value)} placeholder="Write your answer here..." rows={3} maxLength={12000} disabled={savingPlan} />
+          </label>
+
           {error && <p className="notes-error">{error}</p>}
-          <div className="notes-editor-hint">
-            <span>{words} {words === 1 ? "word" : "words"} · Private to you</span>
-          </div>
-          <div className="notes-editor-actions">
+          <div className="notes-editor-actions my-plan-form-actions">
             <span className={`notes-save-state ${status}`}>
               {status === "saved" ? <Check size={14} /> : <Cloud size={14} />}
               {status === "loading"
@@ -157,22 +215,9 @@ export default function NotesClient({
                   ? "Saving…"
                   : status === "error"
                     ? "Not saved"
-                    : "Saved"}
+                    : `Saved · ${words} ${words === 1 ? "word" : "words"}`}
             </span>
-            <button
-              type="button"
-              className="journey-secondary-button"
-              disabled={busy || !body.trim()}
-              onClick={handleRefine}
-            >
-              {refining ? <><Loader2 size={15} className="plan-order-spinner" /> Refining…</> : <><Sparkles size={15} /> Refine with AI</>}
-            </button>
-            <button
-              type="button"
-              className="journey-primary-button"
-              disabled={busy || !body.trim()}
-              onClick={handleSavePlan}
-            >
+            <button type="button" className="journey-primary-button" disabled={savingPlan || !hasMyPlanAnswers(answers)} onClick={handleSavePlan}>
               {savingPlan ? "Saving…" : "Save my plan"}
             </button>
           </div>

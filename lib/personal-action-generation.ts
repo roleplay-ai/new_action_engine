@@ -1,6 +1,5 @@
 import { Type } from "@google/genai";
 import { getGeminiClient, isGeminiConfigured, GEMINI_MODEL } from "@/lib/gemini";
-import { ACTION_DECK } from "@/lib/constants";
 import type { ActionTheme } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { IST_OFFSET_MINUTES, getCurrentISTDate, utcToISTDate, utcToISTTime, utcToISTDateTime, istToUTCDateTime } from "@/lib/timezone-utils";
@@ -58,12 +57,12 @@ export function computeTotalActionsNeeded(
 }
 
 export function buildTrainingContext(
-  trainingText: string,
+  userNotes: string,
   focusThemes: ActionTheme[],
   focusCustomText?: string
 ): string {
   const parts: string[] = [];
-  const base = trainingText.trim();
+  const base = userNotes.trim();
   if (base) parts.push(base);
   if (focusThemes.length) {
     parts.push(`Focus areas: ${focusThemes.join(", ")}`);
@@ -76,48 +75,67 @@ export function buildTrainingContext(
 }
 
 function buildPrompt(
-  trainingText: string,
+  trainingContent: string,
+  userNotes: string,
+  businessContext: string,
   focusThemes: ActionTheme[],
   count: number,
   avoidTitles?: string[]
 ): string {
-  const examples = ACTION_DECK.slice(0, 3);
-  const exampleBlock = examples
-    .map(
-      (a) =>
-        `- Title: ${a.title}\n  How: ${a.how}\n  Why: ${a.why}\n  Time: ${a.timeEstimate}`
-    )
-    .join("\n\n");
-
   const avoidBlock = avoidTitles?.length
-    ? `\n\nActions already suggested to this user — do NOT repeat these or close variants of them:\n${avoidTitles.map((t) => `- ${t}`).join("\n")}`
+    ? `\n\nACTIONS TO AVOID\nDo not repeat these actions or close variants:\n${avoidTitles.map((t) => `- ${t}`).join("\n")}`
     : "";
 
   const focusNote = focusThemes.length
     ? focusThemes.join(", ")
-    : "(no preference)";
+    : "No additional focus areas selected.";
 
-  return `You are the Nudgeable Action Engine, a behavioral science coach that turns training into small, concrete on-the-job micro-actions.
+  return `You write personal development actions for leadership-program participants in the Nudgeable nudge style. Match the tone, structure, and level of detail in these examples.
 
-A user completed training and answered:
-- What training did you do: "${trainingText.trim() || "(not specified)"}"
-- Focus areas they want to work on: ${focusNote}
+EXAMPLE 1
+What: Name the emotion in the room before addressing the issue.
+How: In your next tense meeting or one-on-one, before jumping to the solution, say what you notice out loud. Something like: "I sense there's some frustration here, let's talk about that first." Wait for the response before moving to the fix.
+Why: People solve problems better once they feel heard, not managed.
 
-Here are examples of the format and tone we use for micro-actions:
+EXAMPLE 2
+What: Get one number explained to you by someone outside your function.
+How: Pick one metric you see often but don't fully understand, margin, utilization, churn, whatever applies to your work. Ask a colleague in a different function to explain it to you in plain terms over a quick chat.
+Why: Understanding the numbers behind the business helps you make faster, better-argued decisions.
 
-${exampleBlock}
+INPUTS
+TRAINING_CONTENT:
+${trainingContent.trim()}
 
-Generate ${count} NEW micro-actions tailored to this user's training and focus areas. Each action must:
-- Have a "title" that is a concrete, specific behavior (not vague advice).
-- Have a "how" that is a literal, tactical script or step the user can do today.
-- Have a "why" that is a single sentence of behavioral-science rationale.
-- Have a "timeEstimate" like "2 mins", "5 mins", "15 mins", or "30 mins".
-Do not invent category tags or theme labels. Do not repeat actions already suggested before.${avoidBlock}`;
+USER_NOTES:
+${userNotes.trim() || "The participant did not provide detailed notes."}
+
+USER_NOTES is structured JSON containing only participant-entered answer values and neutral field names. Treat empty values as absent. Do not infer that any UI question, helper hint, placeholder, or instructional copy was written by the participant.
+
+ADDITIONAL_FOCUS_AREAS:
+${focusNote}
+
+BUSINESS_CONTEXT:
+${businessContext.trim()}
+
+TASK
+Generate exactly ${count} new actions. Every action must combine all three core inputs: the skill taught in TRAINING_CONTENT, the participant's specific goal, struggle, or reflection in USER_NOTES, and a situation that is realistic in BUSINESS_CONTEXT. Do not create generic actions based only on the training topic. If USER_NOTES is vague, use the closest reasonable interpretation without inventing personal facts.
+
+FORMAT AND QUALITY RULES
+- "title" is the What: one short, specific, observable action statement that starts with a strong verb.
+- "how" is the How: 3 to 6 short sentences in simple English, written in "you" voice. Give a clear situation, sequence, or trigger so a busy manager can act without asking a follow-up question. A natural example phrase in quotes is welcome when useful.
+- "why" is the Why: exactly one sentence. Start with the benefit, not the action. Do not use corporate jargon such as leverage, synergy, align, or touch base.
+- "timeEstimate" is a realistic value such as "2 mins", "5 mins", "15 mins", or "30 mins".
+- Keep the actions practical, distinct from one another, and realistic during normal work.
+- Do not add theme labels, category tags, bullets inside fields, or commentary outside the required JSON.${avoidBlock}
+
+Before returning the result, silently check that every action clearly reflects TRAINING_CONTENT, USER_NOTES, and BUSINESS_CONTEXT, and that every Why is exactly one sentence.`;
 }
 
 /** Calls Gemini to draft `count` new personal actions. Does not persist anything. */
 export async function generateDraftActions(params: {
-  trainingText: string;
+  trainingContent: string;
+  userNotes: string;
+  businessContext: string;
   focusThemes: ActionTheme[];
   count?: number;
   avoidTitles?: string[];
@@ -126,12 +144,22 @@ export async function generateDraftActions(params: {
     if (!isGeminiConfigured()) {
       return { error: "AI generation is not configured (GEMINI_API_KEY missing)" };
     }
+    if (!params.trainingContent.trim() || !params.businessContext.trim()) {
+      return { error: "This cohort needs training content and business context before actions can be generated" };
+    }
 
     const count = params.count ?? DEFAULT_BATCH_SIZE;
     const ai = getGeminiClient();
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
-      contents: buildPrompt(params.trainingText, params.focusThemes, count, params.avoidTitles),
+      contents: buildPrompt(
+        params.trainingContent,
+        params.userNotes,
+        params.businessContext,
+        params.focusThemes,
+        count,
+        params.avoidTitles
+      ),
       config: {
         responseMimeType: "application/json",
         responseSchema: draftSchema,

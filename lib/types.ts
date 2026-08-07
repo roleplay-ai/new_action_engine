@@ -88,6 +88,8 @@ export interface Cohort {
   id: string;
   name: string;
   description?: string | null;
+  trainingContent?: string | null;
+  businessContext?: string | null;
   startDate?: string | null;
   memberCount: number;
   logoUrl?: string | null;

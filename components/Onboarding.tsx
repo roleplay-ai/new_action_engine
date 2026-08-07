@@ -44,13 +44,13 @@ const Onboarding: React.FC<{ onComplete: () => void | Promise<void>; initialTrai
 
   const handleFinish = async () => {
     if (!trainingText) {
-      setErrorMsg("Add your session notes first. Your notes are the input for this plan.");
+      setErrorMsg("Answer at least one My Plan question first. Your answers are the personal input for this plan.");
       return;
     }
     setSaving(true);
     setErrorMsg(null);
     const { error } = await saveGeneratedActions({
-      trainingText,
+      userNotes: trainingText,
       focusThemes: [],
       track,
       dailyActionCount: actionCount,
@@ -80,13 +80,13 @@ const Onboarding: React.FC<{ onComplete: () => void | Promise<void>; initialTrai
     <div className={inline ? "plan-setup-inline" : "plan-setup-overlay"}>
       <div className="plan-setup-modal" role={inline ? undefined : "dialog"} aria-modal={inline ? undefined : true} aria-labelledby="plan-setup-title">
         <div className="plan-setup-head">
-          <div><span className="participant-eyebrow">Plan setup</span><h2 id="plan-setup-title">Choose your action pace</h2><p>Your saved notes will shape the actions. You only need to choose the schedule.</p></div>
+          <div><span className="participant-eyebrow">Plan setup</span><h2 id="plan-setup-title">Choose your action pace</h2><p>Your answers will be combined with your cohort&apos;s training and business context. You only need to choose the schedule.</p></div>
           {!inline && <button type="button" onClick={handleSkip} disabled={saving} aria-label="Close plan setup"><X size={19} /></button>}
         </div>
 
         <div className={`plan-notes-source ${trainingText ? "ready" : "missing"}`}>
           <span>{trainingText ? <Check size={20} /> : <NotebookPen size={20} />}</span>
-          <div><strong>{trainingText ? "Your notes are ready" : "Add notes before generating"}</strong><p>{trainingText ? "AI will use the private notes above—there are no extra planning questions." : inline ? "Write in the private notes above, then choose a pace here." : "Close this setup, write your notes, then return here to choose a pace."}</p></div>
+          <div><strong>{trainingText ? "Your answers are ready" : "Answer your plan questions first"}</strong><p>{trainingText ? "AI will combine only your entered answers with the context set for this cohort." : inline ? "Answer the private questions above, then choose a pace here." : "Close this setup, answer your plan questions, then return here to choose a pace."}</p></div>
         </div>
 
         <div className="plan-setup-field">
@@ -109,7 +109,7 @@ const Onboarding: React.FC<{ onComplete: () => void | Promise<void>; initialTrai
 
         <div className="plan-email-note"><Mail size={18} /><div><strong>Email reminders included</strong><p>We&apos;ll email you on {track === "weekly" ? "your selected day" : "weekdays"} when the next action is ready.</p></div></div>
 
-        <div className="plan-setup-summary"><div><strong>{cadenceSummary}</strong><small>AI will generate the complete plan from your notes.</small></div><b>{totalActions} actions</b></div>
+        <div className="plan-setup-summary"><div><strong>{cadenceSummary}</strong><small>AI will generate the complete plan from your answers and cohort context.</small></div><b>{totalActions} actions</b></div>
 
         {planWarning && <p className="plan-setup-warning">{planWarning}</p>}
         {errorMsg && <p className="plan-setup-error">{errorMsg}</p>}

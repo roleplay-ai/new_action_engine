@@ -4920,34 +4920,39 @@ textarea.commitment-buddy-contact-selectable { min-height: 112px; resize: vertic
 .actions-reminder-subject { display: grid; gap: 2px; margin: 9px 0 7px; padding: 7px 9px; border: 1px solid rgba(34, 29, 35, .07); border-radius: 10px; background: rgba(255, 255, 255, .78); }
 .actions-reminder-subject span { color: #8b817e; font-size: 7px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
 .actions-reminder-subject strong { overflow: hidden; color: var(--journey-ink); font-size: 9px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
-.actions-reminder-email { overflow: hidden; border: 1px solid #eadfba; border-radius: 16px; background: #fff; box-shadow: 0 8px 18px rgba(34, 29, 35, .08); }
-.actions-reminder-email-brand { min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 11px; color: var(--journey-ink); background: var(--journey-yellow); }
-.actions-reminder-email-brand b { font-size: 11px; letter-spacing: -.02em; }
-.actions-reminder-email-brand span { font-size: 6px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.actions-reminder-email { overflow: hidden; border-top: 2px solid var(--journey-yellow); border-radius: 16px; background: #fff; box-shadow: 0 8px 18px rgba(34, 29, 35, .08); }
 .actions-reminder-email-hero { padding: 12px; color: #fff; background: #221d23; }
-.actions-reminder-email-hero > span { color: var(--journey-yellow); font-size: 7px; font-weight: 950; letter-spacing: .14em; text-transform: uppercase; }
-.actions-reminder-email-hero h4 { margin: 5px 0 6px; color: #fff; font-size: 17px; line-height: 1.03; letter-spacing: -.045em; }
+.actions-reminder-email-hero > span { display: inline-block; padding: 3px 6px; border: 1px solid #5c4f0c; border-radius: 10px; color: var(--journey-yellow); font-size: 6px; font-weight: 950; letter-spacing: .12em; text-transform: uppercase; }
+.actions-reminder-email-hero h4 { margin: 6px 0 6px; color: #fff; font-size: 16px; line-height: 1.06; letter-spacing: -.04em; }
 .actions-reminder-email-hero h4 strong { display: block; color: var(--journey-yellow); }
 .actions-reminder-email-hero p { margin: 0; color: #d8d1d6; font-size: 8px; line-height: 1.5; }
-.actions-reminder-email-hero p b { color: #fff; }
 .actions-reminder-email-body { padding: 10px; background: #fffdf7; }
-.actions-reminder-email-schedule { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; padding: 7px 8px; border-radius: 9px; color: #725c00; background: #fff3bd; }
-.actions-reminder-email-schedule svg { flex: 0 0 auto; }
-.actions-reminder-email-schedule span { min-width: 0; }
-.actions-reminder-email-schedule small, .actions-reminder-email-schedule strong { display: block; }
-.actions-reminder-email-schedule small { font-size: 6px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
-.actions-reminder-email-schedule strong { margin-top: 1px; overflow: hidden; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
-.actions-reminder-email-action { display: grid; grid-template-columns: 23px minmax(0, 1fr); gap: 8px; padding: 8px; border: 1px solid #ece7d8; border-radius: 10px; background: #fff; }
-.actions-reminder-email-action > i { width: 23px; height: 23px; display: grid; place-items: center; border-radius: 7px; color: #765e00; background: var(--journey-yellow); font-size: 7px; font-style: normal; font-weight: 950; }
-.actions-reminder-email-action > div { min-width: 0; }
-.actions-reminder-email-action strong { display: -webkit-box; overflow: hidden; color: var(--journey-ink); font-size: 9px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.actions-reminder-email-action p { display: -webkit-box; overflow: hidden; margin: 3px 0 5px; color: #6f676d; font-size: 7px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.actions-reminder-email-action small { display: flex; align-items: center; gap: 4px; color: #8a807f; font-size: 7px; font-weight: 850; }
-.actions-reminder-email-button { min-height: 28px; display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 8px; border-radius: 8px; color: var(--journey-ink); background: var(--journey-yellow); font-size: 8px; font-weight: 950; box-shadow: 0 4px 10px rgba(201, 160, 0, .18); }
-.actions-reminder-email-button b { font-size: 11px; }
-.actions-reminder-email-note { display: block; margin-top: 6px; color: #978f90; font-size: 6px; text-align: center; }
-.actions-reminder-email-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 10px; color: #8b8387; background: #fff; font-size: 6px; }
-.actions-reminder-email-footer b { color: var(--journey-ink); font-size: 8px; }
+.actions-reminder-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-bottom: 8px; }
+.actions-reminder-metric { min-width: 0; padding: 7px 6px; border: 1px solid #f0dfa8; border-radius: 9px; background: #fff8d9; }
+.actions-reminder-metric--buddy { border-color: #ddd2ff; background: #f1ecff; }
+.actions-reminder-metric--rank { border-color: #cde7ff; background: #eaf5ff; }
+.actions-reminder-metric i { width: 15px; height: 15px; display: grid; place-items: center; margin-bottom: 4px; border-radius: 8px; background: var(--journey-yellow); color: var(--journey-ink); font-size: 8px; font-style: normal; }
+.actions-reminder-metric--buddy i { background: #f68a29; }
+.actions-reminder-metric--rank i { background: #3696fc; color: #fff; }
+.actions-reminder-metric strong { display: block; overflow: hidden; color: var(--journey-ink); font-size: 12px; font-weight: 900; letter-spacing: -.03em; text-overflow: ellipsis; white-space: nowrap; }
+.actions-reminder-metric strong em { font-size: 7px; font-weight: 700; font-style: normal; color: #716a70; }
+.actions-reminder-metric span { display: block; margin-top: 4px; overflow: hidden; color: var(--journey-ink); font-size: 6px; font-weight: 850; letter-spacing: .03em; text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap; }
+.actions-reminder-email-section-label { margin: 0 0 6px; color: var(--journey-ink); font-size: 9px; font-weight: 900; }
+.actions-reminder-email-action { display: grid; grid-template-columns: 23px minmax(0, 1fr); align-items: center; gap: 8px; padding: 8px; margin-bottom: 6px; border: 1px solid #ece7d8; border-radius: 10px; background: #fff; }
+.actions-reminder-email-action > i { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 7px; color: var(--journey-ink); background: var(--journey-yellow); font-size: 9px; font-style: normal; font-weight: 950; }
+.actions-reminder-email-action strong { display: -webkit-box; overflow: hidden; color: var(--journey-ink); font-size: 9px; font-weight: 650; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.actions-reminder-email-tip { margin-bottom: 8px; padding: 7px 8px; border-radius: 8px; color: #4f484d; background: #fff8d9; font-size: 7px; line-height: 1.4; }
+.actions-reminder-email-tip strong { color: var(--journey-ink); }
+.actions-reminder-email-button { min-height: 26px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; border: 1.5px solid var(--journey-ink); border-radius: 7px; color: var(--journey-ink); background: var(--journey-yellow); font-size: 7px; font-weight: 950; letter-spacing: .04em; text-transform: uppercase; box-shadow: 2px 2px 0 var(--journey-ink); }
+.actions-reminder-email-reward { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 11px; background: #221d23; }
+.actions-reminder-email-reward > i { width: 30px; height: 30px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 9px; background: var(--journey-yellow); font-size: 14px; font-style: normal; }
+.actions-reminder-email-reward > div { min-width: 0; color: #fff; }
+.actions-reminder-email-reward small { display: block; color: var(--journey-yellow); font-size: 6px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+.actions-reminder-email-reward strong { display: block; margin-top: 2px; overflow: hidden; font-size: 10px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.actions-reminder-email-reward-bar { height: 4px; margin-top: 6px; border-radius: 4px; overflow: hidden; background: #474046; }
+.actions-reminder-email-reward-bar > span { display: block; height: 100%; border-radius: inherit; background: #23ce68; }
+.actions-reminder-email-footer { padding: 7px 10px; color: #8b8387; background: #fff; font-size: 6px; text-align: center; }
+.actions-reminder-email-footer b { color: var(--journey-ink); }
 .actions-reminder-preview-note { display: flex; align-items: center; justify-content: center; gap: 5px; margin: 7px 0 0; color: #7f767a; font-size: 7px; font-weight: 800; }
 .actions-reminder-preview-note > span { width: 5px; height: 5px; border-radius: 50%; background: #42b883; box-shadow: 0 0 0 3px rgba(66, 184, 131, .12); }
 

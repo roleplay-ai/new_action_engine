@@ -8,14 +8,7 @@ import {
   getMyCommitmentWallet,
   type CommitmentWalletSummary,
 } from "@/app/actions/commitment-wallet";
-
-const MILESTONES = [
-  { percent: 5, headline: "A tree gets planted", feeling: "Your team helped nature grow.", icon: "🌱" },
-  { percent: 10, headline: "A child gets a meal", feeling: "Your team helped feed a hungry child.", icon: "🍲" },
-  { percent: 25, headline: "An elder gets a meal", feeling: "Your team helped care for an elder.", icon: "🍱" },
-  { percent: 50, headline: "Someone gets crutches", feeling: "Your team helped a person walk again.", icon: "🩼" },
-  { percent: 75, headline: "A child goes to school", feeling: "Your team is helping a child study for 6 months.", icon: "🏫" },
-] as const;
+import { MILESTONES, milestonePoints } from "@/lib/commitment-wallet-milestones";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -28,11 +21,6 @@ function formatNumber(value: number) {
 /** Displays as a whole number; the underlying values keep decimal precision in calculations. */
 function formatPercent(value: number) {
   return `${Math.round(value)}%`;
-}
-
-function milestonePoints(maximum: number, percent: number) {
-  if (maximum <= 0) return 0;
-  return Math.min(maximum, Math.ceil((maximum * percent) / 100 / 50) * 50);
 }
 
 function PersonalWallet({ summary }: { summary: CommitmentWalletSummary }) {

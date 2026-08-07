@@ -8,6 +8,7 @@ import { getPointsForEvent } from "@/lib/points";
 import { isResendConfigured, resend } from "@/lib/resend";
 import { renderEmailTemplate } from "@/lib/email-templates";
 import { buildMeetingInviteIcs } from "@/lib/ics-invite";
+import { buildFromHeader } from "@/lib/email-send";
 
 function toGoogleCalendarTemplateUrl(params: {
   text: string;
@@ -185,6 +186,23 @@ export async function scheduleAction(params: {
         companyName = (company as any)?.name ?? null;
       }
 
+      let senderName = "Nudgeable";
+      if (actionRow.cohort_id) {
+        const { data: cohortRow } = await supabase
+          .from("cohorts")
+          .select("trainer_id")
+          .eq("id", actionRow.cohort_id)
+          .maybeSingle();
+        if (cohortRow?.trainer_id) {
+          const { data: trainerRow } = await supabase
+            .from("trainers")
+            .select("name")
+            .eq("id", cohortRow.trainer_id)
+            .maybeSingle();
+          if (trainerRow?.name) senderName = trainerRow.name;
+        }
+      }
+
       const ics = buildMeetingInviteIcs({
         uid: `${randomUUID()}@nudgeable.ai`,
         organizerEmail: fromEmail,
@@ -207,7 +225,7 @@ export async function scheduleAction(params: {
 
       const { error: sendError } = await resend.emails.send({
         to: user.email,
-        from: `Nudgeable <${fromEmail}>`,
+        from: buildFromHeader(fromEmail, senderName),
         subject,
         html,
         attachments: [

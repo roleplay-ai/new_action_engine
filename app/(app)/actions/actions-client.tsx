@@ -15,6 +15,7 @@ import {
   type CommitmentBuddyTrack,
 } from "@/app/actions/commitment-buddies";
 import { getMyCommitmentWallet } from "@/app/actions/commitment-wallet";
+import { nextMilestoneFor, milestonePoints } from "@/lib/commitment-wallet-milestones";
 import { usePageLoading } from "@/components/PageLoadingProvider";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
 
@@ -242,21 +243,39 @@ type ReminderPreviewAction = {
 
 function ReminderEmailPreview({
   firstName,
-  cohortName,
   action,
-  schedule,
+  hasFinalisedPlan,
+  commitmentScore,
+  buddyName,
+  buddyScore,
+  teamRank,
+  teamSize,
+  teamPoints,
+  teamMaximumPoints,
 }: {
   firstName: string;
-  cohortName: string;
   action: ReminderPreviewAction;
-  schedule: string;
+  hasFinalisedPlan: boolean;
+  commitmentScore: number | null;
+  buddyName: string | null;
+  buddyScore: number | null;
+  teamRank: number | null;
+  teamSize: number | null;
+  teamPoints: number;
+  teamMaximumPoints: number;
 }) {
+  const nextMilestone = nextMilestoneFor(teamPoints, teamMaximumPoints);
+  const milestoneThreshold = nextMilestone ? milestonePoints(teamMaximumPoints, nextMilestone.percent) : 0;
+  const milestoneProgress = milestoneThreshold > 0
+    ? Math.min(100, Math.max(0, Math.round((teamPoints / milestoneThreshold) * 100)))
+    : 0;
+
   return <section className="actions-reminder-preview" aria-label="Sample action reminder email">
     <div className="actions-reminder-preview-head">
       <div>
         <span>Sample email preview</span>
         <h3>Your reminder email</h3>
-        <p>See how your next workplace action will arrive.</p>
+        <p>See how your next action reminder will arrive.</p>
       </div>
       <i aria-hidden="true"><Mail size={17} /></i>
     </div>
@@ -267,26 +286,58 @@ function ReminderEmailPreview({
     </div>
 
     <div className="actions-reminder-email">
-      <div className="actions-reminder-email-brand"><b>nudgeable</b><span>action reminder</span></div>
       <div className="actions-reminder-email-hero">
-        <span>Your next nudge</span>
-        <h4>Small action.<strong>Real momentum.</strong></h4>
-        <p>Hey {firstName}, one action from <b>{cohortName}</b> is ready when you are.</p>
+        <span>Your action reminder</span>
+        <h4>Your next actions<strong>are ready.</strong></h4>
+        <p>Hey {firstName}, your next actions are ready when you are.</p>
       </div>
       <div className="actions-reminder-email-body">
-        <div className="actions-reminder-email-schedule"><CalendarDays size={13} /><span><small>Your reminder</small><strong>{schedule}</strong></span></div>
-        <article className="actions-reminder-email-action">
-          <i>01</i>
-          <div>
-            <strong>{action.title}</strong>
-            <p>{action.how}</p>
-            <small><Clock3 size={12} />{action.timeEstimate}</small>
+        <div className="actions-reminder-metrics">
+          <div className="actions-reminder-metric">
+            <i aria-hidden="true">&#10003;</i>
+            <strong>{hasFinalisedPlan && commitmentScore !== null ? `${formatCommitmentScore(commitmentScore)}%` : "—"}</strong>
+            <span>Your Commitment Score</span>
           </div>
+          <div className="actions-reminder-metric actions-reminder-metric--buddy">
+            <i aria-hidden="true">&#8596;</i>
+            <strong>{buddyName && buddyScore !== null ? `${formatCommitmentScore(buddyScore)}%` : "—"}</strong>
+            <span>{buddyName ? `${buddyName} · Your Buddy` : "No buddy yet"}</span>
+          </div>
+          <div className="actions-reminder-metric actions-reminder-metric--rank">
+            <i aria-hidden="true">&#9733;</i>
+            <strong>{teamRank !== null && teamSize !== null ? <>{teamRank}<em> / {teamSize}</em></> : "—"}</strong>
+            <span>Team Contribution Rank</span>
+          </div>
+        </div>
+
+        <p className="actions-reminder-email-section-label">Your actions</p>
+        <article className="actions-reminder-email-action">
+          <i aria-hidden="true">→</i>
+          <strong>{action.title}</strong>
         </article>
-        <span className="actions-reminder-email-button">Open Action Engine <b aria-hidden="true">→</b></span>
-        <small className="actions-reminder-email-note">Secure one-click sign in. No password needed.</small>
+
+        <div className="actions-reminder-email-tip"><strong>Done an action?</strong> Open My Actions and mark it complete in one click to update your Commitment Score and add points to your team.</div>
+
+        <span className="actions-reminder-email-button">Open My Actions</span>
+
+        <div className="actions-reminder-email-reward">
+          <i aria-hidden="true">{nextMilestone ? nextMilestone.icon : teamMaximumPoints === 0 ? "⏳" : "🎉"}</i>
+          <div>
+            {teamMaximumPoints === 0 ? (
+              <strong>Waiting for finalised plans</strong>
+            ) : nextMilestone ? (
+              <>
+                <small>Next team reward</small>
+                <strong>{nextMilestone.headline}</strong>
+                <div className="actions-reminder-email-reward-bar"><span style={{ width: `${milestoneProgress}%` }} /></div>
+              </>
+            ) : (
+              <strong>Every current reward unlocked!</strong>
+            )}
+          </div>
+        </div>
       </div>
-      <div className="actions-reminder-email-footer"><b>nudgeable</b><span>Turn learning into action, one nudge at a time.</span></div>
+      <div className="actions-reminder-email-footer">Powered by <b>Nudgeable.ai</b></div>
     </div>
 
     <p className="actions-reminder-preview-note"><span aria-hidden="true" /> Preview only · no email has been sent.</p>
@@ -316,6 +367,10 @@ export default function ActionsClient() {
   const [commitmentScore, setCommitmentScore] = useState<{
     hasFinalisedPlan: boolean;
     score: number;
+    contributionRank: number;
+    teamMemberCount: number;
+    teamPoints: number;
+    teamMaximumPoints: number;
   } | null>(null);
 
   usePageLoading(!ready);
@@ -346,6 +401,10 @@ export default function ActionsClient() {
         setCommitmentScore({
           hasFinalisedPlan: walletResult.value.summary.hasFinalisedPlan,
           score: walletResult.value.summary.commitmentScore,
+          contributionRank: walletResult.value.summary.contributionRank,
+          teamMemberCount: walletResult.value.summary.teamMemberCount,
+          teamPoints: walletResult.value.summary.teamPoints,
+          teamMaximumPoints: walletResult.value.summary.teamMaximumPoints,
         });
       } else {
         setCommitmentScore(null);
@@ -391,9 +450,6 @@ export default function ActionsClient() {
     timeEstimate: "10 minutes",
   };
   const reminderFirstName = profile.name.trim().split(/\s+/)[0] || "there";
-  const reminderSchedule = settings
-    ? `${settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}${formatTime(settings.reminderTime)}`
-    : "Based on your plan schedule";
 
   async function finish(success: boolean) {
     if (!completingId) return;
@@ -567,9 +623,15 @@ export default function ActionsClient() {
           <CommitmentBuddyCard group={buddyGroup} onContact={setContactBuddy} />
           <ReminderEmailPreview
             firstName={reminderFirstName}
-            cohortName={cohort?.name ?? "your cohort"}
             action={reminderAction}
-            schedule={reminderSchedule}
+            hasFinalisedPlan={commitmentScore?.hasFinalisedPlan ?? false}
+            commitmentScore={commitmentScore?.score ?? null}
+            buddyName={buddyGroup?.buddies[0]?.name ?? null}
+            buddyScore={buddyGroup?.buddies[0]?.currentScore ?? null}
+            teamRank={commitmentScore?.contributionRank ?? null}
+            teamSize={commitmentScore?.teamMemberCount ?? null}
+            teamPoints={commitmentScore?.teamPoints ?? 0}
+            teamMaximumPoints={commitmentScore?.teamMaximumPoints ?? 0}
           />
         </aside>
       )}

@@ -48,6 +48,37 @@ type ReminderAction = {
   planOrder: number | null;
 };
 
+export type WalletEmailSummary = {
+  hasFinalisedPlan?: boolean;
+  currentScore?: number | null;
+  teamPoints?: number;
+  teamMaximumPoints?: number;
+  contributionRank?: number | null;
+  teamMemberCount?: number;
+  buddyName?: string | null;
+  buddyScore?: number | null;
+};
+
+/** Live score/rank/buddy data for the reminder email — see get_commitment_wallet_email_summary. */
+export async function fetchWalletEmailSummary(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  cohortId: string
+): Promise<WalletEmailSummary | null> {
+  const { data, error } = await admin.rpc("get_commitment_wallet_email_summary", {
+    p_user_id: userId,
+    p_cohort_id: cohortId,
+  });
+  if (error) {
+    console.error("[action-reminders] failed to load wallet summary for email", {
+      userId,
+      error: error.message,
+    });
+    return null;
+  }
+  return data as unknown as WalletEmailSummary;
+}
+
 const WEEKDAYS = [
   "Sunday",
   "Monday",
@@ -251,6 +282,10 @@ export async function sendDailyActionReminders(
     loginPath: "/actions",
     getPerUserTemplateData: async (userId) => {
       const item = claimedByUser.get(userId);
+      const walletSummary: WalletEmailSummary | null = item
+        ? await fetchWalletEmailSummary(admin, userId, item.sub.cohort_id)
+        : null;
+
       return {
         cohort_name: item?.cohortName,
         reminder_schedule: item
@@ -262,6 +297,14 @@ export async function sendDailyActionReminders(
           how: action.how,
           timeEstimate: action.timeEstimate,
         })),
+        has_finalised_plan: walletSummary?.hasFinalisedPlan ?? false,
+        commitment_score: walletSummary?.currentScore ?? null,
+        team_points: walletSummary?.teamPoints ?? 0,
+        team_maximum_points: walletSummary?.teamMaximumPoints ?? 0,
+        team_rank: walletSummary?.contributionRank ?? null,
+        team_size: walletSummary?.teamMemberCount ?? null,
+        buddy_name: walletSummary?.buddyName ?? null,
+        buddy_score: walletSummary?.buddyScore ?? null,
       };
     },
   });

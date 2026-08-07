@@ -3,14 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
+export type CommitmentBuddyTrack = "daily" | "weekly" | null;
+
 export type CommitmentBuddyProgress = {
   id: string;
   name: string;
-  done: number;
-  skipped: number;
-  missed: number;
-  pointsEarned: number;
-  pointsLost: number;
+  email: string | null;
+  track: CommitmentBuddyTrack;
+  hasFinalisedPlan: boolean;
+  plannedActions: number;
+  /** Live Commitment Score (0-100), null when the buddy has no finalised plan yet. */
+  currentScore: number | null;
+  /** Score as of the previous period: yesterday for daily, last week for weekly. Null before any snapshot exists for that date. */
+  previousScore: number | null;
 };
 
 export type CommitmentBuddyGroup = {
@@ -32,6 +37,16 @@ function asNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function asNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function asTrack(value: unknown): CommitmentBuddyTrack {
+  return value === "daily" || value === "weekly" ? value : null;
+}
+
 function mapBuddyGroup(value: unknown): CommitmentBuddyGroup {
   if (!value || typeof value !== "object") return EMPTY_GROUP;
   const row = value as Record<string, unknown>;
@@ -43,11 +58,12 @@ function mapBuddyGroup(value: unknown): CommitmentBuddyGroup {
         return [{
           id: buddy.id,
           name: typeof buddy.name === "string" && buddy.name.trim() ? buddy.name.trim() : "Cohort member",
-          done: asNumber(buddy.done),
-          skipped: asNumber(buddy.skipped),
-          missed: asNumber(buddy.missed),
-          pointsEarned: asNumber(buddy.pointsEarned),
-          pointsLost: asNumber(buddy.pointsLost),
+          email: typeof buddy.email === "string" && buddy.email.trim() ? buddy.email.trim() : null,
+          track: asTrack(buddy.track),
+          hasFinalisedPlan: buddy.hasFinalisedPlan === true,
+          plannedActions: asNumber(buddy.plannedActions),
+          currentScore: asNullableNumber(buddy.currentScore),
+          previousScore: asNullableNumber(buddy.previousScore),
         }];
       })
     : [];

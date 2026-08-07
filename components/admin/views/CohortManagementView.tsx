@@ -12,12 +12,14 @@ import {
   Info,
   ImagePlus,
   Loader2,
+  MessageSquareText,
   NotebookPen,
   Plus,
   RefreshCw,
   Search,
   Trash2,
   UserPlus,
+  UserRound,
   Users,
   X,
 } from "lucide-react";
@@ -38,7 +40,9 @@ import {
   listCohortContent,
   removeContentFromCohort,
 } from "@/app/actions/prepare-content";
-import type { CompanyBrand, PrepareContentItem } from "@/lib/types";
+import { listTrainers } from "@/app/actions/trainers";
+import { getTrainerExpectationsForCohort } from "@/app/actions/trainer-expectations";
+import type { CompanyBrand, PrepareContentItem, Trainer, TrainerExpectation } from "@/lib/types";
 
 interface CohortManagementViewProps {
   companyId: string | null;
@@ -55,6 +59,8 @@ type CohortSummary = {
   memberCount: number;
   contentCount: number;
   logoUrl?: string | null;
+  trainerId?: string | null;
+  trainer?: Trainer | null;
 };
 
 type CompanyUser = { id: string; full_name: string | null };
@@ -394,7 +400,7 @@ function CohortDetailPanel({
   role: string;
   onChange: () => Promise<void> | void;
 }) {
-  const [tab, setTab] = useState<"members" | "content" | "generation">("members");
+  const [tab, setTab] = useState<"members" | "content" | "generation" | "trainer">("members");
   const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
   const [memberIds, setMemberIds] = useState<Set<string>>(new Set());
   const [libraryItems, setLibraryItems] = useState<PrepareContentItem[]>([]);
@@ -405,6 +411,10 @@ function CohortDetailPanel({
   const [contentQuery, setContentQuery] = useState("");
   const [trainingContent, setTrainingContent] = useState(cohort.trainingContent ?? "");
   const [businessContext, setBusinessContext] = useState(cohort.businessContext ?? "");
+  const [trainerRoster, setTrainerRoster] = useState<Trainer[]>([]);
+  const [selectedTrainerId, setSelectedTrainerId] = useState<string>(cohort.trainerId ?? "");
+  const [expectations, setExpectations] = useState<TrainerExpectation[]>([]);
+  const [answeredMembers, setAnsweredMembers] = useState(0);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -413,24 +423,30 @@ function CohortDetailPanel({
     setLoading(true);
     setError(null);
     try {
-      const [detailResult, usersResult, contentResult, libraryResult] = await Promise.all([
+      const [detailResult, usersResult, contentResult, libraryResult, trainersResult, expectationsResult] = await Promise.all([
         getCohortDetail(cohort.id),
         getCompanyUsers(companyId),
         listCohortContent(cohort.id),
         listActiveLibraryItems(),
+        role === "superadmin" ? listTrainers() : Promise.resolve({ trainers: [] as Trainer[], error: undefined as string | undefined }),
+        getTrainerExpectationsForCohort(cohort.id),
       ]);
-      const firstError = detailResult.error || usersResult.error || contentResult.error || libraryResult.error;
+      const firstError = detailResult.error || usersResult.error || contentResult.error || libraryResult.error || trainersResult.error || expectationsResult.error;
       if (firstError) setError(firstError);
       setMemberIds(new Set((detailResult.members ?? []).map((member) => member.id)));
       setCompanyUsers(usersResult.users ?? []);
       setAssignedContentIds(new Set((contentResult.items ?? []).map((item) => item.id)));
       setLibraryItems(libraryResult.items ?? []);
+      setTrainerRoster(trainersResult.trainers ?? []);
+      setSelectedTrainerId(detailResult.cohort?.trainerId ?? "");
+      setExpectations(expectationsResult.expectations ?? []);
+      setAnsweredMembers(expectationsResult.answeredMembers ?? 0);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load cohort details");
     } finally {
       setLoading(false);
     }
-  }, [cohort.id, companyId]);
+  }, [cohort.id, companyId, role]);
 
   useEffect(() => {
     void refresh();
@@ -514,6 +530,10 @@ function CohortDetailPanel({
     });
   }
 
+  async function handleAssignTrainer() {
+    await runMutation("assign-trainer", () => updateCohort(cohort.id, { trainerId: selectedTrainerId || null }));
+  }
+
   async function handleDeleteCohort() {
     if (
       !window.confirm(
@@ -577,6 +597,9 @@ function CohortDetailPanel({
         </button>
         <button type="button" role="tab" aria-selected={tab === "content"} onClick={() => setTab("content")} className={tab === "content" ? "is-active" : ""}>
           <BookOpen size={16} /> Learning content <span>{assignedItems.length}</span>
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "trainer"} onClick={() => setTab("trainer")} className={tab === "trainer" ? "is-active" : ""}>
+          <UserRound size={16} /> Trainer <span>{expectations.length}</span>
         </button>
         {role === "superadmin" && (
           <button type="button" role="tab" aria-selected={tab === "generation"} onClick={() => setTab("generation")} className={tab === "generation" ? "is-active" : ""}>
@@ -708,6 +731,73 @@ function CohortDetailPanel({
                   </button>
                 </div>
               </>
+            )}
+          </section>
+        </div>
+      ) : tab === "trainer" ? (
+        <div className="cohort-admin-picker-grid">
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head"><div><h3>Assigned trainer</h3><p>Shown to participants on their Base Camp page.</p></div></div>
+            <div className="cohort-admin-trainer-current">
+              <span className="cohort-admin-avatar cohort-admin-avatar--trainer">
+                {cohort.trainer?.imageUrl ? <img src={cohort.trainer.imageUrl} alt="" /> : <UserRound size={18} />}
+              </span>
+              <div>
+                <strong>{cohort.trainer?.name || "No trainer assigned"}</strong>
+                <span>{cohort.trainer ? "Running this cohort" : "Assign one from the roster below"}</span>
+              </div>
+            </div>
+            {role === "superadmin" ? (
+              trainerRoster.length === 0 ? (
+                <div className="cohort-admin-mini-empty"><UserRound size={20} /><strong>No trainers yet</strong><span>Add a trainer's name and photo in Trainers first.</span></div>
+              ) : (
+                <div className="cohort-admin-panel-action">
+                  <select
+                    className="cohort-admin-trainer-select"
+                    value={selectedTrainerId}
+                    onChange={(event) => setSelectedTrainerId(event.target.value)}
+                    disabled={Boolean(busyAction)}
+                    aria-label="Assign trainer"
+                  >
+                    <option value="">No trainer</option>
+                    {trainerRoster.map((trainer) => <option key={trainer.id} value={trainer.id}>{trainer.name}</option>)}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => void handleAssignTrainer()}
+                    disabled={Boolean(busyAction) || selectedTrainerId === (cohort.trainerId ?? "")}
+                    className="cohort-admin-button cohort-admin-button--primary"
+                  >
+                    {busyAction === "assign-trainer" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}
+                    {busyAction === "assign-trainer" ? "Saving…" : "Save trainer"}
+                  </button>
+                </div>
+              )
+            ) : (
+              <div className="cohort-admin-notice"><Info size={17} /><p><strong>Only a superadmin can change this</strong><span>Ask a superadmin to assign or update this cohort's trainer.</span></p></div>
+            )}
+          </section>
+
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head">
+              <div><h3>Messages to trainer</h3><p>{expectations.length} message{expectations.length === 1 ? "" : "s"} shared from Base Camp.</p></div>
+              <span>{answeredMembers}/{cohort.memberCount}</span>
+            </div>
+            {expectations.length === 0 ? (
+              <div className="cohort-admin-mini-empty"><MessageSquareText size={20} /><strong>No messages yet</strong><span>Messages appear here once participants share what they want from the session.</span></div>
+            ) : (
+              <div className="cohort-admin-people-list">
+                {expectations.map((expectation) => (
+                  <div key={expectation.id} className="cohort-admin-expectation-row">
+                    <span className="cohort-admin-avatar">{initials(expectation.userName)}</span>
+                    <div>
+                      <strong>{expectation.userName}</strong>
+                      <p>{expectation.message}</p>
+                      <small>{formatStartDate(expectation.createdAt.slice(0, 10))}</small>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </section>
         </div>

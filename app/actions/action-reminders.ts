@@ -10,7 +10,7 @@ import {
   istToUTCDateTime,
 } from "@/lib/timezone-utils";
 import { DAILY_DELIVERY_DAYS, getWeekdayIST } from "@/lib/personal-action-generation";
-import { ACTION_REMINDER_APP_URL } from "@/lib/action-reminders";
+import { ACTION_REMINDER_APP_URL, fetchWalletEmailSummary } from "@/lib/action-reminders";
 
 const SUPERADMIN_EMAIL = (
   process.env.SUPERADMIN_EMAIL || "admin@actionengine"
@@ -399,16 +399,27 @@ export async function bulkSendUpcomingActionReminders(
           baseUrl: ACTION_REMINDER_APP_URL,
           sentBy: null,
           loginPath: "/actions",
-          getPerUserTemplateData: async () => ({
-            cohort_name: reminder.cohortName,
-            reminder_schedule: reminder.scheduleLabel,
-            actions: reminder.actions.map((action) => ({
-              theme: action.theme,
-              title: action.title,
-              how: action.how,
-              timeEstimate: action.timeEstimate,
-            })),
-          }),
+          getPerUserTemplateData: async () => {
+            const walletSummary = await fetchWalletEmailSummary(admin, reminder.userId, reminder.cohortId);
+            return {
+              cohort_name: reminder.cohortName,
+              reminder_schedule: reminder.scheduleLabel,
+              actions: reminder.actions.map((action) => ({
+                theme: action.theme,
+                title: action.title,
+                how: action.how,
+                timeEstimate: action.timeEstimate,
+              })),
+              has_finalised_plan: walletSummary?.hasFinalisedPlan ?? false,
+              commitment_score: walletSummary?.currentScore ?? null,
+              team_points: walletSummary?.teamPoints ?? 0,
+              team_maximum_points: walletSummary?.teamMaximumPoints ?? 0,
+              team_rank: walletSummary?.contributionRank ?? null,
+              team_size: walletSummary?.teamMemberCount ?? null,
+              buddy_name: walletSummary?.buddyName ?? null,
+              buddy_score: walletSummary?.buddyScore ?? null,
+            };
+          },
         });
       } catch (error) {
         const message =

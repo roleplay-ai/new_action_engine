@@ -12,6 +12,18 @@ const NUDGEABLE_APP_URL = "https://new-action-engine.vercel.app";
 const NUDGEABLE_EMAIL_ICON_URL =
   "https://new-action-engine.vercel.app/icon.png";
 
+/**
+ * Builds a Resend "From" header showing a display name in front of the
+ * verified sending address — e.g. `Gaurav <noreply@nudgeable.ai>`. Works
+ * whether `fromEmailEnv` (RESEND_FROM_EMAIL) is a bare address or already
+ * wrapped in a display name; either way, `displayName` wins.
+ */
+export function buildFromHeader(fromEmailEnv: string, displayName: string): string {
+  const match = fromEmailEnv.match(/<([^>]+)>/);
+  const address = (match ? match[1] : fromEmailEnv).trim();
+  return `${displayName} <${address}>`;
+}
+
 export type SendToUsersResult = {
   userId: string;
   email: string;
@@ -96,15 +108,49 @@ export async function sendTemplateToUsers({
 
   const { data: profiles } = await admin
     .from("profiles")
-    .select("id, persistent_login_key, full_name")
+    .select("id, persistent_login_key, full_name, selected_cohort_id, current_cohort_id")
     .in("id", userIds);
 
   const profileMap = new Map(
-    (profiles ?? []).map((p: { id: string; persistent_login_key: string | null; full_name: string | null }) => [
+    (profiles ?? []).map((p: {
+      id: string;
+      persistent_login_key: string | null;
+      full_name: string | null;
+      selected_cohort_id: string | null;
+      current_cohort_id: string | null;
+    }) => [
       p.id,
-      { key: p.persistent_login_key, fullName: p.full_name },
+      { key: p.persistent_login_key, fullName: p.full_name, cohortId: p.selected_cohort_id ?? p.current_cohort_id },
     ])
   );
+
+  // Each recipient's email shows their cohort's assigned trainer as the
+  // sender name (falls back to "Nudgeable" when the cohort has none, or the
+  // recipient has no cohort yet — e.g. a brand-new user's welcome email).
+  const cohortIds = [...new Set(
+    [...profileMap.values()].map((p) => p.cohortId).filter((id): id is string => !!id)
+  )];
+  const trainerIdByCohortId = new Map<string, string>();
+  if (cohortIds.length) {
+    const { data: cohortRows } = await admin
+      .from("cohorts")
+      .select("id, trainer_id")
+      .in("id", cohortIds);
+    for (const row of cohortRows ?? []) {
+      if (row.trainer_id) trainerIdByCohortId.set(row.id as string, row.trainer_id as string);
+    }
+  }
+  const trainerNameById = new Map<string, string>();
+  const trainerIds = [...new Set(trainerIdByCohortId.values())];
+  if (trainerIds.length) {
+    const { data: trainerRows } = await admin
+      .from("trainers")
+      .select("id, name")
+      .in("id", trainerIds);
+    for (const row of trainerRows ?? []) {
+      if (row.name) trainerNameById.set(row.id as string, row.name as string);
+    }
+  }
 
   const credentialMap = new Map<string, { email: string; plaintext_password: string }>();
   if (includeStoredCredentials) {
@@ -169,7 +215,7 @@ export async function sendTemplateToUsers({
       continue;
     }
 
-    const requestedLoginPath = loginPath ?? (templateKey === "credentials" ? "/actions" : undefined);
+    const requestedLoginPath = loginPath ?? (templateKey === "credentials" ? "/journey" : undefined);
     const safeLoginPath = requestedLoginPath?.startsWith("/") && !requestedLoginPath.startsWith("//")
       ? requestedLoginPath
       : undefined;
@@ -214,10 +260,13 @@ export async function sendTemplateToUsers({
         });
       }
 
+      const trainerId = prof?.cohortId ? trainerIdByCohortId.get(prof.cohortId) : undefined;
+      const senderName = (trainerId ? trainerNameById.get(trainerId) : undefined) ?? "Nudgeable";
+
       const { subject, html } = renderEmailTemplate(templateKey, dynamicTemplateData);
       const { error: sendError } = await resend.emails.send({
         to: email,
-        from: fromEmail,
+        from: buildFromHeader(fromEmail, senderName),
         subject,
         html,
       });

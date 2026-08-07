@@ -83,6 +83,14 @@ export enum League {
   Diamond = 'Diamond'
 }
 
+/** A trainer's display profile (name + photo). No login of their own — company
+ * admins and superadmins read what participants send them. */
+export interface Trainer {
+  id: string;
+  name: string;
+  imageUrl?: string | null;
+}
+
 /** A group of users within a company sharing Prepare content and an action plan. */
 export interface Cohort {
   id: string;
@@ -95,6 +103,28 @@ export interface Cohort {
   logoUrl?: string | null;
   companyName?: string | null;
   companyLogoUrl?: string | null;
+  trainerId?: string | null;
+  trainer?: Trainer | null;
+}
+
+/** One private message a participant sent their trainer ("what do you want
+ * from this session?") — an append-only log, admin/superadmin-facing shape
+ * with the sender's name attached. */
+export interface TrainerExpectation {
+  id: string;
+  cohortId: string;
+  userId: string;
+  userName: string;
+  message: string;
+  createdAt: string;
+}
+
+/** The same message, from the sending participant's own point of view — no
+ * userName needed since it's always "you". */
+export interface TrainerExpectationMessage {
+  id: string;
+  message: string;
+  createdAt: string;
 }
 
 export interface CompanyBrand {
@@ -133,6 +163,7 @@ export interface JourneyData {
   roster: CohortMember[];
   items: PrepareContentItem[];
   progress: UserPrepareProgress[];
+  trainerMessages: TrainerExpectationMessage[];
 }
 
 export type PrepareContentType = 'video' | 'quiz' | 'preread';

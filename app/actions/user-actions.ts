@@ -8,6 +8,7 @@ import { getPointsForEvent } from "@/lib/points";
 import { isResendConfigured, resend } from "@/lib/resend";
 import { renderEmailTemplate } from "@/lib/email-templates";
 import { buildMeetingInviteIcs } from "@/lib/ics-invite";
+import { buildFromHeader } from "@/lib/email-send";
 
 function toGoogleCalendarTemplateUrl(params: {
   text: string;
@@ -185,6 +186,23 @@ export async function scheduleAction(params: {
         companyName = (company as any)?.name ?? null;
       }
 
+      let senderName = "Nudgeable";
+      if (actionRow.cohort_id) {
+        const { data: cohortRow } = await supabase
+          .from("cohorts")
+          .select("trainer_id")
+          .eq("id", actionRow.cohort_id)
+          .maybeSingle();
+        if (cohortRow?.trainer_id) {
+          const { data: trainerRow } = await supabase
+            .from("trainers")
+            .select("name")
+            .eq("id", cohortRow.trainer_id)
+            .maybeSingle();
+          if (trainerRow?.name) senderName = trainerRow.name;
+        }
+      }
+
       const ics = buildMeetingInviteIcs({
         uid: `${randomUUID()}@nudgeable.ai`,
         organizerEmail: fromEmail,
@@ -207,7 +225,7 @@ export async function scheduleAction(params: {
 
       const { error: sendError } = await resend.emails.send({
         to: user.email,
-        from: `Nudgeable <${fromEmail}>`,
+        from: buildFromHeader(fromEmail, senderName),
         subject,
         html,
         attachments: [
@@ -385,7 +403,22 @@ export async function completeAction(params: {
     .single();
   if (!actionRow) return { error: "Action not found" };
 
+  let isWalletAction = false;
   if (actionRow?.is_personal && actionRow.cohort_id) {
+    const { data: walletActionRow } = await supabase
+      .from("commitment_wallet_actions")
+      .select("action_id")
+      .eq("action_id", actionId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    isWalletAction = !!walletActionRow;
+  }
+
+  // Legacy plans (frozen via the older cohort-points system, before the
+  // Wallet replaced it) still settle through settle_my_personal_action.
+  // Any plan finalised through activate_my_commitment_wallet_plan is frozen
+  // into commitment_wallet_actions instead, so it must settle below.
+  if (actionRow?.is_personal && actionRow.cohort_id && !isWalletAction) {
     const { data: settlementRows, error: settlementError } = await supabase.rpc(
       "settle_my_personal_action",
       {

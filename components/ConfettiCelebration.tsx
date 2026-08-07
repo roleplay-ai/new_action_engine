@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { X } from "lucide-react";
 
 const C = {
-  dark: "#221D23",
+  ink: "#221D23",
   amber: "#FFCE00",
   purple: "#623CEA",
   green: "#23CE6B",
@@ -11,7 +12,8 @@ const C = {
   red: "#ED4551",
   blue: "#3699FC",
   pink: "#FF5CAD",
-  textMute: "rgba(255,255,255,0.50)",
+  textSecondary: "#4A4047",
+  textMuted: "#8A8090",
 };
 
 interface Particle {
@@ -87,7 +89,7 @@ export default function ConfettiCelebration({
     <div
       className="fixed inset-0 z-[240] flex items-center justify-center p-4 sm:p-8"
       style={{
-        background: "rgba(34,29,35,0.55)",
+        background: "rgba(34,29,35,0.6)",
         backdropFilter: "blur(8px)",
         overflow: "hidden",
       }}
@@ -127,46 +129,56 @@ export default function ConfettiCelebration({
         ))}
       </div>
 
-      {/* Centered celebration popup */}
+      {/* Centered celebration popup, styled like the app's other popups: white
+          card, yellow icon badge, yellow primary CTA. */}
       <div
-        className="animate-pop"
+        className="celebration-modal"
         style={{
           position: "relative",
           zIndex: 1,
-          background: C.dark,
-          borderRadius: 20,
-          padding: "36px 28px 32px",
+          background: "#fff",
+          border: "1px solid rgba(34,29,35,.06)",
+          borderRadius: 22,
+          padding: "28px 26px 26px",
           textAlign: "center",
           overflow: "hidden",
           width: "100%",
           maxWidth: 420,
-          boxShadow: "0 24px 64px rgba(0,0,0,0.35)",
+          boxShadow: "0 24px 70px rgba(17,14,18,.24)",
+          animation: "scalePop .2s ease-out both",
         }}
       >
         <button
           onClick={onClose}
           aria-label="Close celebration"
           style={{
+            width: 35,
+            height: 35,
+            display: "grid",
+            placeItems: "center",
             position: "absolute",
             top: 14,
             right: 14,
-            background: "transparent",
-            border: "none",
+            border: "1px solid var(--color-border)",
+            borderRadius: 11,
+            background: "#fff",
+            color: "var(--color-text-secondary)",
             cursor: "pointer",
-            color: "rgba(255,255,255,0.35)",
-            fontSize: 20,
-            lineHeight: 1,
-            padding: 6,
           }}
         >
-          ×
+          <X size={16} strokeWidth={2.5} />
         </button>
 
         <div
           style={{
-            fontSize: 52,
-            marginBottom: 16,
-            filter: "drop-shadow(0 4px 16px rgba(255,206,0,0.4))",
+            width: 56,
+            height: 56,
+            margin: "0 auto 16px",
+            display: "grid",
+            placeItems: "center",
+            borderRadius: 17,
+            background: C.amber,
+            fontSize: 28,
             lineHeight: 1,
           }}
         >
@@ -175,7 +187,7 @@ export default function ConfettiCelebration({
 
         <h3
           style={{
-            color: "#FFFFFF",
+            color: C.ink,
             fontWeight: 800,
             fontSize: 20,
             marginBottom: 6,
@@ -188,7 +200,7 @@ export default function ConfettiCelebration({
         {actionTitle && (
           <p
             style={{
-              color: "rgba(255,255,255,0.65)",
+              color: C.textSecondary,
               fontSize: 13,
               lineHeight: 1.5,
               marginTop: 0,
@@ -203,7 +215,7 @@ export default function ConfettiCelebration({
 
         <p
           style={{
-            color: C.textMute,
+            color: C.textMuted,
             fontSize: 12,
             lineHeight: 1.6,
             maxWidth: 280,
@@ -224,24 +236,24 @@ export default function ConfettiCelebration({
             justifyContent: "center",
             flexWrap: "wrap",
             gap: 8,
-            marginBottom: 28,
+            marginBottom: 26,
           }}
         >
           {[
-            { label: completedLate ? "No points" : pointsDelta && pointsDelta > 0 ? `+${pointsDelta} points` : "Completed", color: C.amber },
+            { label: completedLate ? "No points" : pointsDelta && pointsDelta > 0 ? `+${pointsDelta} points` : "Completed", color: "#8C7000" },
             { label: "🔥 Streak", color: C.orange },
-            { label: completedLate ? "✅ Recorded late" : "✅ Recorded", color: C.green },
+            { label: completedLate ? "✅ Recorded late" : "✅ Recorded", color: "#0A6632" },
           ].map((b) => (
             <span
               key={b.label}
               style={{
-                background: `${b.color}22`,
+                background: `${b.color}18`,
                 color: b.color,
                 fontSize: 12,
                 fontWeight: 700,
                 padding: "6px 14px",
                 borderRadius: 99,
-                border: `1px solid ${b.color}44`,
+                border: `1px solid ${b.color}33`,
               }}
             >
               {b.label}
@@ -249,22 +261,8 @@ export default function ConfettiCelebration({
           ))}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <button
-            onClick={onContinue}
-            style={{
-              background: C.green,
-              color: "#FFFFFF",
-              border: "none",
-              borderRadius: 99,
-              padding: "13px 28px",
-              fontWeight: 700,
-              fontSize: 14,
-              cursor: "pointer",
-              boxShadow: "0 6px 20px rgba(35,206,107,0.35)",
-              width: "100%",
-            }}
-          >
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <button onClick={onContinue} className="journey-primary-button" style={{ width: "100%" }}>
             Done
           </button>
 
@@ -273,9 +271,9 @@ export default function ConfettiCelebration({
             style={{
               background: "transparent",
               border: "none",
-              color: "rgba(255,255,255,0.35)",
-              fontSize: 13,
-              fontWeight: 500,
+              color: "var(--color-text-muted)",
+              fontSize: 12,
+              fontWeight: 700,
               cursor: "pointer",
               padding: "8px",
               width: "100%",

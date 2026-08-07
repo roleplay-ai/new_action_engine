@@ -91,7 +91,7 @@ export async function sendWelcomeEmails(
       baseUrl,
       sentBy: sentById,
       includeStoredCredentials: true,
-      loginPath: "/actions",
+      loginPath: "/journey",
     });
 
     revalidatePath("/superadmin/emails");

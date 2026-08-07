@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ArrowLeftRight, CalendarDays, Check, CheckCircle2, CircleX, Clock3, Coffee, ListChecks, Mail, Medal, MessageCircle, Settings2, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowLeftRight, CalendarDays, Check, CheckCircle2, CircleX, Clock3, Coffee, Hand, ListChecks, Mail, Medal, MessageCircle, Settings2, TrendingDown, TrendingUp, Trophy, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getCohortLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard";
 import { getMyPlanSettings, syncMyDuePersonalActions, type MyPlanSettings } from "@/app/actions/ai-actions";
@@ -12,8 +12,10 @@ import {
   markMyCommitmentBuddyRevealed,
   type CommitmentBuddyGroup,
   type CommitmentBuddyProgress,
+  type CommitmentBuddyTrack,
 } from "@/app/actions/commitment-buddies";
 import { getMyCommitmentWallet } from "@/app/actions/commitment-wallet";
+import { nextMilestoneFor, milestonePoints } from "@/lib/commitment-wallet-milestones";
 import { usePageLoading } from "@/components/PageLoadingProvider";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
 
@@ -96,54 +98,141 @@ function initials(name: string) {
   return `${parts[0]?.[0] ?? ""}${parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : parts[0]?.[1] ?? ""}`.toUpperCase();
 }
 
+/** Displays as a whole number; the underlying score keeps decimal precision in calculations. */
 function formatCommitmentScore(value: number) {
   const clamped = Math.min(100, Math.max(0, value));
-  const rounded = Math.round(clamped * 10) / 10;
-  return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
+  return String(Math.round(clamped));
 }
 
-function buddyStatus(buddy: CommitmentBuddyProgress) {
-  if (buddy.done === 0 && buddy.pointsEarned === 0) return "Getting started";
-  if (buddy.missed >= 2) return "Could use a nudge";
-  if (buddy.done >= 5 && buddy.pointsEarned > buddy.pointsLost) return "Building momentum";
-  return "Making progress";
+type BuddyCardState = "pending-plan" | "new" | "dipped" | "steady";
+
+function buddyCardState(buddy: CommitmentBuddyProgress): BuddyCardState {
+  if (!buddy.hasFinalisedPlan || buddy.currentScore === null) return "pending-plan";
+  if (buddy.previousScore === null) return "new";
+  return buddy.currentScore < buddy.previousScore ? "dipped" : "steady";
 }
 
-function buddyPrompt(buddy: CommitmentBuddyProgress) {
+function buddyPeriodLabels(track: CommitmentBuddyTrack) {
+  if (track === "daily") return { previous: "Yesterday", current: "Today", sincePhrase: "since yesterday" };
+  if (track === "weekly") return { previous: "Last week", current: "This week", sincePhrase: "this week" };
+  return { previous: "Last period", current: "Current", sincePhrase: "recently" };
+}
+
+function buddyStateMessage(buddy: CommitmentBuddyProgress, state: BuddyCardState) {
   const firstName = buddy.name.split(/\s+/)[0] || buddy.name;
-  if (buddy.done === 0 && buddy.pointsEarned === 0) return `${firstName} may appreciate some encouragement as they get started.`;
-  if (buddy.missed >= 2) return `A quick check-in could help ${firstName} get back on track.`;
-  if (buddy.done >= 5 && buddy.pointsEarned > buddy.pointsLost) return `${firstName} is building momentum. A little recognition can help keep it going.`;
-  return `${firstName} is making progress. A little encouragement can help keep it going.`;
+  const { sincePhrase } = buddyPeriodLabels(buddy.track);
+  if (state === "pending-plan") return `${firstName} hasn't finalised their Wallet plan yet.`;
+  if (state === "new") return `${firstName} just finalised their plan — no comparison yet.`;
+  if (state === "dipped") return `${firstName}'s commitment has dipped ${sincePhrase}.`;
+  return `${firstName} is keeping their commitment steady.`;
 }
 
-function CommitmentBuddyCard({ group }: { group: CommitmentBuddyGroup }) {
+function buddyContactCopy(buddy: CommitmentBuddyProgress, state: BuddyCardState) {
+  const firstName = buddy.name.split(/\s+/)[0] || buddy.name;
+  const { sincePhrase } = buddyPeriodLabels(buddy.track);
+  if (state === "pending-plan") {
+    return {
+      label: `Say hi to ${firstName}`,
+      title: `Say hi to ${firstName}`,
+      message: `Hi ${firstName}, just checking in — let me know if you need a hand finalising your Wallet plan.`,
+    };
+  }
+  if (state === "new") {
+    return {
+      label: `Say hi to ${firstName}`,
+      title: `Say hi to ${firstName}`,
+      message: `Hi ${firstName}, saw you just finalised your Wallet plan — excited to keep each other on track!`,
+    };
+  }
+  if (state === "dipped") {
+    return {
+      label: `Check in with ${firstName}`,
+      title: `Check in with ${firstName}`,
+      message: `Hi ${firstName}, I noticed your Commitment Score dipped ${sincePhrase}. Just checking in to see how things are going. Anything I can help with?`,
+    };
+  }
+  return {
+    label: `Congratulate ${firstName}`,
+    title: `Congratulate ${firstName}`,
+    message: `Hi ${firstName}, great to see you keeping your Commitment Score steady ${sincePhrase}. Nice work keeping the momentum going!`,
+  };
+}
+
+function CommitmentBuddyScoreCard({
+  buddy,
+  onContact,
+}: {
+  buddy: CommitmentBuddyProgress;
+  onContact: (buddy: CommitmentBuddyProgress) => void;
+}) {
+  const state = buddyCardState(buddy);
+  const labels = buddyPeriodLabels(buddy.track);
+  const contact = buddyContactCopy(buddy, state);
+  const isSayHi = state === "new" || state === "pending-plan";
+  const cardClass = state === "dipped" ? " dipped" : state === "steady" ? " steady" : "";
+  const previousOrbText = buddy.previousScore === null
+    ? (buddy.currentScore === null ? "—" : "New")
+    : `${formatCommitmentScore(buddy.previousScore)}%`;
+  const currentOrbText = buddy.currentScore === null ? "—" : `${formatCommitmentScore(buddy.currentScore)}%`;
+
+  return <section className={`commitment-buddy-card${cardClass}`} aria-label={`Commitment score for ${buddy.name}`}>
+    <div className="commitment-buddy-card-head">
+      <div className="commitment-buddy-avatar" aria-hidden="true">{initials(buddy.name)}</div>
+      <div className="commitment-buddy-identity">
+        <p className="commitment-buddy-eyebrow">Your Commitment Buddy</p>
+        <h3 className="commitment-buddy-name">{buddy.name}</h3>
+        <p className="commitment-buddy-relation">You are each other&apos;s buddy</p>
+      </div>
+      <span className="commitment-buddy-tag">1-to-1</span>
+    </div>
+
+    <div className="commitment-buddy-score-panel" aria-label="Commitment score comparison">
+      <div className="commitment-buddy-score-flow">
+        <div className="commitment-buddy-score-block">
+          <span className="commitment-buddy-score-label">{labels.previous}</span>
+          <div className={`commitment-buddy-score-orb${buddy.previousScore === null ? " commitment-buddy-score-orb--empty" : ""}`}>{previousOrbText}</div>
+        </div>
+        <div className="commitment-buddy-flow-arrow" aria-hidden="true">
+          {state === "dipped" ? <TrendingDown size={17} strokeWidth={2.4} /> : <TrendingUp size={17} strokeWidth={2.4} />}
+        </div>
+        <div className="commitment-buddy-score-block is-current">
+          <span className="commitment-buddy-score-label">{labels.current}</span>
+          <div className={`commitment-buddy-score-orb${buddy.currentScore === null ? " commitment-buddy-score-orb--empty" : ""}`}>{currentOrbText}</div>
+        </div>
+      </div>
+    </div>
+
+    <div className="commitment-buddy-state-row">
+      <span className="commitment-buddy-state-icon" aria-hidden="true">
+        {state === "dipped" ? <TrendingDown size={14} strokeWidth={2.4} /> : <CheckCircle2 size={14} strokeWidth={2.4} />}
+      </span>
+      <span>{buddyStateMessage(buddy, state)}</span>
+    </div>
+
+    <button type="button" className="commitment-buddy-contact" onClick={() => onContact(buddy)}>
+      {isSayHi ? <Hand size={16} strokeWidth={2.4} /> : <MessageCircle size={16} strokeWidth={2.4} />}
+      <span>{contact.label}</span>
+    </button>
+  </section>;
+}
+
+function CommitmentBuddyCard({
+  group,
+  onContact,
+}: {
+  group: CommitmentBuddyGroup;
+  onContact: (buddy: CommitmentBuddyProgress) => void;
+}) {
   if (group.buddies.length === 0) {
-    return <section className="actions-buddy-card actions-buddy-waiting">
+    return <section className="commitment-buddy-card actions-buddy-waiting">
       <div className="actions-buddy-waiting-icon"><UsersRound size={21} /></div>
       <div><span>Your commitment buddy</span><strong>Waiting for another cohort member</strong><p>Your pairing will appear here as soon as another unpaired participant joins.</p></div>
     </section>;
   }
 
-  return <section className="actions-buddy-card" aria-label="Commitment buddy progress">
-    <div className="actions-buddy-card-head">
-      <div><span>{group.buddies.length === 1 ? "Your commitment buddy" : "Your commitment group"}</span><strong>{group.buddies.map((buddy) => buddy.name).join(" and ")}</strong><p>{group.buddies.length === 1 ? "You are each other’s buddy" : "The three of you support each other"}</p></div>
-      <em>{group.buddies.length === 1 ? "1-to-1" : "Group of 3"}</em>
-    </div>
-    <div className={`actions-buddy-people ${group.buddies.length > 1 ? "trio" : ""}`}>
-      {group.buddies.map((buddy) => <article key={buddy.id}>
-        <div className="actions-buddy-person-head"><i>{initials(buddy.name)}</i><span><strong>{buddy.name}</strong><small>{buddyStatus(buddy)}</small></span></div>
-        <div className="actions-buddy-stats">
-          <div><strong>{buddy.done}</strong><span>Done</span></div>
-          <div><strong>{buddy.skipped}</strong><span>Skipped</span></div>
-          <div><strong>{buddy.missed}</strong><span>Missed</span></div>
-          <div className="actions-buddy-points"><strong>+{buddy.pointsEarned}</strong><small>earned <em>−{buddy.pointsLost}</em></small><span>Points</span></div>
-        </div>
-        <p className="actions-buddy-message"><MessageCircle size={13} />{buddyPrompt(buddy)}</p>
-      </article>)}
-    </div>
-    <p className="actions-buddy-privacy">Only overall totals are shared. Actions, plans, schedules and reflections stay private.</p>
-  </section>;
+  return <>
+    {group.buddies.map((buddy) => <CommitmentBuddyScoreCard key={buddy.id} buddy={buddy} onContact={onContact} />)}
+  </>;
 }
 
 type ReminderPreviewAction = {
@@ -154,21 +243,39 @@ type ReminderPreviewAction = {
 
 function ReminderEmailPreview({
   firstName,
-  cohortName,
   action,
-  schedule,
+  hasFinalisedPlan,
+  commitmentScore,
+  buddyName,
+  buddyScore,
+  teamRank,
+  teamSize,
+  teamPoints,
+  teamMaximumPoints,
 }: {
   firstName: string;
-  cohortName: string;
   action: ReminderPreviewAction;
-  schedule: string;
+  hasFinalisedPlan: boolean;
+  commitmentScore: number | null;
+  buddyName: string | null;
+  buddyScore: number | null;
+  teamRank: number | null;
+  teamSize: number | null;
+  teamPoints: number;
+  teamMaximumPoints: number;
 }) {
+  const nextMilestone = nextMilestoneFor(teamPoints, teamMaximumPoints);
+  const milestoneThreshold = nextMilestone ? milestonePoints(teamMaximumPoints, nextMilestone.percent) : 0;
+  const milestoneProgress = milestoneThreshold > 0
+    ? Math.min(100, Math.max(0, Math.round((teamPoints / milestoneThreshold) * 100)))
+    : 0;
+
   return <section className="actions-reminder-preview" aria-label="Sample action reminder email">
     <div className="actions-reminder-preview-head">
       <div>
         <span>Sample email preview</span>
         <h3>Your reminder email</h3>
-        <p>See how your next workplace action will arrive.</p>
+        <p>See how your next action reminder will arrive.</p>
       </div>
       <i aria-hidden="true"><Mail size={17} /></i>
     </div>
@@ -179,26 +286,58 @@ function ReminderEmailPreview({
     </div>
 
     <div className="actions-reminder-email">
-      <div className="actions-reminder-email-brand"><b>nudgeable</b><span>action reminder</span></div>
       <div className="actions-reminder-email-hero">
-        <span>Your next nudge</span>
-        <h4>Small action.<strong>Real momentum.</strong></h4>
-        <p>Hey {firstName}, one action from <b>{cohortName}</b> is ready when you are.</p>
+        <span>Your action reminder</span>
+        <h4>Your next actions<strong>are ready.</strong></h4>
+        <p>Hey {firstName}, your next actions are ready when you are.</p>
       </div>
       <div className="actions-reminder-email-body">
-        <div className="actions-reminder-email-schedule"><CalendarDays size={13} /><span><small>Your reminder</small><strong>{schedule}</strong></span></div>
-        <article className="actions-reminder-email-action">
-          <i>01</i>
-          <div>
-            <strong>{action.title}</strong>
-            <p>{action.how}</p>
-            <small><Clock3 size={12} />{action.timeEstimate}</small>
+        <div className="actions-reminder-metrics">
+          <div className="actions-reminder-metric">
+            <i aria-hidden="true">&#10003;</i>
+            <strong>{hasFinalisedPlan && commitmentScore !== null ? `${formatCommitmentScore(commitmentScore)}%` : "—"}</strong>
+            <span>Your Commitment Score</span>
           </div>
+          <div className="actions-reminder-metric actions-reminder-metric--buddy">
+            <i aria-hidden="true">&#8596;</i>
+            <strong>{buddyName && buddyScore !== null ? `${formatCommitmentScore(buddyScore)}%` : "—"}</strong>
+            <span>{buddyName ? `${buddyName} · Your Buddy` : "No buddy yet"}</span>
+          </div>
+          <div className="actions-reminder-metric actions-reminder-metric--rank">
+            <i aria-hidden="true">&#9733;</i>
+            <strong>{teamRank !== null && teamSize !== null ? <>{teamRank}<em> / {teamSize}</em></> : "—"}</strong>
+            <span>Team Contribution Rank</span>
+          </div>
+        </div>
+
+        <p className="actions-reminder-email-section-label">Your actions</p>
+        <article className="actions-reminder-email-action">
+          <i aria-hidden="true">→</i>
+          <strong>{action.title}</strong>
         </article>
-        <span className="actions-reminder-email-button">Open Action Engine <b aria-hidden="true">→</b></span>
-        <small className="actions-reminder-email-note">Secure one-click sign in. No password needed.</small>
+
+        <div className="actions-reminder-email-tip"><strong>Done an action?</strong> Open My Actions and mark it complete in one click to update your Commitment Score and add points to your team.</div>
+
+        <span className="actions-reminder-email-button">Open My Actions</span>
+
+        <div className="actions-reminder-email-reward">
+          <i aria-hidden="true">{nextMilestone ? nextMilestone.icon : teamMaximumPoints === 0 ? "⏳" : "🎉"}</i>
+          <div>
+            {teamMaximumPoints === 0 ? (
+              <strong>Waiting for finalised plans</strong>
+            ) : nextMilestone ? (
+              <>
+                <small>Next team reward</small>
+                <strong>{nextMilestone.headline}</strong>
+                <div className="actions-reminder-email-reward-bar"><span style={{ width: `${milestoneProgress}%` }} /></div>
+              </>
+            ) : (
+              <strong>Every current reward unlocked!</strong>
+            )}
+          </div>
+        </div>
       </div>
-      <div className="actions-reminder-email-footer"><b>nudgeable</b><span>Turn learning into action, one nudge at a time.</span></div>
+      <div className="actions-reminder-email-footer">Powered by <b>Nudgeable.ai</b></div>
     </div>
 
     <p className="actions-reminder-preview-note"><span aria-hidden="true" /> Preview only · no email has been sent.</p>
@@ -216,16 +355,22 @@ export default function ActionsClient() {
   } | null>(null);
   const [reflection, setReflection] = useState("");
   const [busy, setBusy] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [settings, setSettings] = useState<MyPlanSettings | null>(null);
   const [buddyGroup, setBuddyGroup] = useState<CommitmentBuddyGroup | null>(null);
   const [buddyReady, setBuddyReady] = useState(false);
+  const [contactBuddy, setContactBuddy] = useState<CommitmentBuddyProgress | null>(null);
   const [archivedActions, setArchivedActions] = useState<ArchivedActionEntry[]>([]);
   const [archiveReady, setArchiveReady] = useState(false);
   const [ready, setReady] = useState(false);
   const [commitmentScore, setCommitmentScore] = useState<{
     hasFinalisedPlan: boolean;
     score: number;
+    contributionRank: number;
+    teamMemberCount: number;
+    teamPoints: number;
+    teamMaximumPoints: number;
   } | null>(null);
 
   usePageLoading(!ready);
@@ -256,6 +401,10 @@ export default function ActionsClient() {
         setCommitmentScore({
           hasFinalisedPlan: walletResult.value.summary.hasFinalisedPlan,
           score: walletResult.value.summary.commitmentScore,
+          contributionRank: walletResult.value.summary.contributionRank,
+          teamMemberCount: walletResult.value.summary.teamMemberCount,
+          teamPoints: walletResult.value.summary.teamPoints,
+          teamMaximumPoints: walletResult.value.summary.teamMaximumPoints,
         });
       } else {
         setCommitmentScore(null);
@@ -301,9 +450,6 @@ export default function ActionsClient() {
     timeEstimate: "10 minutes",
   };
   const reminderFirstName = profile.name.trim().split(/\s+/)[0] || "there";
-  const reminderSchedule = settings
-    ? `${settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}${formatTime(settings.reminderTime)}`
-    : "Based on your plan schedule";
 
   async function finish(success: boolean) {
     if (!completingId) return;
@@ -311,6 +457,7 @@ export default function ActionsClient() {
       actionMap.get(completingId)?.title ??
       archivedActions.find((action) => action.id === completingId)?.title;
     setBusy(true);
+    setCompleteError(null);
     try {
       const result = await completeAction(completingId, success, reflection);
       if (!result.error) {
@@ -329,6 +476,9 @@ export default function ActionsClient() {
             completedLate: result.completedLate,
           });
         }
+      } else {
+        console.error("completeAction failed:", result.error);
+        setCompleteError(result.error);
       }
     } finally {
       setBusy(false);
@@ -470,12 +620,18 @@ export default function ActionsClient() {
 
       {planIsActive && buddyReady && buddyGroup && (
         <aside className="actions-buddy-sidebar">
-          <CommitmentBuddyCard group={buddyGroup} />
+          <CommitmentBuddyCard group={buddyGroup} onContact={setContactBuddy} />
           <ReminderEmailPreview
             firstName={reminderFirstName}
-            cohortName={cohort?.name ?? "your cohort"}
             action={reminderAction}
-            schedule={reminderSchedule}
+            hasFinalisedPlan={commitmentScore?.hasFinalisedPlan ?? false}
+            commitmentScore={commitmentScore?.score ?? null}
+            buddyName={buddyGroup?.buddies[0]?.name ?? null}
+            buddyScore={buddyGroup?.buddies[0]?.currentScore ?? null}
+            teamRank={commitmentScore?.contributionRank ?? null}
+            teamSize={commitmentScore?.teamMemberCount ?? null}
+            teamPoints={commitmentScore?.teamPoints ?? 0}
+            teamMaximumPoints={commitmentScore?.teamMaximumPoints ?? 0}
           />
         </aside>
       )}
@@ -539,7 +695,37 @@ export default function ActionsClient() {
       document.body,
     )}
 
-    {typeof document !== "undefined" && completingId && createPortal(<div className="actions-checkin-overlay"><div className="actions-checkin-modal"><button onClick={() => setCompletingId(null)}><X size={18} /></button><span className="participant-eyebrow">Action check-in</span><h3>How did this action go?</h3><p>Add a short reflection. It helps you notice what worked and what to adjust.</p><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="What happened when you tried it?" /><div><button className="journey-primary-button" disabled={busy} onClick={() => finish(true)}>{busy ? "Saving…" : "Complete action"}</button><button disabled={busy} onClick={() => finish(false)}>I didn&apos;t complete it</button></div></div></div>, document.body)}
+    {typeof document !== "undefined" && contactBuddy && createPortal((() => {
+      const state = buddyCardState(contactBuddy);
+      const contact = buddyContactCopy(contactBuddy, state);
+      const mailtoHref = contactBuddy.email
+        ? `mailto:${encodeURIComponent(contactBuddy.email)}?subject=${encodeURIComponent(contact.title)}&body=${encodeURIComponent(contact.message)}`
+        : undefined;
+      return <div className="commitment-buddy-contact-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setContactBuddy(null); }}>
+        <section className="commitment-buddy-contact-modal" role="dialog" aria-modal="true" aria-labelledby="buddy-contact-title">
+          <div className="commitment-buddy-contact-top">
+            <div>
+              <h2 id="buddy-contact-title">{contact.title}</h2>
+              <p className="commitment-buddy-contact-intro">Copy the email and draft below, then send it using your usual email or messaging app.</p>
+            </div>
+            <button type="button" className="commitment-buddy-contact-close" onClick={() => setContactBuddy(null)} aria-label="Close"><X size={17} strokeWidth={2.5} /></button>
+          </div>
+
+          <div className="commitment-buddy-contact-field-label">
+            <span>Email</span>
+            {mailtoHref && <a href={mailtoHref}>Open in email app</a>}
+          </div>
+          <div className="commitment-buddy-contact-selectable" tabIndex={0}>{contactBuddy.email ?? "No email on file"}</div>
+
+          <label className="commitment-buddy-contact-field-label" htmlFor="buddy-draft-message">Suggested message</label>
+          <textarea id="buddy-draft-message" className="commitment-buddy-contact-selectable" readOnly value={contact.message} />
+
+          <button type="button" className="commitment-buddy-contact-ok" onClick={() => setContactBuddy(null)}>OK</button>
+        </section>
+      </div>;
+    })(), document.body)}
+
+    {typeof document !== "undefined" && completingId && createPortal(<div className="actions-checkin-overlay"><div className="actions-checkin-modal"><button onClick={() => { setCompletingId(null); setCompleteError(null); }}><X size={18} /></button><span className="participant-eyebrow">Action check-in</span><h3>How did this action go?</h3><p>Add a short reflection. It helps you notice what worked and what to adjust.</p><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="What happened when you tried it?" />{completeError && <p className="actions-checkin-error" role="alert" style={{ color: "var(--color-danger, #ed4551)", fontSize: "var(--text-sm)" }}>{completeError}</p>}<div><button className="journey-primary-button" disabled={busy} onClick={() => finish(true)}><CheckCircle2 size={16} strokeWidth={2.5} />{busy ? "Saving…" : "Complete action"}</button></div></div></div>, document.body)}
 
     {typeof document !== "undefined" && celebration && createPortal(
       <ConfettiCelebration

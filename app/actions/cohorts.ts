@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Cohort, CohortMember, CohortOption, CompanyBrand } from "@/lib/types";
+import type { Cohort, CohortMember, CohortOption, CompanyBrand, Trainer } from "@/lib/types";
 
 const COHORT_LOGOS_BUCKET = "cohort-logos";
 
@@ -30,6 +30,19 @@ async function withMemberEmails(
     ...member,
     email: emailMap.get(member.id) ?? null,
   }));
+}
+
+async function loadTrainerMap(
+  supabase: Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient>,
+  trainerIds: (string | null)[],
+): Promise<Map<string, Trainer>> {
+  const ids = [...new Set(trainerIds.filter((id): id is string => !!id))];
+  if (ids.length === 0) return new Map();
+  const { data } = await supabase.from("trainers").select("id, name, image_url").in("id", ids);
+  return new Map((data ?? []).map((row: { id: string; name: string; image_url: string | null }) => [
+    row.id,
+    { id: row.id, name: row.name, imageUrl: row.image_url },
+  ]));
 }
 
 async function getAdminContext(): Promise<{
@@ -133,6 +146,7 @@ export async function updateCohort(
     businessContext?: string;
     startDate?: string;
     logoUrl?: string | null;
+    trainerId?: string | null;
   }
 ): Promise<{ error?: string }> {
   try {
@@ -144,6 +158,9 @@ export async function updateCohort(
       if (params.trainingContent !== undefined || params.businessContext !== undefined) {
         return { error: "Only a superadmin can change action generation context" };
       }
+      if (params.trainerId !== undefined) {
+        return { error: "Only a superadmin can assign this cohort's trainer" };
+      }
     }
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -153,10 +170,12 @@ export async function updateCohort(
     if (params.businessContext != null) updates.business_context = params.businessContext.trim() || null;
     if (params.startDate != null) updates.start_date = params.startDate || null;
     if (params.logoUrl !== undefined) updates.logo_url = params.logoUrl?.trim() || null;
+    if (params.trainerId !== undefined) updates.trainer_id = params.trainerId || null;
 
     const { error } = await supabase.from("cohorts").update(updates).eq("id", id);
     if (error) return { error: error.message };
     revalidatePath("/admin");
+    revalidatePath("/journey");
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed" };
@@ -242,7 +261,7 @@ export async function listCohorts(companyId: string): Promise<{
       supabase.from("companies").select("id, name, logo_url").eq("id", companyId).single(),
       supabase
         .from("cohorts")
-        .select("id, name, description, training_content, business_context, start_date, logo_url")
+        .select("id, name, description, training_content, business_context, start_date, logo_url, trainer_id")
         .eq("company_id", companyId)
         .is("archived_at", null)
         .order("created_at", { ascending: false }),
@@ -252,19 +271,15 @@ export async function listCohorts(companyId: string): Promise<{
     if (!cohorts?.length) return { company: companyBrand, cohorts: [] };
     const cohortIds = cohorts.map((c: { id: string }) => c.id);
 
-    const { data: members } = await supabase
-      .from("cohort_members")
-      .select("cohort_id")
-      .in("cohort_id", cohortIds);
+    const [{ data: members }, { data: contentAssignments }, trainerMap] = await Promise.all([
+      supabase.from("cohort_members").select("cohort_id").in("cohort_id", cohortIds),
+      supabase.from("cohort_prepare_assignments").select("cohort_id").in("cohort_id", cohortIds),
+      loadTrainerMap(supabase, cohorts.map((c: { trainer_id: string | null }) => c.trainer_id)),
+    ]);
     const memberCounts = new Map<string, number>();
     for (const m of (members ?? []) as { cohort_id: string }[]) {
       memberCounts.set(m.cohort_id, (memberCounts.get(m.cohort_id) ?? 0) + 1);
     }
-
-    const { data: contentAssignments } = await supabase
-      .from("cohort_prepare_assignments")
-      .select("cohort_id")
-      .in("cohort_id", cohortIds);
     const contentCounts = new Map<string, number>();
     for (const a of (contentAssignments ?? []) as { cohort_id: string }[]) {
       contentCounts.set(a.cohort_id, (contentCounts.get(a.cohort_id) ?? 0) + 1);
@@ -272,7 +287,7 @@ export async function listCohorts(companyId: string): Promise<{
 
     return {
       company: companyBrand,
-      cohorts: cohorts.map((c: { id: string; name: string; description: string | null; training_content: string | null; business_context: string | null; start_date: string | null; logo_url: string | null }) => ({
+      cohorts: cohorts.map((c: { id: string; name: string; description: string | null; training_content: string | null; business_context: string | null; start_date: string | null; logo_url: string | null; trainer_id: string | null }) => ({
         id: c.id,
         name: c.name,
         description: c.description,
@@ -282,6 +297,8 @@ export async function listCohorts(companyId: string): Promise<{
         logoUrl: c.logo_url,
         memberCount: memberCounts.get(c.id) ?? 0,
         contentCount: contentCounts.get(c.id) ?? 0,
+        trainerId: c.trainer_id,
+        trainer: c.trainer_id ? trainerMap.get(c.trainer_id) ?? null : null,
       })),
     };
   } catch (e) {
@@ -299,7 +316,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
 
     const { data: cohort } = await supabase
       .from("cohorts")
-      .select("id, name, description, training_content, business_context, start_date, logo_url, company_id")
+      .select("id, name, description, training_content, business_context, start_date, logo_url, company_id, trainer_id")
       .eq("id", cohortId)
       .single();
     if (!cohort) return { error: "Cohort not found" };
@@ -309,10 +326,13 @@ export async function getCohortDetail(cohortId: string): Promise<{
     // viewing another company's cohort would otherwise get every member's name
     // silently nulled out by RLS on the embedded profiles join.
     const admin = createAdminClient();
-    const { data: members } = await admin
-      .from("cohort_members")
-      .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name)")
-      .eq("cohort_id", cohortId);
+    const [{ data: members }, trainerMap] = await Promise.all([
+      admin
+        .from("cohort_members")
+        .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name)")
+        .eq("cohort_id", cohortId),
+      loadTrainerMap(admin, [cohort.trainer_id]),
+    ]);
 
     return {
       cohort: {
@@ -324,6 +344,8 @@ export async function getCohortDetail(cohortId: string): Promise<{
         startDate: cohort.start_date,
         logoUrl: cohort.logo_url,
         memberCount: members?.length ?? 0,
+        trainerId: cohort.trainer_id,
+        trainer: cohort.trainer_id ? trainerMap.get(cohort.trainer_id) ?? null : null,
       },
       members: (members ?? []).map(mapMemberRow),
     };
@@ -478,7 +500,7 @@ export async function getMyCohorts(): Promise<{
     const [{ data: cohortRows }, { data: memberRows }] = await Promise.all([
       admin
         .from("cohorts")
-        .select("id, name, description, start_date, logo_url, company_id, archived_at")
+        .select("id, name, description, start_date, logo_url, company_id, archived_at, trainer_id")
         .in("id", orderedIds),
       admin
         .from("cohort_members")
@@ -487,6 +509,7 @@ export async function getMyCohorts(): Promise<{
     ]);
 
     const cohortById = new Map((cohortRows ?? []).map((cohort) => [cohort.id, cohort]));
+    const trainerMap = await loadTrainerMap(admin, (cohortRows ?? []).map((cohort) => cohort.trainer_id));
     const companyIds = Array.from(new Set((cohortRows ?? []).map((cohort) => cohort.company_id)));
     const { data: companyRows } = companyIds.length
       ? await admin.from("companies").select("id, name, logo_url").in("id", companyIds)
@@ -525,6 +548,8 @@ export async function getMyCohorts(): Promise<{
         archivedAt: row.archived_at,
         isCurrent: row.id === currentCohortId,
         isSelected: row.id === selectedCohortId,
+        trainerId: row.trainer_id,
+        trainer: row.trainer_id ? trainerMap.get(row.trainer_id) ?? null : null,
       };
     });
 
@@ -597,6 +622,8 @@ export async function getMyCohort(): Promise<{
         companyId: selected!.companyId,
         companyName: selected!.companyName,
         companyLogoUrl: selected!.companyLogoUrl,
+        trainerId: selected!.trainerId,
+        trainer: selected!.trainer,
       },
       roster,
     };

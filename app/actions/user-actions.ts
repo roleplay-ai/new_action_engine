@@ -385,7 +385,22 @@ export async function completeAction(params: {
     .single();
   if (!actionRow) return { error: "Action not found" };
 
+  let isWalletAction = false;
   if (actionRow?.is_personal && actionRow.cohort_id) {
+    const { data: walletActionRow } = await supabase
+      .from("commitment_wallet_actions")
+      .select("action_id")
+      .eq("action_id", actionId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    isWalletAction = !!walletActionRow;
+  }
+
+  // Legacy plans (frozen via the older cohort-points system, before the
+  // Wallet replaced it) still settle through settle_my_personal_action.
+  // Any plan finalised through activate_my_commitment_wallet_plan is frozen
+  // into commitment_wallet_actions instead, so it must settle below.
+  if (actionRow?.is_personal && actionRow.cohort_id && !isWalletAction) {
     const { data: settlementRows, error: settlementError } = await supabase.rpc(
       "settle_my_personal_action",
       {

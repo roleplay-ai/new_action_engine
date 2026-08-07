@@ -301,9 +301,9 @@ export default async function WalletPage() {
       {error && <div className="wallet-error" role="alert">The Wallet could not be loaded: {error}</div>}
 
       <section className="wallet-rule-strip" aria-label="How the Commitment Wallet works">
-        <div><span className="good"><Check size={18} /></span><p>Complete <strong>+50 Action Points</strong></p></div>
-        <i />
         <div><span className="miss"><Minus size={18} /></span><p>Miss <strong>Commitment Score ↓</strong></p></div>
+        <i />
+        <div><span className="good"><Check size={18} /></span><p>Complete <strong>+50 Action Points</strong></p></div>
       </section>
 
       <section className="wallet-main-grid">

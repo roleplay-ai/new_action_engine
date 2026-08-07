@@ -216,6 +216,7 @@ export default function ActionsClient() {
   } | null>(null);
   const [reflection, setReflection] = useState("");
   const [busy, setBusy] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [settings, setSettings] = useState<MyPlanSettings | null>(null);
   const [buddyGroup, setBuddyGroup] = useState<CommitmentBuddyGroup | null>(null);
@@ -311,6 +312,7 @@ export default function ActionsClient() {
       actionMap.get(completingId)?.title ??
       archivedActions.find((action) => action.id === completingId)?.title;
     setBusy(true);
+    setCompleteError(null);
     try {
       const result = await completeAction(completingId, success, reflection);
       if (!result.error) {
@@ -329,6 +331,9 @@ export default function ActionsClient() {
             completedLate: result.completedLate,
           });
         }
+      } else {
+        console.error("completeAction failed:", result.error);
+        setCompleteError(result.error);
       }
     } finally {
       setBusy(false);
@@ -539,7 +544,7 @@ export default function ActionsClient() {
       document.body,
     )}
 
-    {typeof document !== "undefined" && completingId && createPortal(<div className="actions-checkin-overlay"><div className="actions-checkin-modal"><button onClick={() => setCompletingId(null)}><X size={18} /></button><span className="participant-eyebrow">Action check-in</span><h3>How did this action go?</h3><p>Add a short reflection. It helps you notice what worked and what to adjust.</p><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="What happened when you tried it?" /><div><button className="journey-primary-button" disabled={busy} onClick={() => finish(true)}>{busy ? "Saving…" : "Complete action"}</button><button disabled={busy} onClick={() => finish(false)}>I didn&apos;t complete it</button></div></div></div>, document.body)}
+    {typeof document !== "undefined" && completingId && createPortal(<div className="actions-checkin-overlay"><div className="actions-checkin-modal"><button onClick={() => { setCompletingId(null); setCompleteError(null); }}><X size={18} /></button><span className="participant-eyebrow">Action check-in</span><h3>How did this action go?</h3><p>Add a short reflection. It helps you notice what worked and what to adjust.</p><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="What happened when you tried it?" />{completeError && <p className="actions-checkin-error" role="alert" style={{ color: "var(--color-danger, #ed4551)", fontSize: "var(--text-sm)" }}>{completeError}</p>}<div><button className="journey-primary-button" disabled={busy} onClick={() => finish(true)}><CheckCircle2 size={16} strokeWidth={2.5} />{busy ? "Saving…" : "Complete action"}</button></div></div></div>, document.body)}
 
     {typeof document !== "undefined" && celebration && createPortal(
       <ConfettiCelebration

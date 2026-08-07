@@ -63,7 +63,7 @@ function PersonalWallet({ summary }: { summary: CommitmentWalletSummary }) {
         >
           <div className="wallet-gauge-value">
             <strong>{summary.hasFinalisedPlan ? formatPercent(score) : "—"}</strong>
-            <span>{summary.hasFinalisedPlan ? "COMMITMENT KEPT" : "FINALISE YOUR PLAN"}</span>
+            <span>{summary.hasFinalisedPlan ? "Commitment kept" : "Finalise your plan"}</span>
           </div>
         </div>
       </div>

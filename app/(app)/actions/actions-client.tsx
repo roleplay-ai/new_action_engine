@@ -446,7 +446,7 @@ export default function ActionsClient() {
                       <h3 title={action.title}>{action.title}</h3>
                       <div className="plan-action-meta">
                         <span><CalendarDays size={13} />{planIsArchived ? "Available to revisit" : formatDate(deliveryDate)}</span>
-                        <span>{points} CP</span>
+                        <span className="plan-action-points">{points}<i className="plan-gold-coin" aria-hidden="true" /></span>
                       </div>
                     </div>
                     {planIsArchived && <div className="plan-action-controls plan-action-controls--compact"><button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>Do this action</button></div>}

@@ -36,12 +36,12 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
 
   const navItems = useMemo(() => {
     const items = [
-      { href: "/journey", label: "Base Camp", icon: Home },
-      { href: "/plan", label: "My Plan", icon: Sparkles },
-      { href: "/actions", label: "My Actions", icon: ListChecks },
-      { href: "/wallet", label: "Commitment Bank", icon: PiggyBank },
+      { href: "/journey", label: "Base Camp", shortLabel: "Camp", icon: Home },
+      { href: "/plan", label: "My Plan", shortLabel: "Plan", icon: Sparkles },
+      { href: "/actions", label: "My Actions", shortLabel: "Actions", icon: ListChecks },
+      { href: "/wallet", label: "Commitment Bank", shortLabel: "Bank", icon: PiggyBank },
     ];
-    if (role !== "user") items.push({ href: "/admin", label: "Admin", icon: ShieldCheck });
+    if (role !== "user") items.push({ href: "/admin", label: "Admin", shortLabel: "Admin", icon: ShieldCheck });
     return items;
   }, [role]);
 
@@ -177,7 +177,11 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       <nav className="participant-bottom-nav" aria-label="Mobile participant navigation">
         {navItems.slice(0, 4).map((item) => (
           <Link key={item.href} href={item.href} className={isActive(item.href) ? "active" : ""} onClick={() => beginNavigation(item.href)}>
-            <item.icon size={20} /><span>{item.label}</span>
+            <item.icon size={20} />
+            <span className="participant-nav-label">
+              <span className="participant-nav-label-full">{item.label}</span>
+              <span className="participant-nav-label-short">{item.shortLabel}</span>
+            </span>
           </Link>
         ))}
       </nav>

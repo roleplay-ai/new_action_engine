@@ -266,7 +266,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
       ]);
     }} />}
 
-    {!showInitialSetup && !editingSetup && <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your cohort"}</span><h2>{heading}</h2><p>{summary}</p></div>{!generationJob && !generationError && hasDraft && <button className="journey-primary-button" onClick={openPlanSetup}>Change pace</button>}</div>}
+    {!showInitialSetup && !editingSetup && !isPlanActive && <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your cohort"}</span><h2>{heading}</h2><p>{summary}</p></div>{!generationJob && !generationError && hasDraft && <button className="journey-primary-button" onClick={openPlanSetup}>Change pace</button>}</div>}
 
     {canBuildPlan && hasArchivedPlans && <div className="journey-card plan-history-notice"><strong>Your earlier cohort plans are safely archived.</strong><p>Use the cohort switcher above whenever you want to revisit earlier actions and complete any that remain.</p></div>}
 
@@ -308,7 +308,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
               <h3 title={action.title}>{action.title}</h3>
               <div className={`plan-action-meta${scheduleSlots[index]?.isImmediate ? " is-immediate" : ""}`}>
                 <span title={scheduleLoading ? "Calculating schedule…" : schedule.detail}><CalendarDays size={13} />{scheduleLoading ? "Calculating…" : schedule.date}</span>
-                <span>{projectedPlanPoints()} CP</span>
+                <span className="plan-action-points">{projectedPlanPoints()}<i className="plan-gold-coin" aria-hidden="true" /></span>
               </div>
             </div>
             <div className="plan-action-controls plan-action-controls--compact">
@@ -338,7 +338,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
       {error && <p className="plan-review-error">{error}</p>}
     </section>}
 
-    {isPlanActive && <div className="plan-active-callout"><div><Check size={20} /><span><strong>My plan is live</strong><small>Current actions and future reminders are available on the Actions page.</small></span></div><Link href="/actions" className="journey-primary-button">View my actions</Link></div>}
+    {isPlanActive && <div className="plan-active-callout"><div><Check size={20} /><span><strong>My actions are live</strong><small>Current actions and future reminders are available on the Actions page.</small></span></div><Link href="/actions" className="journey-primary-button">View my actions</Link></div>}
 
     {isPlanArchived && <div className="plan-active-callout"><div><Check size={20} /><span><strong>Archived cohort plan</strong><small>This plan is view-only. Its reminder schedule will not release new actions.</small></span></div><Link href="/actions" className="journey-primary-button">Revisit remaining actions</Link></div>}
 

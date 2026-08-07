@@ -10,6 +10,7 @@ export default function UnifiedPlanClient({ initialTrainingText }: { initialTrai
   const [trainingText, setTrainingText] = useState(initialTrainingText);
   const [reviewing, setReviewing] = useState(Boolean(initialTrainingText.trim()));
   const [showActionPlan, setShowActionPlan] = useState(false);
+  const planLocked = personalPlanState === "active" || personalPlanState === "archived";
   const hasExistingPlan = personalPlanState !== "none"
     || Boolean(generationJob)
     || allActions.some((action) => action.isPersonal);
@@ -19,6 +20,7 @@ export default function UnifiedPlanClient({ initialTrainingText }: { initialTrai
   }, [hasExistingPlan]);
 
   const goToPlan = (body?: string) => {
+    if (planLocked) return;
     if (typeof body === "string") setTrainingText(body);
     setShowActionPlan(true);
     window.requestAnimationFrame(() => {
@@ -29,15 +31,24 @@ export default function UnifiedPlanClient({ initialTrainingText }: { initialTrai
   };
 
   const handleReviewChange = useCallback((nextReviewing: boolean) => {
+    if (planLocked) {
+      setReviewing(true);
+      return;
+    }
     setReviewing(nextReviewing);
     if (!nextReviewing && !hasExistingPlan) setShowActionPlan(false);
-  }, [hasExistingPlan]);
+  }, [hasExistingPlan, planLocked]);
+
+  const showReviewCopy = reviewing || planLocked;
 
   return <>
     <div className="participant-page-heading">
-      <span className="participant-eyebrow">{reviewing ? "My Plan" : "Private workspace"}</span>
-      <h1>{reviewing ? "Your Plan" : "My Plan"}</h1>
-      <p>{reviewing ? "A clean, shareable version of what you wrote." : "Answer in your own words. This becomes your personal plan."}</p>
+      <h1>My Plan</h1>
+      <p>{planLocked
+        ? "This plan is finalised and can no longer be edited."
+        : showReviewCopy
+          ? "A clean, shareable version of what you wrote."
+          : "Answer in your own words. This becomes my personal plan."}</p>
     </div>
     <NotesClient embedded onBodyChange={setTrainingText} onSavePlan={goToPlan} onReviewChange={handleReviewChange} />
     {(showActionPlan || hasExistingPlan) && <PlanClient initialTrainingText={trainingText} embedded />}

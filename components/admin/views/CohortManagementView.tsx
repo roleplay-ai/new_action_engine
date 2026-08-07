@@ -207,7 +207,6 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
     <section className="cohort-admin-page">
       <header className="cohort-admin-header">
         <div>
-          <p className="cohort-admin-eyebrow">People &amp; learning operations</p>
           <div className="cohort-admin-company-heading">
             <span>{company?.logoUrl ? <img src={company.logoUrl} alt={`${company.name} logo`} /> : <Building2 size={24} />}</span>
             <div><h1>{company?.name || "Cohort management"}</h1><strong>Cohort management</strong></div>

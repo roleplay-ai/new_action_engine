@@ -178,7 +178,6 @@ function TeamBucket({ summary }: { summary: CommitmentWalletSummary }) {
 }
 
 function TeamWallet({ summary }: { summary: CommitmentWalletSummary }) {
-  const teamActionCapacity = Math.max(0, summary.teamMaximumPoints / 50 - summary.teamMemberCount);
   const nextMilestone = MILESTONES.find(
     (milestone) => summary.teamPoints < milestonePoints(summary.teamMaximumPoints, milestone.percent)
   );
@@ -197,9 +196,6 @@ function TeamWallet({ summary }: { summary: CommitmentWalletSummary }) {
         <div className="wallet-team-total">
           <strong>{formatNumber(summary.teamPoints)}</strong>
           <span>Team Action Points</span>
-          <small>
-            {formatNumber(summary.teamMaximumPoints)} possible · {formatNumber(teamActionCapacity)} actions + {formatNumber(summary.teamMemberCount)} finalised plans · 50 points each
-          </small>
         </div>
       </div>
 
@@ -257,7 +253,7 @@ function WalletMilestones({ summary }: { summary: CommitmentWalletSummary }) {
         <div>
           <span className="wallet-label">Team impact rewards</span>
           <h3>Turn consistent action into real-world good</h3>
-          <p>Every completed action moves your cohort closer to a meaningful reward. Small steps together can create a real difference.</p>
+          <p>Every completed action moves your cohort closer to a meaningful reward.</p>
         </div>
       </div>
 
@@ -298,7 +294,6 @@ export default async function WalletPage() {
   return (
     <div className="commitment-wallet-page animate-in fade-in duration-700">
       <header className="wallet-page-heading">
-        <span>Commitment Wallet</span>
         <h1>Keep your promise.<br />Grow your team&apos;s impact.</h1>
         <p>Stay consistent, build shared Action Points, and unlock meaningful rewards together.</p>
       </header>

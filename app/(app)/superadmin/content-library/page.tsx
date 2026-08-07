@@ -26,7 +26,7 @@ export default async function ContentLibraryPage() {
   return (
     <div className="superadmin-page">
       <div className="superadmin-page-heading">
-        <div><span>Learning operations</span><h1>Content library</h1><p>Build reusable preparation content and distribute it to cohorts.</p></div>
+        <div><h1>Content library</h1><p>Build reusable preparation content and distribute it to cohorts.</p></div>
         <CreateContentForm />
       </div>
 

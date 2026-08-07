@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEngine } from "@/lib/store";
-import { ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ShieldCheck, Flame } from "lucide-react";
+import { ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ShieldCheck } from "lucide-react";
 import { LogoutButton } from "@/app/(app)/logout-button";
 import PageLoader from "@/components/PageLoader";
 import { usePageLoadingControls } from "@/components/PageLoadingProvider";
@@ -36,10 +36,10 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
 
   const navItems = useMemo(() => {
     const items = [
-      { href: "/journey", label: "Workspace", icon: Home },
+      { href: "/journey", label: "Base Camp", icon: Home },
       { href: "/plan", label: "My Plan", icon: Sparkles },
       { href: "/actions", label: "My Actions", icon: ListChecks },
-      { href: "/wallet", label: "Wallet", icon: PiggyBank },
+      { href: "/wallet", label: "Commitment Bank", icon: PiggyBank },
     ];
     if (role !== "user") items.push({ href: "/admin", label: "Admin", icon: ShieldCheck });
     return items;
@@ -166,8 +166,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
               {commitmentLabel}
               <small>CS</small>
             </Link>
-            <span className="participant-streak-pill" title="Current streak"><Flame size={15} fill="currentColor" />{profile.streak}</span>
-            <img className="participant-topbar-favicon" src="/icon.png" alt="Nudgeable" title="Nudgeable" />
           </div>
         </header>
 

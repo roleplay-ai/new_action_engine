@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ArrowLeftRight, CalendarDays, Check, CheckCircle2, CircleX, Clock3, ListChecks, Mail, Medal, MessageCircle, Settings2, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowLeftRight, CalendarDays, Check, CheckCircle2, CircleX, Clock3, Coffee, ListChecks, Mail, Medal, MessageCircle, Settings2, Trophy, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getCohortLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard";
 import { getMyPlanSettings, syncMyDuePersonalActions, type MyPlanSettings } from "@/app/actions/ai-actions";
@@ -13,6 +13,7 @@ import {
   type CommitmentBuddyGroup,
   type CommitmentBuddyProgress,
 } from "@/app/actions/commitment-buddies";
+import { getMyCommitmentWallet } from "@/app/actions/commitment-wallet";
 import { usePageLoading } from "@/components/PageLoadingProvider";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
 
@@ -93,6 +94,12 @@ function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "CM";
   return `${parts[0]?.[0] ?? ""}${parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : parts[0]?.[1] ?? ""}`.toUpperCase();
+}
+
+function formatCommitmentScore(value: number) {
+  const clamped = Math.min(100, Math.max(0, value));
+  const rounded = Math.round(clamped * 10) / 10;
+  return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
 }
 
 function buddyStatus(buddy: CommitmentBuddyProgress) {
@@ -216,6 +223,10 @@ export default function ActionsClient() {
   const [archivedActions, setArchivedActions] = useState<ArchivedActionEntry[]>([]);
   const [archiveReady, setArchiveReady] = useState(false);
   const [ready, setReady] = useState(false);
+  const [commitmentScore, setCommitmentScore] = useState<{
+    hasFinalisedPlan: boolean;
+    score: number;
+  } | null>(null);
 
   usePageLoading(!ready);
 
@@ -231,15 +242,24 @@ export default function ActionsClient() {
       if (syncResult.assigned > 0) await refetch();
       if (cancelled) return;
 
-      const [leaderboardResult, settingsResult, buddyResult] = await Promise.allSettled([
+      const [leaderboardResult, settingsResult, buddyResult, walletResult] = await Promise.allSettled([
         cohort?.id ? getCohortLeaderboard(cohort.id) : Promise.resolve({ entries: [] as LeaderboardEntry[] }),
         getMyPlanSettings(),
         cohort?.id ? getMyCommitmentBuddies(cohort.id) : Promise.resolve({ group: null }),
+        getMyCommitmentWallet(),
       ]);
       if (cancelled) return;
       setLeaderboard(leaderboardResult.status === "fulfilled" ? leaderboardResult.value.entries ?? [] : []);
       setSettings(settingsResult.status === "fulfilled" ? settingsResult.value.settings : null);
       setBuddyGroup(buddyResult.status === "fulfilled" ? buddyResult.value.group : null);
+      if (walletResult.status === "fulfilled") {
+        setCommitmentScore({
+          hasFinalisedPlan: walletResult.value.summary.hasFinalisedPlan,
+          score: walletResult.value.summary.commitmentScore,
+        });
+      } else {
+        setCommitmentScore(null);
+      }
       setBuddyReady(true);
       setReady(true);
     })();
@@ -336,9 +356,13 @@ export default function ActionsClient() {
 
   return <div className="reference-actions animate-in fade-in duration-700">
     <div className="actions-overview-head">
-      <div><span className="participant-eyebrow">Workplace practice</span><h1>Your practice plan</h1><p>One action appears when it is due. Completed actions move to your history.</p></div>
+      <div><h1>Your practice plan</h1><p>One action appears when it is due. Completed actions move to your history.</p></div>
       <div className="actions-overview-meta">
-        <span className="actions-score-badge"><small>Your points</small><strong>{profile.totalPoints.toLocaleString("en-IN")}</strong><em>started at 1,000</em></span>
+        <span className="actions-score-badge">
+          <small>Commitment score</small>
+          <strong>{commitmentScore?.hasFinalisedPlan ? `${formatCommitmentScore(commitmentScore.score)}%` : "—"}</strong>
+          <em>CS</em>
+        </span>
         <span className={`actions-plan-badge ${planIsActive ? "active" : ""}`}>{planIsActive ? "Plan active" : planIsArchived ? "Archived plan" : "No active plan"}</span>
       </div>
     </div>
@@ -354,15 +378,54 @@ export default function ActionsClient() {
     {tab === "upcoming" && <div className={`actions-reference-layout${planIsActive && buddyReady && buddyGroup ? "" : " actions-reference-layout--solo"}`}>
       <div className="actions-primary-column">
         <section className="actions-current-group">
-          <div className="actions-section-heading"><div><h3>Current actions</h3><p>{currentActions.length ? `${currentActions.length} action${currentActions.length === 1 ? " is" : "s are"} ready for this ${settings?.track === "daily" ? "day" : "week"}.` : "Actions ready for your current practice period."}</p></div>{currentActions.length > 0 && <span>{currentActions.length} ready</span>}</div>
-          {currentActions.length === 0 ? <div className="actions-current-card"><div className="actions-empty-state"><ListChecks size={28} /><strong>{planIsArchived ? "No released actions remain" : "No action is due right now"}</strong><p>{planIsArchived ? "This archived cohort plan will not release more reminders." : planIsActive ? "Your next action will appear according to this cohort plan's schedule." : personalPlanState === "draft" ? "Finish reviewing and finalise this cohort's draft plan first." : "Build a practice plan for your current cohort to generate workplace actions."}</p>{!planCanPerform && <Link href="/plan" className="journey-primary-button">{personalPlanState === "draft" ? "Review draft plan" : "Build my plan"}</Link>}</div></div> : <div className="actions-current-list">
+          <div className="actions-section-heading">
+            <div>
+              <h3>Current actions</h3>
+              <p>
+                {currentActions.length
+                  ? `${currentActions.length} action${currentActions.length === 1 ? " is" : "s are"} ready for this ${settings?.track === "daily" ? "day" : "week"}.`
+                  : planIsActive
+                    ? "Nothing on your plate right now."
+                    : "Actions ready for your current practice period."}
+              </p>
+            </div>
+            {currentActions.length > 0 && <span>{currentActions.length} ready</span>}
+          </div>
+          {currentActions.length === 0 ? (
+            <div className="actions-current-card actions-current-card--empty">
+              <div className="actions-empty-state actions-empty-state--chill">
+                <span className="actions-chill-icon" aria-hidden="true">
+                  <Coffee size={34} strokeWidth={1.75} />
+                  <i className="actions-chill-steam" />
+                  <i className="actions-chill-steam" />
+                  <i className="actions-chill-steam" />
+                </span>
+                <strong>
+                  {planIsArchived
+                    ? "No released actions remain"
+                    : "Nothing due — chill for now"}
+                </strong>
+                <p>
+                  {planIsArchived
+                    ? "This archived cohort plan will not release more reminders."
+                    : planIsActive || planCanPerform
+                      ? "You're clear. Grab a coffee — your next action will show up when it's due."
+                      : personalPlanState === "draft"
+                        ? "Finish reviewing and finalise this cohort's draft plan first."
+                        : "Build a practice plan for your current cohort to generate workplace actions."}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="actions-current-list">
             {currentActions.map(({ userAction, action }, index) => <article className="actions-current-card" key={userAction.id}>
               <div className="actions-current-top"><span>Current action {currentActions.length > 1 ? index + 1 : ""}</span><em>{action.timeEstimate}{action.planPoints ? ` · Protect ${action.planPoints} points today` : ""}</em></div>
               <h2>{action.title}</h2><p>{action.how}</p>
               <div className="actions-why"><strong>Why this works</strong><span>{action.why}</span></div>
               <div className="actions-current-buttons"><button className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(userAction.actionId)}><Check size={16} /> Mark completed</button><button disabled={busy} onClick={() => skip(userAction.actionId)}>I didn&apos;t complete it</button></div>
             </article>)}
-          </div>}
+          </div>
+          )}
         </section>
 
         <section className={`actions-list-card${!planCanPerform && upcoming.length === 0 ? " actions-list-card--empty-reminders" : ""}`}>

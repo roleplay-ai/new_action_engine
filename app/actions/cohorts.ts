@@ -12,7 +12,24 @@ function mapMemberRow(m: {
   profiles: { id: string; full_name: string | null } | { id: string; full_name: string | null }[] | null;
 }): CohortMember {
   const profile = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
-  return { id: m.user_id, fullName: profile?.full_name ?? null };
+  return { id: m.user_id, fullName: profile?.full_name ?? null, email: null };
+}
+
+async function withMemberEmails(
+  admin: ReturnType<typeof createAdminClient>,
+  members: CohortMember[],
+): Promise<CohortMember[]> {
+  if (members.length === 0) return members;
+  const memberIds = new Set(members.map((member) => member.id));
+  const emailMap = new Map<string, string>();
+  const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  for (const user of data?.users ?? []) {
+    if (memberIds.has(user.id) && user.email) emailMap.set(user.id, user.email);
+  }
+  return members.map((member) => ({
+    ...member,
+    email: emailMap.get(member.id) ?? null,
+  }));
 }
 
 async function getAdminContext(): Promise<{
@@ -567,7 +584,7 @@ export async function getMyCohort(): Promise<{
       .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name)")
       .eq("cohort_id", cohortId);
 
-    const roster = (members ?? []).map(mapMemberRow);
+    const roster = await withMemberEmails(admin, (members ?? []).map(mapMemberRow));
 
     return {
       cohort: {

@@ -13,7 +13,7 @@ const GenerationStatus: React.FC<{ job: GenerationJobStatus }> = ({ job }) => {
       <div className="generation-progress-head">
         <span className="generation-progress-icon"><Loader2 /><Sparkles /></span>
         <span>
-          <strong>AI is building your plan</strong>
+          <strong>AI is building my plan</strong>
           <small>{job.totalGenerated > 0 ? "Your first actions are ready to preview below." : "Reading your notes and creating practical actions…"}</small>
         </span>
         <b>{pct}%</b>

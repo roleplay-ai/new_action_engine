@@ -231,13 +231,13 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
   }
 
   const heading = isPlanActive
-    ? "Your plan is active"
+    ? "My plan is active"
     : isPlanArchived
       ? "This earlier plan is archived"
       : hasDraft
-        ? "Review your draft plan"
+        ? "Review my draft plan"
         : canBuildPlan
-          ? "Build your plan for this cohort"
+          ? "Build my plan for this cohort"
           : "No plan was created for this cohort";
   const summary = isPlanActive
     ? `${generatedActions.length} personalised actions are part of this cohort's read-only practice plan.`
@@ -250,7 +250,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
           : "Switch to your current cohort to build a new plan.";
 
   return <section className={`journey-page plan-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "action-plan" : undefined}>
-    {!embedded && <div className="participant-page-heading"><span className="participant-eyebrow">Private workspace</span><h1>My Plan</h1><p>Shape what you want to build, review every suggested action, then activate the plan when it feels right.</p></div>}
+    {!embedded && <div className="participant-page-heading"><h1>My Plan</h1><p>Shape what you want to build, review every suggested action, then activate the plan when it feels right.</p></div>}
 
     <div className="journey-v2-progress-pills" aria-label="Plan progress">
       <div className={hasDraft || isPlanActive || isPlanArchived ? "done" : "current"}><span>{hasDraft || isPlanActive || isPlanArchived ? <Check size={13} /> : 1}</span>My Plan</div>
@@ -334,11 +334,11 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
           <p>Need another option? Add one more AI suggestion, then rename or reorder it like the rest.</p>
         </div>
       )}
-      {!generationJob && !generationError && generatedActions.length > 0 && <div className="plan-freeze-bar plan-freeze-bar--primary"><div><CheckCircle2 size={20} /><span><strong>Your plan is ready</strong><small>Review the actions above, then activate when you are happy with the plan.</small></span></div><button className="journey-primary-button" disabled={activating || savingOrder || generatingMore} onClick={() => { setError(""); setConfirmActivateOpen(true); }}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generatingMore ? "Generating…" : "Activate My Plan"}</button></div>}
+      {!generationJob && !generationError && generatedActions.length > 0 && <div className="plan-freeze-bar plan-freeze-bar--primary"><div><CheckCircle2 size={20} /><span><strong>My plan is ready</strong><small>Review the actions above, then activate when you are happy with the plan.</small></span></div><button className="journey-primary-button" disabled={activating || savingOrder || generatingMore} onClick={() => { setError(""); setConfirmActivateOpen(true); }}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generatingMore ? "Generating…" : "Activate My Plan"}</button></div>}
       {error && <p className="plan-review-error">{error}</p>}
     </section>}
 
-    {isPlanActive && <div className="plan-active-callout"><div><Check size={20} /><span><strong>Your plan is live</strong><small>Current actions and future reminders are available on the Actions page.</small></span></div><Link href="/actions" className="journey-primary-button">View my actions</Link></div>}
+    {isPlanActive && <div className="plan-active-callout"><div><Check size={20} /><span><strong>My plan is live</strong><small>Current actions and future reminders are available on the Actions page.</small></span></div><Link href="/actions" className="journey-primary-button">View my actions</Link></div>}
 
     {isPlanArchived && <div className="plan-active-callout"><div><Check size={20} /><span><strong>Archived cohort plan</strong><small>This plan is view-only. Its reminder schedule will not release new actions.</small></span></div><Link href="/actions" className="journey-primary-button">Revisit remaining actions</Link></div>}
 
@@ -381,7 +381,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
             <div className="plan-activate-icon plan-activate-icon--danger" aria-hidden="true"><Trash2 size={26} /></div>
             <h2 id="plan-delete-title">Remove this action?</h2>
           </div>
-          <p>This will delete “{deletingAction.title}” from your draft plan. You can generate another action later if you change your mind.</p>
+          <p>This will delete “{deletingAction.title}” from my draft plan. You can generate another action later if you change your mind.</p>
           <strong>This cannot be undone.</strong>
           {error && <p className="plan-review-error">{error}</p>}
           <div className="plan-activate-actions">

@@ -42,7 +42,7 @@ function formatMessageTime(value: string) {
     : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-export default function CohortChat({ cohortId, memberCount, variant = "default" }: { cohortId: string; memberCount: number; variant?: "default" | "rcpl" }) {
+export default function CohortChat({ cohortId, variant = "default" }: { cohortId: string; variant?: "default" | "rcpl" }) {
   const [messages, setMessages] = useState<CohortMessage[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -232,7 +232,6 @@ export default function CohortChat({ cohortId, memberCount, variant = "default" 
       <div className="journey-chat-heading">
         <div>
           <h3>Cohort conversation</h3>
-          <p>Messages shared by {memberCount} participant{memberCount === 1 ? "" : "s"} and your trainer.</p>
         </div>
         <span className={connectionState}><i />{connectionState === "live" ? "Live" : connectionState === "connecting" ? "Connecting" : "Offline"}</span>
       </div>
@@ -263,7 +262,7 @@ export default function CohortChat({ cohortId, memberCount, variant = "default" 
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={handleKeyDown}
           maxLength={2000}
-          rows={2}
+          rows={1}
           placeholder="Share a question or insight…"
           aria-label="Message your cohort and trainer"
         />

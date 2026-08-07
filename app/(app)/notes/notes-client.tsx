@@ -25,7 +25,7 @@ export default function NotesClient({
   onSavePlan?: (body: string) => void | Promise<void>;
   onReviewChange?: (reviewing: boolean) => void;
 }) {
-  const { cohort } = useEngine();
+  const { cohort, personalPlanState } = useEngine();
   const [answers, setAnswers] = useState<MyPlanAnswers>({ ...EMPTY_MY_PLAN_ANSWERS });
   const [status, setStatus] = useState<"loading" | "saved" | "saving" | "error">("loading");
   const [error, setError] = useState("");
@@ -36,6 +36,7 @@ export default function NotesClient({
   const [updatedAt, setUpdatedAt] = useState<string | undefined>();
   const loaded = useRef(false);
   const skipNextSave = useRef(false);
+  const planLocked = personalPlanState === "active" || personalPlanState === "archived";
 
   const userNotes = useMemo(() => buildUserNotesPayload(answers), [answers]);
   const words = useMemo(() => {
@@ -74,7 +75,13 @@ export default function NotesClient({
   }, [cohort?.id, onReviewChange]);
 
   useEffect(() => {
-    if (!loaded.current) return;
+    if (!planLocked) return;
+    setReviewing(true);
+    onReviewChange?.(true);
+  }, [planLocked, onReviewChange]);
+
+  useEffect(() => {
+    if (!loaded.current || planLocked) return;
     if (skipNextSave.current) {
       skipNextSave.current = false;
       return;
@@ -86,18 +93,20 @@ export default function NotesClient({
       setStatus(result.error ? "error" : "saved");
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [answers, cohort?.id]);
+  }, [answers, cohort?.id, planLocked]);
 
   useEffect(() => {
     if (loaded.current) onBodyChange?.(userNotes);
   }, [userNotes, onBodyChange]);
 
   const updateAnswer = (field: keyof MyPlanAnswers, value: string) => {
+    if (planLocked) return;
     setAnswers((current) => ({ ...current, [field]: value }));
     setError("");
   };
 
   const handleRefine = async () => {
+    if (planLocked) return;
     if (!hasMyPlanAnswers(answers)) {
       setError("Add at least one answer before refining with AI.");
       setStatus("error");
@@ -119,8 +128,9 @@ export default function NotesClient({
   };
 
   const handleSavePlan = async () => {
+    if (planLocked) return;
     if (!hasMyPlanAnswers(answers)) {
-      setError("Add at least one answer before saving your plan.");
+      setError("Add at least one answer before saving my plan.");
       setStatus("error");
       return;
     }
@@ -143,11 +153,13 @@ export default function NotesClient({
   };
 
   const editPlan = () => {
+    if (planLocked) return;
     setReviewing(false);
     onReviewChange?.(false);
   };
 
   const generateActions = async () => {
+    if (planLocked) return;
     await onSavePlan?.(userNotes);
   };
 
@@ -163,14 +175,13 @@ export default function NotesClient({
     ? <section className="unified-plan-section"><div className="journey-card unified-plan-loading" /></section>
     : null;
 
-  if (reviewing) {
+  if (reviewing || planLocked) {
     return (
       <section className={`journey-page notes-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "notes" : undefined}>
-        {!embedded && <div className="participant-page-heading"><span className="participant-eyebrow">My Plan</span><h1>Your Plan</h1><p>A clean, shareable version of what you wrote.</p></div>}
+        {!embedded && <div className="participant-page-heading"><h1>My Plan</h1><p>A clean, shareable version of what you wrote.</p></div>}
         <article className="my-plan-review-card">
           <header>
-            <span>My Plan</span>
-            <h2>{answers.name.trim() || "Your Plan"}</h2>
+            <h2>{answers.name.trim() || "My Plan"}</h2>
             {roleLine && <p>{roleLine}</p>}
             <time dateTime={updatedAt}>{savedDate}</time>
           </header>
@@ -178,10 +189,12 @@ export default function NotesClient({
             {workAndSkill && <p>{workAndSkill}</p>}
             {answers.practiceOpportunities.trim() && <p>{answers.practiceOpportunities.trim()}</p>}
           </div>
-          <footer>
-            <button type="button" className="my-plan-edit-button" onClick={editPlan}><ArrowLeft size={15} /> Edit my plan</button>
-            <button type="button" className="journey-primary-button" onClick={() => void generateActions()}>Generate My Actions <ArrowRight size={16} /></button>
-          </footer>
+          {!planLocked && (
+            <footer>
+              <button type="button" className="my-plan-edit-button" onClick={editPlan}><ArrowLeft size={15} /> Edit my plan</button>
+              <button type="button" className="journey-primary-button" onClick={() => void generateActions()}>Generate My Actions <ArrowRight size={16} /></button>
+            </footer>
+          )}
         </article>
       </section>
     );
@@ -189,13 +202,13 @@ export default function NotesClient({
 
   return (
     <section className={`journey-page notes-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "notes" : undefined}>
-      {!embedded && <div className="participant-page-heading"><span className="participant-eyebrow">Private workspace</span><h1>My Plan</h1><p>Answer in your own words. This becomes your personal plan.</p></div>}
+      {!embedded && <div className="participant-page-heading"><h1>My Plan</h1><p>Answer in your own words. This becomes my personal plan.</p></div>}
       <div className="notes-layout">
         <section className="journey-card notes-editor-card my-plan-answer-card">
           <div className="my-plan-question my-plan-details">
             <div className="my-plan-question-heading">
               <h2>Your details</h2>
-              <p>This helps us personalize your plan to your role and team.</p>
+              <p>This helps us personalize my plan to your role and team.</p>
             </div>
             <div className="my-plan-details-grid">
               <label><span>Name</span><input value={answers.name} onChange={(event) => updateAnswer("name", event.target.value)} placeholder="Your name" maxLength={200} disabled={busy} /></label>

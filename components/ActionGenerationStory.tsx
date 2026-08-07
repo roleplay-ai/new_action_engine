@@ -22,7 +22,7 @@ export default function ActionGenerationStory({
   const percentage = total > 0 ? Math.min(100, Math.round((ready / total) * 100)) : 0;
   const hasMeasuredProgress = total > 0 && percentage > 0;
   const status = generatingOne
-    ? "Creating one more option for your plan…"
+    ? "Creating one more option for my plan…"
     : ready > 0
       ? `${ready} of ${total} actions are ready…`
       : "Building a plan around your chosen pace…";
@@ -38,16 +38,15 @@ export default function ActionGenerationStory({
       <header className="action-generation-story-head">
         <div className="action-generation-story-mark" aria-hidden="true">
           <Sparkles size={25} />
-          <i />
         </div>
         <div>
-          <span>Building your personal plan</span>
+          <span>Building my personal plan</span>
           <h2 id="action-generation-story-title">Generating your actions</h2>
           <p id="action-generation-story-description">AI is turning your learning into practical steps you can use at work.</p>
         </div>
       </header>
 
-      <div className="action-generation-story-stages" aria-label="How Nudgeable creates your action plan">
+      <div className="action-generation-story-stages" aria-label="How Nudgeable creates my action plan">
         {STORY_STAGES.map(({ title, icon: Icon }, index) => <article key={title}>
           <div aria-hidden="true"><Icon size={22} /><span>{index + 1}</span></div>
           <strong>{title}</strong>
@@ -66,7 +65,6 @@ export default function ActionGenerationStory({
         >
           <span style={hasMeasuredProgress ? { width: `${percentage}%` } : undefined} />
         </div>
-        <p>Your actions will appear automatically as soon as they are ready. This window will close when generation finishes.</p>
       </div>
     </section>
   </div>;

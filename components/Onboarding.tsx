@@ -91,7 +91,6 @@ const Onboarding: React.FC<{
       <div className="plan-setup-modal" role={inline ? undefined : "dialog"} aria-modal={inline ? undefined : true} aria-labelledby="plan-setup-title">
         <div className="plan-setup-head">
           <div>
-            <span className="participant-eyebrow">Plan setup</span>
             <h2 id="plan-setup-title">Turn your answers into actions</h2>
             <p>Convert what you wrote into daily or weekly workplace actions.</p>
           </div>
@@ -100,7 +99,7 @@ const Onboarding: React.FC<{
 
         {!trainingText && <div className="plan-notes-source missing">
           <span><NotebookPen size={20} /></span>
-          <div><strong>Answer your plan questions first</strong><p>{inline ? "Answer the private questions above, then choose a schedule here." : "Close this setup, answer your plan questions, then return here."}</p></div>
+          <div><strong>Answer my plan questions first</strong><p>{inline ? "Answer the private questions above, then choose a schedule here." : "Close this setup, answer my plan questions, then return here."}</p></div>
         </div>}
 
         <div className="plan-setup-field">

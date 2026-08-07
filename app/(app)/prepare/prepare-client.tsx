@@ -15,7 +15,6 @@ import CohortChat from "@/components/journey/CohortChat";
 import RcplWorkspace from "@/components/journey/RcplWorkspace";
 import { usePageLoading } from "@/components/PageLoadingProvider";
 import type { JourneyData, PrepareContentItem, UserPrepareProgress } from "@/lib/types";
-import { estimateMinutes } from "@/lib/prepare-estimate";
 import { resolveVideoEmbed, resolveVideoThumbnail } from "@/lib/video-embed";
 
 function formatSessionDate(value?: string | null, long = false) {
@@ -30,15 +29,6 @@ function formatSessionDate(value?: string | null, long = false) {
 function initials(name: string | null) {
   if (!name) return "P";
   return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-}
-
-function resourceMeta(item: PrepareContentItem) {
-  if (item.type === "video") {
-    const minutes = estimateMinutes(item);
-    return `${minutes ? `${minutes}-minute video` : "Video"} · Recommended`;
-  }
-  if (item.type === "quiz") return `${item.questionCount ?? 0} questions · Required`;
-  return `${isPdfResource(item) ? "PDF" : "Pre-read"} · Recommended`;
 }
 
 function isPdfResource(item: PrepareContentItem) {
@@ -209,13 +199,12 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
         <span className="journey-v2-company-logo">
           {cohort.companyLogoUrl ? <img src={cohort.companyLogoUrl} alt={`${cohort.companyName || "Company"} logo`} /> : <span>{initials(cohort.companyName || cohort.name)}</span>}
         </span>
-        <div><small>Your company workspace</small><strong>{cohort.companyName || "Your company"}</strong></div>
+        <div><small>Your workspace</small><strong>{cohort.companyName || "Your company"}</strong></div>
       </div>
 
       <section className="journey-v2-skill-hero">
         <div className="journey-v2-cohort-mark">{cohort.logoUrl ? <img src={cohort.logoUrl} alt={`${cohort.name} logo`} /> : <span>{initials(cohort.name)}</span>}</div>
         <div className="journey-v2-hero-copy">
-          <span>{selectedCohort?.isCurrent ? "Current cohort" : "Earlier cohort"}</span>
           <h1>{cohort.name}</h1>
           <p>{cohort.description || "Turn what you learn into something useful in your work and career."}</p>
         </div>
@@ -260,7 +249,7 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
         <section className="journey-v2-main-stack" aria-label="Workspace resources and conversation">
           <article className="journey-module-card journey-v2-resource-library" id="preparation">
             <div className="journey-v2-resource-heading">
-              <div><span>Workspace library</span><h3>Videos, PDFs and session resources</h3><p className="journey-card-subtitle">Everything assigned to {cohort.name}, ready to open here.</p></div>
+              <div><span>Base Camp library</span><h3>Videos, PDFs and session resources</h3></div>
               <strong>{completedCount}/{items.length} complete</strong>
             </div>
             <div className="journey-v2-media-grid">
@@ -290,14 +279,14 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
                       <LibraryMediaPreview item={item} />
                       {done && <span className="journey-v2-media-done"><Check size={13} /> Done</span>}
                     </span>
-                    <span className="journey-v2-media-copy"><strong>{item.title}</strong><small>{resourceMeta(item)}</small><span>{done ? "Review resource" : "Open resource"}<ArrowRight size={14} /></span></span>
+                    <span className="journey-v2-media-copy"><strong>{item.title}</strong><span>View<ArrowRight size={14} /></span></span>
                   </article>
                 );
               })}
             </div>
           </article>
 
-          <CohortChat cohortId={cohort.id} memberCount={cohort.memberCount} />
+          <CohortChat cohortId={cohort.id} />
         </section>
 
         <aside className="journey-v2-side-stack" aria-label="Session context">

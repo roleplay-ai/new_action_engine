@@ -8,6 +8,7 @@ import { ArrowDown, ArrowUp, CalendarDays, Check, CheckCircle2, GripVertical, Li
 import { useEngine } from "@/lib/store";
 import Onboarding from "@/components/Onboarding";
 import GenerationStatus from "@/components/GenerationStatus";
+import ActionGenerationStory from "@/components/ActionGenerationStory";
 import {
   activatePersonalActionPlan,
   deletePersonalAction,
@@ -71,6 +72,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const [generatingMore, setGeneratingMore] = useState(false);
+  const [setupGenerationPending, setSetupGenerationPending] = useState(false);
   const [scheduleSlots, setScheduleSlots] = useState<DraftPlanScheduleSlot[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [error, setError] = useState("");
@@ -256,7 +258,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
       <div className={isPlanActive || isPlanArchived ? "done" : generatedActions.length > 0 ? "current" : ""}><span>{isPlanActive || isPlanArchived ? <Check size={13} /> : 3}</span>{isPlanActive ? "Active" : isPlanArchived ? "Archived" : "Activate"}</div>
     </div>
 
-    {(showInitialSetup || editingSetup) && <Onboarding inline initialTrainingText={initialTrainingText} onComplete={async () => {
+    {(showInitialSetup || editingSetup) && <Onboarding inline initialTrainingText={initialTrainingText} onGeneratingChange={setSetupGenerationPending} onComplete={async () => {
       setEditingSetup(false);
       await Promise.all([
         refetch(),
@@ -272,7 +274,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
     {hasDraft && generationError && !generationJob && <div className="journey-card plan-generation-error" role="alert"><div><X size={18} /><span><strong>Generation paused</strong><small>{generationError}</small></span></div><button type="button" onClick={openPlanSetup}>Try again</button></div>}
 
     {hasDraft && !editingSetup && <section className="plan-review-shell">
-      <div className="plan-review-heading"><div><span className="participant-eyebrow">Review before finalising</span><h2>Your generated actions</h2><p>Move, rename or delete actions before activation. Daily plans begin on the next weekday; weekly plans begin on the next selected weekday.</p></div><strong>{savingOrder ? <><Loader2 size={12} className="plan-order-spinner" /> Saving order</> : `${generatedActions.length}${generationJob ? ` / ${generationJob.totalNeeded}` : ""} actions`}</strong></div>
+      <div className="plan-review-heading"><div><span className="participant-eyebrow">Review before finalising</span><h2>Your generated actions</h2><p>Reorder, rename, or remove any action before you activate. Daily plans start on the next weekday. Weekly plans start on the next selected weekday.</p></div><strong>{savingOrder ? <><Loader2 size={12} className="plan-order-spinner" /> Saving order</> : `${generatedActions.length}${generationJob ? ` / ${generationJob.totalNeeded}` : ""} actions`}</strong></div>
       {!generationJob && orderedActions.length > 1 && <div className="plan-order-tip"><GripVertical size={17} /><span><strong>Set your preferred sequence</strong><small>Drag a card, or use its arrow buttons. Dates update with the new order.</small></span></div>}
       <div className="plan-review-list">
         {orderedActions.map((action, index) => {
@@ -390,6 +392,11 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
           </div>
         </section>
       </div>,
+      document.body,
+    )}
+
+    {typeof document !== "undefined" && (setupGenerationPending || generationJob || generatingMore) && createPortal(
+      <ActionGenerationStory job={generationJob} generatingOne={generatingMore} />,
       document.body,
     )}
   </section>;

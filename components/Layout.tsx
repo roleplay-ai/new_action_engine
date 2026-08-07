@@ -72,7 +72,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             <span><strong>{cohort?.companyName || "Your company"}</strong></span>
           </Link>
 
-          {isRcpl && pathname.startsWith("/journey") ? (
+          {isRcpl && pathname.startsWith("/journey") && (
             <details className="rcpl-sidebar-phase-picker">
               <summary>
                 <span><small>Current phase</small><strong>{currentRcplPhase.label} · {currentRcplPhase.title}</strong></span>
@@ -86,13 +86,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
                 ))}
               </div>
             </details>
-          ) : (
-            <div className="participant-progress-card">
-              <small>Your learning journey</small>
-              <strong>Keep turning insight into action.</strong>
-              <div className="participant-progress-track"><span style={{ width: `${Math.min(100, Math.max(8, profile.weeklyGoal * 10))}%` }} /></div>
-              <p>{profile.streak > 0 ? `${profile.streak} day streak` : "Your progress appears here"}</p>
-            </div>
           )}
 
           <nav className="participant-nav" aria-label="Participant navigation">

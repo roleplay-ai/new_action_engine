@@ -139,6 +139,65 @@ function CommitmentBuddyCard({ group }: { group: CommitmentBuddyGroup }) {
   </section>;
 }
 
+type ReminderPreviewAction = {
+  title: string;
+  how: string;
+  timeEstimate: string;
+};
+
+function ReminderEmailPreview({
+  firstName,
+  cohortName,
+  action,
+  schedule,
+}: {
+  firstName: string;
+  cohortName: string;
+  action: ReminderPreviewAction;
+  schedule: string;
+}) {
+  return <section className="actions-reminder-preview" aria-label="Sample action reminder email">
+    <div className="actions-reminder-preview-head">
+      <div>
+        <span>Sample email preview</span>
+        <h3>Your reminder email</h3>
+        <p>See how your next workplace action will arrive.</p>
+      </div>
+      <i aria-hidden="true"><Mail size={17} /></i>
+    </div>
+
+    <div className="actions-reminder-subject">
+      <span>Subject</span>
+      <strong>Hi {firstName} — Your next workflow is ready</strong>
+    </div>
+
+    <div className="actions-reminder-email">
+      <div className="actions-reminder-email-brand"><b>nudgeable</b><span>action reminder</span></div>
+      <div className="actions-reminder-email-hero">
+        <span>Your next nudge</span>
+        <h4>Small action.<strong>Real momentum.</strong></h4>
+        <p>Hey {firstName}, one action from <b>{cohortName}</b> is ready when you are.</p>
+      </div>
+      <div className="actions-reminder-email-body">
+        <div className="actions-reminder-email-schedule"><CalendarDays size={13} /><span><small>Your reminder</small><strong>{schedule}</strong></span></div>
+        <article className="actions-reminder-email-action">
+          <i>01</i>
+          <div>
+            <strong>{action.title}</strong>
+            <p>{action.how}</p>
+            <small><Clock3 size={12} />{action.timeEstimate}</small>
+          </div>
+        </article>
+        <span className="actions-reminder-email-button">Open Action Engine <b aria-hidden="true">→</b></span>
+        <small className="actions-reminder-email-note">Secure one-click sign in. No password needed.</small>
+      </div>
+      <div className="actions-reminder-email-footer"><b>nudgeable</b><span>Turn learning into action, one nudge at a time.</span></div>
+    </div>
+
+    <p className="actions-reminder-preview-note"><span aria-hidden="true" /> Preview only · no email has been sent.</p>
+  </section>;
+}
+
 export default function ActionsClient() {
   const { profile, cohort, personalPlanState, allActions, userActions, completeAction, refetch } = useEngine();
   const [tab, setTab] = useState<Tab>("upcoming");
@@ -216,6 +275,15 @@ export default function ActionsClient() {
   const usedActionIds = new Set(userActions.map((item) => item.actionId));
   const currentActions = scheduled.map((item) => ({ userAction: item, action: actionMap.get(item.actionId)! }));
   const upcoming = planCanPerform ? allActions.filter((action) => action.isPersonal && !usedActionIds.has(action.id)) : [];
+  const reminderAction: ReminderPreviewAction = currentActions[0]?.action ?? upcoming[0] ?? allActions[0] ?? {
+    title: "Turn one learning into a question",
+    how: "Before your next conversation, write one open question that helps you understand the other person's perspective.",
+    timeEstimate: "10 minutes",
+  };
+  const reminderFirstName = profile.name.trim().split(/\s+/)[0] || "there";
+  const reminderSchedule = settings
+    ? `${settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}${formatTime(settings.reminderTime)}`
+    : "Based on your plan schedule";
 
   async function finish(success: boolean) {
     if (!completingId) return;
@@ -297,35 +365,55 @@ export default function ActionsClient() {
           </div>}
         </section>
 
-        <section className="actions-list-card"><h3>{planIsArchived ? "Remaining archived actions" : "Next reminders"}</h3><p>{planIsArchived ? "Reminder delivery is paused. You can still choose and complete any remaining action." : "Actions scheduled after your current action in this cohort plan."}</p><div className="actions-upcoming-list plan-review-list">
-          {upcoming.length === 0 && <div className="actions-inline-empty">{planIsArchived ? "No archived actions remain." : "No additional actions are scheduled yet."}</div>}
-          {upcoming.map((action, index) => {
-            const deliveryDate = projectedDeliveryDate(settings, index);
-            const points = action.planPoints ?? 50;
-            return <article className={`plan-review-action${planIsArchived ? "" : " plan-review-action--reminder"}`} key={action.id}>
-              <div className="plan-action-order">
-                <div className="plan-action-number">{index + 1}</div>
+        <section className={`actions-list-card${!planCanPerform && upcoming.length === 0 ? " actions-list-card--empty-reminders" : ""}`}>
+          {planCanPerform || upcoming.length > 0 ? (
+            <>
+              <h3>{planIsArchived ? "Remaining archived actions" : "Next reminders"}</h3>
+              <p>{planIsArchived
+                ? "Reminder delivery is paused. You can still choose and complete any remaining action."
+                : "Actions scheduled after your current action in this cohort plan."}</p>
+              <div className="actions-upcoming-list plan-review-list">
+                {upcoming.length === 0 && <div className="actions-inline-empty">{planIsArchived ? "No archived actions remain." : "No additional actions are scheduled yet."}</div>}
+                {upcoming.map((action, index) => {
+                  const deliveryDate = projectedDeliveryDate(settings, index);
+                  const points = action.planPoints ?? 50;
+                  return <article className={`plan-review-action${planIsArchived ? "" : " plan-review-action--reminder"}`} key={action.id}>
+                    <div className="plan-action-order"><div className="plan-action-number">{index + 1}</div></div>
+                    <div className="plan-action-copy plan-action-copy--compact">
+                      <h3 title={action.title}>{action.title}</h3>
+                      <div className="plan-action-meta">
+                        <span><CalendarDays size={13} />{planIsArchived ? "Available to revisit" : formatDate(deliveryDate)}</span>
+                        <span>{points} CP</span>
+                      </div>
+                    </div>
+                    {planIsArchived && <div className="plan-action-controls plan-action-controls--compact"><button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>Do this action</button></div>}
+                  </article>;
+                })}
               </div>
-              <div className="plan-action-copy plan-action-copy--compact">
-                <h3 title={action.title}>{action.title}</h3>
-                <div className="plan-action-meta">
-                  <span><CalendarDays size={13} />{planIsArchived ? "Available to revisit" : formatDate(deliveryDate)}</span>
-                  <span>{points} CP</span>
-                </div>
-              </div>
-              {planIsArchived && (
-                <div className="plan-action-controls plan-action-controls--compact">
-                  <button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>Do this action</button>
-                </div>
-              )}
-            </article>;
-          })}
-        </div></section>
+            </>
+          ) : (
+            <div className="actions-reminders-empty">
+              <div className="actions-reminders-empty-icon" aria-hidden="true"><CalendarDays size={26} /></div>
+              <span className="participant-eyebrow">Next reminders</span>
+              <strong>{personalPlanState === "draft" ? "Activate your plan to unlock reminders" : "Your reminders will live here"}</strong>
+              <p>{personalPlanState === "draft"
+                ? "You already have a draft. Finalise it and this space will fill with the actions waiting on your schedule."
+                : "Once you create workplace actions in My Plan, upcoming reminders will appear here on the days they are due."}</p>
+              <Link href="/plan" className="journey-primary-button">{personalPlanState === "draft" ? "Review draft plan" : "Create my actions"}</Link>
+            </div>
+          )}
+        </section>
       </div>
 
       {planIsActive && buddyReady && buddyGroup && (
         <aside className="actions-buddy-sidebar">
           <CommitmentBuddyCard group={buddyGroup} />
+          <ReminderEmailPreview
+            firstName={reminderFirstName}
+            cohortName={cohort?.name ?? "your cohort"}
+            action={reminderAction}
+            schedule={reminderSchedule}
+          />
         </aside>
       )}
 

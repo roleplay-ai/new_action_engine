@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Zap, CalendarDays, Mail, NotebookPen, Check } from "lucide-react";
+import { X, Zap, CalendarDays, Mail, NotebookPen } from "lucide-react";
 import { saveGeneratedActions, skipSelfOnboarding } from "@/app/actions/ai-actions";
 import { computeTotalActionsNeeded, DAILY_DELIVERY_DAYS, type DeliveryTrack } from "@/lib/personal-action-generation";
 
@@ -17,7 +17,12 @@ const WEEKDAYS = [
 
 const DURATIONS = [2, 4, 6, 8, 10, 12] as const;
 
-const Onboarding: React.FC<{ onComplete: () => void | Promise<void>; initialTrainingText?: string; inline?: boolean }> = ({ onComplete, initialTrainingText = "", inline = false }) => {
+const Onboarding: React.FC<{
+  onComplete: () => void | Promise<void>;
+  onGeneratingChange?: (generating: boolean) => void;
+  initialTrainingText?: string;
+  inline?: boolean;
+}> = ({ onComplete, onGeneratingChange, initialTrainingText = "", inline = false }) => {
   const [durationWeeks, setDurationWeeks] = useState(6);
   const [track, setTrack] = useState<DeliveryTrack>("weekly");
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([2]);
@@ -49,21 +54,26 @@ const Onboarding: React.FC<{ onComplete: () => void | Promise<void>; initialTrai
     }
     setSaving(true);
     setErrorMsg(null);
-    const { error } = await saveGeneratedActions({
-      userNotes: trainingText,
-      focusThemes: [],
-      track,
-      dailyActionCount: actionCount,
-      daysOfWeek,
-      durationWeeks,
-      emailRemindersEnabled: true,
-    });
-    setSaving(false);
-    if (error) {
-      setErrorMsg(error);
-      return;
+    onGeneratingChange?.(true);
+    try {
+      const { error } = await saveGeneratedActions({
+        userNotes: trainingText,
+        focusThemes: [],
+        track,
+        dailyActionCount: actionCount,
+        daysOfWeek,
+        durationWeeks,
+        emailRemindersEnabled: true,
+      });
+      setSaving(false);
+      if (error) {
+        setErrorMsg(error);
+        return;
+      }
+      await onComplete();
+    } finally {
+      onGeneratingChange?.(false);
     }
-    await onComplete();
   };
 
   const totalActions = computeTotalActionsNeeded(durationWeeks, actionCount, track, daysOfWeek);
@@ -80,14 +90,18 @@ const Onboarding: React.FC<{ onComplete: () => void | Promise<void>; initialTrai
     <div className={inline ? "plan-setup-inline" : "plan-setup-overlay"}>
       <div className="plan-setup-modal" role={inline ? undefined : "dialog"} aria-modal={inline ? undefined : true} aria-labelledby="plan-setup-title">
         <div className="plan-setup-head">
-          <div><span className="participant-eyebrow">Plan setup</span><h2 id="plan-setup-title">Choose your action pace</h2><p>Your answers will be combined with your cohort&apos;s training and business context. You only need to choose the schedule.</p></div>
+          <div>
+            <span className="participant-eyebrow">Plan setup</span>
+            <h2 id="plan-setup-title">Turn your answers into actions</h2>
+            <p>Convert what you wrote into daily or weekly workplace actions.</p>
+          </div>
           {!inline && <button type="button" onClick={handleSkip} disabled={saving} aria-label="Close plan setup"><X size={19} /></button>}
         </div>
 
-        <div className={`plan-notes-source ${trainingText ? "ready" : "missing"}`}>
-          <span>{trainingText ? <Check size={20} /> : <NotebookPen size={20} />}</span>
-          <div><strong>{trainingText ? "Your answers are ready" : "Answer your plan questions first"}</strong><p>{trainingText ? "AI will combine only your entered answers with the context set for this cohort." : inline ? "Answer the private questions above, then choose a pace here." : "Close this setup, answer your plan questions, then return here to choose a pace."}</p></div>
-        </div>
+        {!trainingText && <div className="plan-notes-source missing">
+          <span><NotebookPen size={20} /></span>
+          <div><strong>Answer your plan questions first</strong><p>{inline ? "Answer the private questions above, then choose a schedule here." : "Close this setup, answer your plan questions, then return here."}</p></div>
+        </div>}
 
         <div className="plan-setup-field">
           <label>Frequency</label>
@@ -107,14 +121,13 @@ const Onboarding: React.FC<{ onComplete: () => void | Promise<void>; initialTrai
           <div className="plan-setup-field"><span>Reminder time</span><div className="plan-fixed-action-count"><strong>11:30 AM IST</strong><small>Fixed processing time</small></div></div>
         </div>
 
-        <div className="plan-email-note"><Mail size={18} /><div><strong>Email reminders included</strong><p>We&apos;ll email you on {track === "weekly" ? "your selected day" : "weekdays"} when the next action is ready.</p></div></div>
-
-        <div className="plan-setup-summary"><div><strong>{cadenceSummary}</strong><small>AI will generate the complete plan from your answers and cohort context.</small></div><b>{totalActions} actions</b></div>
+        <div className="plan-setup-summary"><div><strong>{cadenceSummary}</strong><small>Generated from your answers and cohort context</small></div><b>{totalActions} actions</b></div>
 
         {planWarning && <p className="plan-setup-warning">{planWarning}</p>}
         {errorMsg && <p className="plan-setup-error">{errorMsg}</p>}
 
         <button type="button" className="journey-primary-button plan-generate-button" onClick={handleFinish} disabled={saving || !trainingText}>{saving ? "Generating…" : "Generate my actions"}</button>
+        <div className="plan-email-note"><Mail size={18} /><div><strong>Email reminders included</strong><p>We&apos;ll email you on {track === "weekly" ? "your selected day" : "weekdays"} when the next action is ready.</p></div></div>
       </div>
     </div>
   );

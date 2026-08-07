@@ -4509,3 +4509,138 @@ input[type="range"] {
   .wallet-summary-card { grid-template-columns: 44px minmax(0, 1fr); gap: 13px; padding: 18px; }
   .wallet-summary-icon { width: 44px; height: 44px; border-radius: 14px; }
 }
+
+/* Presentation-only additions ported from uiChanges. */
+.plan-review-heading h2 { font-weight: 900; }
+.plan-review-heading p { color: var(--color-text-primary); font-size: 13px; line-height: 1.55; font-weight: 550; }
+
+.actions-list-card--empty-reminders {
+  padding: 0;
+  overflow: hidden;
+  border-color: rgba(255, 206, 0, .35);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(255, 206, 0, .22), transparent 42%),
+    linear-gradient(160deg, #fffdf6 0%, #fff 58%);
+}
+.actions-reminders-empty { display: grid; justify-items: start; gap: 8px; min-height: 220px; padding: 28px 26px; }
+.actions-reminders-empty-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 6px;
+  border-radius: 16px;
+  color: #745a00;
+  background: rgba(255, 206, 0, .22);
+  box-shadow: inset 0 0 0 1px rgba(255, 206, 0, .28);
+}
+.actions-reminders-empty .participant-eyebrow { color: #8a7000; }
+.actions-reminders-empty > strong { max-width: 420px; color: var(--color-text-primary); font-size: clamp(20px, 2.6vw, 26px); line-height: 1.18; letter-spacing: -.03em; }
+.actions-reminders-empty > p { max-width: 460px; margin: 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.55; }
+.actions-reminders-empty .journey-primary-button { min-height: 46px; margin-top: 10px; padding-inline: 18px; box-shadow: 0 6px 16px rgba(201, 160, 0, .18); }
+
+/* Read-only preview of the action-reminder email below the buddy card. */
+.actions-reminder-preview {
+  overflow: hidden;
+  padding: 13px 24px;
+  border: 1px solid rgba(231, 223, 196, .72);
+  border-radius: 19px;
+  background: linear-gradient(145deg, #fffdf6 0%, #fff9e8 100%);
+  box-shadow: 0 6px 18px rgba(34, 29, 35, .04);
+  opacity: .82;
+  filter: saturate(.78);
+}
+.actions-reminder-preview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.actions-reminder-preview-head > div > span { display: block; color: #8b6f00; font-size: 8px; font-weight: 950; letter-spacing: .13em; text-transform: uppercase; }
+.actions-reminder-preview-head h3 { margin: 3px 0 2px; color: var(--journey-ink); font-size: 15px; line-height: 1.2; letter-spacing: -.02em; }
+.actions-reminder-preview-head p { margin: 0; color: var(--journey-muted); font-size: 9px; line-height: 1.45; }
+.actions-reminder-preview-head > i { width: 31px; height: 31px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 10px; color: var(--journey-ink); background: var(--journey-yellow); box-shadow: 0 5px 13px rgba(201, 160, 0, .2); }
+.actions-reminder-subject { display: grid; gap: 2px; margin: 9px 0 7px; padding: 7px 9px; border: 1px solid rgba(34, 29, 35, .07); border-radius: 10px; background: rgba(255, 255, 255, .78); }
+.actions-reminder-subject span { color: #8b817e; font-size: 7px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.actions-reminder-subject strong { overflow: hidden; color: var(--journey-ink); font-size: 9px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.actions-reminder-email { overflow: hidden; border: 1px solid #eadfba; border-radius: 16px; background: #fff; box-shadow: 0 8px 18px rgba(34, 29, 35, .08); }
+.actions-reminder-email-brand { min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 11px; color: var(--journey-ink); background: var(--journey-yellow); }
+.actions-reminder-email-brand b { font-size: 11px; letter-spacing: -.02em; }
+.actions-reminder-email-brand span { font-size: 6px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.actions-reminder-email-hero { padding: 12px; color: #fff; background: #221d23; }
+.actions-reminder-email-hero > span { color: var(--journey-yellow); font-size: 7px; font-weight: 950; letter-spacing: .14em; text-transform: uppercase; }
+.actions-reminder-email-hero h4 { margin: 5px 0 6px; color: #fff; font-size: 17px; line-height: 1.03; letter-spacing: -.045em; }
+.actions-reminder-email-hero h4 strong { display: block; color: var(--journey-yellow); }
+.actions-reminder-email-hero p { margin: 0; color: #d8d1d6; font-size: 8px; line-height: 1.5; }
+.actions-reminder-email-hero p b { color: #fff; }
+.actions-reminder-email-body { padding: 10px; background: #fffdf7; }
+.actions-reminder-email-schedule { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; padding: 7px 8px; border-radius: 9px; color: #725c00; background: #fff3bd; }
+.actions-reminder-email-schedule svg { flex: 0 0 auto; }
+.actions-reminder-email-schedule span { min-width: 0; }
+.actions-reminder-email-schedule small, .actions-reminder-email-schedule strong { display: block; }
+.actions-reminder-email-schedule small { font-size: 6px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.actions-reminder-email-schedule strong { margin-top: 1px; overflow: hidden; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.actions-reminder-email-action { display: grid; grid-template-columns: 23px minmax(0, 1fr); gap: 8px; padding: 8px; border: 1px solid #ece7d8; border-radius: 10px; background: #fff; }
+.actions-reminder-email-action > i { width: 23px; height: 23px; display: grid; place-items: center; border-radius: 7px; color: #765e00; background: var(--journey-yellow); font-size: 7px; font-style: normal; font-weight: 950; }
+.actions-reminder-email-action > div { min-width: 0; }
+.actions-reminder-email-action strong { display: -webkit-box; overflow: hidden; color: var(--journey-ink); font-size: 9px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.actions-reminder-email-action p { display: -webkit-box; overflow: hidden; margin: 3px 0 5px; color: #6f676d; font-size: 7px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.actions-reminder-email-action small { display: flex; align-items: center; gap: 4px; color: #8a807f; font-size: 7px; font-weight: 850; }
+.actions-reminder-email-button { min-height: 28px; display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 8px; border-radius: 8px; color: var(--journey-ink); background: var(--journey-yellow); font-size: 8px; font-weight: 950; box-shadow: 0 4px 10px rgba(201, 160, 0, .18); }
+.actions-reminder-email-button b { font-size: 11px; }
+.actions-reminder-email-note { display: block; margin-top: 6px; color: #978f90; font-size: 6px; text-align: center; }
+.actions-reminder-email-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 10px; color: #8b8387; background: #fff; font-size: 6px; }
+.actions-reminder-email-footer b { color: var(--journey-ink); font-size: 8px; }
+.actions-reminder-preview-note { display: flex; align-items: center; justify-content: center; gap: 5px; margin: 7px 0 0; color: #7f767a; font-size: 7px; font-weight: 800; }
+.actions-reminder-preview-note > span { width: 5px; height: 5px; border-radius: 50%; background: #42b883; box-shadow: 0 0 0 3px rgba(66, 184, 131, .12); }
+
+/* Action-generation story shown while AI builds the plan. */
+.action-generation-story-overlay { position: fixed; inset: 0; z-index: 280; display: grid; place-items: center; padding: 22px; background: rgba(34, 29, 35, .74); backdrop-filter: blur(9px); }
+.action-generation-story-modal { width: min(620px, 100%); padding: 30px; overflow: hidden; border: 1px solid rgba(255, 255, 255, .62); border-radius: 26px; background: #fffdf5; box-shadow: 0 30px 90px rgba(0, 0, 0, .32); animation: actionGenerationModalIn .28s ease-out both; }
+.action-generation-story-head { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: center; gap: 14px; }
+.action-generation-story-mark { width: 52px; height: 52px; display: grid; place-items: center; position: relative; border-radius: 16px; color: #221d23; background: #ffce00; animation: actionGenerationMark 5.8s ease-in-out infinite; }
+.action-generation-story-mark > i { width: 6px; height: 6px; position: absolute; right: 8px; bottom: 8px; border-radius: 50%; background: #221d23; opacity: .52; animation: actionGenerationDot 1.4s ease-in-out infinite; }
+.action-generation-story-head > div:last-child > span { display: block; color: #8d7000; font-size: 9px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
+.action-generation-story-head h2 { margin: 4px 0 3px; color: #221d23; font-size: clamp(23px, 4vw, 29px); line-height: 1.08; letter-spacing: -.04em; }
+.action-generation-story-head p { margin: 0; color: #6a6167; font-size: 11px; line-height: 1.5; }
+.action-generation-story-stages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 25px; padding: 18px 14px; border: 1px solid rgba(255, 206, 0, .42); border-radius: 18px; background: #fff9e0; }
+.action-generation-story-stages article { min-width: 0; padding: 4px 5px; opacity: .3; text-align: center; transform: translateY(8px); animation: actionGenerationStage 5.8s ease-in-out infinite; }
+.action-generation-story-stages article:nth-child(2) { animation-delay: 1.35s; }
+.action-generation-story-stages article:nth-child(3) { animation-delay: 2.7s; }
+.action-generation-story-stages article:nth-child(4) { animation-delay: 4.05s; }
+.action-generation-story-stages article > div { width: 42px; height: 42px; display: grid; place-items: center; position: relative; margin: 0 auto 9px; border: 1px solid rgba(34, 29, 35, .07); border-radius: 13px; color: #221d23; background: #fff; box-shadow: 0 5px 12px rgba(34, 29, 35, .05); }
+.action-generation-story-stages article > div > span { width: 16px; height: 16px; display: grid; place-items: center; position: absolute; right: -5px; top: -5px; border: 2px solid #fff9e0; border-radius: 50%; color: #221d23; background: #ffce00; font-size: 7px; font-weight: 950; }
+.action-generation-story-stages strong { display: block; color: #221d23; font-size: 11px; line-height: 1.35; }
+.action-generation-story-progress { margin-top: 22px; }
+.action-generation-story-progress > div:first-child { min-height: 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.action-generation-story-progress > div:first-child strong { color: #4a4047; font-size: 9px; }
+.action-generation-story-progress > div:first-child span { color: #7a6100; font-size: 9px; font-weight: 900; }
+.action-generation-story-track { height: 7px; position: relative; overflow: hidden; margin-top: 7px; border-radius: 999px; background: rgba(34, 29, 35, .08); }
+.action-generation-story-track > span { width: 34%; height: 100%; display: block; border-radius: inherit; background: #ffce00; box-shadow: 0 0 10px rgba(255, 206, 0, .42); animation: actionGenerationProgress 1.45s ease-in-out infinite; }
+.action-generation-story-track.measured > span { min-width: 7px; animation: none; transition: width .45s ease; }
+.action-generation-story-progress > p { margin: 10px 0 0; color: #8a8090; font-size: 8px; line-height: 1.45; text-align: center; }
+
+@keyframes actionGenerationModalIn { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes actionGenerationStage { 0%, 8% { opacity: .3; transform: translateY(8px); } 15%, 28% { opacity: 1; transform: translateY(0); } 38%, 100% { opacity: .46; transform: translateY(0); } }
+@keyframes actionGenerationProgress { from { transform: translateX(-110%); } to { transform: translateX(310%); } }
+@keyframes actionGenerationMark { 0%, 100% { transform: scale(1); } 48%, 54% { transform: scale(1.07); } }
+@keyframes actionGenerationDot { 0%, 100% { transform: scale(.7); opacity: .35; } 50% { transform: scale(1.2); opacity: .7; } }
+
+@media (max-width: 580px) {
+  .action-generation-story-overlay { padding: 13px; }
+  .action-generation-story-modal { padding: 21px 17px; border-radius: 22px; }
+  .action-generation-story-head { grid-template-columns: 44px minmax(0, 1fr); gap: 11px; }
+  .action-generation-story-mark { width: 44px; height: 44px; border-radius: 13px; }
+  .action-generation-story-head h2 { font-size: 22px; }
+  .action-generation-story-stages { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px 6px; margin-top: 20px; padding: 14px 10px; }
+  .action-generation-story-stages strong { white-space: normal; }
+  .action-generation-story-progress { margin-top: 17px; }
+}
+@media (max-width: 560px) {
+  .actions-reminders-empty { min-height: 0; padding: 22px 18px; justify-items: center; text-align: center; }
+  .actions-reminders-empty > strong, .actions-reminders-empty > p { max-width: none; }
+  .actions-reminders-empty .journey-primary-button { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .action-generation-story-modal,
+  .action-generation-story-mark,
+  .action-generation-story-mark > i,
+  .action-generation-story-stages article,
+  .action-generation-story-track > span { animation: none; }
+  .action-generation-story-stages article { opacity: 1; transform: none; }
+}

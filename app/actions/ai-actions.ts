@@ -193,7 +193,7 @@ export async function getDraftPlanSchedule(): Promise<{
  * finalises the plan with activatePersonalActionPlan.
  */
 export async function saveGeneratedActions(params: {
-  trainingText: string;
+  userNotes: string;
   focusThemes: ActionTheme[];
   focusCustomText?: string;
   track: DeliveryTrack;
@@ -219,6 +219,16 @@ export async function saveGeneratedActions(params: {
     const cohortContext = await getSelectedPlanCohort(true);
     if (!cohortContext.cohortId) return { error: cohortContext.error };
     const cohortId = cohortContext.cohortId;
+
+    const { data: cohortGenerationContext, error: cohortGenerationContextError } = await supabase
+      .from("cohorts")
+      .select("training_content, business_context")
+      .eq("id", cohortId)
+      .single();
+    if (cohortGenerationContextError) return { error: cohortGenerationContextError.message };
+    if (!cohortGenerationContext?.training_content?.trim() || !cohortGenerationContext.business_context?.trim()) {
+      return { error: "Your cohort is not ready for action generation. Ask the superadmin to add its training content and business context." };
+    }
 
     const { data: profile } = await supabase
       .from("profiles")
@@ -261,7 +271,7 @@ export async function saveGeneratedActions(params: {
       return { error: "Plan duration must be between 2 and 24 weeks" };
     }
 
-    const contextText = buildTrainingContext(params.trainingText, params.focusThemes, params.focusCustomText);
+    const contextText = buildTrainingContext(params.userNotes, params.focusThemes, params.focusCustomText);
     // The free Vercel cron runs once daily at 11:30 AM IST. Enforce that
     // server-side so older or custom clients cannot submit an unsupported time.
     const timeOfDayUtc = istToUTCTime("11:30");
@@ -630,8 +640,20 @@ export async function generateOneMorePersonalAction(): Promise<{ error?: string 
     const nextPlanOrder = ((existingActions ?? [])[0]?.plan_order ?? -1) + 1;
     const focusThemes = (plan.focus_themes ?? []) as ActionTheme[];
 
+    const { data: cohortGenerationContext, error: cohortGenerationContextError } = await supabase
+      .from("cohorts")
+      .select("training_content, business_context")
+      .eq("id", cohortId)
+      .single();
+    if (cohortGenerationContextError) return { error: cohortGenerationContextError.message };
+    if (!cohortGenerationContext?.training_content?.trim() || !cohortGenerationContext.business_context?.trim()) {
+      return { error: "Your cohort is not ready for action generation. Ask the superadmin to add its training content and business context." };
+    }
+
     const { drafts, error: generateError } = await generateDraftActions({
-      trainingText: plan.training_text ?? "",
+      trainingContent: cohortGenerationContext.training_content,
+      userNotes: plan.training_text ?? "",
+      businessContext: cohortGenerationContext.business_context,
       focusThemes,
       count: 1,
       avoidTitles,

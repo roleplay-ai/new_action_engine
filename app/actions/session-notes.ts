@@ -3,8 +3,18 @@
 import { createClient } from "@/lib/supabase/server";
 import { getMyCohort } from "@/app/actions/cohorts";
 import { getGeminiClient, isGeminiConfigured, GEMINI_MODEL } from "@/lib/gemini";
+import {
+  buildUserNotesPayload,
+  parseStoredMyPlanAnswers,
+  type MyPlanAnswers,
+} from "@/lib/my-plan-notes";
 
-export async function getMySessionNotes(cohortId?: string | null): Promise<{ body: string; updatedAt?: string; error?: string }> {
+export async function getMySessionNotes(cohortId?: string | null): Promise<{
+  body: string;
+  answers?: MyPlanAnswers;
+  updatedAt?: string;
+  error?: string;
+}> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { body: "", error: "Not authenticated" };
@@ -14,18 +24,33 @@ export async function getMySessionNotes(cohortId?: string | null): Promise<{ bod
 
   let query = supabase
     .from("participant_session_notes")
-    .select("body, updated_at")
+    .select("body, participant_name, designation, team, daily_work, skill_goal, practice_opportunities, updated_at")
     .eq("user_id", user.id);
   query = cohortId ? query.eq("cohort_id", cohortId) : query.is("cohort_id", null);
   const { data, error } = await query.maybeSingle();
   if (error) return { body: "", error: error.message };
-  return { body: data?.body ?? "", updatedAt: data?.updated_at };
+  const answers = parseStoredMyPlanAnswers(data?.body, data ? {
+    name: data.participant_name,
+    designation: data.designation,
+    team: data.team,
+    dailyWork: data.daily_work,
+    skillGoal: data.skill_goal,
+    practiceOpportunities: data.practice_opportunities,
+  } : undefined);
+  return { body: buildUserNotesPayload(answers), answers, updatedAt: data?.updated_at };
 }
 
-export async function saveMySessionNotes(body: string, cohortId?: string | null): Promise<{ updatedAt?: string; error?: string }> {
+export async function saveMySessionNotes(
+  input: string | MyPlanAnswers,
+  cohortId?: string | null,
+): Promise<{ updatedAt?: string; error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
+  const answers = typeof input === "string"
+    ? parseStoredMyPlanAnswers(input)
+    : parseStoredMyPlanAnswers(null, input);
+  const body = buildUserNotesPayload(answers);
   if (body.length > 50000) return { error: "Notes must be shorter than 50,000 characters" };
   const { cohort, error: cohortError } = await getMyCohort();
   if (cohortError) return { error: cohortError };
@@ -33,7 +58,18 @@ export async function saveMySessionNotes(body: string, cohortId?: string | null)
 
   const { data, error } = await supabase
     .from("participant_session_notes")
-    .upsert({ user_id: user.id, cohort_id: cohortId ?? null, body, updated_at: new Date().toISOString() }, { onConflict: "user_id,cohort_id" })
+    .upsert({
+      user_id: user.id,
+      cohort_id: cohortId ?? null,
+      body,
+      participant_name: answers.name,
+      designation: answers.designation,
+      team: answers.team,
+      daily_work: answers.dailyWork,
+      skill_goal: answers.skillGoal,
+      practice_opportunities: answers.practiceOpportunities,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id,cohort_id" })
     .select("updated_at")
     .single();
   if (error) return { error: error.message };

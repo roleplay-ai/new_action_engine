@@ -4269,61 +4269,86 @@ input[type="range"] {
   align-self: start;
   padding-bottom: 32px;
 }
-.actions-buddy-sidebar .actions-buddy-card {
-  margin: 0;
-}
-.actions-buddy-sidebar .actions-buddy-people.trio {
-  grid-template-columns: 1fr;
-}
-.actions-buddy-sidebar .actions-buddy-stats {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.actions-buddy-card {
+/* Commitment buddy score card — one 1-to-1 card per buddy, comparing their
+   live Commitment Score against their previous-period score (yesterday for
+   a daily-track plan, last week for a weekly-track plan). */
+.commitment-buddy-card {
   position: relative;
   overflow: hidden;
-  padding: 18px;
-  border: 1px solid #d9ccff;
+  border: 1px solid #e0d9c6;
+  border-top: 7px solid var(--bright-amber);
   border-radius: 22px;
-  background: linear-gradient(145deg, #f5f1ff 0%, #eee8ff 100%);
-  box-shadow: 0 8px 24px rgba(98, 60, 234, .08);
+  background: var(--color-bg-base);
+  box-shadow: 0 8px 24px rgba(34, 29, 35, .08);
 }
-.actions-buddy-card::after {
-  content: "";
-  width: 150px;
-  height: 150px;
-  position: absolute;
-  right: -75px;
-  top: -80px;
-  border-radius: 50%;
-  background: rgba(255, 206, 0, .18);
-  pointer-events: none;
+.commitment-buddy-card.steady { background: #f6fff9; border-color: #bcebd0; border-top-color: var(--emerald); }
+.commitment-buddy-card.dipped { background: var(--color-bg-base); border-color: #f2d986; border-top-color: var(--bright-amber); }
+.commitment-buddy-card-head { display: flex; align-items: center; gap: 12px; padding: 19px 19px 15px; }
+.commitment-buddy-avatar {
+  width: 46px; height: 46px; flex: 0 0 auto; display: grid; place-items: center;
+  border: 3px solid #fff; border-radius: 50%;
+  background: var(--majorelle-blue); color: #fff; font-size: 14px; font-weight: 850;
+  box-shadow: 0 0 0 2px rgba(98, 60, 234, .12);
 }
-.actions-buddy-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; position: relative; z-index: 1; }
-.actions-buddy-card-head > div > span, .actions-buddy-waiting span { display: block; color: #6748c9; font-size: 9px; font-weight: 950; letter-spacing: .13em; text-transform: uppercase; }
-.actions-buddy-card-head > div > strong, .actions-buddy-waiting strong { display: block; margin-top: 4px; color: var(--journey-ink); font-size: 17px; line-height: 1.2; }
-.actions-buddy-card-head p, .actions-buddy-waiting p { margin: 3px 0 0; color: var(--journey-muted); font-size: 10px; }
-.actions-buddy-card-head > em { padding: 6px 9px; border: 1px solid rgba(98, 60, 234, .16); border-radius: 999px; color: #6748c9; background: rgba(255, 255, 255, .74); font-size: 8px; font-style: normal; font-weight: 900; white-space: nowrap; }
-.actions-buddy-people { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 14px; position: relative; z-index: 1; }
-.actions-buddy-people.trio { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.actions-buddy-people > article { min-width: 0; padding: 12px; border: 1px solid rgba(98, 60, 234, .13); border-radius: 16px; background: rgba(255, 255, 255, .82); }
-.actions-buddy-person-head { display: flex; align-items: center; gap: 9px; }
-.actions-buddy-person-head > i { width: 38px; height: 38px; display: grid; place-items: center; flex: 0 0 auto; border: 2px solid #fff; border-radius: 50%; color: #fff; background: #623cea; box-shadow: 0 3px 9px rgba(98, 60, 234, .22); font-size: 10px; font-style: normal; font-weight: 950; }
-.actions-buddy-person-head > span { min-width: 0; }
-.actions-buddy-person-head strong, .actions-buddy-person-head small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.actions-buddy-person-head strong { color: var(--journey-ink); font-size: 12px; }
-.actions-buddy-person-head small { margin-top: 2px; color: #6748c9; font-size: 8px; font-weight: 850; }
-.actions-buddy-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
-.actions-buddy-stats > div { min-width: 0; padding: 9px 4px; border: 1px solid rgba(98, 60, 234, .1); border-radius: 11px; background: #fff; text-align: center; }
-.actions-buddy-stats strong, .actions-buddy-stats span { display: block; }
-.actions-buddy-stats strong { color: var(--journey-ink); font-size: 15px; line-height: 1; }
-.actions-buddy-stats span { margin-top: 4px; color: var(--journey-muted); font-size: 7px; font-weight: 850; letter-spacing: .05em; text-transform: uppercase; }
-.actions-buddy-stats .actions-buddy-points strong { color: #15965b; font-size: 11px; }
-.actions-buddy-stats .actions-buddy-points small { display: block; margin-top: 2px; color: #15965b; font-size: 7px; font-weight: 900; }
-.actions-buddy-stats .actions-buddy-points small em { margin-left: 2px; color: #d84444; font-style: normal; }
-.actions-buddy-message { min-height: 34px; display: flex; align-items: flex-start; gap: 6px; margin: 9px 0 0; padding: 8px 9px; border: 1px solid rgba(255, 206, 0, .28); border-radius: 11px; color: #705b13; background: #fffdf3; font-size: 8px; line-height: 1.45; }
-.actions-buddy-message svg { flex: 0 0 auto; margin-top: 1px; }
-.actions-buddy-privacy { margin: 10px 0 0; position: relative; z-index: 1; color: #766e79; font-size: 8px; text-align: center; }
-.actions-buddy-waiting { display: flex; align-items: center; gap: 12px; }
+.commitment-buddy-identity { min-width: 0; flex: 1; }
+.commitment-buddy-eyebrow { margin: 0 0 4px; color: var(--majorelle-blue); font-size: 10px; line-height: 1; font-weight: 850; letter-spacing: .07em; text-transform: uppercase; }
+.commitment-buddy-name { margin: 0; overflow: hidden; color: var(--color-text-primary); font-size: 18px; line-height: 1.15; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+.commitment-buddy-relation { margin: 3px 0 0; color: #746f78; font-size: 11px; line-height: 1.35; }
+.commitment-buddy-tag { align-self: flex-start; flex: 0 0 auto; padding: 7px 10px; border: 1px solid #ddd5f8; border-radius: 999px; background: #fff; color: var(--majorelle-blue); font-size: 10px; font-weight: 800; white-space: nowrap; }
+.commitment-buddy-score-panel { margin: 0 19px; padding: 17px 15px; border: 1px solid rgba(34, 29, 35, .08); border-radius: 17px; background: rgba(255, 255, 255, .86); }
+.commitment-buddy-score-flow { display: grid; grid-template-columns: 1fr 48px 1fr; align-items: center; gap: 6px; }
+.commitment-buddy-score-block { text-align: center; }
+.commitment-buddy-score-label { display: block; margin-bottom: 7px; color: #746f78; font-size: 11px; font-weight: 750; }
+.commitment-buddy-score-orb {
+  width: 88px; height: 88px; margin: 0 auto; display: grid; place-items: center;
+  border: 7px solid #ebe8e2; border-radius: 50%; background: #fff;
+  color: var(--color-text-primary); font-size: 23px; line-height: 1; font-weight: 900;
+}
+.commitment-buddy-score-orb--empty { color: #b6b0b8; font-size: 13px; font-weight: 800; }
+.commitment-buddy-score-block.is-current .commitment-buddy-score-orb { border-color: var(--princeton-orange); background: #fff8f0; }
+.commitment-buddy-card.steady .commitment-buddy-score-block.is-current .commitment-buddy-score-orb { border-color: var(--emerald); background: #f0fff6; }
+.commitment-buddy-flow-arrow { width: 34px; height: 34px; margin: 22px auto 0; display: grid; place-items: center; border-radius: 50%; background: #fff6cf; color: var(--color-text-primary); }
+.commitment-buddy-card.steady .commitment-buddy-flow-arrow { background: #dcf9e8; color: #09743a; }
+.commitment-buddy-card.dipped .commitment-buddy-flow-arrow { background: #fff0cf; color: #9a5900; }
+.commitment-buddy-flow-arrow svg { width: 17px; height: 17px; }
+.commitment-buddy-state-row { display: flex; align-items: center; gap: 9px; margin: 15px 19px 0; padding: 11px 12px; border-radius: 12px; color: #755000; background: #fff5d9; font-size: 12px; line-height: 1.35; font-weight: 700; }
+.commitment-buddy-card.steady .commitment-buddy-state-row { color: #0b6938; background: #e6faee; }
+.commitment-buddy-state-icon { width: 25px; height: 25px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; background: #fff; }
+.commitment-buddy-state-icon svg { width: 14px; height: 14px; }
+.commitment-buddy-contact {
+  width: calc(100% - 38px); min-height: 46px; margin: 13px 19px 19px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  border: 0; border-radius: 12px;
+  background: var(--bright-amber); color: var(--color-text-primary);
+  box-shadow: 0 8px 18px rgba(255, 206, 0, .22);
+  cursor: pointer; font-size: 13px; font-weight: 850;
+  transition: background-color .15s ease, box-shadow .15s ease;
+}
+.commitment-buddy-contact:hover { background: #f3c400; box-shadow: 0 9px 20px rgba(255, 206, 0, .28); }
+.commitment-buddy-contact:active { background: var(--bright-amber); box-shadow: 0 6px 14px rgba(255, 206, 0, .2); }
+.commitment-buddy-contact svg { width: 16px; height: 16px; }
+
+.commitment-buddy-contact-overlay { position: fixed; inset: 0; z-index: 245; display: grid; place-items: center; padding: 20px; background: rgba(34, 29, 35, .55); backdrop-filter: blur(6px); }
+.commitment-buddy-contact-modal { width: min(100%, 480px); padding: 24px; border: 1px solid #e2ded7; border-radius: 22px; background: #fff; box-shadow: 0 18px 50px rgba(34, 29, 35, .22); animation: scalePop .2s ease-out both; }
+.commitment-buddy-contact-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.commitment-buddy-contact-modal h2 { margin: 0; color: var(--color-text-primary); font-size: 19px; line-height: 1.2; }
+.commitment-buddy-contact-intro { margin: 6px 0 18px; color: var(--color-text-muted); font-size: 12px; line-height: 1.5; }
+.commitment-buddy-contact-close { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--color-bg-muted); color: var(--color-text-primary); cursor: pointer; }
+.commitment-buddy-contact-field-label { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 0 6px; color: var(--color-text-secondary); font-size: 11px; font-weight: 800; }
+.commitment-buddy-contact-field-label a { color: var(--majorelle-blue); font-size: 11px; font-weight: 800; text-decoration: none; }
+.commitment-buddy-contact-field-label a:hover { text-decoration: underline; }
+.commitment-buddy-contact-selectable {
+  width: 100%; padding: 12px 13px; border: 1px solid var(--color-border); border-radius: 11px;
+  background: var(--color-bg-base); color: var(--color-text-primary); font-size: 13px; line-height: 1.5; user-select: text;
+}
+textarea.commitment-buddy-contact-selectable { min-height: 112px; resize: vertical; font: inherit; }
+.commitment-buddy-contact-ok { width: 100%; min-height: 46px; margin-top: 17px; border: 0; border-radius: 12px; background: var(--bright-amber); color: var(--color-text-primary); box-shadow: 0 8px 18px rgba(255, 206, 0, .22); cursor: pointer; font-size: 13px; font-weight: 850; transition: background-color .15s ease, box-shadow .15s ease; }
+.commitment-buddy-contact-ok:hover { background: #f3c400; box-shadow: 0 9px 20px rgba(255, 206, 0, .28); }
+
+.commitment-buddy-card.actions-buddy-waiting { display: flex; align-items: center; gap: 12px; padding: 19px; }
+.actions-buddy-waiting span { display: block; color: #6748c9; font-size: 9px; font-weight: 950; letter-spacing: .13em; text-transform: uppercase; }
+.actions-buddy-waiting strong { display: block; margin-top: 4px; color: var(--color-text-primary); font-size: 17px; line-height: 1.2; }
+.actions-buddy-waiting p { margin: 3px 0 0; color: var(--color-text-muted); font-size: 10px; }
 .actions-buddy-waiting-icon { width: 44px; height: 44px; display: grid; place-items: center; flex: 0 0 auto; position: relative; z-index: 1; border-radius: 14px; color: #6748c9; background: #fff; }
 .actions-buddy-waiting > div:last-child { position: relative; z-index: 1; }
 
@@ -4345,14 +4370,21 @@ input[type="range"] {
 .actions-buddy-modal > .journey-primary-button { width: 100%; }
 
 @media (max-width: 680px) {
-  .actions-buddy-people.trio { grid-template-columns: 1fr; }
   .actions-buddy-modal { padding: 28px 18px 20px; border-radius: 24px; }
+  .commitment-buddy-contact-modal { padding: 20px; border-radius: 20px; }
 }
 @media (max-width: 420px) {
-  .actions-buddy-card { padding: 14px; }
-  .actions-buddy-card-head > em { display: none; }
-  .actions-buddy-stats { gap: 5px; }
   .actions-buddy-modal-avatars > i { width: 60px; height: 60px; font-size: 15px; }
+  .commitment-buddy-card-head { padding: 16px 16px 13px; }
+  .commitment-buddy-tag { display: none; }
+  .commitment-buddy-score-panel { margin: 0 16px; padding: 15px 8px; }
+  .commitment-buddy-score-flow { grid-template-columns: 1fr 36px 1fr; gap: 2px; }
+  .commitment-buddy-score-orb { width: 74px; height: 74px; border-width: 6px; font-size: 19px; }
+  .commitment-buddy-flow-arrow { width: 29px; height: 29px; margin-top: 24px; }
+  .commitment-buddy-flow-arrow svg { width: 15px; height: 15px; }
+  .commitment-buddy-score-label { font-size: 10px; }
+  .commitment-buddy-state-row { margin: 12px 16px 0; font-size: 11px; }
+  .commitment-buddy-contact { width: calc(100% - 32px); margin: 11px 16px 16px; }
 }
 /* Cohort wallet — reference-inspired piggy bank with aggregate-only totals. */
 .wallet-page {

@@ -53,6 +53,17 @@ export async function GET(request: Request) {
     );
   }
 
+  // Record yesterday's now-final Commitment Score for every finalised Wallet
+  // plan, so the buddy card can compare it against today's live score. Must
+  // run after the expiry sweep above (so yesterday's actions are settled)
+  // and is non-fatal — a snapshot failure shouldn't block today's delivery.
+  const { error: scoreSnapshotError } = await admin.rpc("snapshot_commitment_wallet_scores");
+  if (scoreSnapshotError) {
+    console.error("[email-scheduler] failed to snapshot commitment wallet scores", {
+      error: scoreSnapshotError.message,
+    });
+  }
+
   // ── Personal action delivery (in-app, no email required) ───────────────────
   // Close yesterday's unsettled actions before releasing today's action. The
   // completion RPC also checks the IST date, so scoring stays correct between

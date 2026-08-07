@@ -10,6 +10,7 @@ import {
   Mail,
   RefreshCw,
   ShieldCheck,
+  UserRound,
   Users,
 } from "lucide-react";
 import { LogoutButton } from "../logout-button";
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
   { href: "/superadmin", label: "Companies", description: "Organisation directory", icon: Building2, exact: true },
   { href: "/superadmin/users", label: "Users", description: "Access and roles", icon: Users },
   { href: "/superadmin/content-library", label: "Content", description: "Learning library", icon: Library },
+  { href: "/superadmin/trainers", label: "Trainers", description: "Trainer roster", icon: UserRound },
   { href: "/superadmin/emails", label: "Emails & reminders", description: "Queue and delivery", icon: Mail },
   { href: "/superadmin/cohorts", label: "Cohorts", description: "Cohort management", icon: GraduationCap },
 ];

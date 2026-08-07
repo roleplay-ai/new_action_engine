@@ -6,7 +6,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, Check, FileText, Play, X } from "lucide-react";
 import CohortChat from "@/components/journey/CohortChat";
-import type { Cohort, CohortMember, PrepareContentItem, UserPrepareProgress } from "@/lib/types";
+import TrainerExpectationCard from "@/components/journey/TrainerExpectationCard";
+import type { Cohort, CohortMember, PrepareContentItem, TrainerExpectationMessage, UserPrepareProgress } from "@/lib/types";
 import { resolveVideoEmbed, resolveVideoThumbnail } from "@/lib/video-embed";
 
 type PhaseBlock = { time: string; name: string; description: string };
@@ -169,6 +170,7 @@ type RcplWorkspaceProps = {
   nextHref: string | null;
   nextIncompleteItem: PrepareContentItem | null;
   onOpenResource: (item: PrepareContentItem) => void;
+  trainerMessages: TrainerExpectationMessage[];
 };
 
 export default function RcplWorkspace({
@@ -183,6 +185,7 @@ export default function RcplWorkspace({
   nextHref,
   nextIncompleteItem,
   onOpenResource,
+  trainerMessages,
 }: RcplWorkspaceProps) {
   const searchParams = useSearchParams();
   const phaseId = searchParams.get("phase") ?? "1";
@@ -264,6 +267,13 @@ export default function RcplWorkspace({
               ))}
             </div>
           </section>
+
+          <TrainerExpectationCard
+            cohortId={cohort.id}
+            trainer={cohort.trainer ?? null}
+            initialMessages={trainerMessages}
+            variant="rcpl"
+          />
 
           <section className="rcpl-card rcpl-library" id="preparation">
             <header>

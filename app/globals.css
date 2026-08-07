@@ -1338,6 +1338,38 @@ input[type="range"] {
 .rcpl-buddy-card > header > button:hover { border-color: #c9a000; color: #221d23; background: #ffd633; }
 .rcpl-buddy-card > p { margin: 10px 0 0; position: relative; z-index: 1; color: #5f5861; font-size: 11px; line-height: 1.45; }
 
+.journey-trainer-card { display: grid; gap: 12px; }
+.journey-trainer-heading small { display: block; margin-bottom: 4px; color: var(--color-text-muted); font-size: 9px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+.journey-trainer-heading h3 { margin: 0; color: var(--color-text-primary); font-size: 15px; }
+.journey-trainer-heading p { margin: 4px 0 0; color: var(--color-text-muted); font-size: 11px; line-height: 1.5; }
+.journey-trainer-profile { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 11px; background: #faf9fa; }
+.journey-trainer-card-avatar { width: 30px; height: 30px; flex: 0 0 30px; display: grid; place-items: center; overflow: hidden; border-radius: 50%; background: #e8e4e6; color: #6d656b; }
+.journey-trainer-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.journey-trainer-profile strong { display: block; font-size: 11px; }
+.journey-trainer-profile small { color: var(--color-text-muted); font-size: 9px; }
+
+/* .journey-trainer-composer is layered onto .journey-chat-composer, and
+   .journey-trainer-messages onto .journey-chat-messages (the cohort
+   conversation's own classes), so both inherit that same look: a scrollable
+   message list plus a text area with the send button pinned to the right.
+   .journey-chat-composer carries its own opaque white background (meant for
+   sitting under a chat history panel); this card has no such panel above it,
+   so left as-is that white shows through the gap between textarea and
+   button as a patch against the card's own background. */
+.journey-trainer-composer { background: transparent; }
+.journey-trainer-card .journey-chat-messages { min-height: 0; max-height: 220px; margin-top: 12px; }
+.journey-trainer-card .journey-chat-state { min-height: 76px; padding: 14px; gap: 4px; }
+.journey-trainer-error { margin: 0; color: #bd3d49; font-size: 10px; }
+
+.journey-trainer-card--rcpl { border-color: #e6be31; background: linear-gradient(145deg, #fffdf0 0%, #fff6cf 100%); box-shadow: 0 8px 24px rgba(255, 206, 0, .14); }
+.journey-trainer-card--rcpl .journey-trainer-heading small { color: var(--rcpl-gold-deep); }
+.journey-trainer-card--rcpl .journey-trainer-heading h3 { color: #221d23; }
+.journey-trainer-card--rcpl .journey-trainer-heading p { color: #5f5861; }
+.journey-trainer-card--rcpl .journey-trainer-profile { border-color: rgba(12, 31, 63, .12); background: rgba(255, 255, 255, .55); }
+.journey-trainer-card--rcpl .journey-trainer-card-avatar { background: var(--rcpl-navy-900); color: #fff; }
+.journey-trainer-card--rcpl .journey-trainer-composer textarea { border-color: rgba(12, 31, 63, .16); background: #fff; }
+.journey-trainer-card--rcpl .journey-trainer-composer button { color: var(--rcpl-navy-900); background: var(--rcpl-gold); }
+
 .rcpl-buddy-modal {
   width: min(100%, 420px);
   max-height: min(88vh, 640px);
@@ -3244,6 +3276,19 @@ input[type="range"] {
 .cohort-admin-mini-empty strong { margin: 9px 0 3px; color: #575056; font-size: 11px; }
 .cohort-admin-mini-empty span { max-width: 220px; font-size: 9px; line-height: 1.5; }
 .cohort-admin-no-results { padding: 24px 14px; color: var(--cohort-muted); font-size: 10px; text-align: center; }
+.cohort-admin-trainer-current { display: flex; align-items: center; gap: 11px; padding: 14px 16px; border-bottom: 1px solid var(--cohort-border); }
+.cohort-admin-avatar--trainer { border-radius: 50%; }
+.cohort-admin-avatar--trainer img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.cohort-admin-trainer-current > div { display: grid; gap: 2px; }
+.cohort-admin-trainer-current strong { font-size: 12px; }
+.cohort-admin-trainer-current span { color: var(--cohort-muted); font-size: 10px; }
+.cohort-admin-trainer-select { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--cohort-border); border-radius: 8px; background: #fff; color: var(--cohort-ink); font-size: 11px; }
+.cohort-admin-expectation-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 13px; border-bottom: 1px solid #eeeaec; }
+.cohort-admin-expectation-row:last-child { border-bottom: 0; }
+.cohort-admin-expectation-row > div { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.cohort-admin-expectation-row strong { font-size: 11px; }
+.cohort-admin-expectation-row p { margin: 0; color: var(--cohort-ink); font-size: 11px; line-height: 1.5; }
+.cohort-admin-expectation-row small { color: var(--cohort-muted); font-size: 9px; }
 .cohort-admin-modal-backdrop { position: fixed; z-index: 80; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(25, 22, 25, 0.42); backdrop-filter: blur(3px); }
 .cohort-admin-modal { width: min(100%, 520px); overflow: hidden; border: 1px solid #dcd4d9; border-radius: 15px; background: #fff; box-shadow: 0 24px 70px rgba(34, 28, 33, 0.2); }
 .cohort-admin-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 20px 22px 16px; border-bottom: 1px solid var(--cohort-border); }
@@ -3401,6 +3446,11 @@ input[type="range"] {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Trainer expectation card reuses the cohort conversation's message-row
+   classes at a slightly smaller size to fit its narrower card. */
+.journey-trainer-card .journey-chat-avatar { width: 34px; height: 34px; border-radius: 50%; font-size: 9px; }
+
 .journey-chat-state {
   min-height: 170px;
   padding: 18px;

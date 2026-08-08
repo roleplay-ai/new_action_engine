@@ -556,7 +556,7 @@ export const EMAIL_TEMPLATES = {
       const n = Array.isArray(data.actions) ? data.actions.length : 0;
       const cohort = str(data, "cohort_name");
       const firstName = str(data, "first_name", "there");
-      return `Hi ${firstName} - Your next workflow${n === 1 ? " is" : "s are"} ready${cohort ? ` — ${cohort}` : ""}`;
+      return `Hi ${firstName} - Your next action${n === 1 ? " is" : "s are"} ready${cohort ? ` — ${cohort}` : ""}`;
     },
     render: renderDailyReminderHtml,
   },

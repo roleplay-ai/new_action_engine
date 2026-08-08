@@ -293,7 +293,7 @@ function ReminderEmailPreview({
     {expanded && <>
       <div className="actions-reminder-subject">
         <span>Subject</span>
-        <strong>Hi {firstName} — Your next workflow is ready</strong>
+        <strong>Hi {firstName} — Your next action is ready</strong>
       </div>
 
       <div className="actions-reminder-email">

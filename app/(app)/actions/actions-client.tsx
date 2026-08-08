@@ -568,13 +568,13 @@ export default function ActionsClient() {
             </div>
           ) : (
             <div className="actions-current-list">
-            {currentActions.map(({ userAction, action }, index) => <article className="actions-current-card" key={userAction.id}>
-              <div className="actions-current-top"><span>Current action {currentActions.length > 1 ? index + 1 : ""}</span><em>{action.timeEstimate}{action.planPoints ? ` · Protect ${action.planPoints} points today` : ""}</em></div>
-              <h2>{action.title}</h2><p>{action.how}</p>
-              <div className="actions-why"><strong>Why this works</strong><span>{action.why}</span></div>
-              <div className="actions-current-buttons"><button className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(userAction.actionId)}><Check size={16} /> Mark completed</button><button disabled={busy} onClick={() => skip(userAction.actionId)}>I didn&apos;t complete it</button></div>
-            </article>)}
-          </div>
+              {currentActions.map(({ userAction, action }, index) => <article className="actions-current-card" key={userAction.id}>
+                <div className="actions-current-top"><span>Current action {currentActions.length > 1 ? index + 1 : ""}</span><em>{action.timeEstimate}{action.planPoints ? ` · Protect ${action.planPoints} points today` : ""}</em></div>
+                <h3 style={{ fontSize: "1.25rem" }}>{action.title}</h3><p>{action.how}</p>
+                <div className="actions-why"> <strong>Why this works</strong><span>{action.why}</span></div>
+                <div className="actions-current-buttons"><button className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(userAction.actionId)}><Check size={16} /> Mark completed</button><button disabled={busy} onClick={() => skip(userAction.actionId)}>I didn&apos;t complete it</button></div>
+              </article>)}
+            </div>
           )}
         </section>
 

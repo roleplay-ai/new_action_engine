@@ -36,7 +36,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
 
   const navItems = useMemo(() => {
     const items = [
-      { href: "/journey", label: "Base Camp", shortLabel: "Camp", icon: Home },
+      { href: "/journey", label: "Home", shortLabel: "Home", icon: Home },
       { href: "/plan", label: "My Plan", shortLabel: "Plan", icon: Sparkles },
       { href: "/actions", label: "My Actions", shortLabel: "Actions", icon: ListChecks },
       { href: "/wallet", label: "Commitment Bank", shortLabel: "Bank", icon: PiggyBank },

@@ -529,14 +529,12 @@ export default function ActionsClient() {
 
   return <div className="reference-actions animate-in fade-in duration-700">
     <div className="actions-overview-head">
-      <div><h1>Your practice plan</h1><p>One action appears when it is due. Completed actions move to your history.</p></div>
-      <div className="actions-overview-meta">
-        <span className="actions-score-badge">
-          <small>Commitment score</small>
-          <strong>{commitmentScore?.hasFinalisedPlan ? `${formatCommitmentScore(commitmentScore.score)}%` : "—"}</strong>
-          <em>CS</em>
-        </span>
-        <span className={`actions-plan-badge ${planIsActive ? "active" : ""}`}>{planIsActive ? "Plan active" : planIsArchived ? "Archived plan" : "No active plan"}</span>
+      <div>
+        <h1>
+          Your practice plan
+          {planIsActive ? <span className="actions-plan-live-dot" aria-label="Plan active" role="status" /> : null}
+        </h1>
+        <p>One action appears when it is due. Completed actions move to your history.</p>
       </div>
     </div>
 

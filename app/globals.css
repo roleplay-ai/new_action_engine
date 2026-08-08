@@ -3215,10 +3215,40 @@ input[type="range"] {
 
 .actions-overview-head h1 {
   margin: 5px 0 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   color: var(--color-text-primary);
   font-size: clamp(28px, 4vw, 36px);
   line-height: 1.15;
   letter-spacing: -.035em;
+}
+
+.actions-plan-live-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #86efac;
+  box-shadow: 0 0 0 0 rgba(134, 239, 172, .5);
+  animation: actions-plan-live-blink 1.5s ease-out infinite;
+}
+
+@keyframes actions-plan-live-blink {
+  0% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(134, 239, 172, .5);
+  }
+
+  70% {
+    opacity: 1;
+    box-shadow: 0 0 0 8px rgba(134, 239, 172, 0);
+  }
+
+  100% {
+    opacity: .75;
+    box-shadow: 0 0 0 0 rgba(134, 239, 172, 0);
+  }
 }
 
 .actions-overview-head p {
@@ -3369,7 +3399,7 @@ input[type="range"] {
   background: linear-gradient(145deg, #fff 0%, #f7fffb 68%, rgba(35, 206, 107, .13) 100%);
   box-shadow: 0 18px 42px rgba(34, 29, 35, .08);
   transition: transform .2s ease, box-shadow .2s ease;
-  padding-bottom: 28px;
+  padding-bottom: 36px;
 }
 
 .actions-current-card::after {
@@ -4079,6 +4109,10 @@ input[type="range"] {
   .actions-list-card,
   .actions-leaderboard-card {
     padding: 17px;
+  }
+
+  .actions-current-card {
+    padding-bottom: 32px;
   }
 
   .actions-settings-grid {

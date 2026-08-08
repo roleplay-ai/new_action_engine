@@ -93,10 +93,9 @@ function buildPrompt(
   return `You write personal development actions for leadership-program participants in the Nudgeable nudge style. Match the tone, structure, and level of detail in these examples.
 
 EXAMPLE 1
-What: Name the emotion in the room before addressing the issue.
-How: In your next tense meeting, name the feeling you notice before fixing it.
-Why: People solve problems better once they feel heard, not managed.
-
+What:  In your next tense meeting, name the emotion you notice before addressing the issue.
+How:Acknowledge the feeling in one sentence before discussing solutions.
+Why: People engage better when they feel heard first.
 EXAMPLE 2
 What: Get one number explained to you by someone outside your function.
 How: Ask a colleague outside your function to explain one metric in plain terms.
@@ -121,9 +120,9 @@ TASK
 Generate exactly ${count} new actions. Prefer combining available inputs: the skill from TRAINING_CONTENT when present, the participant's specific goal, struggle, or reflection in USER_NOTES, and a situation that is realistic in BUSINESS_CONTEXT when present. Do not create generic actions when USER_NOTES has usable detail. If USER_NOTES is vague, use the closest reasonable interpretation without inventing personal facts. Missing TRAINING_CONTENT or BUSINESS_CONTEXT is allowed — work with whatever inputs are present.
 
 FORMAT AND QUALITY RULES
-- "title" is the What: one short, specific, observable action statement that starts with a strong verb.
-- "how" is the How: exactly one sentence, at most 15 words, in simple English, written in "you" voice. Give a clear situation, sequence, or trigger so a busy manager can act without asking a follow-up question.
-- "why" is the Why: exactly one sentence, at most 15 words. Start with the benefit, not the action. Do not use corporate jargon such as leverage, synergy, align, or touch base.
+- "title" is the What:  exactly one sentence, at most 15 words, in simple English for Indian audience, written in "you" voice. Give a clear situation, sequence, or trigger so a busy manager can act without asking a follow-up question
+- "how" is the How: exactly one sentence, at most 15 words, in simple English for Indian audience, written in "you" voice. Give a clear situation, sequence, or trigger so a busy manager can act without asking a follow-up question.
+- "why" is the Why: exactly one sentence, at most 15 words , in simple English for Indian audience. Start with the benefit, not the action. Do not use corporate jargon such as leverage, synergy, align, or touch base.
 - "timeEstimate" is a realistic value such as "2 mins", "5 mins", "15 mins", or "30 mins".
 - Keep the actions practical, distinct from one another, and realistic during normal work.
 - Do not add theme labels, category tags, bullets inside fields, or commentary outside the required JSON.${avoidBlock}
@@ -406,11 +405,11 @@ export async function assignScheduledBatch(
         next_delivery_at: options?.advanceCadence === false
           ? sub.next_delivery_at
           : advanceNextDeliveryAt(
-              sub.next_delivery_at,
-              sub.track,
-              sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
-              sub.time_of_day_utc
-            ),
+            sub.next_delivery_at,
+            sub.track,
+            sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
+            sub.time_of_day_utc
+          ),
         updated_at: nowIso,
       })
       .eq("id", sub.id);
@@ -434,11 +433,11 @@ export async function assignScheduledBatch(
         next_delivery_at: options?.advanceCadence === false
           ? sub.next_delivery_at
           : advanceNextDeliveryAt(
-              sub.next_delivery_at,
-              sub.track,
-              sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
-              sub.time_of_day_utc
-            ),
+            sub.next_delivery_at,
+            sub.track,
+            sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
+            sub.time_of_day_utc
+          ),
         updated_at: nowIso,
       })
       .eq("id", sub.id);

@@ -65,6 +65,7 @@ export default function PlanClient({ initialTrainingText, embedded = false, onEd
   const [saving, setSaving] = useState(false);
   const [activating, setActivating] = useState(false);
   const [confirmActivateOpen, setConfirmActivateOpen] = useState(false);
+  const [confirmChangePaceOpen, setConfirmChangePaceOpen] = useState(false);
   const [deletingAction, setDeletingAction] = useState<ActionCard | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [orderedActions, setOrderedActions] = useState<ActionCard[]>([]);
@@ -230,6 +231,21 @@ export default function PlanClient({ initialTrainingText, embedded = false, onEd
     setEditingSetup(true);
   }
 
+  function requestChangePace() {
+    // Only worth confirming if there's something to actually lose — changing pace
+    // before any actions exist just opens the setup form directly.
+    if (generatedActions.length > 0) {
+      setConfirmChangePaceOpen(true);
+      return;
+    }
+    openPlanSetup();
+  }
+
+  function confirmChangePace() {
+    setConfirmChangePaceOpen(false);
+    openPlanSetup();
+  }
+
   const heading = isPlanActive
     ? "My plan is active"
     : isPlanArchived
@@ -252,17 +268,19 @@ export default function PlanClient({ initialTrainingText, embedded = false, onEd
   return <section className={`journey-page plan-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "action-plan" : undefined}>
     {!embedded && <div className="participant-page-heading"><h1>My Plan</h1><p>Shape what you want to build, review every suggested action, then activate the plan when it feels right.</p></div>}
 
-    <div className="journey-v2-progress-pills" aria-label="Plan progress">
-      <div className={hasDraft || isPlanActive || isPlanArchived ? "done" : "current"}><span>{hasDraft || isPlanActive || isPlanArchived ? <Check size={13} /> : 1}</span>My Plan</div>
-      <div className={generatedActions.length > 0 ? "done" : hasDraft ? "current" : ""}><span>{generatedActions.length > 0 ? <Check size={13} /> : 2}</span>Actions generated</div>
-      <div className={isPlanActive || isPlanArchived ? "done" : generatedActions.length > 0 ? "current" : ""}><span>{isPlanActive || isPlanArchived ? <Check size={13} /> : 3}</span>{isPlanActive ? "Active" : isPlanArchived ? "Archived" : "Activate"}</div>
-    </div>
+    <div className="plan-progress-row">
+      <div className="journey-v2-progress-pills" aria-label="Plan progress">
+        <div className={hasDraft || isPlanActive || isPlanArchived ? "done" : "current"}><span>{hasDraft || isPlanActive || isPlanArchived ? <Check size={13} /> : 1}</span>My Plan</div>
+        <div className={generatedActions.length > 0 ? "done" : hasDraft ? "current" : ""}><span>{generatedActions.length > 0 ? <Check size={13} /> : 2}</span>Actions generated</div>
+        <div className={isPlanActive || isPlanArchived ? "done" : generatedActions.length > 0 ? "current" : ""}><span>{isPlanActive || isPlanArchived ? <Check size={13} /> : 3}</span>{isPlanActive ? "Active" : isPlanArchived ? "Archived" : "Activate"}</div>
+      </div>
 
-    {onEditNotes && !isPlanActive && !isPlanArchived && (
-      <button type="button" className="my-plan-edit-button plan-back-to-notes" onClick={onEditNotes}>
-        <ArrowLeft size={14} /> Edit my plan notes
-      </button>
-    )}
+      {onEditNotes && !isPlanActive && !isPlanArchived && (
+        <button type="button" className="my-plan-edit-button plan-back-to-notes" onClick={onEditNotes}>
+          <ArrowLeft size={14} /> Edit my plan notes
+        </button>
+      )}
+    </div>
 
     {(showInitialSetup || editingSetup) && <Onboarding inline initialTrainingText={initialTrainingText} onGeneratingChange={setSetupGenerationPending} onComplete={async () => {
       setEditingSetup(false);
@@ -272,7 +290,7 @@ export default function PlanClient({ initialTrainingText, embedded = false, onEd
       ]);
     }} />}
 
-    {!showInitialSetup && !editingSetup && !isPlanActive && <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your cohort"}</span><h2>{heading}</h2><p>{summary}</p></div>{!generationJob && !generationError && hasDraft && <button className="journey-primary-button" onClick={openPlanSetup}>Change pace</button>}</div>}
+    {!showInitialSetup && !editingSetup && !isPlanActive && !hasDraft && <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your cohort"}</span><h2>{heading}</h2><p>{summary}</p></div></div>}
 
     {canBuildPlan && hasArchivedPlans && <div className="journey-card plan-history-notice"><strong>Your earlier cohort plans are safely archived.</strong><p>Use the cohort switcher above whenever you want to revisit earlier actions and complete any that remain.</p></div>}
 
@@ -281,7 +299,7 @@ export default function PlanClient({ initialTrainingText, embedded = false, onEd
 
     {hasDraft && !editingSetup && <section className="plan-review-shell">
       <div className="plan-review-heading"><div><span className="participant-eyebrow">Review before finalising</span><h2>Your generated actions</h2><p>Reorder, rename, or remove any action before you activate. Daily plans start on the next weekday. Weekly plans start on the next selected weekday.</p></div><strong>{savingOrder ? <><Loader2 size={12} className="plan-order-spinner" /> Saving order</> : `${generatedActions.length}${generationJob ? ` / ${generationJob.totalNeeded}` : ""} actions`}</strong></div>
-      {!generationJob && orderedActions.length > 1 && <div className="plan-order-tip"><GripVertical size={17} /><span><strong>Set your preferred sequence</strong><small>Drag a card, or use its arrow buttons. Dates update with the new order.</small></span></div>}
+      {/* {!generationJob && orderedActions.length > 1 && <div className="plan-order-tip"><GripVertical size={17} /><span><strong>Set your preferred sequence</strong><small>Drag a card, or use its arrow buttons. Dates update with the new order.</small></span></div>} */}
       <div className="plan-review-list">
         {orderedActions.map((action, index) => {
           const schedule = formatScheduleSlot(scheduleSlots[index]);
@@ -340,7 +358,7 @@ export default function PlanClient({ initialTrainingText, embedded = false, onEd
           <p>Need another option? Add one more AI suggestion, then rename or reorder it like the rest.</p>
         </div>
       )}
-      {!generationJob && !generationError && generatedActions.length > 0 && <div className="plan-freeze-bar plan-freeze-bar--primary"><div><CheckCircle2 size={20} /><span><strong>My plan is ready</strong><small>Review the actions above, then activate when you are happy with the plan.</small></span></div><button className="journey-primary-button" disabled={activating || savingOrder || generatingMore} onClick={() => { setError(""); setConfirmActivateOpen(true); }}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generatingMore ? "Generating…" : "Activate My Plan"}</button></div>}
+      {!generationJob && !generationError && generatedActions.length > 0 && <div className="plan-freeze-bar plan-freeze-bar--primary"><div><CheckCircle2 size={20} /><span><strong>My plan is ready</strong><p>Review the actions above, then activate when you are happy with the plan.</p></span></div><div className="plan-freeze-bar-actions"><button type="button" className="journey-secondary-button" disabled={activating || savingOrder || generatingMore} onClick={requestChangePace}>Change pace</button><button className="journey-primary-button" disabled={activating || savingOrder || generatingMore} onClick={() => { setError(""); setConfirmActivateOpen(true); }}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generatingMore ? "Generating…" : "Activate My Plan"}</button></div></div>}
       {error && <p className="plan-review-error">{error}</p>}
     </section>}
 
@@ -394,6 +412,31 @@ export default function PlanClient({ initialTrainingText, embedded = false, onEd
             <button type="button" className="plan-activate-back" disabled={deleting} onClick={() => setDeletingAction(null)}>Go back</button>
             <button type="button" className="journey-primary-button plan-delete-confirm" disabled={deleting} onClick={removeAction}>
               {deleting ? "Removing…" : "Remove action"}
+            </button>
+          </div>
+        </section>
+      </div>,
+      document.body,
+    )}
+
+    {typeof document !== "undefined" && confirmChangePaceOpen && createPortal(
+      <div
+        className="plan-activate-overlay"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setConfirmChangePaceOpen(false);
+        }}
+      >
+        <section className="plan-activate-modal" role="dialog" aria-modal="true" aria-labelledby="plan-change-pace-title">
+          <div className="plan-activate-title-row">
+            <div className="plan-activate-icon plan-activate-icon--danger" aria-hidden="true"><Trash2 size={26} /></div>
+            <h2 id="plan-change-pace-title">Change pace?</h2>
+          </div>
+          <p>Changing your pace will delete {generatedActions.length} generated action{generatedActions.length === 1 ? "" : "s"} from this draft. You&apos;ll need to generate your actions again after picking a new pace.</p>
+          <strong>This cannot be undone.</strong>
+          <div className="plan-activate-actions">
+            <button type="button" className="plan-activate-back" onClick={() => setConfirmChangePaceOpen(false)}>Go back</button>
+            <button type="button" className="journey-primary-button plan-delete-confirm" onClick={confirmChangePace}>
+              Yes, change pace
             </button>
           </div>
         </section>

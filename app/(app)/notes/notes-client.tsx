@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Cloud, Loader2, Sparkles } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getMySessionNotes, refineMySessionNotes, saveMySessionNotes } from "@/app/actions/session-notes";
@@ -14,17 +14,25 @@ import {
   type MyPlanAnswers,
 } from "@/lib/my-plan-notes";
 
-export default function NotesClient({
-  embedded = false,
-  onBodyChange,
-  onSavePlan,
-  onReviewChange,
-}: {
+/** Lets a parent (e.g. the unified plan page) drop the reviewer back into edit mode
+ *  even after it has scrolled away to the "Generate my actions" pace-setup step. */
+export type NotesClientHandle = { editPlan: () => void };
+
+const NotesClient = forwardRef<NotesClientHandle, {
   embedded?: boolean;
+  /** Once the plan step below has taken over (pace-setup / generation), the review
+   *  card's own Edit/Generate buttons are redundant with that step's own back-link. */
+  hideFooter?: boolean;
   onBodyChange?: (body: string) => void;
   onSavePlan?: (body: string) => void | Promise<void>;
   onReviewChange?: (reviewing: boolean) => void;
-}) {
+}>(function NotesClient({
+  embedded = false,
+  hideFooter = false,
+  onBodyChange,
+  onSavePlan,
+  onReviewChange,
+}, ref) {
   const { cohort, personalPlanState } = useEngine();
   const [answers, setAnswers] = useState<MyPlanAnswers>({ ...EMPTY_MY_PLAN_ANSWERS });
   const [status, setStatus] = useState<"loading" | "saved" | "saving" | "error">("loading");
@@ -158,6 +166,8 @@ export default function NotesClient({
     onReviewChange?.(false);
   };
 
+  useImperativeHandle(ref, () => ({ editPlan }));
+
   const generateActions = async () => {
     if (planLocked) return;
     await onSavePlan?.(userNotes);
@@ -189,7 +199,7 @@ export default function NotesClient({
             {workAndSkill && <p>{workAndSkill}</p>}
             {answers.practiceOpportunities.trim() && <p>{answers.practiceOpportunities.trim()}</p>}
           </div>
-          {!planLocked && (
+          {!planLocked && !hideFooter && (
             <footer>
               <button type="button" className="my-plan-edit-button" onClick={editPlan}><ArrowLeft size={15} /> Edit my plan</button>
               <button type="button" className="journey-primary-button" onClick={() => void generateActions()}>Generate My Actions <ArrowRight size={16} /></button>
@@ -271,4 +281,6 @@ export default function NotesClient({
       </div>
     </section>
   );
-}
+});
+
+export default NotesClient;

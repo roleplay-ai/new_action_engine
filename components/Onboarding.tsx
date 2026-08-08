@@ -126,7 +126,7 @@ const Onboarding: React.FC<{
         {errorMsg && <p className="plan-setup-error">{errorMsg}</p>}
 
         <button type="button" className="journey-primary-button plan-generate-button" onClick={handleFinish} disabled={saving || !trainingText}>{saving ? "Generating…" : "Generate my actions"}</button>
-        <div className="plan-email-note"><Mail size={18} /><div><strong>Email reminders included</strong><p>We&apos;ll email you on {track === "weekly" ? "your selected day" : "weekdays"} when the next action is ready.</p></div></div>
+        {/* <div className="plan-email-note"><Mail size={18} /><div><strong>Email reminders included</strong><p>We&apos;ll email you on {track === "weekly" ? "your selected day" : "weekdays"} when the next action is ready.</p></div></div> */}
       </div>
     </div>
   );

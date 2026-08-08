@@ -12626,6 +12626,10 @@ input[type="range"] {
   color: var(--journey-ink);
 }
 
+.plan-back-to-notes {
+  margin: -6px 0 12px;
+}
+
 .plan-setup-inline {
   margin: 0 0 12px;
 }

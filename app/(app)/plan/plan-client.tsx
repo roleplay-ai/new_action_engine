@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, CalendarDays, Check, CheckCircle2, GripVertical, ListChecks, Loader2, Pencil, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Check, CheckCircle2, GripVertical, ListChecks, Loader2, Pencil, Sparkles, Trash2, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import Onboarding from "@/components/Onboarding";
 import GenerationStatus from "@/components/GenerationStatus";
@@ -47,7 +47,7 @@ function projectedPlanPoints() {
   return 50;
 }
 
-export default function PlanClient({ initialTrainingText, embedded = false }: { initialTrainingText: string; embedded?: boolean }) {
+export default function PlanClient({ initialTrainingText, embedded = false, onEditNotes }: { initialTrainingText: string; embedded?: boolean; onEditNotes?: () => void }) {
   const router = useRouter();
   const {
     personalPlanState,
@@ -92,8 +92,8 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
 
   useEffect(() => {
     setOrderedActions(generatedActions);
-  // IDs capture additions/removals and the server-sorted order after a refetch.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // IDs capture additions/removals and the server-sorted order after a refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generatedActionKey]);
 
   useEffect(() => {
@@ -137,11 +137,11 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
     setOrderedActions((current) => current.map((action) => (
       action.id === editingAction.id
         ? {
-            ...action,
-            title: editForm.title.trim(),
-            how: editForm.how.trim(),
-            why: editForm.why.trim(),
-          }
+          ...action,
+          title: editForm.title.trim(),
+          how: editForm.how.trim(),
+          why: editForm.why.trim(),
+        }
         : action
     )));
     setEditingAction(null);
@@ -258,6 +258,12 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
       <div className={isPlanActive || isPlanArchived ? "done" : generatedActions.length > 0 ? "current" : ""}><span>{isPlanActive || isPlanArchived ? <Check size={13} /> : 3}</span>{isPlanActive ? "Active" : isPlanArchived ? "Archived" : "Activate"}</div>
     </div>
 
+    {onEditNotes && !isPlanActive && !isPlanArchived && (
+      <button type="button" className="my-plan-edit-button plan-back-to-notes" onClick={onEditNotes}>
+        <ArrowLeft size={14} /> Edit my plan notes
+      </button>
+    )}
+
     {(showInitialSetup || editingSetup) && <Onboarding inline initialTrainingText={initialTrainingText} onGeneratingChange={setSetupGenerationPending} onComplete={async () => {
       setEditingSetup(false);
       await Promise.all([
@@ -342,7 +348,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
 
     {isPlanArchived && <div className="plan-active-callout"><div><Check size={20} /><span><strong>Archived cohort plan</strong><small>This plan is view-only. Its reminder schedule will not release new actions.</small></span></div><Link href="/actions" className="journey-primary-button">Revisit remaining actions</Link></div>}
 
-    {!isPlanActive && !isPlanArchived && !hasDraft && <div className="journey-card plan-empty-preview"><span><ListChecks size={34} /></span><h3>Your actions will appear here</h3><p>Choose a realistic pace above, then generate them from your saved notes.</p></div>}
+    {/* {!isPlanActive && !isPlanArchived && !hasDraft && <div className="journey-card plan-empty-preview"><span><ListChecks size={34} /></span><h3>Your actions will appear here</h3><p>Choose a realistic pace above, then generate them from your saved notes.</p></div>} */}
 
     {typeof document !== "undefined" && editingAction && editForm && createPortal(<div className="plan-edit-overlay"><div className="plan-edit-modal"><button className="plan-edit-close" onClick={() => setEditingAction(null)}><X size={18} /></button><span className="participant-eyebrow">Edit action</span><h3>Edit your action</h3><label>Action title<input value={editForm.title} onChange={(event) => setEditForm((current) => current ? { ...current, title: event.target.value } : current)} /></label><div className="plan-edit-how-why"><label><span>How to do it</span><textarea value={editForm.how} onChange={(event) => setEditForm((current) => current ? { ...current, how: event.target.value } : current)} /></label><label><span>Why it works</span><textarea value={editForm.why} onChange={(event) => setEditForm((current) => current ? { ...current, why: event.target.value } : current)} /></label></div>{error && <p className="plan-review-error">{error}</p>}<button className="journey-primary-button" disabled={saving || !editForm.title.trim() || !editForm.how.trim() || !editForm.why.trim()} onClick={saveEdit}>{saving ? "Saving…" : "Save"}</button></div></div>, document.body)}
 

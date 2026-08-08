@@ -122,13 +122,13 @@ Generate exactly ${count} new actions. Prefer combining available inputs: the sk
 
 FORMAT AND QUALITY RULES
 - "title" is the What: one short, specific, observable action statement that starts with a strong verb.
-- "how" is the How: 3 to 6 short sentences in simple English, written in "you" voice. Give a clear situation, sequence, or trigger so a busy manager can act without asking a follow-up question. A natural example phrase in quotes is welcome when useful.
+- "how" is the How: 2 to 3 short lines (about 1–3 sentences) in simple English, written in "you" voice. Give a clear situation, sequence, or trigger so a busy manager can act without asking a follow-up question. A natural example phrase in quotes is welcome when useful. Do not write long paragraphs.
 - "why" is the Why: exactly one sentence. Start with the benefit, not the action. Do not use corporate jargon such as leverage, synergy, align, or touch base.
 - "timeEstimate" is a realistic value such as "2 mins", "5 mins", "15 mins", or "30 mins".
 - Keep the actions practical, distinct from one another, and realistic during normal work.
 - Do not add theme labels, category tags, bullets inside fields, or commentary outside the required JSON.${avoidBlock}
 
-Before returning the result, silently check that every action reflects the available inputs, and that every Why is exactly one sentence.`;
+Before returning the result, silently check that every action reflects the available inputs, that every How is at most 2–3 lines, and that every Why is exactly one sentence.`;
 }
 
 /** Calls Gemini to draft `count` new personal actions. Does not persist anything. */

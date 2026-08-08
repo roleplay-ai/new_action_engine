@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ArrowLeftRight, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleX, Clock3, Coffee, Hand, ListChecks, Mail, Medal, MessageCircle, Settings2, TrendingDown, TrendingUp, Trophy, UsersRound, X } from "lucide-react";
+import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleCheckBig, CircleX, Clock3, Coffee, Hand, Handshake, HeartHandshake, ListChecks, Loader2, Mail, Medal, MessageCircle, MessageCircleHeart, Settings2, TrendingDown, TrendingUp, Trophy, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getCohortLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard";
 import { getMyPlanSettings, syncMyDuePersonalActions, type MyPlanSettings } from "@/app/actions/ai-actions";
@@ -134,14 +134,14 @@ function buddyContactCopy(buddy: CommitmentBuddyProgress, state: BuddyCardState)
     return {
       label: `Say hi to ${firstName}`,
       title: `Say hi to ${firstName}`,
-      message: `Hi ${firstName}, just checking in — let me know if you need a hand finalising your Wallet plan.`,
+      message: `Hi ${firstName}, just checking in — let me know if you need a hand finalising your Action plan.`,
     };
   }
   if (state === "new") {
     return {
       label: `Say hi to ${firstName}`,
       title: `Say hi to ${firstName}`,
-      message: `Hi ${firstName}, saw you just finalised your Wallet plan — excited to keep each other on track!`,
+      message: `Hi ${firstName}, saw you just finalised your Action plan — excited to keep each other on track!`,
     };
   }
   if (state === "dipped") {
@@ -366,6 +366,7 @@ export default function ActionsClient() {
   } | null>(null);
   const [reflection, setReflection] = useState("");
   const [busy, setBusy] = useState(false);
+  const [skippingId, setSkippingId] = useState<string | null>(null);
   const [completeError, setCompleteError] = useState<string | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [settings, setSettings] = useState<MyPlanSettings | null>(null);
@@ -508,9 +509,14 @@ export default function ActionsClient() {
 
   async function skip(actionId: string) {
     setBusy(true);
-    const result = await completeAction(actionId, false, "Skipped");
-    setBusy(false);
-    if (!result.error) setTab("not-completed");
+    setSkippingId(actionId);
+    try {
+      const result = await completeAction(actionId, false, "Skipped");
+      if (!result.error) setTab("not-completed");
+    } finally {
+      setBusy(false);
+      setSkippingId(null);
+    }
   }
 
   if (!ready) return null;
@@ -536,60 +542,67 @@ export default function ActionsClient() {
       <button type="button" className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>Plan overview</button>
     </nav>
 
-    {tab === "upcoming" && <div className={`actions-reference-layout${planIsActive && buddyReady && buddyGroup ? "" : " actions-reference-layout--solo"}`}>
-      <div className="actions-primary-column">
-        <section className="actions-current-group">
-          <div className="actions-section-heading">
-            <div>
-              <h3>Current actions</h3>
+    {tab === "upcoming" && <div className="actions-reference-layout">
+      <section className="actions-current-group">
+        <div className="actions-section-heading">
+          <div>
+            <h3>Current actions</h3>
+            <p>
+              {currentActions.length
+                ? `${currentActions.length} action${currentActions.length === 1 ? " is" : "s are"} ready for this ${settings?.track === "daily" ? "day" : "week"}.`
+                : planIsActive
+                  ? "Nothing on your plate right now."
+                  : "Actions ready for your current practice period."}
+            </p>
+          </div>
+          {currentActions.length > 0 && <span>{currentActions.length} ready</span>}
+        </div>
+        {currentActions.length === 0 ? (
+          <div className="actions-current-card actions-current-card--empty">
+            <div className="actions-empty-state actions-empty-state--chill">
+              <span className="actions-chill-icon" aria-hidden="true">
+                <Coffee size={34} strokeWidth={1.75} />
+                <i className="actions-chill-steam" />
+                <i className="actions-chill-steam" />
+                <i className="actions-chill-steam" />
+              </span>
+              <strong>
+                {planIsArchived
+                  ? "No released actions remain"
+                  : "Nothing due — chill for now"}
+              </strong>
               <p>
-                {currentActions.length
-                  ? `${currentActions.length} action${currentActions.length === 1 ? " is" : "s are"} ready for this ${settings?.track === "daily" ? "day" : "week"}.`
-                  : planIsActive
-                    ? "Nothing on your plate right now."
-                    : "Actions ready for your current practice period."}
+                {planIsArchived
+                  ? "This archived cohort plan will not release more reminders."
+                  : planIsActive || planCanPerform
+                    ? "You're clear. Grab a coffee — your next action will show up when it's due."
+                    : personalPlanState === "draft"
+                      ? "Finish reviewing and finalise this cohort's draft plan first."
+                      : "Build a practice plan for your current cohort to generate workplace actions."}
               </p>
             </div>
-            {currentActions.length > 0 && <span>{currentActions.length} ready</span>}
           </div>
-          {currentActions.length === 0 ? (
-            <div className="actions-current-card actions-current-card--empty">
-              <div className="actions-empty-state actions-empty-state--chill">
-                <span className="actions-chill-icon" aria-hidden="true">
-                  <Coffee size={34} strokeWidth={1.75} />
-                  <i className="actions-chill-steam" />
-                  <i className="actions-chill-steam" />
-                  <i className="actions-chill-steam" />
-                </span>
-                <strong>
-                  {planIsArchived
-                    ? "No released actions remain"
-                    : "Nothing due — chill for now"}
-                </strong>
-                <p>
-                  {planIsArchived
-                    ? "This archived cohort plan will not release more reminders."
-                    : planIsActive || planCanPerform
-                      ? "You're clear. Grab a coffee — your next action will show up when it's due."
-                      : personalPlanState === "draft"
-                        ? "Finish reviewing and finalise this cohort's draft plan first."
-                        : "Build a practice plan for your current cohort to generate workplace actions."}
-                </p>
+        ) : (
+          <div className="actions-current-list" style={{ "--action-cols": Math.min(currentActions.length, 3) } as CSSProperties}>
+            {currentActions.map(({ userAction, action }, index) => <article className="actions-current-card" key={userAction.id}>
+              <div className="actions-current-top"><span>Action # {(action.planOrder ?? index) + 1}</span><em>{action.timeEstimate}{action.planPoints ? ` · Protect ${action.planPoints} points today` : ""}</em></div>
+              <h3 style={{ fontSize: "1.25rem", fontWeight: "bold" }}>{action.title}</h3>
+              <p style={{ fontSize: "1rem", fontWeight: "normal" }}>{action.how}</p>
+              <p style={{ fontSize: "1rem", fontWeight: "normal" }}><span style={{ fontWeight: "bold" }}>Why? </span>{action.why}</p>
+              <div className="actions-current-buttons">
+                <button className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(userAction.actionId)}><Check size={16} /> Mark completed</button>
+                <button type="button" disabled={busy} aria-busy={skippingId === userAction.actionId} onClick={() => void skip(userAction.actionId)}>
+                  {skippingId === userAction.actionId ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> Saving…</> : "I didn't complete it"}
+                </button>
               </div>
-            </div>
-          ) : (
-            <div className="actions-current-list">
-              {currentActions.map(({ userAction, action }, index) => <article className="actions-current-card" key={userAction.id}>
-                <div className="actions-current-top"><span>Action # {(action.planOrder ?? index) + 1}</span><em>{action.timeEstimate}{action.planPoints ? ` · Protect ${action.planPoints} points today` : ""}</em></div>
-                <h3 style={{ fontSize: "1.25rem", fontWeight: "bold" }}>{action.title}</h3>
-                <p style={{ fontSize: "1rem", fontWeight: "normal" }}>{action.how}</p>
-                <p style={{ fontSize: "1rem", fontWeight: "normal" }}><span style={{ fontWeight: "bold" }}>Why? </span>{action.why}</p>
-                <div className="actions-current-buttons"><button className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(userAction.actionId)}><Check size={16} /> Mark completed</button><button disabled={busy} onClick={() => skip(userAction.actionId)}>I didn&apos;t complete it</button></div>
-              </article>)}
-            </div>
-          )}
-        </section>
+            </article>)}
+          </div>
+        )}
+      </section>
 
+      <hr className="actions-section-divider" />
+
+      <div className={`actions-secondary-row${planIsActive && buddyReady && buddyGroup ? "" : " actions-secondary-row--solo"}`}>
         <section className={`actions-list-card${!planCanPerform && upcoming.length === 0 ? " actions-list-card--empty-reminders" : ""}`}>
           {planCanPerform || upcoming.length > 0 ? (
             <>
@@ -628,25 +641,25 @@ export default function ActionsClient() {
             </div>
           )}
         </section>
-      </div>
 
-      {planIsActive && buddyReady && buddyGroup && (
-        <aside className="actions-buddy-sidebar">
-          <CommitmentBuddyCard group={buddyGroup} onContact={setContactBuddy} />
-          <ReminderEmailPreview
-            firstName={reminderFirstName}
-            action={reminderAction}
-            hasFinalisedPlan={commitmentScore?.hasFinalisedPlan ?? false}
-            commitmentScore={commitmentScore?.score ?? null}
-            buddyName={buddyGroup?.buddies[0]?.name ?? null}
-            buddyScore={buddyGroup?.buddies[0]?.currentScore ?? null}
-            teamRank={commitmentScore?.contributionRank ?? null}
-            teamSize={commitmentScore?.teamMemberCount ?? null}
-            teamPoints={commitmentScore?.teamPoints ?? 0}
-            teamMaximumPoints={commitmentScore?.teamMaximumPoints ?? 0}
-          />
-        </aside>
-      )}
+        {planIsActive && buddyReady && buddyGroup && (
+          <aside className="actions-buddy-sidebar">
+            <CommitmentBuddyCard group={buddyGroup} onContact={setContactBuddy} />
+            <ReminderEmailPreview
+              firstName={reminderFirstName}
+              action={reminderAction}
+              hasFinalisedPlan={commitmentScore?.hasFinalisedPlan ?? false}
+              commitmentScore={commitmentScore?.score ?? null}
+              buddyName={buddyGroup?.buddies[0]?.name ?? null}
+              buddyScore={buddyGroup?.buddies[0]?.currentScore ?? null}
+              teamRank={commitmentScore?.contributionRank ?? null}
+              teamSize={commitmentScore?.teamMemberCount ?? null}
+              teamPoints={commitmentScore?.teamPoints ?? 0}
+              teamMaximumPoints={commitmentScore?.teamMaximumPoints ?? 0}
+            />
+          </aside>
+        )}
+      </div>
 
       {/* <aside className="actions-leaderboard-card"><div className="actions-card-heading"><div><h3>{cohort?.name ?? "Cohort"} leaderboard</h3><p>Current cohort balance · everyone starts at 1,000</p></div><Trophy size={20} /></div><div className="actions-leaderboard-list">
         {leaderboard.length === 0 && <div className="actions-inline-empty">No rankings yet.</div>}
@@ -680,32 +693,84 @@ export default function ActionsClient() {
       {!settings ? <div className="actions-empty-state"><CalendarDays size={28} /><strong>No plan for this cohort yet</strong><p>Generate, review and finalise your plan before actions appear here.</p>{cohort?.isCurrent && <Link href="/plan" className="journey-primary-button">Go to my plan</Link>}</div> : <><div className="actions-inline-empty">{settings.isArchived ? "Archived · reminders paused · plan settings are read-only" : settings.isActive ? "Finalised · plan settings are read-only" : "Draft · finalise this plan before reminders begin"}</div><div className="actions-settings-grid"><div><span>Action pace</span><strong>{settings.track === "weekly" ? "Weekly actions" : "Daily actions"}</strong></div><div><span>Plan duration</span><strong>{settings.durationWeeks} weeks</strong></div><div><span>Actions per {settings.track === "weekly" ? "week" : "weekday"}</span><strong>{settings.actionCount}</strong></div><div><span>Reminder</span><strong>{settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}{formatTime(settings.reminderTime)}</strong></div><div><span>Email notifications</span><strong className="actions-notification-status"><Mail size={15} />Email reminders on</strong></div><div><span>Total plan</span><strong>{settings.totalActionsPlanned} actions</strong></div><div><span>Starting points</span><strong>1,000</strong></div><div><span>Minimum score</span><strong>0</strong></div></div><p className="actions-points-rule">Every action is worth 50 points. Complete it on the assigned day to earn 100 points. Missing it deducts 50 points, and your balance never drops below zero. A late completion does not restore the deduction.</p></>}
     </section>}
 
-    {typeof document !== "undefined" && planIsActive && buddyGroup?.revealPending && buddyGroup.buddies.length > 0 && createPortal(
-      <div
-        className="plan-activate-overlay"
+    {typeof document !== "undefined" && planIsActive && buddyGroup?.revealPending && buddyGroup.buddies.length > 0 && createPortal((() => {
+      const primaryBuddy = buddyGroup.buddies[0];
+      const buddyNames = buddyGroup.buddies.map((buddy) => buddy.name);
+      const buddyLabel = buddyNames.length === 1
+        ? buddyNames[0]
+        : buddyNames.slice(0, -1).join(", ") + " and " + buddyNames[buddyNames.length - 1];
+      const firstNames = buddyGroup.buddies.map((buddy) => buddy.name.split(/\s+/)[0] || buddy.name);
+      const helloNames = firstNames.length === 1
+        ? firstNames[0]
+        : firstNames.slice(0, -1).join(", ") + " and " + firstNames[firstNames.length - 1];
+      const pairingLabel = buddyGroup.buddies.length === 1
+        ? `You and ${primaryBuddy.name} are commitment buddies`
+        : `You, ${buddyLabel} are commitment buddies`;
+
+      return <div
+        className="commitment-buddy-popup-overlay"
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) dismissBuddyReveal();
         }}
       >
-        <section className="plan-activate-modal plan-activate-modal--buddy" role="dialog" aria-modal="true" aria-labelledby="commitment-buddy-title">
-          <div className="actions-buddy-modal-avatars" aria-hidden="true">
-            <i className="you">{initials(profile.name)}</i>
-            <span><ArrowLeftRight size={17} /></span>
-            {buddyGroup.buddies.map((buddy) => <i className="them" key={buddy.id}>{initials(buddy.name)}</i>)}
+        <section className="commitment-buddy-popup" role="dialog" aria-modal="true" aria-labelledby="commitment-buddy-title">
+          <div className="commitment-buddy-popup-identity">
+            <p className="commitment-buddy-popup-label">{buddyGroup.buddies.length === 1 ? "Your commitment buddy" : "Your commitment buddies"}</p>
+
+            <div className="commitment-buddy-popup-pairing" aria-label={pairingLabel}>
+              <div className="commitment-buddy-popup-avatar" aria-label="You">{initials(profile.name)}</div>
+              <div className="commitment-buddy-popup-link" aria-hidden="true"><Handshake size={16} /></div>
+              {buddyGroup.buddies.map((buddy) => (
+                <div className="commitment-buddy-popup-avatar is-buddy" aria-label={buddy.name} key={buddy.id}>{initials(buddy.name)}</div>
+              ))}
+            </div>
+
+            <h2 id="commitment-buddy-title">{buddyLabel}</h2>
+            {buddyGroup.buddies.length === 1 && primaryBuddy.email ? (
+              <a className="commitment-buddy-popup-email" href={`mailto:${encodeURIComponent(primaryBuddy.email)}`}>
+                <Mail size={14} aria-hidden="true" />
+                {primaryBuddy.email}
+              </a>
+            ) : buddyGroup.buddies.length > 1 ? (
+              <p className="commitment-buddy-popup-email-note">You can see each other&apos;s Commitment Score on My Actions.</p>
+            ) : null}
           </div>
-          <h2 id="commitment-buddy-title">{buddyGroup.buddies.length === 1
-            ? `You are paired with ${buddyGroup.buddies[0].name}`
-            : `Your commitment group is ${buddyGroup.buddies.map((buddy) => buddy.name).join(" and ")}`}</h2>
-          <p>{buddyGroup.buddies.length === 1
-            ? "You are each other’s commitment buddy for this cohort. You can both see overall progress and encourage each other."
-            : "The three of you are commitment buddies for this cohort. Everyone can see each other’s overall progress and offer encouragement."}</p>
-          <div className="plan-activate-actions">
-            <button type="button" className="journey-primary-button" onClick={dismissBuddyReveal}>Got it</button>
+
+          <div className="commitment-buddy-popup-content">
+            <div className="commitment-buddy-popup-hello">
+              <div className="commitment-buddy-popup-hello-icon" aria-hidden="true"><MessageCircleHeart size={18} /></div>
+              <div>
+                <h3>Start with a hello</h3>
+                <p>Say hi to {helloNames} and agree on a quick catch-up later in the journey.</p>
+              </div>
+            </div>
+
+            <div className="commitment-buddy-popup-support">
+              <div className="commitment-buddy-popup-support-title">
+                <UsersRound size={16} aria-hidden="true" />
+                <h3>How you&apos;ll support each other</h3>
+              </div>
+              <p>{buddyGroup.buddies.length === 1
+                ? "You'll both see each other's Commitment Score."
+                : "You'll all see each other's Commitment Score."}</p>
+
+              <div className="commitment-buddy-popup-states">
+                <div className="commitment-buddy-popup-state is-steady">
+                  <div className="commitment-buddy-popup-state-heading"><CircleCheckBig size={15} aria-hidden="true" /> Stays at 100%</div>
+                  <p>Congratulate them.</p>
+                </div>
+                <div className="commitment-buddy-popup-state is-drop">
+                  <div className="commitment-buddy-popup-state-heading"><HeartHandshake size={15} aria-hidden="true" /> Score drops</div>
+                  <p>Check in and offer support.</p>
+                </div>
+              </div>
+            </div>
+
+            <button type="button" className="commitment-buddy-popup-got-it" onClick={dismissBuddyReveal}>Got it</button>
           </div>
         </section>
-      </div>,
-      document.body,
-    )}
+      </div>;
+    })(), document.body)}
 
     {typeof document !== "undefined" && contactBuddy && createPortal((() => {
       const state = buddyCardState(contactBuddy);

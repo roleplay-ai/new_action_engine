@@ -93,9 +93,11 @@ function buildPrompt(
   return `You write personal development actions for leadership-program participants in the Nudgeable nudge style. Match the tone, structure, and level of detail in these examples.
 
 EXAMPLE 1
-What:  In your next tense meeting, name the emotion you notice before addressing the issue.
-How:Acknowledge the feeling in one sentence before discussing solutions.
-Why: People engage better when they feel heard first.
+ What: In your next tense meeting, name the emotion you notice before addressing the issue.
+How: Say, “You seem concerned,” pause, listen, then move to the issue.
+Why: People listen more openly when they feel their concern has been recognised.
+
+
 EXAMPLE 2
 What: Get one number explained to you by someone outside your function.
 How: Ask a colleague outside your function to explain one metric in plain terms.
@@ -120,9 +122,10 @@ TASK
 Generate exactly ${count} new actions. Prefer combining available inputs: the skill from TRAINING_CONTENT when present, the participant's specific goal, struggle, or reflection in USER_NOTES, and a situation that is realistic in BUSINESS_CONTEXT when present. Do not create generic actions when USER_NOTES has usable detail. If USER_NOTES is vague, use the closest reasonable interpretation without inventing personal facts. Missing TRAINING_CONTENT or BUSINESS_CONTEXT is allowed — work with whatever inputs are present.
 
 FORMAT AND QUALITY RULES
-- "title" is the What:  exactly one sentence, at most 15 words, in simple English for Indian audience, written in "you" voice. Give a clear situation, sequence, or trigger so a busy manager can act without asking a follow-up question
-- "how" is the How: exactly one sentence, at most 15 words, in simple English for Indian audience, written in "you" voice. Give a clear situation, sequence, or trigger so a busy manager can act without asking a follow-up question.
-- "why" is the Why: exactly one sentence, at most 15 words , in simple English for Indian audience. Start with the benefit, not the action. Do not use corporate jargon such as leverage, synergy, align, or touch base.
+- "title" is the What:  exactly one sentence, at most 15 words, in simple English for Indian audience, written in "you" voice. Give a clear situation, sequence, or trigger so a busy employee can act without asking a follow-up question.
+- "how" is the How: exactly one sentence, at most 15 words, in simple English for Indian audience, written in "you" voice. Add one useful detail not already covered in the What that makes the action easier to do. This could be what to say, ask, notice, prepare, or focus on. Do not repeat the What.
+
+- "why" is the Why: exactly one sentence, at most 15 words, in simple English for Indian audience. Start with the benefit, not the action. Do not use corporate jargon such as leverage, synergy, align, or touch base.
 - "timeEstimate" is a realistic value such as "2 mins", "5 mins", "15 mins", or "30 mins".
 - Keep the actions practical, distinct from one another, and realistic during normal work.
 - Do not add theme labels, category tags, bullets inside fields, or commentary outside the required JSON.${avoidBlock}

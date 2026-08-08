@@ -127,7 +127,12 @@ export default function UsersList({
   }
 
   async function handleDelete(userId: string) {
-    if (!window.confirm("Permanently delete this user? This cannot be undone.")) return;
+    if (
+      !window.confirm(
+        "Permanently delete this user and all their data (actions, subscriptions, cohort membership, etc.)? This cannot be undone."
+      )
+    )
+      return;
     setActionError(null);
     setDeletingId(userId);
     try {

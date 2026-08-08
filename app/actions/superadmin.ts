@@ -200,6 +200,14 @@ export async function deleteUserBySuperadmin(userId: string): Promise<{ error?: 
       return { error: "Cannot delete a superadmin account" };
     }
 
+    // Remove personal actions, subscriptions, cohort membership, wallets, etc.
+    // Shared company content keeps its rows; created_by / added_by are cleared
+    // via ON DELETE SET NULL (see migration 053).
+    const { error: purgeError } = await admin.rpc("purge_user_owned_data", {
+      p_user_id: userId,
+    });
+    if (purgeError) return { error: purgeError.message };
+
     const { error } = await admin.auth.admin.deleteUser(userId);
     if (error) return { error: error.message };
 

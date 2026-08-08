@@ -354,7 +354,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
           <p>Need another option? Add one more AI suggestion, then rename or reorder it like the rest.</p>
         </div>
       )}
-      {!generationJob && !generationError && generatedActions.length > 0 && <div className="plan-freeze-bar plan-freeze-bar--primary"><div><CheckCircle2 size={20} /><span><strong>My plan is ready</strong><p>Review the actions above, then activate when you are happy with the plan.</p></span></div><div className="plan-freeze-bar-actions"><button type="button" className="journey-secondary-button" disabled={activating || savingOrder || generatingMore} onClick={requestChangePace}>Change pace</button><button className="journey-primary-button" disabled={activating || savingOrder || generatingMore} onClick={() => { setError(""); setConfirmActivateOpen(true); }}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generatingMore ? "Generating…" : "Activate My Plan"}</button></div></div>}
+      {!generationJob && !generationError && generatedActions.length > 0 && <div className="plan-freeze-bar plan-freeze-bar--primary"><div><CheckCircle2 size={20} /><span><strong>My plan is ready</strong><p>Review the actions above, then activate when you are happy with the plan.</p></span></div><div className="plan-freeze-bar-actions"><button type="button" className="journey-secondary-button" disabled={activating || savingOrder || generatingMore} onClick={requestChangePace}>Start over</button><button className="journey-primary-button" disabled={activating || savingOrder || generatingMore} onClick={() => { setError(""); setConfirmActivateOpen(true); }}>{activating ? "Activating…" : savingOrder ? "Saving order…" : generatingMore ? "Generating…" : "Activate My Plan"}</button></div></div>}
       {error && <p className="plan-review-error">{error}</p>}
     </section>}
 
@@ -422,17 +422,17 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
           if (event.target === event.currentTarget) setConfirmChangePaceOpen(false);
         }}
       >
-        <section className="plan-activate-modal" role="dialog" aria-modal="true" aria-labelledby="plan-change-pace-title">
+        <section className="plan-activate-modal" role="dialog" aria-modal="true" aria-labelledby="plan-start-over-title">
           <div className="plan-activate-title-row">
             <div className="plan-activate-icon plan-activate-icon--danger" aria-hidden="true"><Trash2 size={26} /></div>
-            <h2 id="plan-change-pace-title">Change pace?</h2>
+            <h2 id="plan-start-over-title">Start over?</h2>
           </div>
-          <p>Changing your pace will delete {generatedActions.length} generated action{generatedActions.length === 1 ? "" : "s"} from this draft. You&apos;ll need to generate your actions again after picking a new pace.</p>
+          <p>Starting over will delete {generatedActions.length} generated action{generatedActions.length === 1 ? "" : "s"} from this draft. You&apos;ll need to generate your actions again after picking a new pace.</p>
           <strong>This cannot be undone.</strong>
           <div className="plan-activate-actions">
             <button type="button" className="plan-activate-back" onClick={() => setConfirmChangePaceOpen(false)}>Go back</button>
             <button type="button" className="journey-primary-button plan-delete-confirm" onClick={confirmChangePace}>
-              Yes, change pace
+              Yes, start over
             </button>
           </div>
         </section>

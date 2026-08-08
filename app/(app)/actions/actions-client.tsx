@@ -573,13 +573,13 @@ export default function ActionsClient() {
               <strong>
                 {planIsArchived
                   ? "No released actions remain"
-                  : "Nothing due — chill for now"}
+                  : "So efficient!"}
               </strong>
               <p>
                 {planIsArchived
                   ? "This archived cohort plan will not release more reminders."
                   : planIsActive || planCanPerform
-                    ? "You're clear. Grab a coffee — your next action will show up when it's due."
+                    ? "You have completed all your actions! It's time to log out"
                     : personalPlanState === "draft"
                       ? "Finish reviewing and finalise this cohort's draft plan first."
                       : "Build a practice plan for your current cohort to generate workplace actions."}
@@ -594,7 +594,7 @@ export default function ActionsClient() {
               <p style={{ fontSize: "1rem", fontWeight: "normal" }}>{action.how}</p>
               <p style={{ fontSize: "1rem", fontWeight: "normal" }}><span style={{ fontWeight: "bold" }}>Why? </span>{action.why}</p>
               <div className="actions-current-buttons">
-                <button className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(userAction.actionId)}><Check size={16} /> Mark completed</button>
+                <button className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(userAction.actionId)}><Check size={16} /> I did it</button>
                 <button type="button" disabled={busy} aria-busy={skippingId === userAction.actionId} onClick={() => void skip(userAction.actionId)}>
                   {skippingId === userAction.actionId ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> Saving…</> : "I didn't complete it"}
                 </button>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { FileText, CheckCircle2, ExternalLink } from "lucide-react";
+import { FileText, CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
 import type { PrepareContentItem } from "@/lib/types";
 import { estimateMinutes } from "@/lib/prepare-estimate";
 
@@ -19,9 +19,13 @@ export default function PrereadCard({
   const isPdf = !!item.prereadUrl && /\.pdf(?:$|[?#])/i.test(item.prereadUrl);
 
   async function handleMarkRead() {
+    if (busy || completed) return;
     setBusy(true);
-    await onComplete(item.id);
-    setBusy(false);
+    try {
+      await onComplete(item.id);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -75,11 +79,19 @@ export default function PrereadCard({
           </a>
         )}
         <button
+          type="button"
           onClick={handleMarkRead}
           disabled={busy || completed}
-          className={`btn btn--sm ${completed ? "btn--decline" : "btn--accept"}`}
+          aria-busy={busy}
+          className={`btn btn--sm flex items-center gap-1 ${completed ? "btn--decline" : "btn--accept"}`}
         >
-          {completed ? "Read" : busy ? "…" : "Mark as read"}
+          {completed ? (
+            "Read"
+          ) : busy ? (
+            <><Loader2 size={14} className="animate-spin" aria-hidden="true" /> Marking…</>
+          ) : (
+            "Mark as read"
+          )}
         </button>
       </div>
     </div>

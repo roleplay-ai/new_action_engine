@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Play, CheckCircle2, ExternalLink } from "lucide-react";
+import { Play, CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
 import type { PrepareContentItem } from "@/lib/types";
 import { resolveVideoEmbed } from "@/lib/video-embed";
 
@@ -21,9 +21,13 @@ export default function VideoCard({
   const [playing, setPlaying] = useState(false);
 
   async function handleMarkWatched() {
+    if (busy || completed) return;
     setBusy(true);
-    await onComplete(item.id);
-    setBusy(false);
+    try {
+      await onComplete(item.id);
+    } finally {
+      setBusy(false);
+    }
   }
 
   const embed = item.videoUrl ? resolveVideoEmbed(item.videoUrl) : null;
@@ -122,11 +126,19 @@ export default function VideoCard({
             </a>
           )}
           <button
+            type="button"
             onClick={handleMarkWatched}
             disabled={busy || completed}
-            className={`btn btn--sm ${completed ? "btn--decline" : "btn--accept"}`}
+            aria-busy={busy}
+            className={`btn btn--sm flex items-center gap-1 ${completed ? "btn--decline" : "btn--accept"}`}
           >
-            {completed ? "Watched" : busy ? "…" : "Mark as watched"}
+            {completed ? (
+              "Watched"
+            ) : busy ? (
+              <><Loader2 size={14} className="animate-spin" aria-hidden="true" /> Marking…</>
+            ) : (
+              "Mark as watched"
+            )}
           </button>
         </div>
       </div>

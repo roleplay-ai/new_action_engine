@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, ExternalLink } from "lucide-react";
+import { CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
 import type { PrepareContentItem } from "@/lib/types";
 
 export default function PdfReader({
@@ -17,9 +17,13 @@ export default function PdfReader({
   const url = item.prereadUrl!;
 
   async function handleMarkRead() {
+    if (busy || completed) return;
     setBusy(true);
-    await onComplete(item.id);
-    setBusy(false);
+    try {
+      await onComplete(item.id);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -40,11 +44,16 @@ export default function PdfReader({
             type="button"
             className={`btn btn--sm ${completed ? "btn--decline" : "btn--accept"}`}
             disabled={busy || completed}
+            aria-busy={busy}
             onClick={handleMarkRead}
           >
             {completed ? (
               <><CheckCircle2 size={14} strokeWidth={2.5} /> Read</>
-            ) : busy ? "…" : "Mark as read"}
+            ) : busy ? (
+              <><Loader2 size={14} className="animate-spin" aria-hidden="true" /> Marking…</>
+            ) : (
+              "Mark as read"
+            )}
           </button>
         </div>
       </footer>

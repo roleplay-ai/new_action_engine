@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 const JOURNEY_STEPS = [
   {
@@ -61,8 +61,8 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       if (error.message.toLowerCase().includes("email logins are disabled")) {
         setError(
           "Email logins are disabled in Supabase. Enable them: Dashboard → Authentication → Providers → Email → Enable."
@@ -168,8 +168,9 @@ export default function LoginPage() {
               </div>
             )}
 
-            <button type="submit" className="login-continue" disabled={loading} suppressHydrationWarning>
-              {loading ? "Opening your journey…" : "Continue"}
+            <button type="submit" className="login-continue" disabled={loading} aria-busy={loading} suppressHydrationWarning>
+              {loading && <Loader2 size={18} className="animate-spin" aria-hidden="true" />}
+              {loading ? "Signing in…" : "Continue"}
             </button>
           </form>
 

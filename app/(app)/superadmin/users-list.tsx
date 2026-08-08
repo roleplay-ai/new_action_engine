@@ -7,7 +7,7 @@ import {
   updateUserBySuperadmin,
   deleteUserBySuperadmin,
 } from "@/app/actions/superadmin";
-import { sendAutoLoginEmails, type SendEmailResult } from "@/app/actions/email-campaign";
+import { sendWelcomeEmails, type SendEmailResult } from "@/app/actions/email-campaign";
 
 type User = {
   id: string;
@@ -16,6 +16,8 @@ type User = {
   company_id: string | null;
   role: string;
   company_name: string | null;
+  persistent_login_key?: string | null;
+  has_stored_credentials?: boolean;
 };
 
 type Company = { id: string; name: string };
@@ -47,7 +49,12 @@ export default function UsersList({
   const [emailResults, setEmailResults] = useState<SendEmailResult[] | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
 
-  const selectableUsers = users.filter((u) => u.role !== "superadmin");
+  const selectableUsers = users.filter(
+    (u) =>
+      u.role !== "superadmin" &&
+      !!u.persistent_login_key &&
+      !!u.has_stored_credentials
+  );
   const allSelected = selectableUsers.length > 0 && selectableUsers.every((u) => selectedUserIds.has(u.id));
 
   function toggleUser(userId: string) {
@@ -77,7 +84,7 @@ export default function UsersList({
     setEmailError(null);
 
     try {
-      const result = await sendAutoLoginEmails(Array.from(selectedUserIds));
+      const result = await sendWelcomeEmails(Array.from(selectedUserIds));
       if (result.error) {
         setEmailError(result.error);
       } else {
@@ -161,7 +168,7 @@ export default function UsersList({
           ) : (
             <Mail size={16} />
           )}
-          Send login email ({selectedUserIds.size})
+          Send welcome email ({selectedUserIds.size})
         </button>
 
         {emailError && (
@@ -310,7 +317,7 @@ export default function UsersList({
             return (
               <tr key={u.id} className="border-b border-slate-200 hover:bg-slate-50">
                 <td className="p-4">
-                  {u.role !== "superadmin" ? (
+                  {selectableUsers.some((item) => item.id === u.id) ? (
                     <button
                       type="button"
                       onClick={() => toggleUser(u.id)}
@@ -323,7 +330,16 @@ export default function UsersList({
                       )}
                     </button>
                   ) : (
-                    <span className="text-slate-300">—</span>
+                    <span
+                      className="text-slate-300"
+                      title={
+                        u.role === "superadmin"
+                          ? "Welcome emails are not sent to superadmins"
+                          : "Stored credentials or login key unavailable"
+                      }
+                    >
+                      —
+                    </span>
                   )}
                 </td>
                 <td className="p-4">

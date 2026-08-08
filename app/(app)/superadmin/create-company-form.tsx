@@ -3,13 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createCompany } from "@/app/actions/companies";
-import { Loader2, Plus, X } from "lucide-react";
+import { uploadCompanyLogo } from "@/lib/company-logo-upload";
+import { ImagePlus, Loader2, Plus, X } from "lucide-react";
 
 export default function CreateCompanyForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,15 +20,19 @@ export default function CreateCompanyForm() {
     setError(null);
     setLoading(true);
     try {
-      const result = await createCompany({ name, slug: slug || undefined });
+      const logoUrl = logoFile ? await uploadCompanyLogo(null, logoFile) : undefined;
+      const result = await createCompany({ name, slug: slug || undefined, logoUrl });
       if (result.error) {
         setError(result.error);
         return;
       }
       setName("");
       setSlug("");
+      setLogoFile(null);
       setOpen(false);
       router.refresh();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Failed to create company");
     } finally {
       setLoading(false);
     }
@@ -62,6 +68,16 @@ export default function CreateCompanyForm() {
           onChange={(e) => setSlug(e.target.value)}
           className="w-full sm:w-40"
         />
+        <label className="superadmin-logo-upload">
+          <ImagePlus size={16} />
+          <span>{logoFile ? logoFile.name : "Upload company logo"}</span>
+          <small>PNG, JPG, WebP or SVG · max 10 MB</small>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            onChange={(event) => setLogoFile(event.target.files?.[0] ?? null)}
+          />
+        </label>
         <div className="flex gap-2">
           <button
             type="submit"

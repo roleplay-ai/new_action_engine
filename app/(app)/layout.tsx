@@ -18,7 +18,7 @@ export default async function AppLayout({
 
   let { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, company_id, role")
+    .select("email, full_name, company_id, role")
     .eq("id", user.id)
     .single();
 
@@ -27,6 +27,7 @@ export default async function AppLayout({
     await supabase.from("profiles").upsert(
       {
         id: user.id,
+        email: user.email ?? null,
         full_name: user.user_metadata?.full_name ?? null,
         avatar_url: user.user_metadata?.avatar_url ?? null,
         company_id: null,
@@ -36,11 +37,16 @@ export default async function AppLayout({
     );
     const res = await supabase
       .from("profiles")
-      .select("full_name, company_id, role")
+      .select("email, full_name, company_id, role")
       .eq("id", user.id)
       .single();
     profile = res.data;
-  } else if (isSuperadminEmail && profile.role !== "superadmin") {
+  } else if (profile.email !== (user.email ?? null)) {
+    await supabase.from("profiles").update({ email: user.email ?? null }).eq("id", user.id);
+    profile = { ...profile, email: user.email ?? null };
+  }
+
+  if (profile && isSuperadminEmail && profile.role !== "superadmin") {
     // Sync: ensure known superadmin email always has superadmin role
     await supabase.from("profiles").update({ role: "superadmin", company_id: null }).eq("id", user.id);
     profile = { ...profile, role: "superadmin" as const, company_id: null };

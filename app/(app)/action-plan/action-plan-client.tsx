@@ -9,8 +9,6 @@ import { X, Lightbulb, ArrowRight, ListChecks, ChevronDown, ChevronRight } from 
 import ConfettiCelebration from "@/components/ConfettiCelebration";
 import GenerationStatus from "@/components/GenerationStatus";
 import { updatePersonalAction, deletePersonalAction } from "@/app/actions/ai-actions";
-import { THEMES } from "@/lib/personal-action-generation";
-import type { ActionTheme } from "@/lib/types";
 
 type ValidationStep = "success_prompt" | "celebration";
 
@@ -32,7 +30,7 @@ export default function ActionPlanClient() {
   const [validationStep, setValidationStep] = useState<ValidationStep>("success_prompt");
   const [showLibrary, setShowLibrary] = useState(true);
   const [editingActionId, setEditingActionId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<{ theme: ActionTheme; title: string; how: string; why: string; timeEstimate: string } | null>(null);
+  const [editForm, setEditForm] = useState<{ title: string; how: string; why: string; timeEstimate: string } | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -79,7 +77,6 @@ export default function ActionPlanClient() {
     if (!action) return;
     setEditingActionId(actionId);
     setEditForm({
-      theme: action.theme,
       title: action.title,
       how: action.how,
       why: action.why,
@@ -286,33 +283,18 @@ export default function ActionPlanClient() {
             </div>
 
             <div className="overflow-y-auto no-scrollbar flex flex-col gap-4 min-h-0 flex-1">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="form-group mb-0">
-                  <label className="form-label">Theme</label>
-                  <select
-                    className="form-input"
-                    style={{ fontSize: "var(--text-sm)" }}
-                    value={editForm.theme}
-                    onChange={(e) => setEditForm({ ...editForm, theme: e.target.value as ActionTheme })}
-                  >
-                    {THEMES.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group mb-0">
-                  <label className="form-label">Est. Time</label>
-                  <select
-                    className="form-input"
-                    style={{ fontSize: "var(--text-sm)" }}
-                    value={editForm.timeEstimate}
-                    onChange={(e) => setEditForm({ ...editForm, timeEstimate: e.target.value })}
-                  >
-                    {TIME_ESTIMATES.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </div>
+              <div className="form-group mb-0">
+                <label className="form-label">Est. Time</label>
+                <select
+                  className="form-input"
+                  style={{ fontSize: "var(--text-sm)" }}
+                  value={editForm.timeEstimate}
+                  onChange={(e) => setEditForm({ ...editForm, timeEstimate: e.target.value })}
+                >
+                  {TIME_ESTIMATES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="form-group mb-0">

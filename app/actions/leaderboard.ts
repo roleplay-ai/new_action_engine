@@ -2,7 +2,6 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { calculatePointsFromHistory } from "@/lib/points";
 import { getMyCohorts } from "@/app/actions/cohorts";
 
 export interface LeaderboardEntry {
@@ -10,6 +9,11 @@ export interface LeaderboardEntry {
   name: string;
   totalPoints: number;
   isCurrentUser: boolean;
+}
+
+export interface CohortWalletSummary {
+  totalPoints: number;
+  myContribution: number;
 }
 
 /** Get company-scoped leaderboard by profile total_points (desc). Current user is marked with isCurrentUser. */
@@ -106,37 +110,25 @@ export async function getCohortLeaderboard(cohortId: string): Promise<
     const userIds = (members ?? []).map((m: { user_id: string }) => m.user_id);
     if (!userIds.length) return { entries: [] };
 
-    const [{ data: rows }, { data: cohortActions }] = await Promise.all([
+    const [{ data: rows }, { data: accounts }] = await Promise.all([
       admin
-      .from("profiles")
-      .select("id, full_name")
-      .in("id", userIds),
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", userIds),
       admin
-        .from("actions")
-        .select("id")
-        .eq("cohort_id", cohortId),
+        .from("cohort_point_accounts")
+        .select("user_id, current_points")
+        .eq("cohort_id", cohortId)
+        .in("user_id", userIds),
     ]);
-
-    const actionIds = (cohortActions ?? []).map((action) => action.id);
-    const { data: history } = actionIds.length
-      ? await admin
-          .from("user_actions")
-          .select("user_id, status, is_calendar_synced")
-          .in("user_id", userIds)
-          .in("action_id", actionIds)
-      : { data: [] };
-
-    const historyByUser = new Map<string, { status: string; is_calendar_synced: boolean | null }[]>();
-    for (const row of history ?? []) {
-      const current = historyByUser.get(row.user_id) ?? [];
-      current.push({ status: row.status, is_calendar_synced: row.is_calendar_synced });
-      historyByUser.set(row.user_id, current);
-    }
+    const pointsByUser = new Map((accounts ?? []).map((account) => [account.user_id, account.current_points]));
 
     const entries: LeaderboardEntry[] = (rows ?? []).map((row) => ({
       id: row.id,
       name: (row.full_name?.trim() || "Anonymous") as string,
-      totalPoints: calculatePointsFromHistory(historyByUser.get(row.id) ?? []),
+      // Cohort members begin at 1,000; the persisted account appears once a
+      // plan has actions and remains the authoritative score thereafter.
+      totalPoints: pointsByUser.get(row.id) ?? 1000,
       isCurrentUser: row.id === user.id,
     })).sort((a, b) => b.totalPoints - a.totalPoints || a.name.localeCompare(b.name));
 
@@ -147,4 +139,20 @@ export async function getCohortLeaderboard(cohortId: string): Promise<
       error: e instanceof Error ? e.message : "Failed to load cohort leaderboard",
     };
   }
+}
+
+/** Aggregate-only cohort wallet data. Individual participant balances remain private. */
+export async function getCohortWalletSummary(cohortId: string): Promise<{
+  summary: CohortWalletSummary | null;
+  error?: string;
+}> {
+  const result = await getCohortLeaderboard(cohortId);
+  if (result.error) return { summary: null, error: result.error };
+
+  return {
+    summary: {
+      totalPoints: result.entries.reduce((total, entry) => total + entry.totalPoints, 0),
+      myContribution: result.entries.find((entry) => entry.isCurrentUser)?.totalPoints ?? 0,
+    },
+  };
 }

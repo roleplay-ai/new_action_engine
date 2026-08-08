@@ -90,12 +90,33 @@ export async function POST(request: Request) {
     .limit(30);
   const avoidTitles = (recentActions ?? []).map((r) => r.title);
 
-  const { drafts, error } = await generateDraftActions({
-    trainingText: job.training_text,
+  const { data: cohortGenerationContext } = await admin
+    .from("cohorts")
+    .select("training_content, business_context")
+    .eq("id", job.cohort_id)
+    .single();
+
+  let generationResult = await generateDraftActions({
+    trainingContent: cohortGenerationContext?.training_content ?? "",
+    userNotes: job.training_text,
+    businessContext: cohortGenerationContext?.business_context ?? "",
     focusThemes: job.focus_themes ?? [],
     count,
     avoidTitles,
   });
+  if (generationResult.error || !generationResult.drafts?.length) {
+    // A temporary provider/network failure should not discard the participant's
+    // whole plan. Retry this batch once before surfacing a failure.
+    generationResult = await generateDraftActions({
+      trainingContent: cohortGenerationContext?.training_content ?? "",
+      userNotes: job.training_text,
+      businessContext: cohortGenerationContext?.business_context ?? "",
+      focusThemes: job.focus_themes ?? [],
+      count,
+      avoidTitles,
+    });
+  }
+  const { drafts, error } = generationResult;
 
   if (error || !drafts?.length) {
     await admin
@@ -117,7 +138,14 @@ export async function POST(request: Request) {
   }
 
   const rows = draftsToActionRows(drafts, companyId, job.user_id, job.cohort_id, job.total_generated);
-  await admin.from("actions").insert(rows);
+  const { error: insertError } = await admin.from("actions").insert(rows);
+  if (insertError) {
+    await admin
+      .from("personal_action_generation_jobs")
+      .update({ status: "failed", error_message: insertError.message, updated_at: nowIso })
+      .eq("id", jobId);
+    return NextResponse.json({ ok: false, error: insertError.message });
+  }
 
   const totalGenerated = job.total_generated + drafts.length;
   const isDone = totalGenerated >= job.total_needed;
@@ -131,17 +159,22 @@ export async function POST(request: Request) {
     })
     .eq("id", jobId);
 
-  // Bootstrap "My Actions" as soon as enough actions exist for the very first
-  // delivery — after that, only the daily/weekly cron (assignScheduledBatch)
-  // paces further deliveries, so completing an action mid-cycle never pulls
-  // in a replacement early.
+  // If generation finishes after an active plan's first delivery became due,
+  // fill that due batch here. Otherwise the daily/weekly cron owns delivery so
+  // no action is released before tomorrow/the selected weekday.
   const { data: sub } = await admin
     .from("personal_action_subscriptions")
     .select("id, user_id, cohort_id, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at, last_delivered_at, is_active, archived_at")
     .eq("user_id", job.user_id)
     .eq("cohort_id", job.cohort_id)
     .maybeSingle();
-  if (sub && sub.is_active && !sub.archived_at && !sub.last_delivered_at) {
+  if (
+    sub
+    && sub.is_active
+    && !sub.archived_at
+    && !sub.last_delivered_at
+    && Date.parse(sub.next_delivery_at) <= Date.now()
+  ) {
     await assignScheduledBatch(sub);
   }
 
@@ -157,11 +190,23 @@ export async function POST(request: Request) {
           },
           body: JSON.stringify({ jobId }),
         });
-        if (!res.ok) {
+        const contentType = res.headers.get("content-type") ?? "";
+        const payload = contentType.includes("application/json")
+          ? await res.json() as { ok?: boolean; error?: string }
+          : null;
+        if (!res.ok || !payload || payload.ok !== true) {
           await admin
             .from("personal_action_generation_jobs")
-            .update({ status: "failed", error_message: `Next batch trigger failed (HTTP ${res.status})`, updated_at: new Date().toISOString() })
-            .eq("id", jobId);
+            .update({
+              status: "failed",
+              error_message: payload?.error
+                ?? (!contentType.includes("application/json")
+                  ? "Next generation request returned an unexpected response"
+                  : `Next batch trigger failed (HTTP ${res.status})`),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", jobId)
+            .eq("status", "generating");
         }
       } catch (e) {
         await admin
@@ -171,7 +216,8 @@ export async function POST(request: Request) {
             error_message: `Next batch trigger failed: ${e instanceof Error ? e.message : String(e)}`,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", jobId);
+          .eq("id", jobId)
+          .eq("status", "generating");
       }
     });
   }

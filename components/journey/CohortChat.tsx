@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
-import { LoaderCircle, MessageCircle } from "lucide-react";
+import { LoaderCircle, MessageCircle, Send } from "lucide-react";
 import { sendCohortMessage } from "@/app/actions/cohort-chat";
 import { createClient } from "@/lib/supabase/client";
 import type { CohortMessage } from "@/lib/types";
@@ -42,7 +42,7 @@ function formatMessageTime(value: string) {
     : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-export default function CohortChat({ cohortId, memberCount }: { cohortId: string; memberCount: number }) {
+export default function CohortChat({ cohortId, variant = "default" }: { cohortId: string; variant?: "default" | "rcpl" }) {
   const [messages, setMessages] = useState<CohortMessage[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -90,7 +90,15 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
               senderRole: result.currentUserRole ?? "participant",
             });
           }
-          setMessages(nextMessages);
+          // Do not let a slower history request overwrite a message that was
+          // already confirmed by the send response or the realtime channel.
+          setMessages((current) => {
+            const merged = new Map(current.map((message) => [message.id, message]));
+            for (const message of nextMessages) merged.set(message.id, message);
+            return [...merged.values()]
+              .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+              .slice(-200);
+          });
           setCurrentUserId(currentUserIdRef.current);
           setError(null);
         }
@@ -162,6 +170,25 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
   }, [loadMessages]);
 
   useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadMessages(true);
+    };
+    const refreshOnFocus = () => void loadMessages(true);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshOnFocus);
+
+    const fallbackTimer = connectionState === "offline"
+      ? window.setInterval(() => void loadMessages(true), 5000)
+      : null;
+
+    return () => {
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", refreshOnFocus);
+      if (fallbackTimer) window.clearInterval(fallbackTimer);
+    };
+  }, [connectionState, loadMessages]);
+
+  useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: loading ? "auto" : "smooth", block: "nearest" });
   }, [newestMessageId, loading]);
 
@@ -175,9 +202,20 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
     const result = await sendCohortMessage(cohortId, message);
     if (result.error) {
       setError(result.error);
-    } else {
+    } else if (result.message) {
       setDraft("");
-      if (connectionState !== "live") await loadMessages(true);
+      const sentMessage = result.message;
+      senderDirectoryRef.current.set(sentMessage.senderId, {
+        senderName: sentMessage.senderName,
+        senderRole: sentMessage.senderRole,
+      });
+      setMessages((current) => current.some((item) => item.id === sentMessage.id)
+        ? current
+        : [...current, sentMessage].slice(-200));
+      setError(null);
+      if (connectionState !== "live") void loadMessages(true);
+    } else {
+      setError("The message was sent but could not be displayed");
     }
     setSending(false);
   }
@@ -190,11 +228,10 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
   }
 
   return (
-    <article className="journey-module-card journey-chat-card">
+    <article className={`journey-module-card journey-chat-card${variant === "rcpl" ? " journey-chat-card--rcpl" : ""}`}>
       <div className="journey-chat-heading">
         <div>
           <h3>Cohort conversation</h3>
-          <p>Messages shared by {memberCount} participant{memberCount === 1 ? "" : "s"} and your trainer.</p>
         </div>
         <span className={connectionState}><i />{connectionState === "live" ? "Live" : connectionState === "connecting" ? "Connecting" : "Offline"}</span>
       </div>
@@ -208,8 +245,10 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
           return <div className={`journey-chat-message ${own ? "own" : ""} ${message.senderRole === "trainer" ? "trainer" : ""}`} key={message.id}>
             <div className="journey-chat-avatar">{initials(message.senderName)}</div>
             <div className="journey-chat-copy">
-              <strong>{own ? "You" : message.senderName}</strong>
-              <span>{message.senderRole === "trainer" ? "Trainer" : "Cohort participant"} · {formatMessageTime(message.createdAt)}</span>
+              <div className="journey-chat-meta">
+                <strong>{own ? "You" : message.senderName}</strong>
+                <span>{message.senderRole === "trainer" ? `Trainer · ${formatMessageTime(message.createdAt)}` : formatMessageTime(message.createdAt)}</span>
+              </div>
               <p>{message.message}</p>
             </div>
           </div>;
@@ -223,13 +262,14 @@ export default function CohortChat({ cohortId, memberCount }: { cohortId: string
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={handleKeyDown}
           maxLength={2000}
-          rows={2}
+          rows={1}
           placeholder="Share a question or insight…"
           aria-label="Message your cohort and trainer"
         />
         <button type="submit" disabled={!draft.trim() || sending} aria-label="Send message">
           {sending && <LoaderCircle className="journey-chat-spinner" size={15} />}
-          <span>Share</span>
+          {!sending && <Send className="journey-chat-send-icon" size={15} fill="currentColor" />}
+          <span>{variant === "rcpl" ? "Send" : "Share"}</span>
         </button>
       </form>
       {error && messages.length > 0 && <p className="journey-chat-error">{error}</p>}

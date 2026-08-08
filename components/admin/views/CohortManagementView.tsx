@@ -1,37 +1,48 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
   BookOpen,
+  Building2,
   CalendarDays,
   Check,
   ChevronRight,
   Info,
+  ImagePlus,
   Loader2,
+  MessageSquareText,
+  NotebookPen,
   Plus,
   RefreshCw,
   Search,
+  Trash2,
   UserPlus,
+  UserRound,
   Users,
   X,
 } from "lucide-react";
 import {
   addMembersToCohort,
   createCohort,
+  deleteCohort,
   getCohortDetail,
   getCompanyUsers,
   listCohorts,
   removeMembersFromCohort,
+  updateCohort,
 } from "@/app/actions/cohorts";
+import { uploadCohortLogo } from "@/lib/cohort-logo-upload";
 import {
   assignContentToCohort,
   listActiveLibraryItems,
   listCohortContent,
   removeContentFromCohort,
 } from "@/app/actions/prepare-content";
-import type { PrepareContentItem } from "@/lib/types";
+import { listTrainers } from "@/app/actions/trainers";
+import { getTrainerExpectationsForCohort } from "@/app/actions/trainer-expectations";
+import type { CompanyBrand, PrepareContentItem, Trainer, TrainerExpectation } from "@/lib/types";
 
 interface CohortManagementViewProps {
   companyId: string | null;
@@ -42,9 +53,14 @@ type CohortSummary = {
   id: string;
   name: string;
   description?: string | null;
+  trainingContent?: string | null;
+  businessContext?: string | null;
   startDate?: string | null;
   memberCount: number;
   contentCount: number;
+  logoUrl?: string | null;
+  trainerId?: string | null;
+  trainer?: Trainer | null;
 };
 
 type CompanyUser = { id: string; full_name: string | null };
@@ -79,8 +95,9 @@ function CohortListSkeleton() {
   );
 }
 
-export function CohortManagementView({ companyId }: CohortManagementViewProps) {
+export function CohortManagementView({ companyId, role }: CohortManagementViewProps) {
   const [cohorts, setCohorts] = useState<CohortSummary[]>([]);
+  const [company, setCompany] = useState<CompanyBrand | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -89,12 +106,13 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
   const [query, setQuery] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [trainingContent, setTrainingContent] = useState("");
+  const [businessContext, setBusinessContext] = useState("");
   const [startDate, setStartDate] = useState("");
 
-  const refresh = useCallback(async (opts?: { silent?: boolean }) => {
+  const refresh = useCallback(async () => {
     if (!companyId) return;
-    const silent = opts?.silent ?? false;
-    if (!silent) setLoading(true);
+    setLoading(true);
     setError(null);
     try {
       const result = await listCohorts(companyId);
@@ -103,6 +121,7 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
         return;
       }
       const nextCohorts = result.cohorts ?? [];
+      setCompany(result.company ?? null);
       setCohorts(nextCohorts);
       setSelectedId((current) => {
         if (current && nextCohorts.some((cohort) => cohort.id === current)) return current;
@@ -111,12 +130,13 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load cohorts");
     } finally {
-      if (!silent) setLoading(false);
+      setLoading(false);
     }
   }, [companyId]);
 
   useEffect(() => {
     setCohorts([]);
+    setCompany(null);
     setSelectedId(null);
     setCreating(false);
     setQuery("");
@@ -149,6 +169,8 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
     setCreating(false);
     setName("");
     setDescription("");
+    setTrainingContent("");
+    setBusinessContext("");
     setStartDate("");
   }
 
@@ -161,6 +183,8 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
       const result = await createCohort({
         name,
         description: description || undefined,
+        trainingContent: role === "superadmin" ? trainingContent || undefined : undefined,
+        businessContext: role === "superadmin" ? businessContext || undefined : undefined,
         startDate: startDate || undefined,
         companyId,
       });
@@ -170,9 +194,11 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
       }
       setName("");
       setDescription("");
+      setTrainingContent("");
+      setBusinessContext("");
       setStartDate("");
       setCreating(false);
-      await refresh({ silent: cohorts.length > 0 });
+      await refresh();
       if (result.id) setSelectedId(result.id);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Failed to create cohort");
@@ -187,14 +213,16 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
     <section className="cohort-admin-page">
       <header className="cohort-admin-header">
         <div>
-          <p className="cohort-admin-eyebrow">People &amp; learning operations</p>
-          <h1>Cohort management</h1>
+          <div className="cohort-admin-company-heading">
+            <span>{company?.logoUrl ? <img src={company.logoUrl} alt={`${company.name} logo`} /> : <Building2 size={24} />}</span>
+            <div><h1>{company?.name || "Cohort management"}</h1><strong>Cohort management</strong></div>
+          </div>
           <p>Organise participants, assign preparation content, and keep every learning group ready.</p>
         </div>
         <div className="cohort-admin-header-actions">
           <button
             type="button"
-            onClick={() => void refresh({ silent: cohorts.length > 0 })}
+            onClick={() => void refresh()}
             className="cohort-admin-button cohort-admin-button--secondary"
             disabled={loading}
           >
@@ -277,7 +305,7 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
                     onClick={() => setSelectedId(cohort.id)}
                     aria-current={selected ? "true" : undefined}
                   >
-                    <span className="cohort-admin-cohort-mark">{initials(cohort.name)}</span>
+                    <span className="cohort-admin-cohort-mark">{cohort.logoUrl ? <img src={cohort.logoUrl} alt="" /> : initials(cohort.name)}</span>
                     <span className="cohort-admin-row-copy">
                       <strong>{cohort.name}</strong>
                       <span>{cohort.description || formatStartDate(cohort.startDate)}</span>
@@ -300,7 +328,8 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
               key={`${companyId}:${selectedCohort.id}`}
               companyId={companyId}
               cohort={selectedCohort}
-              onChange={() => refresh({ silent: true })}
+              role={role}
+              onChange={refresh}
             />
           ) : (
             <div className="cohort-admin-placeholder">
@@ -328,6 +357,18 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
                 <span>Description <em>Optional</em></span>
                 <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What is this cohort working towards?" rows={3} />
               </label>
+              {role === "superadmin" && (
+                <>
+                  <label className="cohort-admin-field">
+                    <span>Training content <em>Optional</em></span>
+                    <textarea value={trainingContent} onChange={(event) => setTrainingContent(event.target.value)} placeholder="Session topics, agenda, skills, and learning outcomes" rows={4} />
+                  </label>
+                  <label className="cohort-admin-field">
+                    <span>Business context <em>Optional</em></span>
+                    <textarea value={businessContext} onChange={(event) => setBusinessContext(event.target.value)} placeholder="Company, industry, operating environment, and realistic work situations" rows={4} />
+                  </label>
+                </>
+              )}
               <label className="cohort-admin-field">
                 <span>Start date <em>Optional</em></span>
                 <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
@@ -351,13 +392,15 @@ export function CohortManagementView({ companyId }: CohortManagementViewProps) {
 function CohortDetailPanel({
   companyId,
   cohort,
+  role,
   onChange,
 }: {
   companyId: string;
   cohort: CohortSummary;
+  role: string;
   onChange: () => Promise<void> | void;
 }) {
-  const [tab, setTab] = useState<"members" | "content">("members");
+  const [tab, setTab] = useState<"members" | "content" | "generation" | "trainer">("members");
   const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
   const [memberIds, setMemberIds] = useState<Set<string>>(new Set());
   const [libraryItems, setLibraryItems] = useState<PrepareContentItem[]>([]);
@@ -366,39 +409,47 @@ function CohortDetailPanel({
   const [pendingContentIds, setPendingContentIds] = useState<Set<string>>(new Set());
   const [memberQuery, setMemberQuery] = useState("");
   const [contentQuery, setContentQuery] = useState("");
+  const [trainingContent, setTrainingContent] = useState(cohort.trainingContent ?? "");
+  const [businessContext, setBusinessContext] = useState(cohort.businessContext ?? "");
+  const [trainerRoster, setTrainerRoster] = useState<Trainer[]>([]);
+  const [selectedTrainerId, setSelectedTrainerId] = useState<string>(cohort.trainerId ?? "");
+  const [expectations, setExpectations] = useState<TrainerExpectation[]>([]);
+  const [answeredMembers, setAnsweredMembers] = useState(0);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const hasLoadedRef = useRef(false);
 
-  const refresh = useCallback(async (opts?: { silent?: boolean }) => {
-    const silent = opts?.silent ?? hasLoadedRef.current;
-    if (!silent) setLoading(true);
+  const refresh = useCallback(async () => {
+    setLoading(true);
     setError(null);
     try {
-      const [detailResult, usersResult, contentResult, libraryResult] = await Promise.all([
+      const [detailResult, usersResult, contentResult, libraryResult, trainersResult, expectationsResult] = await Promise.all([
         getCohortDetail(cohort.id),
         getCompanyUsers(companyId),
         listCohortContent(cohort.id),
         listActiveLibraryItems(),
+        role === "superadmin" ? listTrainers() : Promise.resolve({ trainers: [] as Trainer[], error: undefined as string | undefined }),
+        getTrainerExpectationsForCohort(cohort.id),
       ]);
-      const firstError = detailResult.error || usersResult.error || contentResult.error || libraryResult.error;
+      const firstError = detailResult.error || usersResult.error || contentResult.error || libraryResult.error || trainersResult.error || expectationsResult.error;
       if (firstError) setError(firstError);
       setMemberIds(new Set((detailResult.members ?? []).map((member) => member.id)));
       setCompanyUsers(usersResult.users ?? []);
       setAssignedContentIds(new Set((contentResult.items ?? []).map((item) => item.id)));
       setLibraryItems(libraryResult.items ?? []);
-      hasLoadedRef.current = true;
+      setTrainerRoster(trainersResult.trainers ?? []);
+      setSelectedTrainerId(detailResult.cohort?.trainerId ?? "");
+      setExpectations(expectationsResult.expectations ?? []);
+      setAnsweredMembers(expectationsResult.answeredMembers ?? 0);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load cohort details");
     } finally {
-      if (!silent) setLoading(false);
+      setLoading(false);
     }
-  }, [cohort.id, companyId]);
+  }, [cohort.id, companyId, role]);
 
   useEffect(() => {
-    hasLoadedRef.current = false;
-    void refresh({ silent: false });
+    void refresh();
   }, [refresh]);
 
   const currentMembers = useMemo(
@@ -457,8 +508,8 @@ function CohortDetailPanel({
         return;
       }
       after?.();
-      // Soft-refresh list + detail in place — keep the panel visible (no full loading flash).
-      await Promise.all([refresh({ silent: true }), onChange()]);
+      await refresh();
+      await onChange();
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "The update could not be completed");
     } finally {
@@ -469,18 +520,75 @@ function CohortDetailPanel({
   const allVisibleMembersSelected = visibleAvailableUsers.length > 0 && visibleAvailableUsers.every((user) => pendingAddIds.has(user.id));
   const allVisibleContentSelected = visibleAvailableItems.length > 0 && visibleAvailableItems.every((item) => pendingContentIds.has(item.id));
 
+  async function handleCohortLogo(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    await runMutation("cohort-logo", async () => {
+      const logoUrl = await uploadCohortLogo(cohort.id, file);
+      return updateCohort(cohort.id, { logoUrl });
+    });
+  }
+
+  async function handleAssignTrainer() {
+    await runMutation("assign-trainer", () => updateCohort(cohort.id, { trainerId: selectedTrainerId || null }));
+  }
+
+  async function handleDeleteCohort() {
+    if (
+      !window.confirm(
+        `Permanently delete “${cohort.name}”? Members, content assignments, and related cohort data will be removed. This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    if (busyAction) return;
+    setBusyAction("delete-cohort");
+    setError(null);
+    try {
+      const result = await deleteCohort(cohort.id);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      await onChange();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "The update could not be completed");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   return (
     <div className="cohort-admin-detail">
       <div className="cohort-admin-detail-head">
         <div className="cohort-admin-detail-title">
-          <span className="cohort-admin-cohort-mark cohort-admin-cohort-mark--large">{initials(cohort.name)}</span>
+          <span className="cohort-admin-cohort-mark cohort-admin-cohort-mark--large">{cohort.logoUrl ? <img src={cohort.logoUrl} alt={`${cohort.name} logo`} /> : initials(cohort.name)}</span>
           <div>
             <p className="cohort-admin-eyebrow">Active cohort</p>
             <h2>{cohort.name}</h2>
             <p>{cohort.description || "No description added."}</p>
           </div>
         </div>
-        <span className="cohort-admin-date"><CalendarDays size={15} /> {formatStartDate(cohort.startDate)}</span>
+        <div className="cohort-admin-detail-brand-actions">
+          <span className="cohort-admin-date"><CalendarDays size={15} /> {formatStartDate(cohort.startDate)}</span>
+          <label className="cohort-admin-logo-upload">
+            {busyAction === "cohort-logo" ? <Loader2 size={14} className="cohort-admin-spin" /> : <ImagePlus size={14} />}
+            {cohort.logoUrl ? "Replace cohort logo" : "Upload cohort logo"}
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" disabled={!!busyAction} onChange={(event) => void handleCohortLogo(event)} />
+          </label>
+          <button
+            type="button"
+            onClick={() => void handleDeleteCohort()}
+            disabled={Boolean(busyAction)}
+            className="cohort-admin-button cohort-admin-button--danger"
+            aria-label={`Delete ${cohort.name}`}
+            title="Delete cohort"
+          >
+            {busyAction === "delete-cohort" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Trash2 size={15} />}
+            {busyAction === "delete-cohort" ? "Deleting…" : "Delete cohort"}
+          </button>
+        </div>
       </div>
 
       <div className="cohort-admin-tabs" role="tablist" aria-label="Cohort details">
@@ -490,6 +598,14 @@ function CohortDetailPanel({
         <button type="button" role="tab" aria-selected={tab === "content"} onClick={() => setTab("content")} className={tab === "content" ? "is-active" : ""}>
           <BookOpen size={16} /> Learning content <span>{assignedItems.length}</span>
         </button>
+        <button type="button" role="tab" aria-selected={tab === "trainer"} onClick={() => setTab("trainer")} className={tab === "trainer" ? "is-active" : ""}>
+          <UserRound size={16} /> Trainer <span>{expectations.length}</span>
+        </button>
+        {role === "superadmin" && (
+          <button type="button" role="tab" aria-selected={tab === "generation"} onClick={() => setTab("generation")} className={tab === "generation" ? "is-active" : ""}>
+            <NotebookPen size={16} /> Action context
+          </button>
+        )}
       </div>
 
       {error && (
@@ -564,7 +680,7 @@ function CohortDetailPanel({
             )}
           </section>
         </div>
-      ) : (
+      ) : tab === "content" ? (
         <div className="cohort-admin-picker-grid">
           <section className="cohort-admin-panel">
             <div className="cohort-admin-panel-head"><div><h3>Assigned content</h3><p>Preparation visible to this cohort.</p></div><span>{assignedItems.length}</span></div>
@@ -616,6 +732,104 @@ function CohortDetailPanel({
                 </div>
               </>
             )}
+          </section>
+        </div>
+      ) : tab === "trainer" ? (
+        <div className="cohort-admin-picker-grid">
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head"><div><h3>Assigned trainer</h3><p>Shown to participants on their Base Camp page.</p></div></div>
+            <div className="cohort-admin-trainer-current">
+              <span className="cohort-admin-avatar cohort-admin-avatar--trainer">
+                {cohort.trainer?.imageUrl ? <img src={cohort.trainer.imageUrl} alt="" /> : <UserRound size={18} />}
+              </span>
+              <div>
+                <strong>{cohort.trainer?.name || "No trainer assigned"}</strong>
+                <span>{cohort.trainer ? "Running this cohort" : "Assign one from the roster below"}</span>
+              </div>
+            </div>
+            {role === "superadmin" ? (
+              trainerRoster.length === 0 ? (
+                <div className="cohort-admin-mini-empty"><UserRound size={20} /><strong>No trainers yet</strong><span>Add a trainer's name and photo in Trainers first.</span></div>
+              ) : (
+                <div className="cohort-admin-panel-action">
+                  <select
+                    className="cohort-admin-trainer-select"
+                    value={selectedTrainerId}
+                    onChange={(event) => setSelectedTrainerId(event.target.value)}
+                    disabled={Boolean(busyAction)}
+                    aria-label="Assign trainer"
+                  >
+                    <option value="">No trainer</option>
+                    {trainerRoster.map((trainer) => <option key={trainer.id} value={trainer.id}>{trainer.name}</option>)}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => void handleAssignTrainer()}
+                    disabled={Boolean(busyAction) || selectedTrainerId === (cohort.trainerId ?? "")}
+                    className="cohort-admin-button cohort-admin-button--primary"
+                  >
+                    {busyAction === "assign-trainer" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}
+                    {busyAction === "assign-trainer" ? "Saving…" : "Save trainer"}
+                  </button>
+                </div>
+              )
+            ) : (
+              <div className="cohort-admin-notice"><Info size={17} /><p><strong>Only a superadmin can change this</strong><span>Ask a superadmin to assign or update this cohort's trainer.</span></p></div>
+            )}
+          </section>
+
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head">
+              <div><h3>Messages to trainer</h3><p>{expectations.length} message{expectations.length === 1 ? "" : "s"} shared from Base Camp.</p></div>
+              <span>{answeredMembers}/{cohort.memberCount}</span>
+            </div>
+            {expectations.length === 0 ? (
+              <div className="cohort-admin-mini-empty"><MessageSquareText size={20} /><strong>No messages yet</strong><span>Messages appear here once participants share what they want from the session.</span></div>
+            ) : (
+              <div className="cohort-admin-people-list">
+                {expectations.map((expectation) => (
+                  <div key={expectation.id} className="cohort-admin-expectation-row">
+                    <span className="cohort-admin-avatar">{initials(expectation.userName)}</span>
+                    <div>
+                      <strong>{expectation.userName}</strong>
+                      <p>{expectation.message}</p>
+                      <small>{formatStartDate(expectation.createdAt.slice(0, 10))}</small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      ) : (
+        <div className="cohort-admin-generation-context">
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head">
+              <div><h3>Action generation context</h3><p>These cohort-level inputs are combined with each participant&apos;s private notes.</p></div>
+            </div>
+            <div className="cohort-admin-context-form">
+              <div className="cohort-admin-notice"><Info size={17} /><p><strong>Used for every participant in this cohort</strong><span>Training content defines the skill. Business context keeps each action realistic for the company and its work.</span></p></div>
+              <label className="cohort-admin-field">
+                <span>Training content <em>Optional</em></span>
+                <textarea value={trainingContent} onChange={(event) => setTrainingContent(event.target.value)} placeholder="Add session topics, agenda, skills, and learning outcomes" rows={8} disabled={Boolean(busyAction)} />
+              </label>
+              <label className="cohort-admin-field">
+                <span>Business context <em>Optional</em></span>
+                <textarea value={businessContext} onChange={(event) => setBusinessContext(event.target.value)} placeholder="Add the company, industry, nature of the business, and realistic work situations" rows={8} disabled={Boolean(busyAction)} />
+              </label>
+              <div className="cohort-admin-context-actions">
+                <span>{trainingContent.trim() || businessContext.trim() ? "Saved context improves action quality" : "Optional — actions can still generate from participant notes"}</span>
+                <button
+                  type="button"
+                  onClick={() => void runMutation("save-generation-context", () => updateCohort(cohort.id, { trainingContent, businessContext }))}
+                  disabled={Boolean(busyAction)}
+                  className="cohort-admin-button cohort-admin-button--primary"
+                >
+                  {busyAction === "save-generation-context" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}
+                  {busyAction === "save-generation-context" ? "Saving…" : "Save context"}
+                </button>
+              </div>
+            </div>
           </section>
         </div>
       )}

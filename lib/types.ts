@@ -13,6 +13,8 @@ export interface ActionCard {
   timeEstimate: string;
   /** True for AI-generated personal actions (visible only to their creator). */
   isPersonal?: boolean;
+  /** Whole-number share of the cohort plan's 1,000-point starting balance. */
+  planPoints?: number;
 }
 
 export interface UserAction {
@@ -27,8 +29,13 @@ export interface UserAction {
   acceptedAt?: string;
   acceptedDate?: string;
   acceptedTime?: string;
+  completedAt?: string;
+  completedLate?: boolean;
+  missedAt?: string;
   isCalendarSynced?: boolean;
   reflection?: string;
+  pointsDelta?: number;
+  pointsSettledAt?: string;
 }
 
 export interface FeedItem {
@@ -76,13 +83,54 @@ export enum League {
   Diamond = 'Diamond'
 }
 
+/** A trainer's display profile (name + photo). No login of their own — company
+ * admins and superadmins read what participants send them. */
+export interface Trainer {
+  id: string;
+  name: string;
+  imageUrl?: string | null;
+}
+
 /** A group of users within a company sharing Prepare content and an action plan. */
 export interface Cohort {
   id: string;
   name: string;
   description?: string | null;
+  trainingContent?: string | null;
+  businessContext?: string | null;
   startDate?: string | null;
   memberCount: number;
+  logoUrl?: string | null;
+  companyName?: string | null;
+  companyLogoUrl?: string | null;
+  trainerId?: string | null;
+  trainer?: Trainer | null;
+}
+
+/** One private message a participant sent their trainer ("what do you want
+ * from this session?") — an append-only log, admin/superadmin-facing shape
+ * with the sender's name attached. */
+export interface TrainerExpectation {
+  id: string;
+  cohortId: string;
+  userId: string;
+  userName: string;
+  message: string;
+  createdAt: string;
+}
+
+/** The same message, from the sending participant's own point of view — no
+ * userName needed since it's always "you". */
+export interface TrainerExpectationMessage {
+  id: string;
+  message: string;
+  createdAt: string;
+}
+
+export interface CompanyBrand {
+  id: string;
+  name: string;
+  logoUrl: string | null;
 }
 
 /** A cohort available in the participant-wide cohort switcher. */
@@ -96,6 +144,7 @@ export interface CohortOption extends Cohort {
 export interface CohortMember {
   id: string;
   fullName: string | null;
+  email: string | null;
 }
 
 export interface CohortMessage {
@@ -114,6 +163,7 @@ export interface JourneyData {
   roster: CohortMember[];
   items: PrepareContentItem[];
   progress: UserPrepareProgress[];
+  trainerMessages: TrainerExpectationMessage[];
 }
 
 export type PrepareContentType = 'video' | 'quiz' | 'preread';

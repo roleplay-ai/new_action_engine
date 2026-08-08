@@ -17,6 +17,11 @@ export default function AuthCallbackPage() {
 
     const accessToken = params.get("access_token");
     const refreshToken = params.get("refresh_token");
+    const requestedNext = new URLSearchParams(window.location.search).get("next");
+    const safeNext =
+      requestedNext?.startsWith("/") && !requestedNext.startsWith("//")
+        ? requestedNext
+        : "/";
 
     if (!accessToken || !refreshToken) {
       setStatus("error");
@@ -28,7 +33,7 @@ export default function AuthCallbackPage() {
       .setSession({ access_token: accessToken, refresh_token: refreshToken })
       .then(() => {
         setStatus("done");
-        window.location.replace("/");
+        window.location.replace(safeNext);
       })
       .catch(() => {
         setStatus("error");

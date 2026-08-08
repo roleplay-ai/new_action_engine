@@ -35,7 +35,7 @@ export default async function SuperadminUsersPage() {
   return (
     <div className="superadmin-page">
       <div className="superadmin-page-heading">
-        <div><span>Identity and access</span><h1>Users</h1><p>Manage accounts, company access, administrative roles, and login delivery.</p></div>
+        <div><h1>Users</h1><p>Manage accounts, company access, administrative roles, and login delivery.</p></div>
         <CreateUserForm companies={companies ?? []} />
       </div>
 

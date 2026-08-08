@@ -24,7 +24,7 @@ export default async function SuperadminCompaniesPage() {
 
   const { data: companies } = await supabase
     .from("companies")
-    .select("id, name, slug, created_at")
+    .select("id, name, slug, logo_url, created_at")
     .order("name");
   const companyRows = companies ?? [];
   const thisMonth = new Date();
@@ -35,7 +35,7 @@ export default async function SuperadminCompaniesPage() {
   return (
     <div className="superadmin-page">
       <div className="superadmin-page-heading">
-        <div><span>Organisation management</span><h1>Companies</h1><p>Create and maintain the organisations using Nudgeable.</p></div>
+        <div><h1>Companies</h1><p>Create and maintain the organisations using Nudgeable.</p></div>
         <CreateCompanyForm />
       </div>
 
@@ -46,7 +46,7 @@ export default async function SuperadminCompaniesPage() {
       </div>
 
       <section className="superadmin-surface">
-        <div className="superadmin-section-heading"><div><h2>Company directory</h2><p>Names, workspace slugs, and account creation dates.</p></div><span>{companyRows.length} total</span></div>
+        <div className="superadmin-section-heading"><div><h2>Company directory</h2><p>Logos, names, workspace slugs, and account creation dates.</p></div><span>{companyRows.length} total</span></div>
         {companyRows.length > 0 ? (
           <CompaniesList companies={companyRows} />
         ) : (

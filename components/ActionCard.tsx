@@ -34,7 +34,6 @@ const ActionCard: React.FC<Props> = ({
             {statusBadge && (
               <span className="tag tag--featured">{statusBadge.label}</span>
             )}
-            <span className="tag tag--orange">{action.theme}</span>
           </div>
           {(onEdit || onDelete) && (
             <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>

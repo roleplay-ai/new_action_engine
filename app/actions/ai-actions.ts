@@ -2,20 +2,22 @@
 
 import { after } from "next/server";
 import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionTheme } from "@/lib/types";
 import {
+  assignScheduledBatch,
   computeNextDeliveryAt,
   computeTotalActionsNeeded,
   advanceNextDeliveryAt,
   BACKGROUND_BATCH_SIZE,
   buildTrainingContext,
-  assignScheduledBatch,
+  DAILY_DELIVERY_DAYS,
   draftsToActionRows,
   generateDraftActions,
   type DeliveryTrack,
 } from "@/lib/personal-action-generation";
-import { istToUTCTime, utcToISTTime } from "@/lib/timezone-utils";
+import { getCurrentISTDate, istToUTCTime, utcToISTDate, utcToISTTime } from "@/lib/timezone-utils";
 import { getMyCohorts } from "@/app/actions/cohorts";
 
 export type MyPlanSettings = {
@@ -26,6 +28,7 @@ export type MyPlanSettings = {
   reminderTime: string;
   totalActionsPlanned: number;
   nextDeliveryAt: string | null;
+  emailRemindersEnabled: boolean;
   isActive: boolean;
   isArchived: boolean;
 };
@@ -52,7 +55,7 @@ export async function getMyPlanSettings(): Promise<{ settings: MyPlanSettings | 
   const cohortContext = await getSelectedPlanCohort();
   if (!cohortContext.cohortId) return { settings: null, error: cohortContext.error };
   const { data, error } = await supabase.from("personal_action_subscriptions")
-    .select("track, daily_action_count, duration_weeks, days_of_week, day_of_week, time_of_day_utc, total_actions_planned, next_delivery_at, is_active, archived_at")
+    .select("track, daily_action_count, duration_weeks, days_of_week, day_of_week, time_of_day_utc, total_actions_planned, next_delivery_at, email_reminders_enabled, is_active, archived_at")
     .eq("user_id", user.id)
     .eq("cohort_id", cohortContext.cohortId)
     .maybeSingle();
@@ -60,15 +63,50 @@ export async function getMyPlanSettings(): Promise<{ settings: MyPlanSettings | 
   if (!data) return { settings: null };
   return { settings: {
     track: data.track as DeliveryTrack,
-    actionCount: data.daily_action_count ?? 1,
+    actionCount: data.track === "daily" ? 1 : data.daily_action_count ?? 1,
     durationWeeks: data.duration_weeks ?? 0,
     daysOfWeek: data.days_of_week ?? (data.day_of_week != null ? [data.day_of_week] : []),
     reminderTime: utcToISTTime(data.time_of_day_utc),
     totalActionsPlanned: data.total_actions_planned ?? 0,
     nextDeliveryAt: data.next_delivery_at ?? null,
+    emailRemindersEnabled: data.email_reminders_enabled !== false,
     isActive: data.is_active === true,
     isArchived: !!data.archived_at,
   } };
+}
+
+/**
+ * Release today's due personal-action batch for the selected cohort.
+ * Delivery normally waits for the daily cron, but Next reminders already show
+ * the IST calendar date. Syncing on the Actions page closes that gap so due
+ * actions appear under Current actions without waiting for 11:30 AM IST.
+ */
+export async function syncMyDuePersonalActions(): Promise<{ assigned: number; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { assigned: 0, error: "Not authenticated" };
+    const cohortContext = await getSelectedPlanCohort();
+    if (!cohortContext.cohortId) return { assigned: 0, error: cohortContext.error };
+
+    const { data: sub, error } = await supabase
+      .from("personal_action_subscriptions")
+      .select("id, user_id, cohort_id, track, day_of_week, days_of_week, daily_action_count, time_of_day_utc, next_delivery_at, is_active, archived_at")
+      .eq("user_id", user.id)
+      .eq("cohort_id", cohortContext.cohortId)
+      .maybeSingle();
+    if (error) return { assigned: 0, error: error.message };
+    if (!sub || !sub.is_active || sub.archived_at) return { assigned: 0 };
+
+    const deliveryDay = utcToISTDate(sub.next_delivery_at);
+    const todayIST = getCurrentISTDate();
+    if (!deliveryDay || deliveryDay > todayIST) return { assigned: 0 };
+
+    const { assigned } = await assignScheduledBatch(sub);
+    return { assigned };
+  } catch (e) {
+    return { assigned: 0, error: e instanceof Error ? e.message : "Failed to sync due actions" };
+  }
 }
 
 /** Preview the release slots a reviewed draft will use when it is finalised. */
@@ -105,19 +143,21 @@ export async function getDraftPlanSchedule(): Promise<{
       return { slots: [], actionCountPerRelease: 1, error: "Only draft plans have a schedule preview" };
     }
 
-    const actionCountPerRelease = Math.max(1, subscription.daily_action_count ?? 1);
+    const actionCountPerRelease = subscription.track === "daily"
+      ? 1
+      : Math.max(1, subscription.daily_action_count ?? 1);
     const daysOfWeek = subscription.days_of_week ?? (subscription.day_of_week != null ? [subscription.day_of_week] : null);
     const firstCadenceAt = computeNextDeliveryAt(
       subscription.track as DeliveryTrack,
       daysOfWeek,
       subscription.time_of_day_utc
     );
-    const releaseDates: string[] = [new Date().toISOString()];
+    const releaseDates: string[] = [];
     let nextRelease = firstCadenceAt;
     const batchCount = Math.ceil((count ?? 0) / actionCountPerRelease);
-    // The first batch is released immediately. The second batch uses the first
-    // upcoming cadence slot, then each later batch advances by one cycle.
-    for (let batchIndex = 1; batchIndex < batchCount; batchIndex += 1) {
+    // Every batch follows the chosen cadence. Daily plans begin on the next
+    // weekday; weekly plans begin on the next selected weekday.
+    for (let batchIndex = 0; batchIndex < batchCount; batchIndex += 1) {
       releaseDates.push(nextRelease);
       nextRelease = advanceNextDeliveryAt(
         nextRelease,
@@ -133,7 +173,7 @@ export async function getDraftPlanSchedule(): Promise<{
         const batchNumber = Math.floor(index / actionCountPerRelease) + 1;
         return {
           plannedAt: releaseDates[batchNumber - 1],
-          isImmediate: batchNumber === 1,
+          isImmediate: false,
           batchNumber,
         };
       }),
@@ -153,18 +193,18 @@ export async function getDraftPlanSchedule(): Promise<{
  * finalises the plan with activatePersonalActionPlan.
  */
 export async function saveGeneratedActions(params: {
-  trainingText: string;
+  userNotes: string;
   focusThemes: ActionTheme[];
   focusCustomText?: string;
   track: DeliveryTrack;
   /** Actions generated per delivery. */
   dailyActionCount: 1 | 2 | 3 | 4 | 5;
-  /** IST time (HH:MM) when the next batch should arrive. */
-  deliveryTime: string;
   /** 0 = Sunday, ... 6 = Saturday. Multiple allowed for "daily", exactly one for "weekly". */
   daysOfWeek: number[];
   /** Length of the plan in weeks (2-24). Drives how many total actions get generated. */
   durationWeeks: number;
+  /** Whether action reminders should also be delivered by email. */
+  emailRemindersEnabled: boolean;
 }): Promise<{ error?: string; totalActionsNeeded?: number }> {
   try {
     const supabase = await createClient();
@@ -203,9 +243,9 @@ export async function saveGeneratedActions(params: {
     if (params.track !== "daily" && params.track !== "weekly") {
       return { error: "Invalid track" };
     }
-    // Daily plans always run every day. Weekly plans use exactly one chosen reminder day.
+    // Daily plans run Monday-Friday. Weekly plans use exactly one chosen reminder day.
     const uniqueDays = params.track === "daily"
-      ? [0, 1, 2, 3, 4, 5, 6]
+      ? [...DAILY_DELIVERY_DAYS]
       : [...new Set(params.daysOfWeek ?? [])].sort((a, b) => a - b);
     if (!uniqueDays.length || uniqueDays.some((d) => d < 0 || d > 6)) {
       return { error: "Select at least one day" };
@@ -216,18 +256,18 @@ export async function saveGeneratedActions(params: {
     if (![1, 2, 3, 4, 5].includes(params.dailyActionCount)) {
       return { error: "Action count must be between 1 and 5" };
     }
-    if (!params.deliveryTime?.trim()) {
-      return { error: "Select a delivery time" };
-    }
+    const actionCount = params.track === "daily" ? 1 : params.dailyActionCount;
     if (!Number.isInteger(params.durationWeeks) || params.durationWeeks < 2 || params.durationWeeks > 24) {
       return { error: "Plan duration must be between 2 and 24 weeks" };
     }
 
-    const contextText = buildTrainingContext(params.trainingText, params.focusThemes, params.focusCustomText);
-    const timeOfDayUtc = istToUTCTime(params.deliveryTime);
+    const contextText = buildTrainingContext(params.userNotes, params.focusThemes, params.focusCustomText);
+    // The free Vercel cron runs once daily at 11:30 AM IST. Enforce that
+    // server-side so older or custom clients cannot submit an unsupported time.
+    const timeOfDayUtc = istToUTCTime("11:30");
     const totalActionsNeeded = computeTotalActionsNeeded(
       params.durationWeeks,
-      params.dailyActionCount,
+      actionCount,
       params.track,
       uniqueDays
     );
@@ -260,13 +300,15 @@ export async function saveGeneratedActions(params: {
         track: params.track,
         day_of_week: uniqueDays[0],
         days_of_week: uniqueDays,
-        daily_action_count: params.dailyActionCount,
+        daily_action_count: actionCount,
         time_of_day_utc: timeOfDayUtc,
         is_active: false,
         last_delivered_at: null,
         next_delivery_at: computeNextDeliveryAt(params.track, uniqueDays, timeOfDayUtc),
         duration_weeks: params.durationWeeks,
         total_actions_planned: totalActionsNeeded,
+        email_reminders_enabled: params.emailRemindersEnabled,
+        last_reminder_sent_date: null,
       },
       { onConflict: "user_id,cohort_id" }
     );
@@ -274,7 +316,7 @@ export async function saveGeneratedActions(params: {
       return { error: subError.message };
     }
 
-    const { data: job } = await supabase
+    const { data: job, error: jobError } = await supabase
       .from("personal_action_generation_jobs")
       .insert({
         user_id: user.id,
@@ -289,7 +331,11 @@ export async function saveGeneratedActions(params: {
       .select("id")
       .single();
 
-    if (job?.id) {
+    if (jobError || !job?.id) {
+      return { error: jobError?.message ?? "Could not start action generation" };
+    }
+
+    {
       // Derive origin from the actual incoming request (not NEXT_PUBLIC_APP_URL,
       // which points at production and would misfire this self-trigger when
       // running locally or on a preview deployment).
@@ -308,11 +354,20 @@ export async function saveGeneratedActions(params: {
             },
             body: JSON.stringify({ jobId: job.id }),
           });
-          if (!res.ok) {
+          const contentType = res.headers.get("content-type") ?? "";
+          const payload = contentType.includes("application/json")
+            ? await res.json() as { ok?: boolean; error?: string }
+            : null;
+          if (!res.ok || !payload || payload.ok !== true) {
+            const failure = payload?.error
+              ?? (!contentType.includes("application/json")
+                ? "Generation endpoint returned an unexpected response"
+                : `Failed to start generation (HTTP ${res.status})`);
             await supabase
               .from("personal_action_generation_jobs")
-              .update({ status: "failed", error_message: `Failed to start generation (HTTP ${res.status})`, updated_at: new Date().toISOString() })
-              .eq("id", job.id);
+              .update({ status: "failed", error_message: failure, updated_at: new Date().toISOString() })
+              .eq("id", job.id)
+              .eq("status", "generating");
           }
         } catch (e) {
           await supabase
@@ -322,7 +377,8 @@ export async function saveGeneratedActions(params: {
               error_message: `Failed to reach ${origin}: ${e instanceof Error ? e.message : String(e)}`,
               updated_at: new Date().toISOString(),
             })
-            .eq("id", job.id);
+            .eq("id", job.id)
+            .eq("status", "generating");
         }
       });
     }
@@ -333,7 +389,7 @@ export async function saveGeneratedActions(params: {
   }
 }
 
-/** Finalise a reviewed draft, activate its cadence, and release the first batch. */
+/** Finalise a reviewed draft and activate its future delivery cadence. */
 export async function activatePersonalActionPlan(): Promise<{ error?: string }> {
   try {
     const supabase = await createClient();
@@ -356,16 +412,14 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
       sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
       sub.time_of_day_utc
     );
-    const { error: updateError } = await supabase
-      .from("personal_action_subscriptions")
-      .update({ is_active: true, next_delivery_at: nextDeliveryAt, last_delivered_at: null, updated_at: new Date().toISOString() })
-      .eq("id", sub.id);
-    if (updateError) return { error: updateError.message };
+    const { error: activationError } = await supabase.rpc("activate_my_commitment_wallet_plan", {
+      p_cohort_id: cohortContext.cohortId,
+      p_next_delivery_at: nextDeliveryAt,
+    });
+    if (activationError) return { error: activationError.message };
 
-    // Release the first reviewed batch now while keeping the first upcoming
-    // cadence slot intact for the next batch.
-    await assignScheduledBatch({ ...sub, next_delivery_at: nextDeliveryAt }, { advanceCadence: false });
     await supabase.from("profiles").update({ self_onboarding_completed_at: new Date().toISOString() }).eq("id", user.id);
+    revalidatePath("/wallet");
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to activate plan" };
@@ -397,7 +451,7 @@ export async function skipSelfOnboarding(): Promise<{ error?: string }> {
 
 /** Latest background action-plan generation job for the current user, for live status polling. */
 export async function getActiveGenerationJob(): Promise<{
-  job: { totalNeeded: number; totalGenerated: number; status: string } | null;
+  job: { id: string; totalNeeded: number; totalGenerated: number; status: string; errorMessage?: string } | null;
 }> {
   const supabase = await createClient();
   const {
@@ -411,7 +465,7 @@ export async function getActiveGenerationJob(): Promise<{
 
   const { data } = await supabase
     .from("personal_action_generation_jobs")
-    .select("total_needed, total_generated, status")
+    .select("id, total_needed, total_generated, status, error_message")
     .eq("user_id", user.id)
     .eq("cohort_id", cohortContext.cohortId)
     .order("created_at", { ascending: false })
@@ -424,9 +478,11 @@ export async function getActiveGenerationJob(): Promise<{
 
   return {
     job: {
+      id: data.id,
       totalNeeded: data.total_needed,
       totalGenerated: data.total_generated,
       status: data.status,
+      errorMessage: data.error_message ?? undefined,
     },
   };
 }
@@ -574,8 +630,17 @@ export async function generateOneMorePersonalAction(): Promise<{ error?: string 
     const nextPlanOrder = ((existingActions ?? [])[0]?.plan_order ?? -1) + 1;
     const focusThemes = (plan.focus_themes ?? []) as ActionTheme[];
 
+    const { data: cohortGenerationContext, error: cohortGenerationContextError } = await supabase
+      .from("cohorts")
+      .select("training_content, business_context")
+      .eq("id", cohortId)
+      .single();
+    if (cohortGenerationContextError) return { error: cohortGenerationContextError.message };
+
     const { drafts, error: generateError } = await generateDraftActions({
-      trainingText: plan.training_text ?? "",
+      trainingContent: cohortGenerationContext?.training_content ?? "",
+      userNotes: plan.training_text ?? "",
+      businessContext: cohortGenerationContext?.business_context ?? "",
       focusThemes,
       count: 1,
       avoidTitles,

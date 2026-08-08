@@ -569,7 +569,7 @@ export default function ActionsClient() {
           ) : (
             <div className="actions-current-list">
               {currentActions.map(({ userAction, action }, index) => <article className="actions-current-card" key={userAction.id}>
-                <div className="actions-current-top"><span>Action # {action.planOrder + 1}</span><em>{action.timeEstimate}{action.planPoints ? ` · Protect ${action.planPoints} points today` : ""}</em></div>
+                <div className="actions-current-top"><span>Action # {(action.planOrder ?? index) + 1}</span><em>{action.timeEstimate}{action.planPoints ? ` · Protect ${action.planPoints} points today` : ""}</em></div>
                 <h3 style={{ fontSize: "1.25rem", fontWeight: "bold" }}>{action.title}</h3>
                 <p style={{ fontSize: "1rem", fontWeight: "normal" }}>{action.how}</p>
                 <p style={{ fontSize: "1rem", fontWeight: "normal" }}><span style={{ fontWeight: "bold" }}>Why? </span>{action.why}</p>

@@ -170,7 +170,7 @@ function TeamWallet({ summary }: { summary: CommitmentWalletSummary }) {
       <div className="wallet-team-top">
         <div>
           <div className="wallet-label">Our shared impact</div>
-          <h2>Cohort Action Bank</h2>
+          <h2>Team Action Bank</h2>
         </div>
         <div className="wallet-team-total">
           <strong>{formatNumber(summary.teamPoints)}</strong>
@@ -265,10 +265,21 @@ export default async function WalletPage() {
 
       {error && <div className="wallet-error" role="alert">The Wallet could not be loaded: {error}</div>}
 
-      <section className="wallet-rule-strip" aria-label="How the Commitment Wallet works">
-        <div><span className="miss"><Minus size={18} /></span><p>Miss <strong>Commitment Score ↓</strong></p></div>
-        <i />
-        <div><span className="good"><Check size={18} /></span><p>Complete <strong>+50 Action Points</strong></p></div>
+      <section className="wallet-banner-row" aria-label="How the Commitment Wallet works">
+        <div className="wallet-banner miss">
+          <span className="wallet-banner-icon"><Minus size={22} /></span>
+          <div>
+            <small>Miss an action</small>
+            <strong>Commitment Score ↓</strong>
+          </div>
+        </div>
+        <div className="wallet-banner complete">
+          <span className="wallet-banner-icon"><Check size={22} /></span>
+          <div>
+            <small>Complete an action</small>
+            <strong>+50 Action Points to your Cohort Action Bank</strong>
+          </div>
+        </div>
       </section>
 
       <section className="wallet-main-grid">

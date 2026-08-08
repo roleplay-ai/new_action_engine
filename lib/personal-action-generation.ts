@@ -94,12 +94,12 @@ function buildPrompt(
 
 EXAMPLE 1
 What: Name the emotion in the room before addressing the issue.
-How: In your next tense meeting or one-on-one, before jumping to the solution, say what you notice out loud. Something like: "I sense there's some frustration here, let's talk about that first." Wait for the response before moving to the fix.
+How: In your next tense meeting, name the feeling you notice before fixing it.
 Why: People solve problems better once they feel heard, not managed.
 
 EXAMPLE 2
 What: Get one number explained to you by someone outside your function.
-How: Pick one metric you see often but don't fully understand, margin, utilization, churn, whatever applies to your work. Ask a colleague in a different function to explain it to you in plain terms over a quick chat.
+How: Ask a colleague outside your function to explain one metric in plain terms.
 Why: Understanding the numbers behind the business helps you make faster, better-argued decisions.
 
 INPUTS
@@ -122,13 +122,13 @@ Generate exactly ${count} new actions. Prefer combining available inputs: the sk
 
 FORMAT AND QUALITY RULES
 - "title" is the What: one short, specific, observable action statement that starts with a strong verb.
-- "how" is the How: 2 to 3 short lines (about 1–3 sentences) in simple English, written in "you" voice. Give a clear situation, sequence, or trigger so a busy manager can act without asking a follow-up question. A natural example phrase in quotes is welcome when useful. Do not write long paragraphs.
-- "why" is the Why: exactly one sentence. Start with the benefit, not the action. Do not use corporate jargon such as leverage, synergy, align, or touch base.
+- "how" is the How: exactly one sentence, at most 15 words, in simple English, written in "you" voice. Give a clear situation, sequence, or trigger so a busy manager can act without asking a follow-up question.
+- "why" is the Why: exactly one sentence, at most 15 words. Start with the benefit, not the action. Do not use corporate jargon such as leverage, synergy, align, or touch base.
 - "timeEstimate" is a realistic value such as "2 mins", "5 mins", "15 mins", or "30 mins".
 - Keep the actions practical, distinct from one another, and realistic during normal work.
 - Do not add theme labels, category tags, bullets inside fields, or commentary outside the required JSON.${avoidBlock}
 
-Before returning the result, silently check that every action reflects the available inputs, that every How is at most 2–3 lines, and that every Why is exactly one sentence.`;
+Before returning the result, silently check that every action reflects the available inputs, and that every How and Why is exactly one sentence and at most 15 words.`;
 }
 
 /** Calls Gemini to draft `count` new personal actions. Does not persist anything. */

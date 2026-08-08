@@ -169,7 +169,7 @@ A problem with one recipient does not stop the complete batch. Each recipient ge
 The link in the email looks conceptually like this:
 
 ```text
-https://new-action-engine.vercel.app/api/auto-login
+https://practice.nudgeable.ai/api/auto-login
   ?key=<persistent-user-key>
   &next=/actions
 ```
@@ -287,7 +287,7 @@ Before relying on the feature in production, confirm:
 - The Resend sender/domain is verified.
 - `CRON_SECRET` is configured.
 - The Vercel cron is active.
-- `https://new-action-engine.vercel.app` is the intended production URL.
+- `https://practice.nudgeable.ai` is the intended production URL.
 - A test participant can receive a welcome email.
 - Both password login and one-click login work in a fresh browser.
 - The one-click button reaches `/actions`.

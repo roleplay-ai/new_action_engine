@@ -8,9 +8,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resend } from "@/lib/resend";
 import { isEmailTemplateKey, renderEmailTemplate, type EmailTemplateKey } from "@/lib/email-templates";
 
-const NUDGEABLE_APP_URL = "https://new-action-engine.vercel.app";
+const NUDGEABLE_APP_URL = "https://practice.nudgeable.ai";
 const NUDGEABLE_EMAIL_ICON_URL =
-  "https://new-action-engine.vercel.app/icon.png";
+  "https://practice.nudgeable.ai/icon.png";
 
 /**
  * Builds a Resend "From" header showing a display name in front of the

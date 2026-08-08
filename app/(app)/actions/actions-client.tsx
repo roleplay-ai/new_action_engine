@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ArrowLeftRight, CalendarDays, Check, CheckCircle2, CircleX, Clock3, Coffee, Hand, ListChecks, Mail, Medal, MessageCircle, Settings2, TrendingDown, TrendingUp, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowLeftRight, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleX, Clock3, Coffee, Hand, ListChecks, Mail, Medal, MessageCircle, Settings2, TrendingDown, TrendingUp, Trophy, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getCohortLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard";
 import { getMyPlanSettings, syncMyDuePersonalActions, type MyPlanSettings } from "@/app/actions/ai-actions";
@@ -264,83 +264,94 @@ function ReminderEmailPreview({
   teamPoints: number;
   teamMaximumPoints: number;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const nextMilestone = nextMilestoneFor(teamPoints, teamMaximumPoints);
   const milestoneThreshold = nextMilestone ? milestonePoints(teamMaximumPoints, nextMilestone.percent) : 0;
   const milestoneProgress = milestoneThreshold > 0
     ? Math.min(100, Math.max(0, Math.round((teamPoints / milestoneThreshold) * 100)))
     : 0;
 
-  return <section className="actions-reminder-preview" aria-label="Sample action reminder email">
-    <div className="actions-reminder-preview-head">
+  return <section className={`actions-reminder-preview${expanded ? " is-open" : ""}`} aria-label="Sample action reminder email">
+    <button
+      type="button"
+      className="actions-reminder-preview-toggle"
+      aria-expanded={expanded}
+      onClick={() => setExpanded((open) => !open)}
+    >
       <div>
         <span>Sample email preview</span>
         <h3>Your reminder email</h3>
         <p>See how your next action reminder will arrive.</p>
       </div>
-      <i aria-hidden="true"><Mail size={17} /></i>
-    </div>
+      <span className="actions-reminder-preview-toggle-icons">
+        <i aria-hidden="true"><Mail size={17} /></i>
+        {expanded ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}
+      </span>
+    </button>
 
-    <div className="actions-reminder-subject">
-      <span>Subject</span>
-      <strong>Hi {firstName} — Your next workflow is ready</strong>
-    </div>
-
-    <div className="actions-reminder-email">
-      <div className="actions-reminder-email-hero">
-        <span>Your action reminder</span>
-        <h4>Your next actions<strong>are ready.</strong></h4>
-        <p>Hey {firstName}, your next actions are ready when you are.</p>
+    {expanded && <>
+      <div className="actions-reminder-subject">
+        <span>Subject</span>
+        <strong>Hi {firstName} — Your next workflow is ready</strong>
       </div>
-      <div className="actions-reminder-email-body">
-        <div className="actions-reminder-metrics">
-          <div className="actions-reminder-metric">
-            <i aria-hidden="true">&#10003;</i>
-            <strong>{hasFinalisedPlan && commitmentScore !== null ? `${formatCommitmentScore(commitmentScore)}%` : "—"}</strong>
-            <span>Your Commitment Score</span>
+
+      <div className="actions-reminder-email">
+        <div className="actions-reminder-email-hero">
+          <span>Your action reminder</span>
+          <h4>Your next actions<strong>are ready.</strong></h4>
+          <p>Hey {firstName}, your next actions are ready when you are.</p>
+        </div>
+        <div className="actions-reminder-email-body">
+          <div className="actions-reminder-metrics">
+            <div className="actions-reminder-metric">
+              <i aria-hidden="true">&#10003;</i>
+              <strong>{hasFinalisedPlan && commitmentScore !== null ? `${formatCommitmentScore(commitmentScore)}%` : "—"}</strong>
+              <span>Your Commitment Score</span>
+            </div>
+            <div className="actions-reminder-metric actions-reminder-metric--buddy">
+              <i aria-hidden="true">&#8596;</i>
+              <strong>{buddyName && buddyScore !== null ? `${formatCommitmentScore(buddyScore)}%` : "—"}</strong>
+              <span>{buddyName ? `${buddyName} · Your Buddy` : "No buddy yet"}</span>
+            </div>
+            <div className="actions-reminder-metric actions-reminder-metric--rank">
+              <i aria-hidden="true">&#9733;</i>
+              <strong>{teamRank !== null && teamSize !== null ? <>{teamRank}<em> / {teamSize}</em></> : "—"}</strong>
+              <span>Team Contribution Rank</span>
+            </div>
           </div>
-          <div className="actions-reminder-metric actions-reminder-metric--buddy">
-            <i aria-hidden="true">&#8596;</i>
-            <strong>{buddyName && buddyScore !== null ? `${formatCommitmentScore(buddyScore)}%` : "—"}</strong>
-            <span>{buddyName ? `${buddyName} · Your Buddy` : "No buddy yet"}</span>
-          </div>
-          <div className="actions-reminder-metric actions-reminder-metric--rank">
-            <i aria-hidden="true">&#9733;</i>
-            <strong>{teamRank !== null && teamSize !== null ? <>{teamRank}<em> / {teamSize}</em></> : "—"}</strong>
-            <span>Team Contribution Rank</span>
+
+          <p className="actions-reminder-email-section-label">Your actions</p>
+          <article className="actions-reminder-email-action">
+            <i aria-hidden="true">→</i>
+            <strong>{action.title}</strong>
+          </article>
+
+          <div className="actions-reminder-email-tip"><strong>Done an action?</strong> Open My Actions and mark it complete in one click to update your Commitment Score and add points to your team.</div>
+
+          <span className="actions-reminder-email-button">Open My Actions</span>
+
+          <div className="actions-reminder-email-reward">
+            <i aria-hidden="true">{nextMilestone ? nextMilestone.icon : teamMaximumPoints === 0 ? "⏳" : "🎉"}</i>
+            <div>
+              {teamMaximumPoints === 0 ? (
+                <strong>Waiting for finalised plans</strong>
+              ) : nextMilestone ? (
+                <>
+                  <small>Next team reward</small>
+                  <strong>{nextMilestone.headline}</strong>
+                  <div className="actions-reminder-email-reward-bar"><span style={{ width: `${milestoneProgress}%` }} /></div>
+                </>
+              ) : (
+                <strong>Every current reward unlocked!</strong>
+              )}
+            </div>
           </div>
         </div>
-
-        <p className="actions-reminder-email-section-label">Your actions</p>
-        <article className="actions-reminder-email-action">
-          <i aria-hidden="true">→</i>
-          <strong>{action.title}</strong>
-        </article>
-
-        <div className="actions-reminder-email-tip"><strong>Done an action?</strong> Open My Actions and mark it complete in one click to update your Commitment Score and add points to your team.</div>
-
-        <span className="actions-reminder-email-button">Open My Actions</span>
-
-        <div className="actions-reminder-email-reward">
-          <i aria-hidden="true">{nextMilestone ? nextMilestone.icon : teamMaximumPoints === 0 ? "⏳" : "🎉"}</i>
-          <div>
-            {teamMaximumPoints === 0 ? (
-              <strong>Waiting for finalised plans</strong>
-            ) : nextMilestone ? (
-              <>
-                <small>Next team reward</small>
-                <strong>{nextMilestone.headline}</strong>
-                <div className="actions-reminder-email-reward-bar"><span style={{ width: `${milestoneProgress}%` }} /></div>
-              </>
-            ) : (
-              <strong>Every current reward unlocked!</strong>
-            )}
-          </div>
-        </div>
+        <div className="actions-reminder-email-footer">Powered by <b>Nudgeable.ai</b></div>
       </div>
-      <div className="actions-reminder-email-footer">Powered by <b>Nudgeable.ai</b></div>
-    </div>
 
-    <p className="actions-reminder-preview-note"><span aria-hidden="true" /> Preview only · no email has been sent.</p>
+      <p className="actions-reminder-preview-note"><span aria-hidden="true" /> Preview only · no email has been sent.</p>
+    </>}
   </section>;
 }
 

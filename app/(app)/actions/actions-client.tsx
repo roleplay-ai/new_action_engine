@@ -392,19 +392,22 @@ export default function ActionsClient() {
     setReady(false);
     setBuddyReady(false);
     void (async () => {
-      // Release any batch whose IST delivery date is today or earlier, so
-      // Current actions does not wait for the once-daily cron.
-      const syncResult = await syncMyDuePersonalActions();
-      if (cancelled) return;
-      if (syncResult.assigned > 0) await refetch();
-      if (cancelled) return;
-
-      const [leaderboardResult, settingsResult, buddyResult, walletResult] = await Promise.allSettled([
+      // These five calls are independent of each other, so run them together
+      // instead of waiting on the due-actions sync before starting the rest —
+      // and pass the cohort we already resolved via useEngine() so none of them
+      // has to re-derive "which cohort" from scratch.
+      const [syncResult, leaderboardResult, settingsResult, buddyResult, walletResult] = await Promise.allSettled([
+        // Release any batch whose IST delivery date is today or earlier, so
+        // Current actions does not wait for the once-daily cron.
+        syncMyDuePersonalActions(cohort?.id),
         cohort?.id ? getCohortLeaderboard(cohort.id) : Promise.resolve({ entries: [] as LeaderboardEntry[] }),
-        getMyPlanSettings(),
+        getMyPlanSettings(cohort?.id),
         cohort?.id ? getMyCommitmentBuddies(cohort.id) : Promise.resolve({ group: null }),
-        getMyCommitmentWallet(),
+        getMyCommitmentWallet(cohort?.id),
       ]);
+      if (cancelled) return;
+      const assigned = syncResult.status === "fulfilled" ? syncResult.value.assigned : 0;
+      if (assigned > 0) await refetch();
       if (cancelled) return;
       setLeaderboard(leaderboardResult.status === "fulfilled" ? leaderboardResult.value.entries ?? [] : []);
       setSettings(settingsResult.status === "fulfilled" ? settingsResult.value.settings : null);

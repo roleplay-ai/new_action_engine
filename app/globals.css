@@ -2235,6 +2235,24 @@ input[type="range"] {
 
 .plan-edit-modal>.journey-primary-button {
   width: 100%;
+  min-height: 50px;
+  border-radius: 15px;
+  color: #221d23;
+  background: #ffce00;
+  font-size: 14px;
+  box-shadow: 0 8px 18px rgba(255, 206, 0, .22);
+}
+
+.plan-edit-modal>.journey-primary-button:hover:not(:disabled) {
+  background: #f3c400;
+  box-shadow: 0 9px 20px rgba(255, 206, 0, .28);
+}
+
+.plan-edit-modal>.journey-primary-button:active,
+.plan-edit-modal>.journey-primary-button:focus-visible,
+.plan-edit-modal>.journey-primary-button:disabled {
+  color: #221d23;
+  background: #ffce00;
 }
 
 @media (max-width: 940px) {

@@ -98,8 +98,12 @@ export default function PlanClient({ initialTrainingText, embedded = false, onEd
   }, [generatedActionKey]);
 
   useEffect(() => {
-    if (!hasDraft) {
+    // Schedule dates only exist once a draft subscription row is saved.
+    // hasDraft is broader (includes generation-in-progress with no sub yet),
+    // so requesting a preview then surfaces a confusing server guard as an error.
+    if (personalPlanState !== "draft") {
       setScheduleSlots([]);
+      setScheduleLoading(false);
       return;
     }
     let cancelled = false;
@@ -108,13 +112,13 @@ export default function PlanClient({ initialTrainingText, embedded = false, onEd
       if (cancelled) return;
       setScheduleLoading(false);
       if (result.error) {
-        setError(result.error);
+        setScheduleSlots([]);
         return;
       }
       setScheduleSlots(result.slots);
     });
     return () => { cancelled = true; };
-  }, [hasDraft, generatedActionKey]);
+  }, [personalPlanState, generatedActionKey]);
 
   // Server already fetched notes; engine data is ready once Layout clears isLoading.
   usePageLoading(false);

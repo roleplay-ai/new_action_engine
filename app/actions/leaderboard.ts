@@ -2,7 +2,6 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getMyCohorts } from "@/app/actions/cohorts";
 
 export interface LeaderboardEntry {
   id: string;
@@ -95,14 +94,25 @@ export async function getCohortLeaderboard(cohortId: string): Promise<
       return { entries: [], error: "Not authenticated" };
     }
 
-    const context = await getMyCohorts();
-    if (context.error || !context.cohorts.some((cohort) => cohort.id === cohortId)) {
-      return { entries: [], error: context.error ?? "You do not have access to this cohort" };
+    // Equivalent access check to getMyCohorts() (member, or admin/creator of the
+    // cohort's company) but scoped to just this one cohort instead of resolving
+    // and re-ranking the user's entire cohort list (~6-7 queries) just to confirm
+    // membership in a cohortId the caller already legitimately holds.
+    const admin = createAdminClient();
+    const [{ data: profile }, { data: cohortRow }, { data: membership }] = await Promise.all([
+      supabase.from("profiles").select("role, company_id").eq("id", user.id).single(),
+      admin.from("cohorts").select("company_id, created_by").eq("id", cohortId).maybeSingle(),
+      admin.from("cohort_members").select("user_id").eq("cohort_id", cohortId).eq("user_id", user.id).maybeSingle(),
+    ]);
+    const hasAccess = !!membership
+      || (!!profile?.company_id && profile.role === "admin" && cohortRow?.company_id === profile.company_id)
+      || cohortRow?.created_by === user.id;
+    if (!cohortRow || !hasAccess) {
+      return { entries: [], error: "You do not have access to this cohort" };
     }
 
     // Participant RLS exposes only their own cohort_members row, so use the
     // service client after the access check above to include the full cohort.
-    const admin = createAdminClient();
     const { data: members } = await admin
       .from("cohort_members")
       .select("user_id")

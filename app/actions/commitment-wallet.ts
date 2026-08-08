@@ -66,37 +66,46 @@ function mapSummary(value: unknown): CommitmentWalletSummary {
   };
 }
 
-export async function getMyCommitmentWallet(): Promise<{
+export async function getMyCommitmentWallet(knownCohortId?: string): Promise<{
   summary: CommitmentWalletSummary;
   cohortName: string | null;
   error?: string;
 }> {
   try {
-    const context = await getMyCohorts();
-    if (context.error) {
-      return { summary: EMPTY_SUMMARY, cohortName: null, error: context.error };
-    }
-
-    const selected = context.cohorts.find((cohort) => cohort.isSelected);
-    if (!selected) {
-      return { summary: EMPTY_SUMMARY, cohortName: null };
+    // A caller that already resolved its own selected cohort this render (e.g. from
+    // useEngine()) can pass it straight through, skipping the ~6-7 query
+    // getMyCohorts() resolution. The RPC below still runs under the user's own
+    // session, so Postgres continues to enforce real access to p_cohort_id.
+    let selectedId = knownCohortId;
+    let cohortName: string | null = null;
+    if (!selectedId) {
+      const context = await getMyCohorts();
+      if (context.error) {
+        return { summary: EMPTY_SUMMARY, cohortName: null, error: context.error };
+      }
+      const selected = context.cohorts.find((cohort) => cohort.isSelected);
+      if (!selected) {
+        return { summary: EMPTY_SUMMARY, cohortName: null };
+      }
+      selectedId = selected.id;
+      cohortName = selected.name;
     }
 
     const supabase = await createClient();
     const { data, error } = await supabase.rpc("get_my_commitment_wallet", {
-      p_cohort_id: selected.id,
+      p_cohort_id: selectedId,
     });
     if (error) {
       return {
         summary: EMPTY_SUMMARY,
-        cohortName: selected.name,
+        cohortName,
         error: error.message,
       };
     }
 
     return {
       summary: mapSummary(data),
-      cohortName: selected.name,
+      cohortName,
     };
   } catch (error) {
     return {

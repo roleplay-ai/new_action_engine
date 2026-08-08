@@ -39,7 +39,12 @@ export type DraftPlanScheduleSlot = {
   batchNumber: number;
 };
 
-async function getSelectedPlanCohort(requireCurrent = false): Promise<{ cohortId?: string; error?: string }> {
+async function getSelectedPlanCohort(requireCurrent = false, knownCohortId?: string): Promise<{ cohortId?: string; error?: string }> {
+  // Callers that already resolved their own selected cohort this render (e.g. from
+  // useEngine()) can pass it straight through and skip re-deriving it from scratch,
+  // which is a ~6-7 query operation inside getMyCohorts(). Only skip when the caller
+  // doesn't need the isCurrent check, since that requires the full cohort list.
+  if (knownCohortId && !requireCurrent) return { cohortId: knownCohortId };
   const context = await getMyCohorts();
   if (context.error) return { error: context.error };
   const selected = context.cohorts.find((cohort) => cohort.isSelected);
@@ -48,11 +53,11 @@ async function getSelectedPlanCohort(requireCurrent = false): Promise<{ cohortId
   return { cohortId: selected.id };
 }
 
-export async function getMyPlanSettings(): Promise<{ settings: MyPlanSettings | null; error?: string }> {
+export async function getMyPlanSettings(knownCohortId?: string): Promise<{ settings: MyPlanSettings | null; error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { settings: null, error: "Not authenticated" };
-  const cohortContext = await getSelectedPlanCohort();
+  const cohortContext = await getSelectedPlanCohort(false, knownCohortId);
   if (!cohortContext.cohortId) return { settings: null, error: cohortContext.error };
   const { data, error } = await supabase.from("personal_action_subscriptions")
     .select("track, daily_action_count, duration_weeks, days_of_week, day_of_week, time_of_day_utc, total_actions_planned, next_delivery_at, email_reminders_enabled, is_active, archived_at")
@@ -81,12 +86,12 @@ export async function getMyPlanSettings(): Promise<{ settings: MyPlanSettings | 
  * the IST calendar date. Syncing on the Actions page closes that gap so due
  * actions appear under Current actions without waiting for 11:30 AM IST.
  */
-export async function syncMyDuePersonalActions(): Promise<{ assigned: number; error?: string }> {
+export async function syncMyDuePersonalActions(knownCohortId?: string): Promise<{ assigned: number; error?: string }> {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { assigned: 0, error: "Not authenticated" };
-    const cohortContext = await getSelectedPlanCohort();
+    const cohortContext = await getSelectedPlanCohort(false, knownCohortId);
     if (!cohortContext.cohortId) return { assigned: 0, error: cohortContext.error };
 
     const { data: sub, error } = await supabase

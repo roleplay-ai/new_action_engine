@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleCheckBig, CircleX, Clock3, Coffee, Hand, Handshake, HeartHandshake, ListChecks, Loader2, Mail, Medal, MessageCircle, MessageCircleHeart, Settings2, TrendingDown, TrendingUp, Trophy, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getCohortLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard";
@@ -356,6 +357,7 @@ function ReminderEmailPreview({
 }
 
 export default function ActionsClient() {
+  const router = useRouter();
   const { profile, cohort, personalPlanState, allActions, userActions, completeAction, refetch } = useEngine();
   const [tab, setTab] = useState<Tab>("upcoming");
   const [completingId, setCompletingId] = useState<string | null>(null);
@@ -502,6 +504,7 @@ export default function ActionsClient() {
 
   function closeCelebration() {
     setCelebration(null);
+    router.push("/wallet");
   }
 
   function dismissBuddyReveal() {

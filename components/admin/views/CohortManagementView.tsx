@@ -780,7 +780,7 @@ function CohortDetailPanel({
 
           <section className="cohort-admin-panel">
             <div className="cohort-admin-panel-head">
-              <div><h3>Messages to trainer</h3><p>{expectations.length} message{expectations.length === 1 ? "" : "s"} shared from Base Camp.</p></div>
+              <div><h3>Messages to trainer</h3><p>{answeredMembers} of the cohort have sent their one-time note from Base Camp.</p></div>
               <span>{answeredMembers}/{cohort.memberCount}</span>
             </div>
             {expectations.length === 0 ? (

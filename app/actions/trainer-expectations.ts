@@ -5,8 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { TrainerExpectation, TrainerExpectationMessage } from "@/lib/types";
 
-/** All of the current user's own messages to their trainer for this cohort,
- * oldest first — this is an append-only log, not a single editable note. */
+/** The current user's one-time message to their trainer for this cohort. */
 export async function getMyTrainerMessages(cohortId: string): Promise<{
   error?: string;
   messages?: TrainerExpectationMessage[];
@@ -31,7 +30,8 @@ export async function getMyTrainerMessages(cohortId: string): Promise<{
       .select("id, message, created_at")
       .eq("cohort_id", cohortId)
       .eq("user_id", user.id)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(1);
     if (error) return { error: error.message };
 
     return {
@@ -42,8 +42,7 @@ export async function getMyTrainerMessages(cohortId: string): Promise<{
   }
 }
 
-/** Send a new message to the trainer. Each call appends a row — it never
- * edits a previous message, the same way cohort chat messages work. */
+/** Send the participant's one-time message to the trainer for this cohort. */
 export async function saveTrainerExpectation(cohortId: string, message: string): Promise<{
   error?: string;
   message?: TrainerExpectationMessage;
@@ -67,12 +66,26 @@ export async function saveTrainerExpectation(cohortId: string, message: string):
     if (!cleanMessage) return { error: "Write something before sending" };
     if (cleanMessage.length > 2000) return { error: "Messages can be up to 2,000 characters" };
 
+    const { count } = await supabase
+      .from("trainer_expectations")
+      .select("id", { count: "exact", head: true })
+      .eq("cohort_id", cohortId)
+      .eq("user_id", user.id);
+    if ((count ?? 0) > 0) {
+      return { error: "You have already sent your message to the trainer" };
+    }
+
     const { data: row, error } = await supabase
       .from("trainer_expectations")
       .insert({ cohort_id: cohortId, user_id: user.id, message: cleanMessage })
       .select("id, message, created_at")
       .single();
-    if (error) return { error: error.message };
+    if (error) {
+      if (error.code === "23505") {
+        return { error: "You have already sent your message to the trainer" };
+      }
+      return { error: error.message };
+    }
     if (!row) return { error: "The message was sent but could not be displayed" };
 
     revalidatePath("/journey");

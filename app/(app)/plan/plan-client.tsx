@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Check, CheckCircle2, GripVertical, ListChecks, Loader2, Pencil, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, Check, CheckCircle2, GripVertical, ListChecks, Loader2, Pencil, Sparkles, Trash2, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import Onboarding from "@/components/Onboarding";
 import GenerationStatus from "@/components/GenerationStatus";
@@ -47,7 +47,7 @@ function projectedPlanPoints() {
   return 50;
 }
 
-export default function PlanClient({ initialTrainingText, embedded = false, onEditNotes }: { initialTrainingText: string; embedded?: boolean; onEditNotes?: () => void }) {
+export default function PlanClient({ initialTrainingText, embedded = false }: { initialTrainingText: string; embedded?: boolean }) {
   const router = useRouter();
   const {
     personalPlanState,
@@ -272,18 +272,10 @@ export default function PlanClient({ initialTrainingText, embedded = false, onEd
   return <section className={`journey-page plan-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "action-plan" : undefined}>
     {!embedded && <div className="participant-page-heading"><h1>My Plan</h1><p>Shape what you want to build, review every suggested action, then activate the plan when it feels right.</p></div>}
 
-    <div className="plan-progress-row">
-      <div className="journey-v2-progress-pills" aria-label="Plan progress">
-        <div className={hasDraft || isPlanActive || isPlanArchived ? "done" : "current"}><span>{hasDraft || isPlanActive || isPlanArchived ? <Check size={13} /> : 1}</span>My Plan</div>
-        <div className={generatedActions.length > 0 ? "done" : hasDraft ? "current" : ""}><span>{generatedActions.length > 0 ? <Check size={13} /> : 2}</span>Actions generated</div>
-        <div className={isPlanActive || isPlanArchived ? "done" : generatedActions.length > 0 ? "current" : ""}><span>{isPlanActive || isPlanArchived ? <Check size={13} /> : 3}</span>{isPlanActive ? "Active" : isPlanArchived ? "Archived" : "Activate"}</div>
-      </div>
-
-      {onEditNotes && !isPlanActive && !isPlanArchived && (
-        <button type="button" className="my-plan-edit-button plan-back-to-notes" onClick={onEditNotes}>
-          <ArrowLeft size={14} /> Edit my plan notes
-        </button>
-      )}
+    <div className="journey-v2-progress-pills" aria-label="Plan progress">
+      <div className={hasDraft || isPlanActive || isPlanArchived ? "done" : "current"}><span>{hasDraft || isPlanActive || isPlanArchived ? <Check size={13} /> : 1}</span>My Plan</div>
+      <div className={generatedActions.length > 0 ? "done" : hasDraft ? "current" : ""}><span>{generatedActions.length > 0 ? <Check size={13} /> : 2}</span>Actions generated</div>
+      <div className={isPlanActive || isPlanArchived ? "done" : generatedActions.length > 0 ? "current" : ""}><span>{isPlanActive || isPlanArchived ? <Check size={13} /> : 3}</span>{isPlanActive ? "Active" : isPlanArchived ? "Archived" : "Activate"}</div>
     </div>
 
     {(showInitialSetup || editingSetup) && <Onboarding inline initialTrainingText={initialTrainingText} onGeneratingChange={setSetupGenerationPending} onComplete={async () => {

@@ -26,11 +26,12 @@ export default function TrainerExpectationCard({
   initialMessages: TrainerExpectationMessage[];
   variant?: "default" | "rcpl";
 }) {
-  const [messages, setMessages] = useState(initialMessages);
+  const [messages, setMessages] = useState(initialMessages.slice(0, 1));
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const hasSent = messages.length > 0;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "nearest" });
@@ -39,7 +40,7 @@ export default function TrainerExpectationCard({
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     const message = draft.trim();
-    if (!message || sending) return;
+    if (!message || sending || hasSent) return;
 
     setSending(true);
     setError(null);
@@ -47,7 +48,7 @@ export default function TrainerExpectationCard({
     if (result.error) {
       setError(result.error);
     } else if (result.message) {
-      setMessages((current) => [...current, result.message!]);
+      setMessages([result.message]);
       setDraft("");
     } else {
       setError("The message was sent but could not be displayed");
@@ -60,7 +61,7 @@ export default function TrainerExpectationCard({
       <div className="journey-trainer-heading">
         <small>Shape the room</small>
         <h3>Tell your trainer what you need</h3>
-        <p>Your trainer reads every message before the session and adjusts the cases to match.</p>
+        <p>Send one message before the session. Your trainer reads it and adjusts the cases to match.</p>
       </div>
 
       {trainer && (
@@ -70,12 +71,12 @@ export default function TrainerExpectationCard({
         </div>
       )}
 
-      <div className="journey-chat-messages journey-trainer-messages" aria-live="polite" aria-label="Your messages to your trainer">
-        {messages.length === 0 && (
+      <div className="journey-chat-messages journey-trainer-messages" aria-live="polite" aria-label="Your message to your trainer">
+        {!hasSent && (
           <div className="journey-chat-state">
             <MessageCircle size={22} />
             <strong>Nothing sent yet</strong>
-            <small>Tell your trainer what you want from this session.</small>
+            <small>Tell your trainer what you want from this session. You can only send once.</small>
           </div>
         )}
         {messages.map((message) => (
@@ -90,21 +91,25 @@ export default function TrainerExpectationCard({
         <div ref={endRef} />
       </div>
 
-      <form className="journey-chat-composer journey-trainer-composer" onSubmit={handleSubmit}>
-        <textarea
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          maxLength={2000}
-          rows={1}
-          placeholder="What is the one situation you want to handle better after this session?"
-          aria-label="Message your trainer"
-        />
-        <button type="submit" disabled={!draft.trim() || sending} aria-label="Send to trainer">
-          {sending && <LoaderCircle className="journey-chat-spinner" size={15} />}
-          {!sending && <Send size={15} fill="currentColor" />}
-          <span>Send</span>
-        </button>
-      </form>
+      {hasSent ? (
+        <p className="journey-trainer-sent-note">Message sent.</p>
+      ) : (
+        <form className="journey-chat-composer journey-trainer-composer" onSubmit={handleSubmit}>
+          <textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            maxLength={2000}
+            rows={1}
+            placeholder="What is the one situation you want to handle better after this session?"
+            aria-label="Message your trainer"
+          />
+          <button type="submit" disabled={!draft.trim() || sending} aria-label="Send to trainer">
+            {sending && <LoaderCircle className="journey-chat-spinner" size={15} />}
+            {!sending && <Send size={15} fill="currentColor" />}
+            <span>Send</span>
+          </button>
+        </form>
+      )}
       {error && <p className="journey-trainer-error">{error}</p>}
     </article>
   );

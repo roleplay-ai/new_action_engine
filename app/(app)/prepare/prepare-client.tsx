@@ -20,7 +20,7 @@ import { resolveVideoEmbed, resolveVideoThumbnail } from "@/lib/video-embed";
 
 function formatSessionDate(value?: string | null, long = false) {
   if (!value) return "Date to be announced";
-  const date = new Date(value);
+  const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("en-GB", long
     ? { weekday: "long", day: "numeric", month: "long", year: "numeric" }
@@ -216,6 +216,11 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
           <div><TrendingUp size={22} /></div>
           <strong>Choose what matters to you. Build a personal plan. Practise through small actions.</strong>
         </div>
+        <div className="journey-v2-hero-meta">
+          <span><CalendarDays size={14} />{formatSessionDate(cohort.startDate, true)}</span>
+          <span><Users size={14} />{cohort.memberCount} participants</span>
+          <span><Check size={14} />{completedCount} of {items.length} prep complete</span>
+        </div>
       </section>
 
       <section className="journey-v2-rail" aria-label="Your learning journey">
@@ -283,7 +288,10 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
                       <LibraryMediaPreview item={item} />
                       {done && <span className="journey-v2-media-done"><Check size={13} /> Done</span>}
                     </span>
-                    <span className="journey-v2-media-copy"><strong>{item.title}</strong><span>View<ArrowRight size={14} /></span></span>
+                    <span className="journey-v2-media-copy">
+                      <strong>{item.title}</strong>
+                      <span className="journey-v2-media-view">View<ArrowRight size={13} /></span>
+                    </span>
                   </article>
                 );
               })}

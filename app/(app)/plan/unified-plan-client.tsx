@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import NotesClient, { type NotesClientHandle } from "../notes/notes-client";
 import PlanClient from "./plan-client";
 import { useEngine } from "@/lib/store";
@@ -15,6 +16,7 @@ export default function UnifiedPlanClient({ initialTrainingText }: { initialTrai
   const hasExistingPlan = personalPlanState !== "none"
     || Boolean(generationJob)
     || allActions.some((action) => action.isPersonal);
+  const showPlanStep = showActionPlan || hasExistingPlan;
 
   useEffect(() => {
     if (hasExistingPlan) setShowActionPlan(true);
@@ -56,15 +58,22 @@ export default function UnifiedPlanClient({ initialTrainingText }: { initialTrai
   const showReviewCopy = reviewing || planLocked;
 
   return <>
-    <div className="participant-page-heading">
-      <h1>My Plan</h1>
-      <p>{planLocked
-        ? "This plan is finalised and can no longer be edited."
-        : showReviewCopy
-          ? "A clean, shareable version of what you wrote."
-          : "Answer in your own words. This becomes my personal plan."}</p>
+    <div className="participant-page-heading participant-page-heading--with-action">
+      <div>
+        <h1>My Plan</h1>
+        <p>{planLocked
+          ? "This plan is finalised and can no longer be edited."
+          : showReviewCopy
+            ? "A clean, shareable version of what you wrote."
+            : "Answer in your own words. This becomes my personal plan."}</p>
+      </div>
+      {showPlanStep && !planLocked && (
+        <button type="button" className="my-plan-edit-button plan-back-to-notes" onClick={editNotes}>
+          <ArrowLeft size={14} /> Edit my plan
+        </button>
+      )}
     </div>
     <NotesClient ref={notesRef} embedded hideFooter={showActionPlan} onBodyChange={setTrainingText} onSavePlan={goToPlan} onReviewChange={handleReviewChange} />
-    {(showActionPlan || hasExistingPlan) && <PlanClient initialTrainingText={trainingText} embedded onEditNotes={editNotes} />}
+    {showPlanStep && <PlanClient initialTrainingText={trainingText} embedded />}
   </>;
 }

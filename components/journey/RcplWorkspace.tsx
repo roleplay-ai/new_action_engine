@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, Check, FileText, Play, X } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, FileText, Play, X } from "lucide-react";
 import CohortChat from "@/components/journey/CohortChat";
 import TrainerExpectationCard from "@/components/journey/TrainerExpectationCard";
 import type { Cohort, CohortMember, PrepareContentItem, TrainerExpectationMessage, UserPrepareProgress } from "@/lib/types";
@@ -128,6 +128,18 @@ const RCPL_PHASES: RcplPhase[] = [
   },
 ];
 
+function formatSessionDate(value?: string | null) {
+  if (!value) return "Date to be announced";
+  const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 function initials(name: string | null) {
   if (!name) return "P";
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
@@ -218,6 +230,9 @@ export default function RcplWorkspace({
           <small>RCPL Accelerated Leadership Program</small>
           <h2>Your 6-month SURGE leadership journey</h2>
           <p>Build the capability to lead the future, lead yourself, and lead others through immersive learning, practical application, teachbacks, and continued action at work.</p>
+          <div className="rcpl-hero-meta">
+            <span><CalendarDays size={14} />{formatSessionDate(cohort.startDate)}</span>
+          </div>
           <nav className="rcpl-phase-chips" aria-label="SURGE programme phases">
             {RCPL_PHASES.map((item) => <Link key={item.id} href={`/journey?phase=${item.id}`} className={item.id === phase.id ? "active" : ""}>{item.focus}</Link>)}
           </nav>
@@ -291,7 +306,10 @@ export default function RcplWorkspace({
                       <ResourcePreview item={item} />
                       {done && <em><Check size={12} /> Done</em>}
                     </span>
-                    <span className="rcpl-resource-copy"><strong>{item.title}</strong><span>View<ArrowRight size={13} /></span></span>
+                    <span className="rcpl-resource-copy">
+                      <strong>{item.title}</strong>
+                      <span className="rcpl-resource-view">View<ArrowRight size={13} /></span>
+                    </span>
                   </button>
                 );
               })}

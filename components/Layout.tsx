@@ -164,7 +164,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             </label>}
             <Link href="/wallet" className="participant-points-pill" title="Commitment score" onClick={() => beginNavigation("/wallet")}>
               {commitmentLabel}
-              <small>CS</small>
+              <small>Commitment Score</small>
             </Link>
           </div>
         </header>

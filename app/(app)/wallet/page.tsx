@@ -70,6 +70,7 @@ function PersonalWallet({ summary }: { summary: CommitmentWalletSummary }) {
 
       <div className="wallet-personal-stats">
         <div><strong>{summary.plannedActions}</strong><span>Actions committed</span></div>
+        <div><strong>{summary.completedOnTimeActions}</strong><span>Actions completed</span></div>
         <div><strong>{summary.missedActions}</strong><span>Actions missed</span></div>
       </div>
 

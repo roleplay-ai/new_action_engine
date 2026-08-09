@@ -7830,15 +7830,15 @@ input[type="range"] {
 
 .wallet-personal-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
   margin-top: auto;
   padding-top: 20px;
   border-top: 1px solid #e7e2d9;
 }
 
 .wallet-personal-stats>div+div {
-  padding-left: 18px;
+  padding-left: 14px;
   border-left: 1px solid #e7e2d9;
 }
 
@@ -8397,12 +8397,12 @@ input[type="range"] {
   }
 
   .wallet-personal-stats {
-    gap: 12px;
+    gap: 10px;
     padding-top: 15px;
   }
 
   .wallet-personal-stats>div+div {
-    padding-left: 12px;
+    padding-left: 10px;
   }
 
   .wallet-personal-stats strong {

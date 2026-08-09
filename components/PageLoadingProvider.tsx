@@ -12,12 +12,17 @@ import React, {
 } from "react";
 import { usePathname } from "next/navigation";
 
+/** Which loader visual to show while a navigation is pending. */
+type LoaderTheme = "default" | "wallet";
+
 type PageLoadingContextValue = {
   /** True while a nav click is in-flight or the active page still needs data. */
   contentLoading: boolean;
   /** Href the user clicked, for instant nav highlighting. */
   pendingHref: string | null;
-  beginNavigation: (href: string) => void;
+  /** Which loader visual the in-flight navigation should show. */
+  loaderTheme: LoaderTheme;
+  beginNavigation: (href: string, theme?: LoaderTheme) => void;
   reportPageLoading: (route: string, loading: boolean) => void;
 };
 
@@ -35,6 +40,7 @@ export function PageLoadingProvider({ children }: { children: React.ReactNode })
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [navigationLoading, setNavigationLoading] = useState(false);
   const [pageLoading, setPageLoadingState] = useState(false);
+  const [loaderTheme, setLoaderTheme] = useState<LoaderTheme>("default");
   const pendingHrefRef = useRef<string | null>(null);
   const pathnameRef = useRef(pathname);
 
@@ -42,7 +48,7 @@ export function PageLoadingProvider({ children }: { children: React.ReactNode })
   pathnameRef.current = pathname;
 
   const beginNavigation = useCallback(
-    (href: string) => {
+    (href: string, theme: LoaderTheme = "default") => {
       const next = normalizePath(href);
       const current = normalizePath(pathnameRef.current || "/");
       if (next === current) {
@@ -56,6 +62,7 @@ export function PageLoadingProvider({ children }: { children: React.ReactNode })
       pendingHrefRef.current = next;
       setPendingHref(next);
       setNavigationLoading(true);
+      setLoaderTheme(theme);
       if (typeof window !== "undefined") {
         window.scrollTo(0, 0);
       }
@@ -84,6 +91,7 @@ export function PageLoadingProvider({ children }: { children: React.ReactNode })
       pendingHrefRef.current = null;
       setPendingHref(null);
       setNavigationLoading(false);
+      setLoaderTheme("default");
     }
   }, [pathname]);
 
@@ -95,6 +103,7 @@ export function PageLoadingProvider({ children }: { children: React.ReactNode })
       pendingHrefRef.current = null;
       setPendingHref(null);
       setNavigationLoading(false);
+      setLoaderTheme("default");
     }, 15000);
     return () => window.clearTimeout(timeout);
   }, [navigationLoading, pendingHref]);
@@ -102,8 +111,8 @@ export function PageLoadingProvider({ children }: { children: React.ReactNode })
   const contentLoading = navigationLoading || pageLoading;
 
   const value = useMemo(
-    () => ({ contentLoading, pendingHref, beginNavigation, reportPageLoading }),
-    [contentLoading, pendingHref, beginNavigation, reportPageLoading]
+    () => ({ contentLoading, pendingHref, loaderTheme, beginNavigation, reportPageLoading }),
+    [contentLoading, pendingHref, loaderTheme, beginNavigation, reportPageLoading]
   );
 
   return (
@@ -117,7 +126,8 @@ export function usePageLoadingControls() {
     return {
       contentLoading: false,
       pendingHref: null as string | null,
-      beginNavigation: (_href: string) => {},
+      loaderTheme: "default" as LoaderTheme,
+      beginNavigation: (_href: string, _theme?: LoaderTheme) => {},
       reportPageLoading: (_route: string, _loading: boolean) => {},
     };
   }

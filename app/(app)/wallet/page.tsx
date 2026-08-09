@@ -278,7 +278,7 @@ export default async function WalletPage() {
           <span className="wallet-banner-icon"><Check size={22} /></span>
           <div>
             <small>Complete an action</small>
-            <strong>+50 Action Points to your Cohort Action Bank</strong>
+            <strong>+50 Action Points to your Team Action Bank</strong>
           </div>
         </div>
       </section>

@@ -32,7 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
     hasFinalisedPlan: boolean;
     score: number;
   } | null>(null);
-  const { contentLoading, pendingHref, beginNavigation } = usePageLoadingControls();
+  const { contentLoading, pendingHref, loaderTheme, beginNavigation } = usePageLoadingControls();
 
   const navItems = useMemo(() => {
     const items = [
@@ -143,7 +143,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       </aside>
 
       <section className="participant-main">
-        {showLoader && <PageLoader variant="main" />}
+        {showLoader && <PageLoader variant="main" theme={loaderTheme} />}
         <header className="participant-topbar" style={showLoader ? { visibility: "hidden" } : undefined} aria-hidden={showLoader}>
           {isRcpl && <span className="rcpl-topbar-title">Workspace</span>}
           <Link href="/journey" className="participant-mobile-brand" onClick={() => beginNavigation("/journey")}>

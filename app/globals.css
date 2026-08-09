@@ -4401,6 +4401,14 @@ input[type="range"] {
   animation-delay: 0.3s;
 }
 
+.page-loader__bucket {
+  display: block;
+  width: 150px;
+  height: auto;
+  margin: -8px auto -16px;
+  overflow: visible;
+}
+
 .page-loader__label {
   margin: 0;
   color: rgba(255, 255, 255, 0.72);
@@ -8011,6 +8019,80 @@ input[type="range"] {
   margin: -5px auto -8px;
   overflow: visible;
   font-family: Inter, Arial, sans-serif;
+}
+
+.wallet-bucket-coin {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.wallet-bucket-splash {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.wallet-bucket-splash-ring {
+  fill: none;
+  stroke: #ffce00;
+  stroke-width: 2;
+}
+
+.wallet-bucket-splash-spark {
+  fill: #ffe066;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .wallet-bucket-coin {
+    animation: walletBucketCoinFall 2.6s cubic-bezier(.5, 0, .85, .4) infinite;
+  }
+
+  .wallet-bucket-splash {
+    animation: walletBucketSplash 2.6s ease-out infinite;
+  }
+
+  @keyframes walletBucketCoinFall {
+    0% {
+      opacity: 0;
+      transform: translateY(-8px) rotate(-30deg) scale(.8);
+    }
+
+    10% {
+      opacity: 1;
+    }
+
+    55% {
+      opacity: 1;
+      transform: translateY(62px) rotate(210deg) scale(1);
+    }
+
+    64%,
+    100% {
+      opacity: 0;
+      transform: translateY(74px) rotate(228deg) scale(.7);
+    }
+  }
+
+  @keyframes walletBucketSplash {
+
+    0%,
+    52% {
+      opacity: 0;
+      transform: scale(.3);
+    }
+
+    58% {
+      opacity: .9;
+      transform: scale(1);
+    }
+
+    72%,
+    100% {
+      opacity: 0;
+      transform: scale(1.7);
+    }
+  }
 }
 
 .wallet-milestone-section {

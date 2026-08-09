@@ -17,7 +17,7 @@ import {
 } from "@/app/actions/commitment-buddies";
 import { getMyCommitmentWallet } from "@/app/actions/commitment-wallet";
 import { nextMilestoneFor, milestonePoints } from "@/lib/commitment-wallet-milestones";
-import { usePageLoading } from "@/components/PageLoadingProvider";
+import { usePageLoading, usePageLoadingControls } from "@/components/PageLoadingProvider";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
 
 type Tab = "upcoming" | "completed" | "not-completed" | "archived" | "settings";
@@ -388,6 +388,7 @@ export default function ActionsClient() {
   } | null>(null);
 
   usePageLoading(!ready);
+  const { beginNavigation } = usePageLoadingControls();
 
   useEffect(() => {
     let cancelled = false;
@@ -504,6 +505,13 @@ export default function ActionsClient() {
 
   function closeCelebration() {
     setCelebration(null);
+    router.push("/wallet");
+  }
+
+  /** "Done" on the celebration popup — shows the coin-drop-into-bucket loader while it transfers to the Commitment Bank. */
+  function continueFromCelebration() {
+    setCelebration(null);
+    beginNavigation("/wallet", "wallet");
     router.push("/wallet");
   }
 
@@ -813,7 +821,7 @@ export default function ActionsClient() {
         actionTitle={celebration.title}
         pointsDelta={celebration.pointsDelta}
         completedLate={celebration.completedLate}
-        onContinue={closeCelebration}
+        onContinue={continueFromCelebration}
         onClose={closeCelebration}
       />,
       document.body,

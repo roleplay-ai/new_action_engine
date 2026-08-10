@@ -4815,10 +4815,52 @@ input[type="range"] {
   text-transform: uppercase;
 }
 
+.participant-topbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  row-gap: 8px;
+  column-gap: 12px;
+  width: 100%;
+}
+
+.participant-topbar-side {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 0 0 auto;
+}
+
+.participant-topbar-center {
+  display: flex;
+  justify-content: center;
+  flex: 1 1 160px;
+  min-width: 0;
+  order: 2;
+}
+
+.participant-module-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 200px;
+  padding: 6px 12px;
+  overflow: hidden;
+  border: 1px solid var(--journey-line);
+  border-radius: 999px;
+  background: #fff8dc;
+  color: #6f5206;
+  font-size: 11px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .participant-topbar-actions {
   display: flex;
   align-items: center;
   gap: 7px;
+  order: 3;
 }
 
 .participant-cohort-switcher select {
@@ -10319,6 +10361,11 @@ input[type="range"] {
   white-space: nowrap;
 }
 
+.cohort-admin-row-module {
+  color: #514b50;
+  font-weight: 650;
+}
+
 .cohort-admin-row-meta {
   display: flex;
   gap: 11px;
@@ -10439,6 +10486,60 @@ input[type="range"] {
   font-size: 19px;
   font-weight: 800;
   letter-spacing: -0.02em;
+}
+
+.cohort-admin-module-name {
+  margin: 0 0 4px;
+  color: #6f5206;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.cohort-admin-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cohort-admin-title-row h2 {
+  margin: 3px 0 4px;
+}
+
+.cohort-admin-inline-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--cohort-border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--cohort-muted);
+  cursor: pointer;
+}
+
+.cohort-admin-inline-edit-btn:hover:not(:disabled) {
+  border-color: #c99b10;
+  color: #6f5206;
+}
+
+.cohort-admin-inline-edit-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.cohort-admin-name-edit {
+  display: grid;
+  gap: 10px;
+  max-width: 320px;
+  margin: 4px 0 6px;
+}
+
+.cohort-admin-name-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .cohort-admin-detail-title>div>p:last-child {

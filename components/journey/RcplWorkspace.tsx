@@ -262,11 +262,11 @@ export default function RcplWorkspace({
 
       <div className="rcpl-content-shell">
         <main>
-          <section className={`rcpl-preparation-strip${preparationComplete ? " complete" : ""}`}>
+          {/* <section className={`rcpl-preparation-strip${preparationComplete ? " complete" : ""}`}>
             <span className="rcpl-preparation-icon">{preparationComplete ? <Check size={17} /> : <ArrowRight size={17} />}</span>
             <div><strong>{nextTitle}</strong><p>{nextCopy}</p></div>
             {nextHref ? <Link href={nextHref}>Continue</Link> : <button type="button" disabled={!nextIncompleteItem} onClick={() => nextIncompleteItem && onOpenResource(nextIncompleteItem)}>Open</button>}
-          </section>
+          </section> */}
 
           <section className="rcpl-card rcpl-agenda" id="rcpl-agenda">
             <header>

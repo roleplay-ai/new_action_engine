@@ -146,27 +146,38 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       <section className="participant-main">
         {showLoader && <PageLoader variant="main" theme={loaderTheme} />}
         <header className="participant-topbar" style={showLoader ? { visibility: "hidden" } : undefined} aria-hidden={showLoader}>
-          {isRcpl && <span className="rcpl-topbar-title">Workspace</span>}
-          <Link href="/journey" className="participant-mobile-brand" onClick={() => beginNavigation("/journey")}>
-            {cohort?.companyLogoUrl ? (
-              <img src={cohort.companyLogoUrl} alt="" />
-            ) : (
-              <span className="participant-brand-fallback participant-brand-fallback--sm">
-                {(cohort?.companyName || "C").split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase()}
-              </span>
+          <div className="participant-topbar-row">
+            <div className="participant-topbar-side">
+              {isRcpl && <span className="rcpl-topbar-title">Workspace</span>}
+              <Link href="/journey" className="participant-mobile-brand" onClick={() => beginNavigation("/journey")}>
+                {cohort?.companyLogoUrl ? (
+                  <img src={cohort.companyLogoUrl} alt="" />
+                ) : (
+                  <span className="participant-brand-fallback participant-brand-fallback--sm">
+                    {(cohort?.companyName || "C").split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase()}
+                  </span>
+                )}
+                <strong>{cohort?.companyName || "Your company"}</strong>
+              </Link>
+            </div>
+
+            {cohort?.batchName && (
+              <div className="participant-topbar-center">
+                <span className="participant-module-badge" title="Current batch">{cohort.batchName}</span>
+              </div>
             )}
-            <strong>{cohort?.companyName || "Your company"}</strong>
-          </Link>
-          <div className="participant-topbar-actions">
-            {cohorts.length > 0 && <label className="participant-cohort-switcher">
-              <select aria-label="View cohort" value={cohort?.id ?? ""} disabled={switchingCohort} onChange={(event) => void switchCohort(event.target.value)}>
-                {cohorts.map((option) => <option key={option.id} value={option.id}>{option.name}{option.isCurrent ? " · Current" : " · Earlier"}</option>)}
-              </select>
-            </label>}
-            <Link href="/wallet" className="participant-points-pill" title="Commitment score" onClick={() => beginNavigation("/wallet")}>
-              {commitmentLabel}
-              <small>Commitment Score</small>
-            </Link>
+
+            <div className="participant-topbar-actions">
+              {cohorts.length > 0 && <label className="participant-cohort-switcher participant-batch-switcher">
+                <select aria-label="View module" value={cohort?.id ?? ""} disabled={switchingCohort} onChange={(event) => void switchCohort(event.target.value)}>
+                  {cohorts.map((option) => <option key={option.id} value={option.id}>{option.moduleName || option.batchName}{option.isCurrent ? " · Current" : " · Earlier"}</option>)}
+                </select>
+              </label>}
+              <Link href="/wallet" className="participant-points-pill" title="Commitment score" onClick={() => beginNavigation("/wallet")}>
+                {commitmentLabel}
+                <small>Commitment Score</small>
+              </Link>
+            </div>
           </div>
         </header>
 

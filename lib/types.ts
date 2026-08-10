@@ -94,7 +94,12 @@ export interface Trainer {
 /** A group of users within a company sharing Prepare content and an action plan. */
 export interface Cohort {
   id: string;
+  /** Derived legacy composite of batchName and moduleName ("batch — module", or just "batch"). */
   name: string;
+  /** Required first part of the cohort's two-part name, e.g. the batch/group name. */
+  batchName: string;
+  /** Optional second part of the cohort's two-part name, e.g. the training module. */
+  moduleName?: string | null;
   description?: string | null;
   trainingContent?: string | null;
   businessContext?: string | null;

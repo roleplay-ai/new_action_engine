@@ -7,6 +7,14 @@ import type { Cohort, CohortMember, CohortOption, CompanyBrand, Trainer } from "
 
 const COHORT_LOGOS_BUCKET = "cohort-logos";
 
+/** Legacy composite string kept in sync on `cohorts.name` for read sites that
+ * only need a single display string (emails, the cohort switcher, etc.). */
+function composeCohortName(batchName: string, moduleName?: string | null): string {
+  const batch = batchName.trim();
+  const module_ = moduleName?.trim();
+  return module_ ? `${batch} — ${module_}` : batch;
+}
+
 function mapMemberRow(m: {
   user_id: string;
   profiles: { id: string; full_name: string | null } | { id: string; full_name: string | null }[] | null;
@@ -103,7 +111,8 @@ export async function getCompanyUsers(companyId: string): Promise<
 }
 
 export async function createCohort(params: {
-  name: string;
+  batchName: string;
+  moduleName?: string;
   description?: string;
   trainingContent?: string;
   businessContext?: string;
@@ -115,12 +124,17 @@ export async function createCohort(params: {
     const resolvedCompanyId = role === "admin" ? companyId : params.companyId;
     if (!resolvedCompanyId) return { error: "Company required" };
 
+    const batchName = params.batchName.trim();
+    const moduleName = params.moduleName?.trim() || null;
+
     const { data, error } = await supabase
       .from("cohorts")
       .insert({
         company_id: resolvedCompanyId,
         created_by: userId,
-        name: params.name.trim(),
+        batch_name: batchName,
+        module_name: moduleName,
+        name: composeCohortName(batchName, moduleName),
         description: params.description?.trim() || null,
         training_content: role === "superadmin" ? params.trainingContent?.trim() || null : null,
         business_context: role === "superadmin" ? params.businessContext?.trim() || null : null,
@@ -140,7 +154,8 @@ export async function createCohort(params: {
 export async function updateCohort(
   id: string,
   params: {
-    name?: string;
+    batchName?: string;
+    moduleName?: string;
     description?: string;
     trainingContent?: string;
     businessContext?: string;
@@ -164,7 +179,16 @@ export async function updateCohort(
     }
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (params.name != null) updates.name = params.name.trim();
+    if (params.batchName != null || params.moduleName !== undefined) {
+      // Only one part may have been passed in — fetch the other so the
+      // derived `name` composite (and the untouched part) stays correct.
+      const { data: current } = await supabase.from("cohorts").select("batch_name, module_name").eq("id", id).single();
+      const nextBatchName = params.batchName != null ? params.batchName.trim() : current?.batch_name ?? "";
+      const nextModuleName = params.moduleName !== undefined ? params.moduleName.trim() || null : current?.module_name ?? null;
+      updates.batch_name = nextBatchName;
+      updates.module_name = nextModuleName;
+      updates.name = composeCohortName(nextBatchName, nextModuleName);
+    }
     if (params.description != null) updates.description = params.description.trim() || null;
     if (params.trainingContent != null) updates.training_content = params.trainingContent.trim() || null;
     if (params.businessContext != null) updates.business_context = params.businessContext.trim() || null;
@@ -261,7 +285,7 @@ export async function listCohorts(companyId: string): Promise<{
       supabase.from("companies").select("id, name, logo_url").eq("id", companyId).single(),
       supabase
         .from("cohorts")
-        .select("id, name, description, training_content, business_context, start_date, logo_url, trainer_id")
+        .select("id, name, batch_name, module_name, description, training_content, business_context, start_date, logo_url, trainer_id")
         .eq("company_id", companyId)
         .is("archived_at", null)
         .order("created_at", { ascending: false }),
@@ -287,9 +311,11 @@ export async function listCohorts(companyId: string): Promise<{
 
     return {
       company: companyBrand,
-      cohorts: cohorts.map((c: { id: string; name: string; description: string | null; training_content: string | null; business_context: string | null; start_date: string | null; logo_url: string | null; trainer_id: string | null }) => ({
+      cohorts: cohorts.map((c: { id: string; name: string; batch_name: string; module_name: string | null; description: string | null; training_content: string | null; business_context: string | null; start_date: string | null; logo_url: string | null; trainer_id: string | null }) => ({
         id: c.id,
         name: c.name,
+        batchName: c.batch_name,
+        moduleName: c.module_name,
         description: c.description,
         trainingContent: c.training_content,
         businessContext: c.business_context,
@@ -316,7 +342,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
 
     const { data: cohort } = await supabase
       .from("cohorts")
-      .select("id, name, description, training_content, business_context, start_date, logo_url, company_id, trainer_id")
+      .select("id, name, batch_name, module_name, description, training_content, business_context, start_date, logo_url, company_id, trainer_id")
       .eq("id", cohortId)
       .single();
     if (!cohort) return { error: "Cohort not found" };
@@ -338,6 +364,8 @@ export async function getCohortDetail(cohortId: string): Promise<{
       cohort: {
         id: cohort.id,
         name: cohort.name,
+        batchName: cohort.batch_name,
+        moduleName: cohort.module_name,
         description: cohort.description,
         trainingContent: cohort.training_content,
         businessContext: cohort.business_context,
@@ -500,7 +528,7 @@ export async function getMyCohorts(): Promise<{
     const [{ data: cohortRows }, { data: memberRows }] = await Promise.all([
       admin
         .from("cohorts")
-        .select("id, name, description, start_date, logo_url, company_id, archived_at, trainer_id")
+        .select("id, name, batch_name, module_name, description, start_date, logo_url, company_id, archived_at, trainer_id")
         .in("id", orderedIds),
       admin
         .from("cohort_members")
@@ -538,6 +566,8 @@ export async function getMyCohorts(): Promise<{
       return {
         id: row.id,
         name: row.name,
+        batchName: row.batch_name,
+        moduleName: row.module_name,
         description: row.description,
         startDate: row.start_date,
         logoUrl: row.logo_url,
@@ -615,6 +645,8 @@ export async function getMyCohort(): Promise<{
       cohort: {
         id: selected!.id,
         name: selected!.name,
+        batchName: selected!.batchName,
+        moduleName: selected!.moduleName,
         description: selected!.description,
         startDate: selected!.startDate,
         logoUrl: selected!.logoUrl,

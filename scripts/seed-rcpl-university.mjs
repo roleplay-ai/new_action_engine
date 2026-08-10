@@ -60,6 +60,7 @@ if (!cohort) {
     .insert({
       company_id: company.id,
       name: cohortName,
+      batch_name: cohortName,
       description: "Seeded learning cohort for the RCPL University workspace.",
       start_date: new Date().toISOString().slice(0, 10),
     })

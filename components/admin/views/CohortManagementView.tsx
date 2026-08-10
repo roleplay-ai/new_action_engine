@@ -14,6 +14,7 @@ import {
   Loader2,
   MessageSquareText,
   NotebookPen,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -52,6 +53,8 @@ interface CohortManagementViewProps {
 type CohortSummary = {
   id: string;
   name: string;
+  batchName: string;
+  moduleName?: string | null;
   description?: string | null;
   trainingContent?: string | null;
   businessContext?: string | null;
@@ -104,7 +107,8 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
   const [creatingBusy, setCreatingBusy] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [name, setName] = useState("");
+  const [batchName, setBatchName] = useState("");
+  const [moduleName, setModuleName] = useState("");
   const [description, setDescription] = useState("");
   const [trainingContent, setTrainingContent] = useState("");
   const [businessContext, setBusinessContext] = useState("");
@@ -147,7 +151,7 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
     const needle = query.trim().toLowerCase();
     if (!needle) return cohorts;
     return cohorts.filter((cohort) =>
-      `${cohort.name} ${cohort.description ?? ""}`.toLowerCase().includes(needle)
+      `${cohort.batchName} ${cohort.moduleName ?? ""} ${cohort.description ?? ""}`.toLowerCase().includes(needle)
     );
   }, [cohorts, query]);
 
@@ -167,7 +171,8 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
   function closeCreateDialog() {
     if (creatingBusy) return;
     setCreating(false);
-    setName("");
+    setBatchName("");
+    setModuleName("");
     setDescription("");
     setTrainingContent("");
     setBusinessContext("");
@@ -176,12 +181,13 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
-    if (!companyId || !name.trim() || creatingBusy) return;
+    if (!companyId || !batchName.trim() || creatingBusy) return;
     setCreatingBusy(true);
     setError(null);
     try {
       const result = await createCohort({
-        name,
+        batchName,
+        moduleName: moduleName || undefined,
         description: description || undefined,
         trainingContent: role === "superadmin" ? trainingContent || undefined : undefined,
         businessContext: role === "superadmin" ? businessContext || undefined : undefined,
@@ -192,7 +198,8 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
         setError(result.error);
         return;
       }
-      setName("");
+      setBatchName("");
+      setModuleName("");
       setDescription("");
       setTrainingContent("");
       setBusinessContext("");
@@ -305,9 +312,10 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
                     onClick={() => setSelectedId(cohort.id)}
                     aria-current={selected ? "true" : undefined}
                   >
-                    <span className="cohort-admin-cohort-mark">{cohort.logoUrl ? <img src={cohort.logoUrl} alt="" /> : initials(cohort.name)}</span>
+                    <span className="cohort-admin-cohort-mark">{cohort.logoUrl ? <img src={cohort.logoUrl} alt="" /> : initials(cohort.batchName)}</span>
                     <span className="cohort-admin-row-copy">
-                      <strong>{cohort.name}</strong>
+                      <strong>{cohort.batchName}</strong>
+                      {cohort.moduleName && <span className="cohort-admin-row-module">{cohort.moduleName}</span>}
                       <span>{cohort.description || formatStartDate(cohort.startDate)}</span>
                       <span className="cohort-admin-row-meta">
                         <span><Users size={12} /> {cohort.memberCount}</span>
@@ -350,8 +358,12 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
             </div>
             <form onSubmit={handleCreate}>
               <label className="cohort-admin-field">
-                <span>Cohort name <em>Required</em></span>
-                <input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Leadership cohort — January 2026" required />
+                <span>Batch name <em>Required</em></span>
+                <input autoFocus value={batchName} onChange={(event) => setBatchName(event.target.value)} placeholder="e.g. Leadership cohort — January 2026" required />
+              </label>
+              <label className="cohort-admin-field">
+                <span>Module name <em>Optional</em></span>
+                <input value={moduleName} onChange={(event) => setModuleName(event.target.value)} placeholder="e.g. Communication skills" />
               </label>
               <label className="cohort-admin-field">
                 <span>Description <em>Optional</em></span>
@@ -376,7 +388,7 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
               <div className="cohort-admin-modal-note"><Info size={16} /><span>You can add participants and learning content immediately after creation.</span></div>
               <div className="cohort-admin-modal-actions">
                 <button type="button" onClick={closeCreateDialog} disabled={creatingBusy} className="cohort-admin-button cohort-admin-button--secondary">Cancel</button>
-                <button type="submit" disabled={creatingBusy || !name.trim()} className="cohort-admin-button cohort-admin-button--primary">
+                <button type="submit" disabled={creatingBusy || !batchName.trim()} className="cohort-admin-button cohort-admin-button--primary">
                   {creatingBusy ? <Loader2 size={16} className="cohort-admin-spin" /> : <Plus size={16} />}
                   {creatingBusy ? "Creating…" : "Create cohort"}
                 </button>
@@ -401,6 +413,9 @@ function CohortDetailPanel({
   onChange: () => Promise<void> | void;
 }) {
   const [tab, setTab] = useState<"members" | "content" | "generation" | "trainer">("members");
+  const [editingNames, setEditingNames] = useState(false);
+  const [editBatchName, setEditBatchName] = useState(cohort.batchName);
+  const [editModuleName, setEditModuleName] = useState(cohort.moduleName ?? "");
   const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
   const [memberIds, setMemberIds] = useState<Set<string>>(new Set());
   const [libraryItems, setLibraryItems] = useState<PrepareContentItem[]>([]);
@@ -534,10 +549,26 @@ function CohortDetailPanel({
     await runMutation("assign-trainer", () => updateCohort(cohort.id, { trainerId: selectedTrainerId || null }));
   }
 
+  function startEditingNames() {
+    setEditBatchName(cohort.batchName);
+    setEditModuleName(cohort.moduleName ?? "");
+    setEditingNames(true);
+  }
+
+  async function handleSaveNames() {
+    if (!editBatchName.trim() || busyAction) return;
+    await runMutation(
+      "save-names",
+      () => updateCohort(cohort.id, { batchName: editBatchName, moduleName: editModuleName }),
+      () => setEditingNames(false)
+    );
+  }
+
   async function handleDeleteCohort() {
+    const displayName = cohort.moduleName ? `${cohort.batchName} — ${cohort.moduleName}` : cohort.batchName;
     if (
       !window.confirm(
-        `Permanently delete “${cohort.name}”? Members, content assignments, and related cohort data will be removed. This cannot be undone.`
+        `Permanently delete “${displayName}”? Members, content assignments, and related cohort data will be removed. This cannot be undone.`
       )
     ) {
       return;
@@ -563,10 +594,66 @@ function CohortDetailPanel({
     <div className="cohort-admin-detail">
       <div className="cohort-admin-detail-head">
         <div className="cohort-admin-detail-title">
-          <span className="cohort-admin-cohort-mark cohort-admin-cohort-mark--large">{cohort.logoUrl ? <img src={cohort.logoUrl} alt={`${cohort.name} logo`} /> : initials(cohort.name)}</span>
+          <span className="cohort-admin-cohort-mark cohort-admin-cohort-mark--large">{cohort.logoUrl ? <img src={cohort.logoUrl} alt={`${cohort.batchName} logo`} /> : initials(cohort.batchName)}</span>
           <div>
             <p className="cohort-admin-eyebrow">Active cohort</p>
-            <h2>{cohort.name}</h2>
+            {editingNames ? (
+              <div className="cohort-admin-name-edit">
+                <label className="cohort-admin-field">
+                  <span>Batch name <em>Required</em></span>
+                  <input
+                    autoFocus
+                    value={editBatchName}
+                    onChange={(event) => setEditBatchName(event.target.value)}
+                    disabled={Boolean(busyAction)}
+                  />
+                </label>
+                <label className="cohort-admin-field">
+                  <span>Module name <em>Optional</em></span>
+                  <input
+                    value={editModuleName}
+                    onChange={(event) => setEditModuleName(event.target.value)}
+                    disabled={Boolean(busyAction)}
+                  />
+                </label>
+                <div className="cohort-admin-name-edit-actions">
+                  <button
+                    type="button"
+                    onClick={() => setEditingNames(false)}
+                    disabled={Boolean(busyAction)}
+                    className="cohort-admin-button cohort-admin-button--secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveNames()}
+                    disabled={Boolean(busyAction) || !editBatchName.trim()}
+                    className="cohort-admin-button cohort-admin-button--primary"
+                  >
+                    {busyAction === "save-names" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}
+                    {busyAction === "save-names" ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="cohort-admin-title-row">
+                  <h2>{cohort.batchName}</h2>
+                  <button
+                    type="button"
+                    onClick={startEditingNames}
+                    disabled={Boolean(busyAction)}
+                    className="cohort-admin-inline-edit-btn"
+                    aria-label="Edit batch and module name"
+                    title="Edit batch and module name"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                </div>
+                {cohort.moduleName && <p className="cohort-admin-module-name">{cohort.moduleName}</p>}
+              </>
+            )}
             <p>{cohort.description || "No description added."}</p>
           </div>
         </div>
@@ -582,7 +669,7 @@ function CohortDetailPanel({
             onClick={() => void handleDeleteCohort()}
             disabled={Boolean(busyAction)}
             className="cohort-admin-button cohort-admin-button--danger"
-            aria-label={`Delete ${cohort.name}`}
+            aria-label={`Delete ${cohort.batchName}`}
             title="Delete cohort"
           >
             {busyAction === "delete-cohort" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Trash2 size={15} />}

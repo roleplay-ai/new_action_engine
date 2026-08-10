@@ -5950,18 +5950,18 @@ input[type="range"] {
 }
 
 .rcpl-page-heading>span {
-  width: 40px;
-  height: 40px;
+  width: 64px;
+  height: 64px;
   display: grid;
   place-items: center;
   overflow: hidden;
   flex: 0 0 auto;
-  padding: 3px;
+  padding: 4px;
   border: 1px solid var(--rcpl-line);
-  border-radius: 10px;
+  border-radius: 12px;
   color: var(--rcpl-navy-900);
   background: #fff;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -6754,6 +6754,31 @@ input[type="range"] {
   max-height: 286px;
   overflow-y: auto;
   margin-top: 12px;
+}
+
+.rcpl-tag-group-label {
+  margin: 6px 0 -2px;
+  color: var(--rcpl-muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.rcpl-tag-group-label:first-child {
+  margin-top: 0;
+}
+
+.rcpl-participant-tag {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 3px 8px;
+  border: 1px solid var(--rcpl-line);
+  border-radius: 999px;
+  color: var(--rcpl-muted);
+  font-size: 8px;
+  font-weight: 750;
+  white-space: nowrap;
 }
 
 .rcpl-participant {
@@ -11002,6 +11027,46 @@ input[type="range"] {
   background: #fff;
   color: var(--cohort-ink);
   font-size: 11px;
+}
+
+.cohort-admin-tag-creator {
+  display: flex;
+  gap: 8px;
+  padding: 0 13px 11px;
+}
+
+.cohort-admin-tag-creator input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--cohort-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--cohort-ink);
+  font-size: 11px;
+}
+
+.cohort-admin-tag-select {
+  flex: 0 0 auto;
+  max-width: 130px;
+  padding: 6px 8px;
+  border: 1px solid var(--cohort-border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--cohort-ink);
+  font-size: 10px;
+}
+
+.cohort-admin-tag-badge {
+  flex: 0 0 auto;
+  padding: 3px 9px !important;
+  border: 1px solid #e4cc78;
+  border-radius: 999px;
+  background: #fff8dc !important;
+  color: #6f5206 !important;
+  font-size: 9px !important;
+  font-weight: 750;
+  white-space: nowrap;
 }
 
 .cohort-admin-expectation-row {

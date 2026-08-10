@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -204,6 +204,31 @@ export default function RcplWorkspace({
   const phase = RCPL_PHASES.find((item) => item.id === phaseId) ?? RCPL_PHASES[0];
   const [buddyInfoOpen, setBuddyInfoOpen] = useState(false);
 
+  const rosterRows = useMemo(() => {
+    const sorted = [...roster].sort((a, b) => {
+      const tagA = a.tag?.name ?? "";
+      const tagB = b.tag?.name ?? "";
+      if (tagA !== tagB) {
+        if (!tagA) return 1; // untagged participants sort last
+        if (!tagB) return -1;
+        return tagA.localeCompare(tagB);
+      }
+      return (a.fullName || "").localeCompare(b.fullName || "");
+    });
+    const distinctTagCount = new Set(sorted.map((member) => member.tag?.name ?? "")).size;
+    const rows: ({ kind: "header"; key: string; label: string } | { kind: "member"; key: string; member: CohortMember; colorIndex: number })[] = [];
+    let lastTag: string | null | undefined;
+    sorted.forEach((member, index) => {
+      const tagName = member.tag?.name ?? null;
+      if (distinctTagCount > 1 && tagName !== lastTag) {
+        rows.push({ kind: "header", key: `header:${tagName ?? "none"}`, label: tagName ?? "Unassigned" });
+        lastTag = tagName;
+      }
+      rows.push({ kind: "member", key: member.id, member, colorIndex: index });
+    });
+    return rows;
+  }, [roster]);
+
   useEffect(() => {
     if (!buddyInfoOpen) return;
     const previousOverflow = document.body.style.overflow;
@@ -321,7 +346,17 @@ export default function RcplWorkspace({
           <section className="rcpl-card rcpl-participants">
             <header><h3>Your batch</h3></header>
             <div>
-              {roster.map((member, index) => <div className="rcpl-participant" key={member.id}><b style={{ background: ["#1D3C66", "#B8862B", "#D03A2C", "#2E9E63", "#7A5CC9"][index % 5] }}>{initials(member.fullName)}</b><span><strong>{member.fullName || "Participant"}</strong><small>{member.email || "—"}</small></span></div>)}
+              {rosterRows.map((row) =>
+                row.kind === "header" ? (
+                  <div className="rcpl-tag-group-label" key={row.key}>{row.label}</div>
+                ) : (
+                  <div className="rcpl-participant" key={row.key}>
+                    <b style={{ background: ["#1D3C66", "#B8862B", "#D03A2C", "#2E9E63", "#7A5CC9"][row.colorIndex % 5] }}>{initials(row.member.fullName)}</b>
+                    <span><strong>{row.member.fullName || "Participant"}</strong><small>{row.member.email || "—"}</small></span>
+                    {row.member.tag && <span className="rcpl-participant-tag">{row.member.tag.name}</span>}
+                  </div>
+                )
+              )}
               {roster.length === 0 && <p className="rcpl-no-results">No participants found.</p>}
             </div>
           </section>

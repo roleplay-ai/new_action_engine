@@ -43,7 +43,8 @@ import {
 } from "@/app/actions/prepare-content";
 import { listTrainers } from "@/app/actions/trainers";
 import { getTrainerExpectationsForCohort } from "@/app/actions/trainer-expectations";
-import type { CompanyBrand, PrepareContentItem, Trainer, TrainerExpectation } from "@/lib/types";
+import { assignMemberTag, createParticipantTag, listParticipantTags } from "@/app/actions/participant-tags";
+import type { CohortMember, CompanyBrand, ParticipantTag, PrepareContentItem, Trainer, TrainerExpectation } from "@/lib/types";
 
 interface CohortManagementViewProps {
   companyId: string | null;
@@ -417,7 +418,10 @@ function CohortDetailPanel({
   const [editBatchName, setEditBatchName] = useState(cohort.batchName);
   const [editModuleName, setEditModuleName] = useState(cohort.moduleName ?? "");
   const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
+  const [members, setMembers] = useState<CohortMember[]>([]);
   const [memberIds, setMemberIds] = useState<Set<string>>(new Set());
+  const [tags, setTags] = useState<ParticipantTag[]>([]);
+  const [newTagName, setNewTagName] = useState("");
   const [libraryItems, setLibraryItems] = useState<PrepareContentItem[]>([]);
   const [assignedContentIds, setAssignedContentIds] = useState<Set<string>>(new Set());
   const [pendingAddIds, setPendingAddIds] = useState<Set<string>>(new Set());
@@ -438,18 +442,21 @@ function CohortDetailPanel({
     setLoading(true);
     setError(null);
     try {
-      const [detailResult, usersResult, contentResult, libraryResult, trainersResult, expectationsResult] = await Promise.all([
+      const [detailResult, usersResult, contentResult, libraryResult, trainersResult, expectationsResult, tagsResult] = await Promise.all([
         getCohortDetail(cohort.id),
         getCompanyUsers(companyId),
         listCohortContent(cohort.id),
         listActiveLibraryItems(),
         role === "superadmin" ? listTrainers() : Promise.resolve({ trainers: [] as Trainer[], error: undefined as string | undefined }),
         getTrainerExpectationsForCohort(cohort.id),
+        listParticipantTags(),
       ]);
-      const firstError = detailResult.error || usersResult.error || contentResult.error || libraryResult.error || trainersResult.error || expectationsResult.error;
+      const firstError = detailResult.error || usersResult.error || contentResult.error || libraryResult.error || trainersResult.error || expectationsResult.error || tagsResult.error;
       if (firstError) setError(firstError);
+      setMembers(detailResult.members ?? []);
       setMemberIds(new Set((detailResult.members ?? []).map((member) => member.id)));
       setCompanyUsers(usersResult.users ?? []);
+      setTags(tagsResult.tags ?? []);
       setAssignedContentIds(new Set((contentResult.items ?? []).map((item) => item.id)));
       setLibraryItems(libraryResult.items ?? []);
       setTrainerRoster(trainersResult.trainers ?? []);
@@ -467,10 +474,7 @@ function CohortDetailPanel({
     void refresh();
   }, [refresh]);
 
-  const currentMembers = useMemo(
-    () => companyUsers.filter((user) => memberIds.has(user.id)),
-    [companyUsers, memberIds]
-  );
+  const currentMembers = members;
   const availableUsers = useMemo(
     () => companyUsers.filter((user) => !memberIds.has(user.id)),
     [companyUsers, memberIds]
@@ -710,22 +714,60 @@ function CohortDetailPanel({
         <div className="cohort-admin-picker-grid">
           <section className="cohort-admin-panel">
             <div className="cohort-admin-panel-head"><div><h3>Current members</h3><p>People currently learning in this cohort.</p></div><span>{currentMembers.length}</span></div>
+            {role === "superadmin" && (
+              <form
+                className="cohort-admin-tag-creator"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!newTagName.trim() || busyAction) return;
+                  void runMutation("create-tag", () => createParticipantTag(newTagName), () => setNewTagName(""));
+                }}
+              >
+                <input
+                  value={newTagName}
+                  onChange={(event) => setNewTagName(event.target.value)}
+                  placeholder="New tag, e.g. Team A"
+                  aria-label="New tag name"
+                  disabled={Boolean(busyAction)}
+                />
+                <button type="submit" disabled={Boolean(busyAction) || !newTagName.trim()} className="cohort-admin-button cohort-admin-button--secondary">
+                  {busyAction === "create-tag" ? <Loader2 size={14} className="cohort-admin-spin" /> : <Plus size={14} />}
+                  Add tag
+                </button>
+              </form>
+            )}
             {currentMembers.length === 0 ? (
               <div className="cohort-admin-mini-empty"><Users size={20} /><strong>No members yet</strong><span>Select people from the company directory.</span></div>
             ) : (
               <div className="cohort-admin-people-list">
-                {currentMembers.map((user) => (
-                  <div key={user.id} className="cohort-admin-person">
-                    <span className="cohort-admin-avatar">{initials(user.full_name)}</span>
-                    <div><strong>{user.full_name || "Unnamed user"}</strong><span>Cohort participant</span></div>
+                {currentMembers.map((member) => (
+                  <div key={member.id} className="cohort-admin-person">
+                    <span className="cohort-admin-avatar">{initials(member.fullName)}</span>
+                    <div><strong>{member.fullName || "Unnamed user"}</strong><span>Cohort participant</span></div>
+                    {role === "superadmin" ? (
+                      <select
+                        className="cohort-admin-tag-select"
+                        value={member.tag?.id ?? ""}
+                        disabled={Boolean(busyAction)}
+                        aria-label={`Tag for ${member.fullName || "participant"}`}
+                        onChange={(event) =>
+                          void runMutation(`assign-tag:${member.id}`, () => assignMemberTag(cohort.id, member.id, event.target.value || null))
+                        }
+                      >
+                        <option value="">No tag</option>
+                        {tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
+                      </select>
+                    ) : (
+                      member.tag && <span className="cohort-admin-tag-badge">{member.tag.name}</span>
+                    )}
                     <button
                       type="button"
-                      onClick={() => void runMutation(`remove-member:${user.id}`, () => removeMembersFromCohort(cohort.id, [user.id]))}
+                      onClick={() => void runMutation(`remove-member:${member.id}`, () => removeMembersFromCohort(cohort.id, [member.id]))}
                       disabled={Boolean(busyAction)}
-                      aria-label={`Remove ${user.full_name || "member"}`}
+                      aria-label={`Remove ${member.fullName || "member"}`}
                       title="Remove from cohort"
                     >
-                      {busyAction === `remove-member:${user.id}` ? <Loader2 size={15} className="cohort-admin-spin" /> : <X size={15} />}
+                      {busyAction === `remove-member:${member.id}` ? <Loader2 size={15} className="cohort-admin-spin" /> : <X size={15} />}
                     </button>
                   </div>
                 ))}

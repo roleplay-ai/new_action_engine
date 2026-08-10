@@ -91,6 +91,12 @@ export interface Trainer {
   imageUrl?: string | null;
 }
 
+/** A superadmin-managed label assignable to a participant's cohort membership. */
+export interface ParticipantTag {
+  id: string;
+  name: string;
+}
+
 /** A group of users within a company sharing Prepare content and an action plan. */
 export interface Cohort {
   id: string;
@@ -150,6 +156,8 @@ export interface CohortMember {
   id: string;
   fullName: string | null;
   email: string | null;
+  /** The tag assigned to this participant for this specific cohort membership, if any. */
+  tag?: ParticipantTag | null;
 }
 
 export interface CohortMessage {

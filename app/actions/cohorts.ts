@@ -18,9 +18,16 @@ function composeCohortName(batchName: string, moduleName?: string | null): strin
 function mapMemberRow(m: {
   user_id: string;
   profiles: { id: string; full_name: string | null } | { id: string; full_name: string | null }[] | null;
+  participant_tags?: { id: string; name: string } | { id: string; name: string }[] | null;
 }): CohortMember {
   const profile = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
-  return { id: m.user_id, fullName: profile?.full_name ?? null, email: null };
+  const tagRow = Array.isArray(m.participant_tags) ? m.participant_tags[0] : m.participant_tags;
+  return {
+    id: m.user_id,
+    fullName: profile?.full_name ?? null,
+    email: null,
+    tag: tagRow ? { id: tagRow.id, name: tagRow.name } : null,
+  };
 }
 
 async function withMemberEmails(
@@ -355,7 +362,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
     const [{ data: members }, trainerMap] = await Promise.all([
       admin
         .from("cohort_members")
-        .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name)")
+        .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name), participant_tags(id, name)")
         .eq("cohort_id", cohortId),
       loadTrainerMap(admin, [cohort.trainer_id]),
     ]);
@@ -636,7 +643,7 @@ export async function getMyCohort(): Promise<{
     const admin = createAdminClient();
     const { data: members } = await admin
       .from("cohort_members")
-      .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name)")
+      .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name), participant_tags(id, name)")
       .eq("cohort_id", cohortId);
 
     const roster = await withMemberEmails(admin, (members ?? []).map(mapMemberRow));

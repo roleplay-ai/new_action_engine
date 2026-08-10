@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Cohort, CohortMember, CohortOption, CompanyBrand, Trainer } from "@/lib/types";
+import type { Cohort, CohortDate, CohortMember, CohortOption, CompanyBrand, Trainer } from "@/lib/types";
 
 const COHORT_LOGOS_BUCKET = "cohort-logos";
 
@@ -58,6 +58,28 @@ async function loadTrainerMap(
     row.id,
     { id: row.id, name: row.name, imageUrl: row.image_url },
   ]));
+}
+
+/** Every cohort_dates row for a batch of cohorts, grouped and sorted ascending
+ * per cohort — the shape Cohort.dates needs. */
+async function loadCohortDatesMap(
+  supabase: Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient>,
+  cohortIds: string[],
+): Promise<Map<string, string[]>> {
+  const ids = [...new Set(cohortIds)];
+  if (ids.length === 0) return new Map();
+  const { data } = await supabase
+    .from("cohort_dates")
+    .select("cohort_id, event_date")
+    .in("cohort_id", ids)
+    .order("event_date", { ascending: true });
+  const map = new Map<string, string[]>();
+  for (const row of (data ?? []) as { cohort_id: string; event_date: string }[]) {
+    const list = map.get(row.cohort_id) ?? [];
+    list.push(row.event_date);
+    map.set(row.cohort_id, list);
+  }
+  return map;
 }
 
 async function getAdminContext(): Promise<{
@@ -123,7 +145,8 @@ export async function createCohort(params: {
   description?: string;
   trainingContent?: string;
   businessContext?: string;
-  startDate?: string;
+  /** Optional single date to seed cohort_dates with — more can be added afterwards. */
+  initialDate?: string;
   companyId?: string;
 }): Promise<{ error?: string; id?: string }> {
   try {
@@ -145,12 +168,16 @@ export async function createCohort(params: {
         description: params.description?.trim() || null,
         training_content: role === "superadmin" ? params.trainingContent?.trim() || null : null,
         business_context: role === "superadmin" ? params.businessContext?.trim() || null : null,
-        start_date: params.startDate || null,
       })
       .select("id")
       .single();
 
     if (error) return { error: error.message };
+
+    if (params.initialDate) {
+      await supabase.from("cohort_dates").insert({ cohort_id: data.id, event_date: params.initialDate, created_by: userId });
+    }
+
     revalidatePath("/admin");
     return { id: data.id };
   } catch (e) {
@@ -166,7 +193,6 @@ export async function updateCohort(
     description?: string;
     trainingContent?: string;
     businessContext?: string;
-    startDate?: string;
     logoUrl?: string | null;
     trainerId?: string | null;
   }
@@ -199,12 +225,76 @@ export async function updateCohort(
     if (params.description != null) updates.description = params.description.trim() || null;
     if (params.trainingContent != null) updates.training_content = params.trainingContent.trim() || null;
     if (params.businessContext != null) updates.business_context = params.businessContext.trim() || null;
-    if (params.startDate != null) updates.start_date = params.startDate || null;
     if (params.logoUrl !== undefined) updates.logo_url = params.logoUrl?.trim() || null;
     if (params.trainerId !== undefined) updates.trainer_id = params.trainerId || null;
 
     const { error } = await supabase.from("cohorts").update(updates).eq("id", id);
     if (error) return { error: error.message };
+    revalidatePath("/admin");
+    revalidatePath("/journey");
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+/** The full list of dates on one cohort, with ids so each can be removed
+ * individually — used by the cohort management "manage dates" list. */
+export async function listCohortDates(cohortId: string): Promise<{ error?: string; dates?: CohortDate[] }> {
+  try {
+    const { supabase, companyId, role } = await getAdminContext();
+    if (role === "admin") {
+      const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).single();
+      if (!cohort || cohort.company_id !== companyId) return { error: "Cohort not found or access denied" };
+    }
+
+    const { data, error } = await supabase
+      .from("cohort_dates")
+      .select("id, event_date")
+      .eq("cohort_id", cohortId)
+      .order("event_date", { ascending: true });
+    if (error) return { error: error.message };
+    return { dates: (data ?? []).map((row: { id: string; event_date: string }) => ({ id: row.id, date: row.event_date })) };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export async function addCohortDate(cohortId: string, date: string): Promise<{ error?: string; id?: string }> {
+  try {
+    const { supabase, userId, companyId, role } = await getAdminContext();
+    if (role === "admin") {
+      const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).single();
+      if (!cohort || cohort.company_id !== companyId) return { error: "Cohort not found or access denied" };
+    }
+    if (!date) return { error: "Date is required" };
+
+    const { data, error } = await supabase
+      .from("cohort_dates")
+      .insert({ cohort_id: cohortId, event_date: date, created_by: userId })
+      .select("id")
+      .single();
+    if (error) return { error: error.message };
+
+    revalidatePath("/admin");
+    revalidatePath("/journey");
+    return { id: data.id };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export async function removeCohortDate(cohortId: string, dateId: string): Promise<{ error?: string }> {
+  try {
+    const { supabase, companyId, role } = await getAdminContext();
+    if (role === "admin") {
+      const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).single();
+      if (!cohort || cohort.company_id !== companyId) return { error: "Cohort not found or access denied" };
+    }
+
+    const { error } = await supabase.from("cohort_dates").delete().eq("id", dateId).eq("cohort_id", cohortId);
+    if (error) return { error: error.message };
+
     revalidatePath("/admin");
     revalidatePath("/journey");
     return {};
@@ -292,7 +382,7 @@ export async function listCohorts(companyId: string): Promise<{
       supabase.from("companies").select("id, name, logo_url").eq("id", companyId).single(),
       supabase
         .from("cohorts")
-        .select("id, name, batch_name, module_name, description, training_content, business_context, start_date, logo_url, trainer_id")
+        .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, trainer_id")
         .eq("company_id", companyId)
         .is("archived_at", null)
         .order("created_at", { ascending: false }),
@@ -302,10 +392,11 @@ export async function listCohorts(companyId: string): Promise<{
     if (!cohorts?.length) return { company: companyBrand, cohorts: [] };
     const cohortIds = cohorts.map((c: { id: string }) => c.id);
 
-    const [{ data: members }, { data: contentAssignments }, trainerMap] = await Promise.all([
+    const [{ data: members }, { data: contentAssignments }, trainerMap, datesMap] = await Promise.all([
       supabase.from("cohort_members").select("cohort_id").in("cohort_id", cohortIds),
       supabase.from("cohort_prepare_assignments").select("cohort_id").in("cohort_id", cohortIds),
       loadTrainerMap(supabase, cohorts.map((c: { trainer_id: string | null }) => c.trainer_id)),
+      loadCohortDatesMap(supabase, cohortIds),
     ]);
     const memberCounts = new Map<string, number>();
     for (const m of (members ?? []) as { cohort_id: string }[]) {
@@ -318,7 +409,7 @@ export async function listCohorts(companyId: string): Promise<{
 
     return {
       company: companyBrand,
-      cohorts: cohorts.map((c: { id: string; name: string; batch_name: string; module_name: string | null; description: string | null; training_content: string | null; business_context: string | null; start_date: string | null; logo_url: string | null; trainer_id: string | null }) => ({
+      cohorts: cohorts.map((c: { id: string; name: string; batch_name: string; module_name: string | null; description: string | null; training_content: string | null; business_context: string | null; logo_url: string | null; trainer_id: string | null }) => ({
         id: c.id,
         name: c.name,
         batchName: c.batch_name,
@@ -326,7 +417,7 @@ export async function listCohorts(companyId: string): Promise<{
         description: c.description,
         trainingContent: c.training_content,
         businessContext: c.business_context,
-        startDate: c.start_date,
+        dates: datesMap.get(c.id) ?? [],
         logoUrl: c.logo_url,
         memberCount: memberCounts.get(c.id) ?? 0,
         contentCount: contentCounts.get(c.id) ?? 0,
@@ -349,7 +440,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
 
     const { data: cohort } = await supabase
       .from("cohorts")
-      .select("id, name, batch_name, module_name, description, training_content, business_context, start_date, logo_url, company_id, trainer_id")
+      .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, company_id, trainer_id")
       .eq("id", cohortId)
       .single();
     if (!cohort) return { error: "Cohort not found" };
@@ -359,12 +450,13 @@ export async function getCohortDetail(cohortId: string): Promise<{
     // viewing another company's cohort would otherwise get every member's name
     // silently nulled out by RLS on the embedded profiles join.
     const admin = createAdminClient();
-    const [{ data: members }, trainerMap] = await Promise.all([
+    const [{ data: members }, trainerMap, datesMap] = await Promise.all([
       admin
         .from("cohort_members")
         .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name), participant_tags(id, name)")
         .eq("cohort_id", cohortId),
       loadTrainerMap(admin, [cohort.trainer_id]),
+      loadCohortDatesMap(admin, [cohortId]),
     ]);
 
     return {
@@ -376,7 +468,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
         description: cohort.description,
         trainingContent: cohort.training_content,
         businessContext: cohort.business_context,
-        startDate: cohort.start_date,
+        dates: datesMap.get(cohortId) ?? [],
         logoUrl: cohort.logo_url,
         memberCount: members?.length ?? 0,
         trainerId: cohort.trainer_id,
@@ -535,7 +627,7 @@ export async function getMyCohorts(): Promise<{
     const [{ data: cohortRows }, { data: memberRows }] = await Promise.all([
       admin
         .from("cohorts")
-        .select("id, name, batch_name, module_name, description, start_date, logo_url, company_id, archived_at, trainer_id")
+        .select("id, name, batch_name, module_name, description, logo_url, company_id, archived_at, trainer_id")
         .in("id", orderedIds),
       admin
         .from("cohort_members")
@@ -545,6 +637,7 @@ export async function getMyCohorts(): Promise<{
 
     const cohortById = new Map((cohortRows ?? []).map((cohort) => [cohort.id, cohort]));
     const trainerMap = await loadTrainerMap(admin, (cohortRows ?? []).map((cohort) => cohort.trainer_id));
+    const datesMap = await loadCohortDatesMap(admin, (cohortRows ?? []).map((cohort) => cohort.id));
     const companyIds = Array.from(new Set((cohortRows ?? []).map((cohort) => cohort.company_id)));
     const { data: companyRows } = companyIds.length
       ? await admin.from("companies").select("id, name, logo_url").in("id", companyIds)
@@ -576,7 +669,7 @@ export async function getMyCohorts(): Promise<{
         batchName: row.batch_name,
         moduleName: row.module_name,
         description: row.description,
-        startDate: row.start_date,
+        dates: datesMap.get(row.id) ?? [],
         logoUrl: row.logo_url,
         memberCount: memberCounts.get(row.id) ?? 0,
         companyId: row.company_id,
@@ -655,7 +748,7 @@ export async function getMyCohort(): Promise<{
         batchName: selected!.batchName,
         moduleName: selected!.moduleName,
         description: selected!.description,
-        startDate: selected!.startDate,
+        dates: selected!.dates,
         logoUrl: selected!.logoUrl,
         memberCount: roster.length,
         companyId: selected!.companyId,

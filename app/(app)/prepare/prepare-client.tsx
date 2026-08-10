@@ -17,6 +17,13 @@ import RcplWorkspace from "@/components/journey/RcplWorkspace";
 import { usePageLoading } from "@/components/PageLoadingProvider";
 import type { JourneyData, PrepareContentItem, UserPrepareProgress } from "@/lib/types";
 import { resolveVideoEmbed, resolveVideoThumbnail } from "@/lib/video-embed";
+import { nextUpcomingCohortDate } from "@/lib/cohort-dates";
+
+/** The date to show as "the" session date: the soonest upcoming one, or the
+ * most recent past one once every date on the cohort has passed. */
+function displayCohortDate(dates: string[]): string | null {
+  return nextUpcomingCohortDate(dates) ?? dates[dates.length - 1] ?? null;
+}
 
 function formatSessionDate(value?: string | null, long = false) {
   if (!value) return "Date to be announced";
@@ -142,7 +149,7 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
         : "Your actions are ready when their practice window opens.";
 
   if (error) return <div className="journey-empty"><strong>We couldn&apos;t load your journey.</strong><p>{error}</p></div>;
-  if (!cohort) return <div className="journey-empty"><CircleUserRound size={32} /><strong>Your learning journey will appear here</strong><p>Ask your administrator to add you to a cohort.</p></div>;
+  if (!cohort) return <div className="journey-empty"><CircleUserRound size={32} /><strong>Your learning journey will appear here</strong><p>Ask your administrator to add you to a batch.</p></div>;
 
   const visibleRoster = roster.slice(0, 4);
   const companyName = cohort.companyName?.trim().toLowerCase();
@@ -218,7 +225,7 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
           <strong>Choose what matters to you. Build a personal plan. Practise through small actions.</strong>
         </div>
         <div className="journey-v2-hero-meta">
-          <span><CalendarDays size={14} />{formatSessionDate(cohort.startDate, true)}</span>
+          <span><CalendarDays size={14} />{formatSessionDate(displayCohortDate(cohort.dates), true)}</span>
           <span><Users size={14} />{cohort.memberCount} participants</span>
           <span><Check size={14} />{completedCount} of {items.length} prep complete</span>
         </div>
@@ -251,7 +258,7 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
         </article>
 
         <div className="journey-v2-session-cards">
-          <div><span><CalendarDays size={18} /></span><strong>{formatSessionDate(cohort.startDate)}</strong><small>Session date</small></div>
+          <div><span><CalendarDays size={18} /></span><strong>{formatSessionDate(displayCohortDate(cohort.dates))}</strong><small>Session date</small></div>
           <div><span><Sparkles size={18} /></span><strong>{cohort.name}</strong><small>Current skill</small></div>
           <div><span><Users size={18} /></span><strong>{cohort.memberCount}</strong><small>Participants</small></div>
         </div>
@@ -321,8 +328,8 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
 
           <article className="journey-module-card journey-v2-cohort-card">
             <span className="journey-v2-card-kicker">Learning together</span>
-            <h3>Your cohort</h3>
-            <p className="journey-card-subtitle">People attending this cohort with you.</p>
+            <h3>Your batch</h3>
+            <p className="journey-card-subtitle">People attending this batch with you.</p>
             <div className="journey-cohort-people">
               {visibleRoster.map((member) => <div key={member.id}><b>{initials(member.fullName)}</b><span>{member.fullName?.split(" ")[0] || "Participant"}</span></div>)}
               {roster.length > visibleRoster.length && <small>+{roster.length - visibleRoster.length} others</small>}

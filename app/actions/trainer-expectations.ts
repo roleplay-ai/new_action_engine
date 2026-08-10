@@ -23,7 +23,7 @@ export async function getMyTrainerMessages(cohortId: string): Promise<{
       .eq("cohort_id", cohortId)
       .eq("user_id", user.id)
       .maybeSingle();
-    if (!membership) return { error: "You do not have access to this cohort" };
+    if (!membership) return { error: "You do not have access to this batch" };
 
     const { data: rows, error } = await supabase
       .from("trainer_expectations")
@@ -60,7 +60,7 @@ export async function saveTrainerExpectation(cohortId: string, message: string):
       .eq("cohort_id", cohortId)
       .eq("user_id", user.id)
       .maybeSingle();
-    if (!membership) return { error: "You do not have access to this cohort" };
+    if (!membership) return { error: "You do not have access to this batch" };
 
     const cleanMessage = message.trim();
     if (!cleanMessage) return { error: "Write something before sending" };

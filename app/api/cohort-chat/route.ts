@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const cohortId = request.nextUrl.searchParams.get("cohortId")?.trim();
   if (!cohortId) {
-    return NextResponse.json({ error: "Cohort is required" }, { status: 400 });
+    return NextResponse.json({ error: "Batch is required" }, { status: 400 });
   }
 
   const result = await getCohortMessages(cohortId);

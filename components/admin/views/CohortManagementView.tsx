@@ -25,15 +25,19 @@ import {
   X,
 } from "lucide-react";
 import {
+  addCohortDate,
   addMembersToCohort,
   createCohort,
   deleteCohort,
   getCohortDetail,
   getCompanyUsers,
+  listCohortDates,
   listCohorts,
+  removeCohortDate,
   removeMembersFromCohort,
   updateCohort,
 } from "@/app/actions/cohorts";
+import { nextUpcomingCohortDate } from "@/lib/cohort-dates";
 import { uploadCohortLogo } from "@/lib/cohort-logo-upload";
 import {
   assignContentToCohort,
@@ -44,7 +48,7 @@ import {
 import { listTrainers } from "@/app/actions/trainers";
 import { getTrainerExpectationsForCohort } from "@/app/actions/trainer-expectations";
 import { assignMemberTag, createParticipantTag, listParticipantTags } from "@/app/actions/participant-tags";
-import type { CohortMember, CompanyBrand, ParticipantTag, PrepareContentItem, Trainer, TrainerExpectation } from "@/lib/types";
+import type { CohortDate, CohortMember, CompanyBrand, ParticipantTag, PrepareContentItem, Trainer, TrainerExpectation } from "@/lib/types";
 
 interface CohortManagementViewProps {
   companyId: string | null;
@@ -59,7 +63,7 @@ type CohortSummary = {
   description?: string | null;
   trainingContent?: string | null;
   businessContext?: string | null;
-  startDate?: string | null;
+  dates: string[];
   memberCount: number;
   contentCount: number;
   logoUrl?: string | null;
@@ -70,7 +74,7 @@ type CohortSummary = {
 type CompanyUser = { id: string; full_name: string | null };
 
 function formatStartDate(date: string | null | undefined) {
-  if (!date) return "Start date not set";
+  if (!date) return "No dates set";
   return new Intl.DateTimeFormat("en", {
     day: "numeric",
     month: "short",
@@ -113,7 +117,27 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
   const [description, setDescription] = useState("");
   const [trainingContent, setTrainingContent] = useState("");
   const [businessContext, setBusinessContext] = useState("");
-  const [startDate, setStartDate] = useState("");
+  const [initialDates, setInitialDates] = useState<string[]>([]);
+  const [pendingDateValue, setPendingDateValue] = useState("");
+
+  const duplicateCohort = useMemo(() => {
+    const bn = batchName.trim().toLowerCase();
+    if (!bn) return false;
+    const mn = moduleName.trim().toLowerCase();
+    return cohorts.some(
+      (existing) => existing.batchName.trim().toLowerCase() === bn && (existing.moduleName ?? "").trim().toLowerCase() === mn
+    );
+  }, [cohorts, batchName, moduleName]);
+
+  function addPendingDate() {
+    if (!pendingDateValue || initialDates.includes(pendingDateValue)) return;
+    setInitialDates((current) => [...current, pendingDateValue].sort());
+    setPendingDateValue("");
+  }
+
+  function removePendingDate(date: string) {
+    setInitialDates((current) => current.filter((existing) => existing !== date));
+  }
 
   const refresh = useCallback(async () => {
     if (!companyId) return;
@@ -177,7 +201,8 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
     setDescription("");
     setTrainingContent("");
     setBusinessContext("");
-    setStartDate("");
+    setInitialDates([]);
+    setPendingDateValue("");
   }
 
   async function handleCreate(event: React.FormEvent) {
@@ -192,19 +217,24 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
         description: description || undefined,
         trainingContent: role === "superadmin" ? trainingContent || undefined : undefined,
         businessContext: role === "superadmin" ? businessContext || undefined : undefined,
-        startDate: startDate || undefined,
+        initialDate: initialDates[0] || undefined,
         companyId,
       });
       if (result.error) {
         setError(result.error);
         return;
       }
+      if (result.id && initialDates.length > 1) {
+        // First date was already seeded by createCohort; add the rest.
+        await Promise.all(initialDates.slice(1).map((date) => addCohortDate(result.id!, date)));
+      }
       setBatchName("");
       setModuleName("");
       setDescription("");
       setTrainingContent("");
       setBusinessContext("");
-      setStartDate("");
+      setInitialDates([]);
+      setPendingDateValue("");
       setCreating(false);
       await refresh();
       if (result.id) setSelectedId(result.id);
@@ -317,7 +347,7 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
                     <span className="cohort-admin-row-copy">
                       <strong>{cohort.batchName}</strong>
                       {cohort.moduleName && <span className="cohort-admin-row-module">{cohort.moduleName}</span>}
-                      <span>{cohort.description || formatStartDate(cohort.startDate)}</span>
+                      <span>{cohort.description || formatStartDate(nextUpcomingCohortDate(cohort.dates))}</span>
                       <span className="cohort-admin-row-meta">
                         <span><Users size={12} /> {cohort.memberCount}</span>
                         <span><BookOpen size={12} /> {cohort.contentCount}</span>
@@ -354,24 +384,49 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
         <div className="cohort-admin-modal-backdrop" role="presentation" onMouseDown={closeCreateDialog}>
           <div className="cohort-admin-modal" role="dialog" aria-modal="true" aria-labelledby="new-cohort-title" onMouseDown={(event) => event.stopPropagation()}>
             <div className="cohort-admin-modal-head">
-              <div><p className="cohort-admin-eyebrow">New learning group</p><h2 id="new-cohort-title">Create a cohort</h2></div>
+              <div>
+                <p className="cohort-admin-eyebrow">New learning group</p>
+                <h2 id="new-cohort-title">Create a cohort</h2>
+                {role === "superadmin" && company && (
+                  <p className="cohort-admin-modal-company">
+                    <Building2 size={12} /> Creating for <strong>{company.name}</strong>
+                  </p>
+                )}
+              </div>
               <button type="button" onClick={closeCreateDialog} disabled={creatingBusy} aria-label="Close"><X size={18} /></button>
             </div>
-            <form onSubmit={handleCreate}>
+            <form id="new-cohort-form" className="cohort-admin-modal-scroll" onSubmit={handleCreate}>
+              <p className="cohort-admin-form-section">Identity</p>
               <label className="cohort-admin-field">
                 <span>Batch name <em>Required</em></span>
-                <input autoFocus value={batchName} onChange={(event) => setBatchName(event.target.value)} placeholder="e.g. Leadership cohort — January 2026" required />
+                <input autoFocus value={batchName} onChange={(event) => setBatchName(event.target.value)} placeholder="e.g. January 2026 Leadership Batch" required />
               </label>
               <label className="cohort-admin-field">
                 <span>Module name <em>Optional</em></span>
                 <input value={moduleName} onChange={(event) => setModuleName(event.target.value)} placeholder="e.g. Communication skills" />
               </label>
+              {batchName.trim() && (
+                <p className="cohort-admin-name-preview">
+                  Shown as <strong>{batchName.trim()}{moduleName.trim() ? ` — ${moduleName.trim()}` : ""}</strong>
+                </p>
+              )}
+              {duplicateCohort && (
+                <div className="cohort-admin-inline-warning">
+                  <AlertCircle size={14} /> A cohort with this exact batch and module already exists.
+                </div>
+              )}
               <label className="cohort-admin-field">
                 <span>Description <em>Optional</em></span>
                 <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What is this cohort working towards?" rows={3} />
               </label>
+
               {role === "superadmin" && (
                 <>
+                  <p className="cohort-admin-form-section">Action generation context</p>
+                  <div className="cohort-admin-notice">
+                    <Info size={15} />
+                    <p><strong>Used for every participant in this cohort</strong><span>Training content defines the skill. Business context keeps each action realistic for the company and its work.</span></p>
+                  </div>
                   <label className="cohort-admin-field">
                     <span>Training content <em>Optional</em></span>
                     <textarea value={trainingContent} onChange={(event) => setTrainingContent(event.target.value)} placeholder="Session topics, agenda, skills, and learning outcomes" rows={4} />
@@ -382,19 +437,38 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
                   </label>
                 </>
               )}
-              <label className="cohort-admin-field">
-                <span>Start date <em>Optional</em></span>
-                <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
-              </label>
-              <div className="cohort-admin-modal-note"><Info size={16} /><span>You can add participants and learning content immediately after creation.</span></div>
-              <div className="cohort-admin-modal-actions">
-                <button type="button" onClick={closeCreateDialog} disabled={creatingBusy} className="cohort-admin-button cohort-admin-button--secondary">Cancel</button>
-                <button type="submit" disabled={creatingBusy || !batchName.trim()} className="cohort-admin-button cohort-admin-button--primary">
-                  {creatingBusy ? <Loader2 size={16} className="cohort-admin-spin" /> : <Plus size={16} />}
-                  {creatingBusy ? "Creating…" : "Create cohort"}
+
+              <p className="cohort-admin-form-section">Schedule</p>
+              <div className="cohort-admin-field">
+                <span>Dates <em>Optional</em></span>
+              </div>
+              <div className="cohort-admin-dates-chips">
+                {initialDates.length === 0 && <span className="cohort-admin-dates-empty">No dates set</span>}
+                {initialDates.map((date) => (
+                  <span className="cohort-admin-date-chip" key={date}>
+                    {formatStartDate(date)}
+                    <button type="button" onClick={() => removePendingDate(date)} aria-label={`Remove date ${formatStartDate(date)}`}>
+                      <X size={11} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="cohort-admin-date-add">
+                <input type="date" value={pendingDateValue} onChange={(event) => setPendingDateValue(event.target.value)} aria-label="Add a date" />
+                <button type="button" onClick={addPendingDate} disabled={!pendingDateValue} className="cohort-admin-button cohort-admin-button--secondary">
+                  <Plus size={14} /> Add date
                 </button>
               </div>
+
+              <div className="cohort-admin-modal-note"><Info size={16} /><span>You can add more dates, participants, and learning content immediately after creation.</span></div>
             </form>
+            <div className="cohort-admin-modal-actions">
+              <button type="button" onClick={closeCreateDialog} disabled={creatingBusy} className="cohort-admin-button cohort-admin-button--secondary">Cancel</button>
+              <button type="submit" form="new-cohort-form" disabled={creatingBusy || !batchName.trim()} className="cohort-admin-button cohort-admin-button--primary">
+                {creatingBusy ? <Loader2 size={16} className="cohort-admin-spin" /> : <Plus size={16} />}
+                {creatingBusy ? "Creating…" : "Create cohort"}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -422,6 +496,8 @@ function CohortDetailPanel({
   const [memberIds, setMemberIds] = useState<Set<string>>(new Set());
   const [tags, setTags] = useState<ParticipantTag[]>([]);
   const [newTagName, setNewTagName] = useState("");
+  const [cohortDates, setCohortDates] = useState<CohortDate[]>([]);
+  const [newDateValue, setNewDateValue] = useState("");
   const [libraryItems, setLibraryItems] = useState<PrepareContentItem[]>([]);
   const [assignedContentIds, setAssignedContentIds] = useState<Set<string>>(new Set());
   const [pendingAddIds, setPendingAddIds] = useState<Set<string>>(new Set());
@@ -442,7 +518,7 @@ function CohortDetailPanel({
     setLoading(true);
     setError(null);
     try {
-      const [detailResult, usersResult, contentResult, libraryResult, trainersResult, expectationsResult, tagsResult] = await Promise.all([
+      const [detailResult, usersResult, contentResult, libraryResult, trainersResult, expectationsResult, tagsResult, datesResult] = await Promise.all([
         getCohortDetail(cohort.id),
         getCompanyUsers(companyId),
         listCohortContent(cohort.id),
@@ -450,13 +526,15 @@ function CohortDetailPanel({
         role === "superadmin" ? listTrainers() : Promise.resolve({ trainers: [] as Trainer[], error: undefined as string | undefined }),
         getTrainerExpectationsForCohort(cohort.id),
         listParticipantTags(),
+        listCohortDates(cohort.id),
       ]);
-      const firstError = detailResult.error || usersResult.error || contentResult.error || libraryResult.error || trainersResult.error || expectationsResult.error || tagsResult.error;
+      const firstError = detailResult.error || usersResult.error || contentResult.error || libraryResult.error || trainersResult.error || expectationsResult.error || tagsResult.error || datesResult.error;
       if (firstError) setError(firstError);
       setMembers(detailResult.members ?? []);
       setMemberIds(new Set((detailResult.members ?? []).map((member) => member.id)));
       setCompanyUsers(usersResult.users ?? []);
       setTags(tagsResult.tags ?? []);
+      setCohortDates(datesResult.dates ?? []);
       setAssignedContentIds(new Set((contentResult.items ?? []).map((item) => item.id)));
       setLibraryItems(libraryResult.items ?? []);
       setTrainerRoster(trainersResult.trainers ?? []);
@@ -568,6 +646,12 @@ function CohortDetailPanel({
     );
   }
 
+  async function handleAddDate(event: React.FormEvent) {
+    event.preventDefault();
+    if (!newDateValue || busyAction) return;
+    await runMutation("add-date", () => addCohortDate(cohort.id, newDateValue), () => setNewDateValue(""));
+  }
+
   async function handleDeleteCohort() {
     const displayName = cohort.moduleName ? `${cohort.batchName} — ${cohort.moduleName}` : cohort.batchName;
     if (
@@ -662,7 +746,6 @@ function CohortDetailPanel({
           </div>
         </div>
         <div className="cohort-admin-detail-brand-actions">
-          <span className="cohort-admin-date"><CalendarDays size={15} /> {formatStartDate(cohort.startDate)}</span>
           <label className="cohort-admin-logo-upload">
             {busyAction === "cohort-logo" ? <Loader2 size={14} className="cohort-admin-spin" /> : <ImagePlus size={14} />}
             {cohort.logoUrl ? "Replace cohort logo" : "Upload cohort logo"}
@@ -680,6 +763,40 @@ function CohortDetailPanel({
             {busyAction === "delete-cohort" ? "Deleting…" : "Delete cohort"}
           </button>
         </div>
+      </div>
+
+      <div className="cohort-admin-dates-bar">
+        <span className="cohort-admin-dates-label"><CalendarDays size={14} /> Dates</span>
+        <div className="cohort-admin-dates-chips">
+          {cohortDates.length === 0 && <span className="cohort-admin-dates-empty">No dates set</span>}
+          {cohortDates.map((cohortDate) => (
+            <span className="cohort-admin-date-chip" key={cohortDate.id}>
+              {formatStartDate(cohortDate.date)}
+              <button
+                type="button"
+                onClick={() => void runMutation(`remove-date:${cohortDate.id}`, () => removeCohortDate(cohort.id, cohortDate.id))}
+                disabled={Boolean(busyAction)}
+                aria-label={`Remove date ${formatStartDate(cohortDate.date)}`}
+                title="Remove date"
+              >
+                {busyAction === `remove-date:${cohortDate.id}` ? <Loader2 size={11} className="cohort-admin-spin" /> : <X size={11} />}
+              </button>
+            </span>
+          ))}
+        </div>
+        <form className="cohort-admin-date-add" onSubmit={(event) => void handleAddDate(event)}>
+          <input
+            type="date"
+            value={newDateValue}
+            onChange={(event) => setNewDateValue(event.target.value)}
+            disabled={Boolean(busyAction)}
+            aria-label="Add a date"
+          />
+          <button type="submit" disabled={Boolean(busyAction) || !newDateValue} className="cohort-admin-button cohort-admin-button--secondary">
+            {busyAction === "add-date" ? <Loader2 size={14} className="cohort-admin-spin" /> : <Plus size={14} />}
+            Add date
+          </button>
+        </form>
       </div>
 
       <div className="cohort-admin-tabs" role="tablist" aria-label="Cohort details">

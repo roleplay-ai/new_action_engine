@@ -7,8 +7,10 @@ import { useSearchParams } from "next/navigation";
 import { ArrowRight, CalendarDays, Check, FileText, Play, X } from "lucide-react";
 import CohortChat from "@/components/journey/CohortChat";
 import TrainerExpectationCard from "@/components/journey/TrainerExpectationCard";
+import FlipCountdown from "@/components/journey/FlipCountdown";
 import type { Cohort, CohortMember, PrepareContentItem, TrainerExpectationMessage, UserPrepareProgress } from "@/lib/types";
 import { resolveVideoEmbed, resolveVideoThumbnail } from "@/lib/video-embed";
+import { daysUntil, nextUpcomingCohortDate } from "@/lib/cohort-dates";
 
 type PhaseBlock = { time: string; name: string; description: string };
 type PhaseDay = { name: string; date: string; takeaway: string; blocks: PhaseBlock[] };
@@ -120,7 +122,7 @@ const RCPL_PHASES: RcplPhase[] = [
           { time: "9.30–11.00", name: "Collaborative Mindset", description: "What gets in the way when two functions both think they are right." },
           { time: "11.15–1.00", name: "Breaking Silos", description: "Where handoffs break in this business and what you can fix from your seat." },
           { time: "1.45–3.30", name: "Managing Interdependencies", description: "Run work that depends on teams you do not control." },
-          { time: "3.45–5.15", name: "Creating One Team Culture", description: "Agree the behaviours this cohort will hold each other to." },
+          { time: "3.45–5.15", name: "Creating One Team Culture", description: "Agree the behaviours this batch will hold each other to." },
           { time: "5.30–6.00", name: "SURGE Graduation", description: "Close, recognition, and your action-point totals." },
         ],
       },
@@ -128,16 +130,13 @@ const RCPL_PHASES: RcplPhase[] = [
   },
 ];
 
-function formatSessionDate(value?: string | null) {
+function formatSessionDate(value?: string | null, compact = false) {
   if (!value) return "Date to be announced";
   const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  return date.toLocaleDateString("en-GB", compact
+    ? { weekday: "short", day: "numeric", month: "short" }
+    : { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
 function initials(name: string | null) {
@@ -204,6 +203,21 @@ export default function RcplWorkspace({
   const phase = RCPL_PHASES.find((item) => item.id === phaseId) ?? RCPL_PHASES[0];
   const [buddyInfoOpen, setBuddyInfoOpen] = useState(false);
 
+  const sessionDates = useMemo(
+    () => [...(cohort.dates ?? [])].filter(Boolean).sort(),
+    [cohort.dates],
+  );
+  const nextSessionDate = useMemo(() => nextUpcomingCohortDate(sessionDates), [sessionDates]);
+  const daysToNextSession = nextSessionDate !== null ? daysUntil(nextSessionDate) : null;
+  const daysToGoLabel =
+    daysToNextSession === null
+      ? ""
+      : daysToNextSession <= 0
+        ? "starts today"
+        : daysToNextSession === 1
+          ? "day to go"
+          : "days to go";
+
   const rosterRows = useMemo(() => {
     const sorted = [...roster].sort((a, b) => {
       const tagA = a.tag?.name ?? "";
@@ -256,7 +270,18 @@ export default function RcplWorkspace({
           <h2>Your 6-month SURGE leadership journey</h2>
           <p>Build the capability to lead the future, lead yourself, and lead others through immersive learning, practical application, teachbacks, and continued action at work.</p>
           <div className="rcpl-hero-meta">
-            <span><CalendarDays size={14} />{formatSessionDate(cohort.startDate)}</span>
+            {sessionDates.length === 0 ? (
+              <span><CalendarDays size={14} />Date to be announced</span>
+            ) : (
+              sessionDates.map((date) => (
+                <span key={date} className={date === nextSessionDate ? "upcoming" : undefined}>
+                  <CalendarDays size={14} />{formatSessionDate(date, true)}
+                </span>
+              ))
+            )}
+            {daysToNextSession !== null && daysToNextSession >= 0 && (
+              <FlipCountdown days={daysToNextSession} label={daysToGoLabel} />
+            )}
           </div>
           <nav className="rcpl-phase-chips" aria-label="SURGE programme phases">
             {RCPL_PHASES.map((item) => <Link key={item.id} href={`/journey?phase=${item.id}`} className={item.id === phase.id ? "active" : ""}>{item.focus}</Link>)}
@@ -381,7 +406,7 @@ export default function RcplWorkspace({
               <div>
                 <small>Accountability</small>
                 <h3 id="rcpl-buddy-modal-title">How commitment buddies work</h3>
-                <p>Everyone in the cohort is paired with one other person, with one group of three when needed.</p>
+                <p>Everyone in the batch is paired with one other person, with one group of three when needed.</p>
               </div>
               <button type="button" onClick={() => setBuddyInfoOpen(false)} aria-label="Close commitment buddy explanation"><X size={17} /></button>
             </header>
@@ -390,7 +415,7 @@ export default function RcplWorkspace({
                 <b aria-hidden="true">1</b>
                 <span>
                   <strong>Assigned at random</strong>
-                  <p>Your buddy or group is created within your cohort and revealed after your personal action plan goes live.</p>
+                  <p>Your buddy or group is created within your batch and revealed after your personal action plan goes live.</p>
                 </span>
               </li>
               <li>

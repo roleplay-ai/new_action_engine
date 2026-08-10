@@ -62,12 +62,16 @@ if (!cohort) {
       name: cohortName,
       batch_name: cohortName,
       description: "Seeded learning cohort for the RCPL University workspace.",
-      start_date: new Date().toISOString().slice(0, 10),
     })
     .select("id, name")
     .single();
   if (created.error) throw created.error;
   cohort = created.data;
+
+  const dateError = await admin
+    .from("cohort_dates")
+    .insert({ cohort_id: cohort.id, event_date: new Date().toISOString().slice(0, 10) });
+  if (dateError.error) throw dateError.error;
 }
 
 const existingUsers = await listAuthUsers();

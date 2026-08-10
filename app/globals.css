@@ -6028,22 +6028,106 @@ input[type="range"] {
 .rcpl-hero-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 14px;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: 16px;
 }
 
-.rcpl-hero-meta span {
-  min-height: 28px;
+.rcpl-hero-meta>span {
+  min-height: 30px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 5px 12px;
   border: 1px solid rgba(245, 227, 184, .42);
   border-radius: 999px;
   color: var(--rcpl-gold-soft);
   background: rgba(255, 255, 255, .08);
   font-size: 11px;
   font-weight: 750;
+}
+
+.rcpl-hero-meta>span.upcoming {
+  border-color: rgba(245, 227, 184, .85);
+  background: rgba(245, 227, 184, .16);
+  color: #fff;
+}
+
+.rcpl-hero-meta .rcpl-flip-countdown {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-left: 10px;
+  padding-left: 14px;
+  border-left: 1px solid rgba(245, 227, 184, .28);
+}
+
+.rcpl-flip-countdown {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.rcpl-flip-digits {
+  display: flex;
+  gap: 4px;
+}
+
+.rcpl-flip-card {
+  position: relative;
+  box-sizing: border-box;
+  width: 26px;
+  height: 34px;
+  display: block;
+  flex: 0 0 auto;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #2f5280 0%, #16283f 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+
+.rcpl-flip-card::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: rgba(0, 0, 0, .4);
+  transform: translateY(-0.5px);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.rcpl-flip-card-inner {
+  position: relative;
+  z-index: 0;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: #f5e3b8;
+  font-family: "SF Mono", "Roboto Mono", "Courier New", monospace;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  animation: rcpl-flip-in .5s ease;
+}
+
+@keyframes rcpl-flip-in {
+  0% { opacity: 0; transform: rotateX(90deg); }
+  60% { opacity: 1; transform: rotateX(-8deg); }
+  100% { opacity: 1; transform: rotateX(0deg); }
+}
+
+.rcpl-flip-label {
+  color: var(--rcpl-gold-soft);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 
 .rcpl-phase-chips {
@@ -10575,17 +10659,81 @@ input[type="range"] {
   line-height: 1.5;
 }
 
-.cohort-admin-date {
+.cohort-admin-dates-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  border-bottom: 1px solid #eeeaec;
+}
+
+.cohort-admin-dates-label {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 6px;
-  padding: 7px 9px;
-  border: 1px solid var(--cohort-border);
-  border-radius: 8px;
   color: var(--cohort-muted);
   font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+.cohort-admin-dates-chips {
+  display: flex;
+  flex-wrap: wrap;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cohort-admin-dates-empty {
+  color: var(--cohort-muted);
+  font-size: 10px;
+}
+
+.cohort-admin-date-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 10px;
+  border: 1px solid var(--cohort-border);
+  border-radius: 999px;
+  color: var(--cohort-ink);
+  font-size: 10px;
   font-weight: 700;
+}
+
+.cohort-admin-date-chip button {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #8d858b;
+}
+
+.cohort-admin-date-chip button:not(:disabled):hover {
+  background: #fff4f5;
+  color: #bd3d49;
+}
+
+.cohort-admin-date-add {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.cohort-admin-date-add input {
+  padding: 6px 8px;
+  border: 1px solid var(--cohort-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--cohort-ink);
+  font-size: 11px;
 }
 
 .cohort-admin-tabs {
@@ -11116,7 +11264,10 @@ input[type="range"] {
 }
 
 .cohort-admin-modal {
+  display: flex;
+  flex-direction: column;
   width: min(100%, 520px);
+  max-height: min(88vh, 760px);
   overflow: hidden;
   border: 1px solid #dcd4d9;
   border-radius: 15px;
@@ -11124,7 +11275,14 @@ input[type="range"] {
   box-shadow: 0 24px 70px rgba(34, 28, 33, 0.2);
 }
 
+.cohort-admin-modal-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .cohort-admin-modal-head {
+  flex: 0 0 auto;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -11149,6 +11307,59 @@ input[type="range"] {
   border-radius: 8px;
   background: #fff;
   color: var(--cohort-muted);
+}
+
+.cohort-admin-modal-company {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 6px 0 0;
+  color: var(--cohort-muted);
+  font-size: 10px;
+}
+
+.cohort-admin-modal-company strong {
+  color: var(--cohort-ink);
+}
+
+.cohort-admin-form-section {
+  margin: 4px 0 -6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--cohort-border);
+  color: var(--cohort-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.cohort-admin-form-section:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.cohort-admin-name-preview {
+  margin: -6px 0 0;
+  color: var(--cohort-muted);
+  font-size: 10px;
+}
+
+.cohort-admin-name-preview strong {
+  color: var(--cohort-ink);
+}
+
+.cohort-admin-inline-warning {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: -4px 0 0;
+  padding: 8px 10px;
+  border: 1px solid #f0c9a0;
+  border-radius: 8px;
+  background: #fff6ec;
+  color: #8a4f0f;
+  font-size: 10px;
 }
 
 .cohort-admin-modal form {
@@ -11213,8 +11424,10 @@ input[type="range"] {
 }
 
 .cohort-admin-modal-actions {
+  flex: 0 0 auto;
   justify-content: flex-end;
-  padding-top: 2px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--cohort-border);
 }
 
 .cohort-admin-skeleton {
@@ -11331,10 +11544,6 @@ input[type="range"] {
     padding: 18px 16px 15px;
   }
 
-  .cohort-admin-date {
-    margin-left: 57px;
-  }
-
   .cohort-admin-tabs {
     padding: 0 10px;
   }
@@ -11373,7 +11582,6 @@ input[type="range"] {
 
   .cohort-admin-modal {
     max-height: 92vh;
-    overflow: auto;
     border-radius: 16px 16px 0 0;
   }
 

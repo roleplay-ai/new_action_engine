@@ -136,7 +136,7 @@ export default function CohortChat({ cohortId, variant = "default" }: { cohortId
             id: row.id,
             cohortId: row.cohort_id,
             senderId: row.sender_id,
-            senderName: knownSender?.senderName ?? (own ? "You" : "Cohort member"),
+            senderName: knownSender?.senderName ?? (own ? "You" : "Batch member"),
             senderRole: knownSender?.senderRole ?? "participant",
             message: row.message,
             createdAt: row.created_at,
@@ -231,15 +231,15 @@ export default function CohortChat({ cohortId, variant = "default" }: { cohortId
     <article className={`journey-module-card journey-chat-card${variant === "rcpl" ? " journey-chat-card--rcpl" : ""}`}>
       <div className="journey-chat-heading">
         <div>
-          <h3>Cohort conversation</h3>
+          <h3>Batch conversation</h3>
         </div>
         <span className={connectionState}><i />{connectionState === "live" ? "Live" : connectionState === "connecting" ? "Connecting" : "Offline"}</span>
       </div>
 
-      <div className="journey-chat-messages" aria-live="polite" aria-label="Cohort messages">
+      <div className="journey-chat-messages" aria-live="polite" aria-label="Batch messages">
         {loading && <div className="journey-chat-state"><LoaderCircle className="journey-chat-spinner" size={22} /> Loading conversation…</div>}
         {!loading && error && messages.length === 0 && <div className="journey-chat-state error">{error}</div>}
-        {!loading && !error && messages.length === 0 && <div className="journey-chat-state"><MessageCircle size={24} /><strong>Start the conversation</strong><small>Ask a question, share an insight, or check in with your cohort.</small></div>}
+        {!loading && !error && messages.length === 0 && <div className="journey-chat-state"><MessageCircle size={24} /><strong>Start the conversation</strong><small>Ask a question, share an insight, or check in with your batch.</small></div>}
         {!loading && messages.map((message) => {
           const own = message.senderId === currentUserId;
           return <div className={`journey-chat-message ${own ? "own" : ""} ${message.senderRole === "trainer" ? "trainer" : ""}`} key={message.id}>
@@ -264,7 +264,7 @@ export default function CohortChat({ cohortId, variant = "default" }: { cohortId
           maxLength={2000}
           rows={1}
           placeholder="Share a question or insight…"
-          aria-label="Message your cohort and trainer"
+          aria-label="Message your batch and trainer"
         />
         <button type="submit" disabled={!draft.trim() || sending} aria-label="Send message">
           {sending && <LoaderCircle className="journey-chat-spinner" size={15} />}

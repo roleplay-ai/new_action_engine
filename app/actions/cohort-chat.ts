@@ -33,7 +33,7 @@ async function getChatAccess(cohortId: string): Promise<ChatAccess | { error: st
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (membership) return { supabase, userId: user.id, userName: profile.full_name?.trim() || "Cohort member", role: profile.role };
+  if (membership) return { supabase, userId: user.id, userName: profile.full_name?.trim() || "Batch member", role: profile.role };
 
   if (profile.role === "admin" || profile.role === "superadmin") {
     const { data: cohort } = await supabase
@@ -45,7 +45,7 @@ async function getChatAccess(cohortId: string): Promise<ChatAccess | { error: st
     if (canTrain) return { supabase, userId: user.id, userName: profile.full_name?.trim() || "Trainer", role: profile.role };
   }
 
-  return { error: "You do not have access to this cohort conversation" };
+  return { error: "You do not have access to this batch conversation" };
 }
 
 export async function getCohortMessages(cohortId: string): Promise<{
@@ -83,7 +83,7 @@ export async function getCohortMessages(cohortId: string): Promise<{
         id: row.id,
         cohortId: row.cohort_id,
         senderId: row.sender_id,
-        senderName: sender?.full_name?.trim() || "Cohort member",
+        senderName: sender?.full_name?.trim() || "Batch member",
         senderRole: sender?.role === "admin" || sender?.role === "superadmin" ? "trainer" : "participant",
         message: row.message,
         createdAt: row.created_at,

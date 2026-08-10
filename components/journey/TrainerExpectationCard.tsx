@@ -67,7 +67,7 @@ export default function TrainerExpectationCard({
       {trainer && (
         <div className="journey-trainer-profile">
           <span className="journey-trainer-card-avatar">{trainer.imageUrl ? <img src={trainer.imageUrl} alt="" /> : <UserRound size={16} />}</span>
-          <div><strong>{trainer.name}</strong><small>Your trainer for this cohort</small></div>
+          <div><strong>{trainer.name}</strong><small>Your trainer for this batch</small></div>
         </div>
       )}
 

@@ -109,13 +109,21 @@ export interface Cohort {
   description?: string | null;
   trainingContent?: string | null;
   businessContext?: string | null;
-  startDate?: string | null;
+  /** Every date attached to this cohort (session days, milestones, etc.), sorted ascending as ISO "YYYY-MM-DD" strings. */
+  dates: string[];
   memberCount: number;
   logoUrl?: string | null;
   companyName?: string | null;
   companyLogoUrl?: string | null;
   trainerId?: string | null;
   trainer?: Trainer | null;
+}
+
+/** One row backing Cohort.dates, with the id needed to remove it individually
+ * from the cohort management "manage dates" list. */
+export interface CohortDate {
+  id: string;
+  date: string;
 }
 
 /** One private message a participant sent their trainer ("what do you want

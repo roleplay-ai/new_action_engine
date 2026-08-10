@@ -62,6 +62,44 @@ function headerHtml(data: EmailTemplateData): string {
     </tr>`;
 }
 
+/**
+ * Company logo + name as a white pill. With no logo it falls back to just
+ * the name as text, matching headerHtml's own graceful-degradation
+ * behavior; with neither, it renders nothing.
+ */
+function companyBadgePillHtml(data: EmailTemplateData): string {
+  const logo = str(data, "company_logo");
+  const companyName = str(data, "company_name");
+  if (!logo && !companyName) return "";
+  const logoCell = logo
+    ? `<td valign="middle" style="padding:8px 0 8px 12px;"><img src="${esc(logo)}" alt="${esc(companyName || "Company")} logo" height="28" style="display:block;max-height:28px;width:auto;border-radius:5px;" /></td>`
+    : "";
+  const nameCell = companyName
+    ? `<td valign="middle" style="padding:8px 14px 8px ${logo ? "10px" : "14px"};"><span style="color:#221D23;font-size:14px;font-weight:800;letter-spacing:.2px;">${esc(companyName)}</span></td>`
+    : "";
+  return `
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border-radius:11px;">
+      <tr>${logoCell}${nameCell}</tr>
+    </table>`;
+}
+
+/**
+ * Top row of a hero card: an eyebrow tag on the left and the company badge
+ * (logo + name) on the right, on the same line. Falls back to just the
+ * eyebrow, full width, when there's no company badge to show.
+ */
+function heroTopRowHtml(eyebrowHtml: string, data: EmailTemplateData): string {
+  const badge = companyBadgePillHtml(data);
+  if (!badge) return eyebrowHtml;
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td valign="middle" align="left">${eyebrowHtml}</td>
+        <td valign="middle" align="right">${badge}</td>
+      </tr>
+    </table>`;
+}
+
 function ctaButtonHtml(url: string, label: string): string {
   return `
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px auto 0;">
@@ -209,7 +247,7 @@ function renderCredentialsHtml(data: EmailTemplateData): string {
 
             <tr>
               <td class="pad" style="padding:36px 38px 30px;background:#221D23;color:#FFFFFF;font-family:Inter,Arial,sans-serif;">
-                <div style="display:inline-block;padding:7px 11px;border:1px solid #7E6810;border-radius:20px;color:#FFCE00;font-size:10px;line-height:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;">Welcome</div>
+                ${heroTopRowHtml(`<div style="display:inline-block;padding:7px 11px;border:1px solid #7E6810;border-radius:20px;color:#FFCE00;font-size:10px;line-height:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;">Welcome</div>`, data)}
                 <div class="hero-title" style="margin-top:17px;font-size:36px;line-height:37px;font-weight:800;letter-spacing:-1.4px;">Your practice<br /><span style="color:#FFCE00;">starts here.</span></div>
                 <div style="margin-top:17px;color:#E9E5E7;font-size:14px;line-height:21px;">Hey ${esc(firstName)}, your secure access is ready. Use the button below for instant sign in, or keep the credentials for regular login.</div>
               </td>
@@ -437,7 +475,7 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
 
             <tr>
               <td class="pad" style="padding:30px 34px 28px;background:#221D23;color:#FFFFFF;font-family:Inter,Arial,sans-serif;">
-                <div style="display:inline-block;padding:6px 10px;border:1px solid #756510;border-radius:18px;color:#FFCE00;font-size:9px;line-height:10px;font-weight:800;letter-spacing:1.15px;text-transform:uppercase;">Your action reminder</div>
+                ${heroTopRowHtml(`<div style="display:inline-block;padding:6px 10px;border:1px solid #756510;border-radius:18px;color:#FFCE00;font-size:9px;line-height:10px;font-weight:800;letter-spacing:1.15px;text-transform:uppercase;">Your action reminder</div>`, data)}
                 <div class="headline" style="margin-top:16px;font-size:34px;line-height:36px;font-weight:800;letter-spacing:-1.25px;">Your next actions<br /><span style="color:#FFCE00;">are ready.</span></div>
                 <div style="margin-top:12px;color:#E2DEE1;font-size:13px;line-height:19px;">Hey ${esc(firstName)}, your next actions are ready when you are.</div>
               </td>
@@ -542,7 +580,7 @@ export const EMAIL_TEMPLATES = {
   credentials: {
     label: "Login Credentials",
     subject: (data: EmailTemplateData) =>
-      `Hi ${str(data, "first_name", "there")} - Welcome to Nudgeable, your access is ready`,
+      `Hi ${str(data, "first_name", "there")} - Welcome to ${str(data, "company_name", "Nudgeable")}, your access is ready`,
     render: renderCredentialsHtml,
   },
   calendar_invite: {
@@ -553,10 +591,8 @@ export const EMAIL_TEMPLATES = {
   daily_reminder: {
     label: "Action Reminder",
     subject: (data: EmailTemplateData) => {
-      const n = Array.isArray(data.actions) ? data.actions.length : 0;
-      const cohort = str(data, "cohort_name");
-      const firstName = str(data, "first_name", "there");
-      return `Hi ${firstName} - Your next action${n === 1 ? " is" : "s are"} ready${cohort ? ` — ${cohort}` : ""}`;
+      const parts = [str(data, "company_name"), str(data, "batch_name"), str(data, "module_name")].filter(Boolean);
+      return `Your actions are ready${parts.length ? ` — ${parts.join(" — ")}` : ""}`;
     },
     render: renderDailyReminderHtml,
   },

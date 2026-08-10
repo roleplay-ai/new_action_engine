@@ -191,9 +191,11 @@ export async function buildWeeklyEmailTemplateDataForUser(
   const streak = ((prof as any)?.streak ?? 0) as number;
 
   let companyName: string | undefined = undefined;
+  let companyLogo: string | undefined = undefined;
   if (companyId) {
-    const { data: c } = await admin.from("companies").select("name").eq("id", companyId).single();
+    const { data: c } = await admin.from("companies").select("name, logo_url").eq("id", companyId).single();
     companyName = (c as any)?.name as string | undefined;
+    companyLogo = (c as any)?.logo_url as string | undefined;
   }
 
   let rank: number | string = "—";
@@ -209,7 +211,11 @@ export async function buildWeeklyEmailTemplateDataForUser(
   const actions = await getAvailableActionsForUser(userId, 3);
 
   return {
-    company_logo: companyLogoUrl ?? `${baseUrl}/icon.png`,
+    // No generic app-icon fallback here: leaving this unset when a company
+    // has no logo of its own lets each template render the company name as
+    // plain text instead of a placeholder image (see headerHtml in
+    // lib/email-templates.ts).
+    company_logo: companyLogoUrl ?? companyLogo,
     company_name: companyName,
     first_name: firstName,
     actions,

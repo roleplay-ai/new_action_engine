@@ -174,7 +174,7 @@ export async function GET(request: Request) {
         sentBy: null, // automated, no human sender
         includeStoredCredentials: schedule.template_id === "credentials",
         getPerUserTemplateData:
-          schedule.template_id === "weekly_challenges"
+          schedule.template_id === "weekly_challenges" || schedule.template_id === "credentials"
             ? async (userId) => {
                 const data = await buildWeeklyEmailTemplateDataForUser(userId, { baseUrl });
                 return data as unknown as Record<string, unknown>;

@@ -57,6 +57,10 @@ export type UpcomingActionReminder = {
   fullName: string | null;
   cohortId: string;
   cohortName: string;
+  batchName: string | null;
+  moduleName: string | null;
+  companyName: string | null;
+  companyLogo: string | null;
   track: "daily" | "weekly";
   scheduleLabel: string;
   reminderDate: string;
@@ -180,7 +184,7 @@ async function loadUpcomingActionReminders(): Promise<{
       .from("profiles")
       .select("id, full_name, persistent_login_key")
       .in("id", userIds),
-    admin.from("cohorts").select("id, name").in("id", cohortIds),
+    admin.from("cohorts").select("id, name, batch_name, module_name, company_id").in("id", cohortIds),
     admin
       .from("user_actions")
       .select("user_id, cohort_id, action_id")
@@ -202,6 +206,18 @@ async function loadUpcomingActionReminders(): Promise<{
         .in("id", actionIds)
     : { data: [], error: null };
   if (actionsError) return { error: actionsError.message };
+
+  const companyIds = [
+    ...new Set((cohorts ?? []).map((cohort) => cohort.company_id).filter((id): id is string => !!id)),
+  ];
+  const { data: companyRows, error: companiesError } = companyIds.length
+    ? await admin.from("companies").select("id, name, logo_url").in("id", companyIds)
+    : { data: [] as { id: string; name: string; logo_url: string | null }[], error: null };
+  if (companiesError) return { error: companiesError.message };
+  const companyMap = new Map((companyRows ?? []).map((company) => [company.id, company]));
+  const companyByCohortId = new Map(
+    (cohorts ?? []).map((cohort) => [cohort.id, cohort.company_id ? companyMap.get(cohort.company_id) ?? null : null])
+  );
 
   const authUsers = new Map<string, string>();
   let page = 1;
@@ -228,6 +244,12 @@ async function loadUpcomingActionReminders(): Promise<{
   );
   const cohortMap = new Map(
     (cohorts ?? []).map((cohort) => [cohort.id, cohort.name as string])
+  );
+  const cohortBatchModuleMap = new Map(
+    (cohorts ?? []).map((cohort) => [
+      cohort.id,
+      { batchName: cohort.batch_name as string | null, moduleName: cohort.module_name as string | null },
+    ])
   );
   const actionMap = new Map(
     (actionRows ?? []).map((action) => [
@@ -297,6 +319,10 @@ async function loadUpcomingActionReminders(): Promise<{
         cohortId: subscription.cohort_id,
         cohortName:
           cohortMap.get(subscription.cohort_id) ?? "Unknown cohort",
+        batchName: cohortBatchModuleMap.get(subscription.cohort_id)?.batchName ?? null,
+        moduleName: cohortBatchModuleMap.get(subscription.cohort_id)?.moduleName ?? null,
+        companyName: companyByCohortId.get(subscription.cohort_id)?.name ?? null,
+        companyLogo: companyByCohortId.get(subscription.cohort_id)?.logo_url ?? null,
         track: subscription.track,
         scheduleLabel: getScheduleLabel(subscription),
         ...occurrence,
@@ -403,6 +429,10 @@ export async function bulkSendUpcomingActionReminders(
             const walletSummary = await fetchWalletEmailSummary(admin, reminder.userId, reminder.cohortId);
             return {
               cohort_name: reminder.cohortName,
+              batch_name: reminder.batchName ?? undefined,
+              module_name: reminder.moduleName ?? undefined,
+              company_name: reminder.companyName ?? undefined,
+              company_logo: reminder.companyLogo ?? undefined,
               reminder_schedule: reminder.scheduleLabel,
               actions: reminder.actions.map((action) => ({
                 theme: action.theme,

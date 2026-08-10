@@ -363,7 +363,7 @@ export async function bulkRunEmailSchedulesNow(
           sentBy: null,
           includeStoredCredentials: schedule.template_id === "credentials",
           getPerUserTemplateData:
-            schedule.template_id === "weekly_challenges"
+            schedule.template_id === "weekly_challenges" || schedule.template_id === "credentials"
               ? async (userId) => {
                   const data = await buildWeeklyEmailTemplateDataForUser(userId, {
                     baseUrl,

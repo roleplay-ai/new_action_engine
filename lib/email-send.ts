@@ -9,8 +9,6 @@ import { resend } from "@/lib/resend";
 import { isEmailTemplateKey, renderEmailTemplate, type EmailTemplateKey } from "@/lib/email-templates";
 
 const NUDGEABLE_APP_URL = "https://practice.nudgeable.ai";
-const NUDGEABLE_EMAIL_ICON_URL =
-  "https://practice.nudgeable.ai/icon.png";
 
 /**
  * Builds a Resend "From" header showing a display name in front of the
@@ -238,12 +236,6 @@ export async function sendTemplateToUsers({
         ...cleanedExtra,
         ...cleanedPerUser,
       };
-      // Reminder-specific data used to overwrite this with the protected
-      // testing-domain icon URL. Keep the publicly loadable brand asset last.
-      if (templateKey === "credentials" || templateKey === "daily_reminder") {
-        dynamicTemplateData.company_logo = NUDGEABLE_EMAIL_ICON_URL;
-        dynamicTemplateData.brand_icon = NUDGEABLE_EMAIL_ICON_URL;
-      }
       if (includeStoredCredentials && cred) {
         dynamicTemplateData.login_email = cred.email;
         dynamicTemplateData.temporary_password = cred.plaintext_password;

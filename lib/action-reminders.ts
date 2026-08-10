@@ -182,9 +182,17 @@ export async function sendDailyActionReminders(
       .eq("status", "scheduled"),
     admin
       .from("cohorts")
-      .select("id, name")
+      .select("id, name, batch_name, module_name, company_id")
       .in("id", cohortIds),
   ]);
+
+  const companyIds = [...new Set((cohorts ?? []).map((cohort) => cohort.company_id).filter((id): id is string => !!id))];
+  const { data: companies } = companyIds.length
+    ? await admin.from("companies").select("id, name, logo_url").in("id", companyIds)
+    : { data: [] as { id: string; name: string; logo_url: string | null }[] };
+  const companyByCohortId = new Map(
+    (cohorts ?? []).map((cohort) => [cohort.id, companies?.find((company) => company.id === cohort.company_id) ?? null])
+  );
 
   const actionIdsBySubscription = new Map<string, string[]>();
   for (const userAction of userActions ?? []) {
@@ -217,6 +225,9 @@ export async function sendDailyActionReminders(
     ])
   );
   const cohortNameMap = new Map((cohorts ?? []).map((cohort) => [cohort.id, cohort.name]));
+  const cohortBatchModuleMap = new Map(
+    (cohorts ?? []).map((cohort) => [cohort.id, { batchName: cohort.batch_name as string | null, moduleName: cohort.module_name as string | null }])
+  );
 
   const claimed: Array<{
     claimId: string;
@@ -224,6 +235,10 @@ export async function sendDailyActionReminders(
     actions: ReminderAction[];
     scheduledFor: string;
     cohortName: string;
+    batchName?: string;
+    moduleName?: string;
+    companyName?: string;
+    companyLogo?: string;
   }> = [];
 
   for (const due of dueSubscriptions) {
@@ -262,11 +277,17 @@ export async function sendDailyActionReminders(
       continue;
     }
 
+    const company = companyByCohortId.get(due.sub.cohort_id);
+    const batchModule = cohortBatchModuleMap.get(due.sub.cohort_id);
     claimed.push({
       claimId: String(claimId),
       ...due,
       actions,
       cohortName: cohortNameMap.get(due.sub.cohort_id) ?? "Your cohort",
+      batchName: batchModule?.batchName ?? undefined,
+      moduleName: batchModule?.moduleName ?? undefined,
+      companyName: company?.name ?? undefined,
+      companyLogo: company?.logo_url ?? undefined,
     });
   }
 
@@ -288,6 +309,10 @@ export async function sendDailyActionReminders(
 
       return {
         cohort_name: item?.cohortName,
+        batch_name: item?.batchName,
+        module_name: item?.moduleName,
+        company_name: item?.companyName,
+        company_logo: item?.companyLogo,
         reminder_schedule: item
           ? reminderScheduleLabel(item.sub)
           : undefined,

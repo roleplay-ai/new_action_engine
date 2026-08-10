@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isResendConfigured } from "@/lib/resend";
 import { sendTemplateToUsers } from "@/lib/email-send";
+import { buildWeeklyEmailTemplateDataForUser } from "@/lib/weekly-email";
 
 const SUPERADMIN_EMAIL = (process.env.SUPERADMIN_EMAIL || "admin@actionengine").toLowerCase();
 
@@ -92,6 +93,10 @@ export async function sendWelcomeEmails(
       sentBy: sentById,
       includeStoredCredentials: true,
       loginPath: "/journey",
+      getPerUserTemplateData: async (userId) => {
+        const data = await buildWeeklyEmailTemplateDataForUser(userId, { baseUrl });
+        return data as unknown as Record<string, unknown>;
+      },
     });
 
     revalidatePath("/superadmin/emails");

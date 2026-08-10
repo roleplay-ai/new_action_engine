@@ -30,7 +30,7 @@ const RCPL_PHASES: RcplPhase[] = [
     window: "Month 1 · 18 to 19 Aug",
     title: "Phase 1 agenda",
     subtitle: "Module 1 · Leading Business & Leading Future",
-    focus: "Leading Business & Future",
+    focus: "Leading Business & Leading Future",
     summary: "Build strategic perspective, business acumen, and confidence for the future. Followed by two months of application and teachbacks.",
     days: [
       {
@@ -253,7 +253,7 @@ export default function RcplWorkspace({
               <animateMotion dur="5.5s" begin="1.9s" repeatCount="indefinite" path="M22 228 C 100 228, 100 172, 178 172 S 256 116, 334 116 L 390 78" />
               <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.85;1" dur="5.5s" begin="1.9s" repeatCount="indefinite" />
             </circle>
-            <g><circle cx="22" cy="228" r="9" /><text x="4" y="202">Leading Business</text><text x="4" y="216">&amp; Future</text><text className="month" x="4" y="252">MONTH 1</text></g>
+            <g><circle cx="22" cy="228" r="9" /><text x="4" y="202">Leading Business</text><text x="4" y="216">&amp;   Leading Future</text><text className="month" x="4" y="252">MONTH 1</text></g>
             <g><circle cx="178" cy="172" r="9" /><text x="152" y="148">Leading Self</text><text className="month" x="152" y="161">MONTH 3</text></g>
             <g><circle cx="334" cy="116" r="9" /><text x="300" y="146">Leading Others</text><text className="month" x="300" y="133">MONTH 5</text></g>
           </svg>

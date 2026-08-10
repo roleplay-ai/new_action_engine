@@ -336,7 +336,7 @@ export default function RcplWorkspace({
             </div>
           </section>
 
-          <NoticeBoardCard notices={notices} trainer={cohort.trainer ?? null} variant="rcpl" />
+
 
           <section className="rcpl-card rcpl-library" id="preparation">
             <header>
@@ -363,6 +363,7 @@ export default function RcplWorkspace({
               })}
             </div>
           </section>
+          <NoticeBoardCard notices={notices} trainer={cohort.trainer ?? null} variant="rcpl" />
         </main>
 
         <aside className="rcpl-side-rail">
@@ -384,7 +385,7 @@ export default function RcplWorkspace({
             </div>
           </section>
 
-          <CohortChat cohortId={cohort.id} variant="rcpl" />
+
 
           <section className="rcpl-card rcpl-buddy-card">
             <header>
@@ -395,6 +396,7 @@ export default function RcplWorkspace({
           </section>
 
           <FacilitatorsCard facilitators={facilitators} variant="rcpl" />
+          <CohortChat cohortId={cohort.id} variant="rcpl" />
 
         </aside>
       </div>

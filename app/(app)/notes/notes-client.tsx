@@ -223,7 +223,7 @@ const NotesClient = forwardRef<NotesClientHandle, {
             <div className="my-plan-details-grid">
               <label><span>Name</span><input value={answers.name} onChange={(event) => updateAnswer("name", event.target.value)} placeholder="Your name" maxLength={200} disabled={busy} /></label>
               <label><span>Designation</span><input value={answers.designation} onChange={(event) => updateAnswer("designation", event.target.value)} placeholder="e.g. Team Lead" maxLength={200} disabled={busy} /></label>
-              <label><span>Team</span><input value={answers.team} onChange={(event) => updateAnswer("team", event.target.value)} placeholder="e.g. Customer Success" maxLength={200} disabled={busy} /></label>
+              <label><span>Function</span><input value={answers.team} onChange={(event) => updateAnswer("team", event.target.value)} placeholder="e.g. Customer Success" maxLength={200} disabled={busy} /></label>
             </div>
           </div>
 

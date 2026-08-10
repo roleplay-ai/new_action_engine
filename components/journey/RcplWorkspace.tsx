@@ -319,7 +319,7 @@ export default function RcplWorkspace({
 
         <aside className="rcpl-side-rail">
           <section className="rcpl-card rcpl-participants">
-            <header><h3>Participants</h3></header>
+            <header><h3>Your batch</h3></header>
             <div>
               {roster.map((member, index) => <div className="rcpl-participant" key={member.id}><b style={{ background: ["#1D3C66", "#B8862B", "#D03A2C", "#2E9E63", "#7A5CC9"][index % 5] }}>{initials(member.fullName)}</b><span><strong>{member.fullName || "Participant"}</strong><small>{member.email || "—"}</small></span></div>)}
               {roster.length === 0 && <p className="rcpl-no-results">No participants found.</p>}

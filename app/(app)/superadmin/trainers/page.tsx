@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { listTrainers } from "@/app/actions/trainers";
+import { listTrainersWithLoginStatus } from "@/app/actions/trainers";
 import CreateTrainerForm from "./create-trainer-form";
 import TrainersList from "./trainers-list";
 import { UserRound } from "lucide-react";
@@ -18,19 +18,19 @@ export default async function TrainersPage() {
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
   if (profile?.role !== "superadmin" && !isSuperadminEmail) redirect("/");
 
-  const { trainers } = await listTrainers();
+  const { trainers } = await listTrainersWithLoginStatus();
   const trainerList = trainers ?? [];
 
   return (
     <div className="superadmin-page">
       <div className="superadmin-page-heading">
-        <div><h1>Trainers</h1><p>Build the trainer roster, then assign one to each cohort from Cohort Management.</p></div>
+        <div><h1>Trainers</h1><p>Build the trainer roster, assign one to each cohort from Cohort Management, then give them a login below.</p></div>
         <CreateTrainerForm />
       </div>
 
       <section className="superadmin-surface">
         <div className="superadmin-section-heading">
-          <div><h2>Trainer roster</h2><p>Name and photo shown to participants on their Base Camp page.</p></div>
+          <div><h2>Trainer roster</h2><p>Name, photo and login shown to participants and used to sign in at /login.</p></div>
           <span>{trainerList.length} trainers</span>
         </div>
         {trainerList.length > 0 ? (

@@ -1,0 +1,29 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { TrainerSidebar } from "@/components/trainer/TrainerSidebar";
+
+export default async function TrainerLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).single();
+  if (profile?.role !== "trainer") redirect("/");
+
+  const displayName = profile?.full_name?.trim() || user.email?.split("@")[0] || "Trainer";
+
+  return (
+    <div className="h-screen flex overflow-hidden" style={{ background: "var(--color-bg-base)" }}>
+      <TrainerSidebar displayName={displayName} />
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative">{children}</main>
+      </div>
+    </div>
+  );
+}

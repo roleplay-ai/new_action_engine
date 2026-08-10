@@ -12,7 +12,8 @@ import PrereadCard from "@/components/prepare/PrereadCard";
 import PdfReader from "@/components/prepare/PdfReader";
 import QuizCard from "@/components/prepare/QuizCard";
 import CohortChat from "@/components/journey/CohortChat";
-import TrainerExpectationCard from "@/components/journey/TrainerExpectationCard";
+import NoticeBoardCard from "@/components/journey/NoticeBoardCard";
+import FacilitatorsCard from "@/components/journey/FacilitatorsCard";
 import RcplWorkspace from "@/components/journey/RcplWorkspace";
 import { usePageLoading } from "@/components/PageLoadingProvider";
 import type { JourneyData, PrepareContentItem, UserPrepareProgress } from "@/lib/types";
@@ -96,7 +97,8 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
   const [progress, setProgress] = useState<Record<string, UserPrepareProgress>>(
     Object.fromEntries(initialData.progress.map((item) => [item.contentItemId, item]))
   );
-  const [trainerMessages, setTrainerMessages] = useState(initialData.trainerMessages);
+  const [notices, setNotices] = useState(initialData.notices);
+  const [facilitators, setFacilitators] = useState(initialData.facilitators);
   const [selectedItem, setSelectedItem] = useState<PrepareContentItem | null>(null);
 
   usePageLoading(false);
@@ -108,7 +110,8 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
     setRoster(result.roster);
     setItems(result.items);
     setProgress(Object.fromEntries(result.progress.map((item) => [item.contentItemId, item])));
-    setTrainerMessages(result.trainerMessages);
+    setNotices(result.notices);
+    setFacilitators(result.facilitators);
   }, []);
 
   useEffect(() => {
@@ -198,7 +201,8 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
         nextHref={nextHref}
         nextIncompleteItem={nextIncompleteItem}
         onOpenResource={setSelectedItem}
-        trainerMessages={trainerMessages}
+        notices={notices}
+        facilitators={facilitators}
       />
       {quizModal}
       {resourceModal}
@@ -306,11 +310,7 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
             </div>
           </article>
 
-          <TrainerExpectationCard
-            cohortId={cohort.id}
-            trainer={cohort.trainer ?? null}
-            initialMessages={trainerMessages}
-          />
+          <NoticeBoardCard notices={notices} trainer={cohort.trainer ?? null} />
 
           <CohortChat cohortId={cohort.id} />
         </section>
@@ -335,6 +335,8 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
               {roster.length > visibleRoster.length && <small>+{roster.length - visibleRoster.length} others</small>}
             </div>
           </article>
+
+          <FacilitatorsCard facilitators={facilitators} />
         </aside>
 
       </div>

@@ -83,10 +83,21 @@ export async function deleteParticipantTag(id: string): Promise<{ error?: string
 }
 
 /** Assign (or clear, with tagId null) a participant's tag for one specific
- * cohort membership. Superadmin only. */
+ * cohort membership. Superadmin, or the cohort's own trainer (matches the
+ * "Trainer update cohort_members" RLS policy). */
 export async function assignMemberTag(cohortId: string, userId: string, tagId: string | null): Promise<{ error?: string }> {
   try {
-    const { supabase } = await ensureSuperadmin();
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "Not authenticated" };
+
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "superadmin" && profile?.role !== "trainer") {
+      throw new Error("Forbidden: superadmin or trainer only");
+    }
+
     const { error } = await supabase
       .from("cohort_members")
       .update({ tag_id: tagId })
@@ -96,6 +107,7 @@ export async function assignMemberTag(cohortId: string, userId: string, tagId: s
 
     revalidatePath("/admin");
     revalidatePath("/journey");
+    revalidatePath("/trainer/members");
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed" };

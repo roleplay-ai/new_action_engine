@@ -611,6 +611,16 @@ export async function getMyCohorts(): Promise<{
         .eq("company_id", profile.company_id)
         .order("created_at", { ascending: false });
       orderedIds = (managed ?? []).map((cohort) => cohort.id);
+    } else if (profile.role === "trainer") {
+      const { data: trainerRow } = await admin.from("trainers").select("id").eq("user_id", user.id).maybeSingle();
+      if (trainerRow) {
+        const { data: run } = await admin
+          .from("cohorts")
+          .select("id")
+          .eq("trainer_id", trainerRow.id)
+          .order("created_at", { ascending: false });
+        orderedIds = (run ?? []).map((cohort) => cohort.id);
+      }
     } else {
       const { data: managed } = await admin
         .from("cohorts")

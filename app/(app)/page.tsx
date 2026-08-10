@@ -21,6 +21,7 @@ export default async function HomePage() {
   const effectiveRole = profile?.role === "superadmin" || isSuperadminEmail ? "superadmin" : profile?.role;
   if (effectiveRole === "superadmin") redirect("/superadmin");
   if (effectiveRole === "admin") redirect("/admin");
+  if (effectiveRole === "trainer") redirect("/trainer");
 
   redirect("/journey");
 }

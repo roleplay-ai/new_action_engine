@@ -126,24 +126,28 @@ export interface CohortDate {
   date: string;
 }
 
-/** One private message a participant sent their trainer ("what do you want
- * from this session?") — an append-only log, admin/superadmin-facing shape
- * with the sender's name attached. */
-export interface TrainerExpectation {
+/** A dated notice the trainer (or an admin standing in) posts to a cohort's
+ * notice board — replaces the old participant -> trainer TrainerExpectation. */
+export interface CohortNotice {
   id: string;
   cohortId: string;
-  userId: string;
-  userName: string;
   message: string;
   createdAt: string;
+  authorName: string;
+  /** The posting trainer's roster photo, if the author is logged in as the
+   * cohort's trainer (null for an admin/superadmin standing in). */
+  authorImageUrl?: string | null;
 }
 
-/** The same message, from the sending participant's own point of view — no
- * userName needed since it's always "you". */
-export interface TrainerExpectationMessage {
+/** A cohort-specific facilitator: name, designation, and an optional PDF
+ * participants can view. Not a reusable roster like Trainer — entered per cohort. */
+export interface Facilitator {
   id: string;
-  message: string;
-  createdAt: string;
+  cohortId: string;
+  name: string;
+  designation: string;
+  pdfUrl?: string | null;
+  pdfName?: string | null;
 }
 
 export interface CompanyBrand {
@@ -184,7 +188,8 @@ export interface JourneyData {
   roster: CohortMember[];
   items: PrepareContentItem[];
   progress: UserPrepareProgress[];
-  trainerMessages: TrainerExpectationMessage[];
+  notices: CohortNotice[];
+  facilitators: Facilitator[];
 }
 
 export type PrepareContentType = 'video' | 'quiz' | 'preread';

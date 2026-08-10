@@ -6,9 +6,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, CalendarDays, Check, FileText, Play, X } from "lucide-react";
 import CohortChat from "@/components/journey/CohortChat";
-import TrainerExpectationCard from "@/components/journey/TrainerExpectationCard";
+import NoticeBoardCard from "@/components/journey/NoticeBoardCard";
+import FacilitatorsCard from "@/components/journey/FacilitatorsCard";
 import FlipCountdown from "@/components/journey/FlipCountdown";
-import type { Cohort, CohortMember, PrepareContentItem, TrainerExpectationMessage, UserPrepareProgress } from "@/lib/types";
+import type { Cohort, CohortMember, CohortNotice, Facilitator, PrepareContentItem, UserPrepareProgress } from "@/lib/types";
 import { resolveVideoEmbed, resolveVideoThumbnail } from "@/lib/video-embed";
 import { daysUntil, nextUpcomingCohortDate } from "@/lib/cohort-dates";
 
@@ -181,7 +182,8 @@ type RcplWorkspaceProps = {
   nextHref: string | null;
   nextIncompleteItem: PrepareContentItem | null;
   onOpenResource: (item: PrepareContentItem) => void;
-  trainerMessages: TrainerExpectationMessage[];
+  notices: CohortNotice[];
+  facilitators: Facilitator[];
 };
 
 export default function RcplWorkspace({
@@ -196,7 +198,8 @@ export default function RcplWorkspace({
   nextHref,
   nextIncompleteItem,
   onOpenResource,
-  trainerMessages,
+  notices,
+  facilitators,
 }: RcplWorkspaceProps) {
   const searchParams = useSearchParams();
   const phaseId = searchParams.get("phase") ?? "1";
@@ -333,12 +336,7 @@ export default function RcplWorkspace({
             </div>
           </section>
 
-          <TrainerExpectationCard
-            cohortId={cohort.id}
-            trainer={cohort.trainer ?? null}
-            initialMessages={trainerMessages}
-            variant="rcpl"
-          />
+          <NoticeBoardCard notices={notices} trainer={cohort.trainer ?? null} variant="rcpl" />
 
           <section className="rcpl-card rcpl-library" id="preparation">
             <header>
@@ -395,6 +393,8 @@ export default function RcplWorkspace({
             </header>
             <p>Buddies are revealed on My Actions after your personal action plan goes live.</p>
           </section>
+
+          <FacilitatorsCard facilitators={facilitators} variant="rcpl" />
 
         </aside>
       </div>

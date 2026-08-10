@@ -9,9 +9,11 @@ import {
   CalendarDays,
   Check,
   ChevronRight,
+  FileText,
   Info,
   ImagePlus,
   Loader2,
+  Megaphone,
   MessageSquareText,
   NotebookPen,
   Pencil,
@@ -46,9 +48,11 @@ import {
   removeContentFromCohort,
 } from "@/app/actions/prepare-content";
 import { listTrainers } from "@/app/actions/trainers";
-import { getTrainerExpectationsForCohort } from "@/app/actions/trainer-expectations";
+import { getCohortNotices, postCohortNotice, deleteCohortNotice } from "@/app/actions/cohort-notices";
+import { createFacilitator, deleteFacilitator, listFacilitators } from "@/app/actions/facilitators";
 import { assignMemberTag, createParticipantTag, listParticipantTags } from "@/app/actions/participant-tags";
-import type { CohortDate, CohortMember, CompanyBrand, ParticipantTag, PrepareContentItem, Trainer, TrainerExpectation } from "@/lib/types";
+import { FacilitatorPdfUploadField } from "@/components/admin/content/FacilitatorPdfUploadField";
+import type { CohortDate, CohortMember, CohortNotice, CompanyBrand, Facilitator, ParticipantTag, PrepareContentItem, Trainer } from "@/lib/types";
 
 interface CohortManagementViewProps {
   companyId: string | null;
@@ -508,8 +512,13 @@ function CohortDetailPanel({
   const [businessContext, setBusinessContext] = useState(cohort.businessContext ?? "");
   const [trainerRoster, setTrainerRoster] = useState<Trainer[]>([]);
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>(cohort.trainerId ?? "");
-  const [expectations, setExpectations] = useState<TrainerExpectation[]>([]);
-  const [answeredMembers, setAnsweredMembers] = useState(0);
+  const [notices, setNotices] = useState<CohortNotice[]>([]);
+  const [noticeDraft, setNoticeDraft] = useState("");
+  const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
+  const [facilitatorName, setFacilitatorName] = useState("");
+  const [facilitatorDesignation, setFacilitatorDesignation] = useState("");
+  const [facilitatorPdfUrl, setFacilitatorPdfUrl] = useState("");
+  const [facilitatorPdfName, setFacilitatorPdfName] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -518,17 +527,18 @@ function CohortDetailPanel({
     setLoading(true);
     setError(null);
     try {
-      const [detailResult, usersResult, contentResult, libraryResult, trainersResult, expectationsResult, tagsResult, datesResult] = await Promise.all([
+      const [detailResult, usersResult, contentResult, libraryResult, trainersResult, noticesResult, facilitatorsResult, tagsResult, datesResult] = await Promise.all([
         getCohortDetail(cohort.id),
         getCompanyUsers(companyId),
         listCohortContent(cohort.id),
         listActiveLibraryItems(),
         role === "superadmin" ? listTrainers() : Promise.resolve({ trainers: [] as Trainer[], error: undefined as string | undefined }),
-        getTrainerExpectationsForCohort(cohort.id),
+        getCohortNotices(cohort.id),
+        listFacilitators(cohort.id),
         listParticipantTags(),
         listCohortDates(cohort.id),
       ]);
-      const firstError = detailResult.error || usersResult.error || contentResult.error || libraryResult.error || trainersResult.error || expectationsResult.error || tagsResult.error || datesResult.error;
+      const firstError = detailResult.error || usersResult.error || contentResult.error || libraryResult.error || trainersResult.error || noticesResult.error || facilitatorsResult.error || tagsResult.error || datesResult.error;
       if (firstError) setError(firstError);
       setMembers(detailResult.members ?? []);
       setMemberIds(new Set((detailResult.members ?? []).map((member) => member.id)));
@@ -539,8 +549,8 @@ function CohortDetailPanel({
       setLibraryItems(libraryResult.items ?? []);
       setTrainerRoster(trainersResult.trainers ?? []);
       setSelectedTrainerId(detailResult.cohort?.trainerId ?? "");
-      setExpectations(expectationsResult.expectations ?? []);
-      setAnsweredMembers(expectationsResult.answeredMembers ?? 0);
+      setNotices(noticesResult.notices ?? []);
+      setFacilitators(facilitatorsResult.facilitators ?? []);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load cohort details");
     } finally {
@@ -629,6 +639,40 @@ function CohortDetailPanel({
 
   async function handleAssignTrainer() {
     await runMutation("assign-trainer", () => updateCohort(cohort.id, { trainerId: selectedTrainerId || null }));
+  }
+
+  async function handlePostNotice() {
+    if (!noticeDraft.trim() || busyAction) return;
+    await runMutation(
+      "post-notice",
+      async () => {
+        const result = await postCohortNotice(cohort.id, noticeDraft);
+        return { error: result.error };
+      },
+      () => setNoticeDraft("")
+    );
+  }
+
+  async function handleAddFacilitator() {
+    if (!facilitatorName.trim() || !facilitatorDesignation.trim() || busyAction) return;
+    await runMutation(
+      "add-facilitator",
+      async () => {
+        const result = await createFacilitator(cohort.id, {
+          name: facilitatorName,
+          designation: facilitatorDesignation,
+          pdfUrl: facilitatorPdfUrl || null,
+          pdfName: facilitatorPdfName || null,
+        });
+        return { error: result.error };
+      },
+      () => {
+        setFacilitatorName("");
+        setFacilitatorDesignation("");
+        setFacilitatorPdfUrl("");
+        setFacilitatorPdfName("");
+      }
+    );
   }
 
   function startEditingNames() {
@@ -807,7 +851,7 @@ function CohortDetailPanel({
           <BookOpen size={16} /> Learning content <span>{assignedItems.length}</span>
         </button>
         <button type="button" role="tab" aria-selected={tab === "trainer"} onClick={() => setTab("trainer")} className={tab === "trainer" ? "is-active" : ""}>
-          <UserRound size={16} /> Trainer <span>{expectations.length}</span>
+          <UserRound size={16} /> Trainer <span>{notices.length}</span>
         </button>
         {role === "superadmin" && (
           <button type="button" role="tab" aria-selected={tab === "generation"} onClick={() => setTab("generation")} className={tab === "generation" ? "is-active" : ""}>
@@ -1026,21 +1070,112 @@ function CohortDetailPanel({
 
           <section className="cohort-admin-panel">
             <div className="cohort-admin-panel-head">
-              <div><h3>Messages to trainer</h3><p>{answeredMembers} of the cohort have sent their one-time note from Base Camp.</p></div>
-              <span>{answeredMembers}/{cohort.memberCount}</span>
+              <div><h3>Notice board</h3><p>Dated notices shown to the whole cohort on Base Camp. Normally posted by the trainer once they're logged in.</p></div>
+              <span>{notices.length}</span>
             </div>
-            {expectations.length === 0 ? (
-              <div className="cohort-admin-mini-empty"><MessageSquareText size={20} /><strong>No messages yet</strong><span>Messages appear here once participants share what they want from the session.</span></div>
+            <div className="cohort-admin-tag-creator">
+              <input
+                value={noticeDraft}
+                onChange={(event) => setNoticeDraft(event.target.value)}
+                placeholder="Post a notice on the trainer's behalf"
+                aria-label="New notice"
+                maxLength={2000}
+                disabled={Boolean(busyAction)}
+              />
+              <button
+                type="button"
+                onClick={() => void handlePostNotice()}
+                disabled={Boolean(busyAction) || !noticeDraft.trim()}
+                className="cohort-admin-button cohort-admin-button--secondary"
+              >
+                {busyAction === "post-notice" ? <Loader2 size={14} className="cohort-admin-spin" /> : <Megaphone size={14} />}
+                Post
+              </button>
+            </div>
+            {notices.length === 0 ? (
+              <div className="cohort-admin-mini-empty"><MessageSquareText size={20} /><strong>No notices yet</strong><span>Notices posted here appear on every participant's Base Camp page, with the date.</span></div>
             ) : (
               <div className="cohort-admin-people-list">
-                {expectations.map((expectation) => (
-                  <div key={expectation.id} className="cohort-admin-expectation-row">
-                    <span className="cohort-admin-avatar">{initials(expectation.userName)}</span>
+                {notices.map((notice) => (
+                  <div key={notice.id} className="cohort-admin-expectation-row">
+                    <span className="cohort-admin-avatar">{initials(notice.authorName)}</span>
                     <div>
-                      <strong>{expectation.userName}</strong>
-                      <p>{expectation.message}</p>
-                      <small>{formatStartDate(expectation.createdAt.slice(0, 10))}</small>
+                      <strong>{notice.authorName}</strong>
+                      <p>{notice.message}</p>
+                      <small>{formatStartDate(notice.createdAt.slice(0, 10))}</small>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => void runMutation(`delete-notice:${notice.id}`, () => deleteCohortNotice(notice.id))}
+                      disabled={Boolean(busyAction)}
+                      aria-label="Remove notice"
+                      title="Remove notice"
+                    >
+                      {busyAction === `delete-notice:${notice.id}` ? <Loader2 size={15} className="cohort-admin-spin" /> : <X size={15} />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head">
+              <div><h3>Facilitators</h3><p>Name, designation and an optional PDF, shown to participants for this cohort only.</p></div>
+              <span>{facilitators.length}</span>
+            </div>
+            {role === "superadmin" && (
+              <div className="cohort-admin-context-form">
+                <label className="cohort-admin-field">
+                  <span>Name</span>
+                  <input value={facilitatorName} onChange={(event) => setFacilitatorName(event.target.value)} placeholder="Facilitator name" disabled={Boolean(busyAction)} />
+                </label>
+                <label className="cohort-admin-field">
+                  <span>Designation</span>
+                  <input value={facilitatorDesignation} onChange={(event) => setFacilitatorDesignation(event.target.value)} placeholder="e.g. Lead Facilitator, RCPL" disabled={Boolean(busyAction)} />
+                </label>
+                <FacilitatorPdfUploadField
+                  cohortId={cohort.id}
+                  onUploaded={(pdfUrl, pdfName) => {
+                    setFacilitatorPdfUrl(pdfUrl);
+                    setFacilitatorPdfName(pdfName);
+                  }}
+                  disabled={Boolean(busyAction)}
+                  label={facilitatorPdfName || "Upload PDF (optional)"}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleAddFacilitator()}
+                  disabled={Boolean(busyAction) || !facilitatorName.trim() || !facilitatorDesignation.trim()}
+                  className="cohort-admin-button cohort-admin-button--primary"
+                >
+                  {busyAction === "add-facilitator" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Plus size={15} />}
+                  Add facilitator
+                </button>
+              </div>
+            )}
+            {facilitators.length === 0 ? (
+              <div className="cohort-admin-mini-empty"><UserRound size={20} /><strong>No facilitators added</strong><span>Add facilitators running this specific cohort.</span></div>
+            ) : (
+              <div className="cohort-admin-people-list">
+                {facilitators.map((facilitator) => (
+                  <div key={facilitator.id} className="cohort-admin-person">
+                    <span className="cohort-admin-avatar">{initials(facilitator.name)}</span>
+                    <div><strong>{facilitator.name}</strong><span>{facilitator.designation}</span></div>
+                    {facilitator.pdfUrl && (
+                      <a href={facilitator.pdfUrl} target="_blank" rel="noreferrer" className="cohort-admin-button cohort-admin-button--secondary">
+                        <FileText size={14} /> View PDF
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void runMutation(`remove-facilitator:${facilitator.id}`, () => deleteFacilitator(cohort.id, facilitator.id))}
+                      disabled={Boolean(busyAction)}
+                      aria-label={`Remove ${facilitator.name}`}
+                      title="Remove facilitator"
+                    >
+                      {busyAction === `remove-facilitator:${facilitator.id}` ? <Loader2 size={15} className="cohort-admin-spin" /> : <X size={15} />}
+                    </button>
                   </div>
                 ))}
               </div>

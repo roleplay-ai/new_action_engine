@@ -6904,6 +6904,59 @@ input[type="range"] {
   font-size: 9px;
 }
 
+.rcpl-facilitators-card > div {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.rcpl-facilitator-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rcpl-facilitator-row > span {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.rcpl-facilitator-row strong {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rcpl-facilitator-row small {
+  color: var(--rcpl-muted);
+  font-size: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rcpl-facilitator-pdf-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 999px;
+  background: var(--rcpl-gold, #FFCE00);
+  color: var(--rcpl-navy-900, #1D3C66);
+  font-family: inherit;
+  font-size: 9.5px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
 .rcpl-no-results {
   margin: 0;
   color: var(--rcpl-muted);
@@ -11681,6 +11734,14 @@ input[type="range"] {
 .journey-chat-message.trainer .journey-chat-avatar {
   color: #176bb5;
   background: #eaf5ff;
+}
+
+.journey-chat-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  display: block;
 }
 
 .journey-chat-copy {
@@ -16617,4 +16678,521 @@ textarea.commitment-buddy-contact-selectable {
   .login-page *::after {
     transition: none !important;
   }
+}
+
+/* ── Facilitators card (participant-facing, Base Camp) ───────────────────── */
+
+.journey-facilitators-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.journey-facilitator-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(34, 29, 35, 0.03);
+}
+
+.journey-facilitator-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.journey-facilitator-copy strong {
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.journey-facilitator-copy small {
+  font-size: 10.5px;
+  color: var(--color-text-muted);
+}
+
+.journey-facilitator-pdf-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 999px;
+  background: var(--bright-amber);
+  color: var(--shadow-grey);
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* ── Notice board list (participant-facing, Base Camp) ────────────────────── */
+
+.journey-notice-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+
+.journey-notice-item {
+  padding: 7px 0;
+}
+
+.journey-notice-item::marker {
+  color: var(--color-text-muted);
+}
+
+.journey-notice-item + .journey-notice-item {
+  border-top: 1px solid var(--color-border);
+}
+
+.journey-notice-item-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.journey-notice-item p {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.journey-notice-date {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* ── Trainer dashboard ───────────────────────────────────────────────────── */
+
+.trainer-page {
+  display: grid;
+  gap: 20px;
+  max-width: 920px;
+}
+
+.trainer-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.trainer-page-head h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 850;
+  color: var(--color-text-primary);
+}
+
+.trainer-page-head p {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.trainer-alert {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(237, 69, 81, 0.08);
+  border: 1px solid rgba(237, 69, 81, 0.25);
+  color: #ED4551;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.trainer-empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 48px 20px;
+  border-radius: 16px;
+  border: 1.5px dashed var(--color-border-strong);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.trainer-empty strong {
+  color: var(--color-text-primary);
+  font-size: 14px;
+}
+
+.trainer-empty p {
+  margin: 0;
+  font-size: 12.5px;
+  max-width: 360px;
+}
+
+.trainer-cohort-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.trainer-cohort-switcher select {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--color-border-strong);
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.trainer-cohort-current {
+  text-align: right;
+}
+
+.trainer-cohort-current strong {
+  display: block;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.trainer-cohort-current span {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.trainer-summary-card {
+  padding: 20px;
+  border-radius: 18px;
+  background: var(--color-bg-base);
+  border: 1.5px solid var(--color-border-strong);
+}
+
+.trainer-summary-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.trainer-summary-logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.trainer-summary-logo--fallback {
+  display: grid;
+  place-items: center;
+  background: var(--bright-amber);
+  color: var(--shadow-grey);
+  font-weight: 850;
+  font-size: 14px;
+}
+
+.trainer-summary-head h2 {
+  margin: 0;
+  font-size: 17px;
+  color: var(--color-text-primary);
+}
+
+.trainer-summary-head p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.trainer-summary-stats {
+  display: flex;
+  gap: 24px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.trainer-summary-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--color-text-muted);
+}
+
+.trainer-summary-stats strong {
+  font-size: 16px;
+  color: var(--color-text-primary);
+}
+
+.trainer-summary-stats span {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 750;
+}
+
+.trainer-quick-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.trainer-quick-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--color-bg-base);
+  border: 1.5px solid var(--color-border-strong);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  transition: border-color .15s ease, transform .15s ease;
+}
+
+.trainer-quick-link:hover {
+  border-color: var(--bright-amber);
+  transform: translateY(-1px);
+}
+
+.trainer-quick-link strong {
+  display: block;
+  font-size: 13px;
+}
+
+.trainer-quick-link span {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.trainer-chat-shell {
+  border-radius: 18px;
+  border: 1.5px solid var(--color-border-strong);
+  background: var(--color-bg-base);
+  padding: 4px;
+  min-height: 480px;
+}
+
+.trainer-notice-board,
+.trainer-facilitators,
+.trainer-members {
+  display: grid;
+  gap: 16px;
+}
+
+.trainer-notice-composer,
+.trainer-facilitator-form {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--color-bg-base);
+  border: 1.5px solid var(--color-border-strong);
+}
+
+.trainer-notice-composer textarea {
+  resize: vertical;
+  min-height: 72px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--color-border-strong);
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--color-text-primary);
+  background: transparent;
+}
+
+.trainer-notice-composer button,
+.trainer-facilitator-form button {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--bright-amber);
+  color: var(--shadow-grey);
+  font-size: 12.5px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+}
+
+.trainer-notice-composer button:disabled,
+.trainer-facilitator-form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trainer-notice-error {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ED4551;
+}
+
+.trainer-notice-list,
+.trainer-facilitator-list,
+.trainer-member-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trainer-notice-row,
+.trainer-facilitator-row,
+.trainer-member-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+}
+
+.trainer-notice-row-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 50%;
+  background: rgba(255, 206, 0, 0.18);
+  color: var(--color-text-primary);
+}
+
+.trainer-notice-row-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.trainer-notice-row-copy p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--color-text-primary);
+  line-height: 1.5;
+}
+
+.trainer-notice-row-copy small {
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+}
+
+.trainer-notice-row > button,
+.trainer-facilitator-row > button,
+.trainer-member-row > button {
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  flex: 0 0 auto;
+}
+
+.trainer-notice-row > button:hover,
+.trainer-facilitator-row > button:hover {
+  color: #ED4551;
+  background: rgba(237, 69, 81, 0.08);
+}
+
+.trainer-facilitator-form-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.trainer-facilitator-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 750;
+  color: var(--color-text-muted);
+}
+
+.trainer-facilitator-form input {
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--color-border-strong);
+  font-size: 13px;
+  color: var(--color-text-primary);
+  background: transparent;
+}
+
+.trainer-facilitator-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 50%;
+  background: #e8e4e6;
+  color: #6d656b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.trainer-facilitator-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.trainer-facilitator-copy strong {
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.trainer-facilitator-copy small {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.trainer-facilitator-pdf-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(34, 29, 35, 0.06);
+  color: var(--color-text-primary);
+  font-size: 11px;
+  font-weight: 750;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.trainer-tag-select {
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1.5px solid var(--color-border-strong);
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.trainer-spin {
+  animation: spin .8s linear infinite;
 }

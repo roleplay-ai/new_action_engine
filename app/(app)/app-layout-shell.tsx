@@ -18,9 +18,10 @@ export default function AppLayoutShell({
   const pathname = usePathname();
   const isAdminRoute = pathname?.startsWith("/admin");
   const isSuperadminRoute = pathname?.startsWith("/superadmin");
-  const isUserRoute = !isAdminRoute && !isSuperadminRoute;
+  const isTrainerRoute = pathname?.startsWith("/trainer");
+  const isUserRoute = !isAdminRoute && !isSuperadminRoute && !isTrainerRoute;
 
-  // Admin and superadmin have their own layouts with headers - don't show the generic one
+  // Admin, superadmin and trainer have their own layouts with headers - don't show the generic one
   if (!isUserRoute) {
     return <>{children}</>;
   }

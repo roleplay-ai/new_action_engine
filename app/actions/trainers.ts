@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { upsertUserCredentialDelivery } from "@/lib/user-credential-delivery";
 import type { Trainer } from "@/lib/types";
 
 const TRAINER_IMAGES_BUCKET = "trainer-images";
@@ -108,6 +109,110 @@ export async function deleteTrainer(id: string): Promise<{ error?: string }> {
 
     revalidatePath("/superadmin/trainers");
     revalidatePath("/admin");
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+/** The trainer roster with login status, for the superadmin Trainers page.
+ * Unlike listTrainers (readable by anyone), this exposes login email and is
+ * superadmin-only. */
+export async function listTrainersWithLoginStatus(): Promise<{
+  error?: string;
+  trainers?: (Trainer & { loginEmail: string | null; cohortCount: number })[];
+}> {
+  try {
+    await ensureSuperadmin();
+    const admin = createAdminClient();
+
+    const { data: trainerRows, error } = await admin
+      .from("trainers")
+      .select("id, name, image_url, user_id")
+      .order("name");
+    if (error) return { error: error.message };
+
+    const userIds = (trainerRows ?? []).map((row) => row.user_id).filter((id): id is string => !!id);
+    const [{ data: profileRows }, { data: cohortRows }] = await Promise.all([
+      userIds.length ? admin.from("profiles").select("id, email").in("id", userIds) : Promise.resolve({ data: [] as { id: string; email: string | null }[] }),
+      admin.from("cohorts").select("trainer_id").not("trainer_id", "is", null),
+    ]);
+    const emailMap = new Map((profileRows ?? []).map((row) => [row.id, row.email]));
+    const cohortCounts = new Map<string, number>();
+    for (const row of cohortRows ?? []) {
+      if (!row.trainer_id) continue;
+      cohortCounts.set(row.trainer_id, (cohortCounts.get(row.trainer_id) ?? 0) + 1);
+    }
+
+    return {
+      trainers: (trainerRows ?? []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        imageUrl: row.image_url,
+        loginEmail: row.user_id ? emailMap.get(row.user_id) ?? null : null,
+        cohortCount: cohortCounts.get(row.id) ?? 0,
+      })),
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+/** Provisions a login for an existing trainer roster entry — same shape as
+ * createCompanyUser (app/actions/admin-users.ts): superadmin sets the email
+ * and password directly, the account is created pre-confirmed, and the
+ * plaintext password is stored once for the credential-delivery flow. */
+export async function createTrainerLogin(params: {
+  trainerId: string;
+  email: string;
+  password: string;
+}): Promise<{ error?: string }> {
+  try {
+    await ensureSuperadmin();
+    const admin = createAdminClient();
+
+    const { data: trainer } = await admin.from("trainers").select("id, name, user_id").eq("id", params.trainerId).maybeSingle();
+    if (!trainer) return { error: "Trainer not found" };
+    if (trainer.user_id) return { error: "This trainer already has a login" };
+
+    const email = params.email.trim().toLowerCase();
+    if (!email) return { error: "Email is required" };
+    if (params.password.length < 8) return { error: "Password must be at least 8 characters" };
+
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email,
+      password: params.password,
+      email_confirm: true,
+      user_metadata: { full_name: trainer.name },
+    });
+    if (createError) return { error: createError.message };
+    const userId = created.user?.id;
+    if (!userId) return { error: "Login created but no ID returned" };
+
+    const { error: profileError } = await admin.from("profiles").upsert(
+      {
+        id: userId,
+        email,
+        full_name: trainer.name,
+        company_id: null,
+        role: "trainer",
+        persistent_login_key: crypto.randomUUID(),
+      },
+      { onConflict: "id" }
+    );
+    if (profileError) return { error: profileError.message };
+
+    const { error: linkError } = await admin.from("trainers").update({ user_id: userId }).eq("id", params.trainerId);
+    if (linkError) return { error: linkError.message };
+
+    const { error: credError } = await upsertUserCredentialDelivery(admin, {
+      userId,
+      email,
+      plaintextPassword: params.password,
+    });
+    if (credError) return { error: credError };
+
+    revalidatePath("/superadmin/trainers");
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed" };

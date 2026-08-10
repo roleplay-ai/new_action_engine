@@ -45,6 +45,11 @@ async function getChatAccess(cohortId: string): Promise<ChatAccess | { error: st
     if (canTrain) return { supabase, userId: user.id, userName: profile.full_name?.trim() || "Trainer", role: profile.role };
   }
 
+  if (profile.role === "trainer") {
+    const { data: cohort } = await supabase.from("cohorts").select("id").eq("id", cohortId).maybeSingle();
+    if (cohort) return { supabase, userId: user.id, userName: profile.full_name?.trim() || "Trainer", role: profile.role };
+  }
+
   return { error: "You do not have access to this batch conversation" };
 }
 
@@ -84,7 +89,7 @@ export async function getCohortMessages(cohortId: string): Promise<{
         cohortId: row.cohort_id,
         senderId: row.sender_id,
         senderName: sender?.full_name?.trim() || "Batch member",
-        senderRole: sender?.role === "admin" || sender?.role === "superadmin" ? "trainer" : "participant",
+        senderRole: sender?.role === "admin" || sender?.role === "superadmin" || sender?.role === "trainer" ? "trainer" : "participant",
         message: row.message,
         createdAt: row.created_at,
       };
@@ -94,7 +99,7 @@ export async function getCohortMessages(cohortId: string): Promise<{
       messages,
       currentUserId: access.userId,
       currentUserName: access.userName,
-      currentUserRole: access.role === "admin" || access.role === "superadmin" ? "trainer" : "participant",
+      currentUserRole: access.role === "admin" || access.role === "superadmin" || access.role === "trainer" ? "trainer" : "participant",
     };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not load messages" };
@@ -132,7 +137,7 @@ export async function sendCohortMessage(cohortId: string, message: string): Prom
         cohortId: row.cohort_id,
         senderId: row.sender_id,
         senderName: access.userName,
-        senderRole: access.role === "admin" || access.role === "superadmin" ? "trainer" : "participant",
+        senderRole: access.role === "admin" || access.role === "superadmin" || access.role === "trainer" ? "trainer" : "participant",
         message: row.message,
         createdAt: row.created_at,
       },

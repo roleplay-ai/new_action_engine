@@ -29,14 +29,14 @@ export default function NoticeBoardCard({
     <article className={`journey-module-card journey-trainer-card${variant === "rcpl" ? " journey-trainer-card--rcpl" : ""}`}>
       <div className="journey-trainer-heading">
         <small>Notice board</small>
-        <h3>From your trainer</h3>
-        <p>Updates, reminders and anything else your trainer wants this batch to know before the next session.</p>
+        {/* <h3>From your trainer</h3>
+        <p>Updates, reminders and anything else your trainer wants this batch to know before the next session.</p> */}
       </div>
 
       {trainer && (
         <div className="journey-trainer-profile">
           <span className="journey-trainer-card-avatar">{trainer.imageUrl ? <img src={trainer.imageUrl} alt="" /> : <UserRound size={16} />}</span>
-          <div><strong>{trainer.name}</strong><small>Your trainer for this batch</small></div>
+          <div><strong>{trainer.name}</strong><small>Master Facilitator</small></div>
         </div>
       )}
 

@@ -33,7 +33,7 @@ const RCPL_PHASES: RcplPhase[] = [
     title: "Phase 1 agenda",
     subtitle: "Module 1 · Leading Business & Leading Future",
     focus: "Leading Business & Leading Future",
-    summary: "Build strategic perspective, business acumen, and confidence for the future. Followed by two months of application and teachbacks.",
+    summary: "Build strategic perspective, business acumen, and confidence for the future. Followed by two days of application and teachbacks.",
     days: [
       {
         name: "Day 1 · Leading Future",
@@ -342,7 +342,7 @@ export default function RcplWorkspace({
 
           <section className="rcpl-card rcpl-library" id="preparation">
             <header>
-              <div><small>Base Camp library</small><h3>Pre-reads, videos and session resources</h3></div>
+              <div><h3>Pre-reads, videos and session resources</h3></div>
               <strong>{completedCount}/{items.length} complete</strong>
             </header>
             <div className="rcpl-resource-row">

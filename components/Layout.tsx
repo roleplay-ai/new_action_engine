@@ -48,7 +48,8 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   const activePath = pendingHref || pathname || "";
   const isActive = (href: string) => activePath.startsWith(href);
   const showLoader = isLoading || contentLoading;
-  const isRcpl = cohort?.companyName?.trim().toLowerCase() === "rcpl university";
+  const companyName = cohort?.companyName?.trim().toLowerCase();
+  const isRcpl = companyName === "rcpl university" || companyName === "surge";
   const rcplPhase = ["1", "2", "3"].includes(searchParams.get("phase") ?? "") ? searchParams.get("phase")! : "1";
   const rcplPhases = [
     { id: "1", label: "Phase 1", title: "Leading Business & Future", window: "Month 1" },

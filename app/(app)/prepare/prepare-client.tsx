@@ -145,7 +145,8 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
   if (!cohort) return <div className="journey-empty"><CircleUserRound size={32} /><strong>Your learning journey will appear here</strong><p>Ask your administrator to add you to a cohort.</p></div>;
 
   const visibleRoster = roster.slice(0, 4);
-  const isRcplWorkspace = cohort.companyName?.trim().toLowerCase() === "rcpl university";
+  const companyName = cohort.companyName?.trim().toLowerCase();
+  const isRcplWorkspace = companyName === "surge";
 
   const quizModal = typeof document !== "undefined" && selectedItem?.type === "quiz" ? createPortal(<QuizCard
     item={selectedItem}

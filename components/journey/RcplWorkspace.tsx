@@ -222,7 +222,7 @@ export default function RcplWorkspace({
     <div className="rcpl-workspace animate-in fade-in duration-700">
       <header className="rcpl-page-heading">
         <span>{cohort.companyLogoUrl ? <img src={cohort.companyLogoUrl} alt="RCPL University logo" /> : initials(cohort.companyName ?? null)}</span>
-        <div><small>Your workspace</small><h1>RCPL University</h1></div>
+        <div><h1 className="text-2xl font-bold">SURGE</h1></div>
       </header>
 
       <section className="rcpl-program-hero">

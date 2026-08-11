@@ -80,7 +80,7 @@ export default function FacilitatorsCard({
               <span><strong>{facilitator.name}</strong><small>{facilitator.designation}</small></span>
               {facilitator.pdfUrl && (
                 <button type="button" onClick={() => setOpenFacilitator(facilitator)} className="rcpl-facilitator-pdf-btn">
-                  <FileText size={13} /> View PDF
+                  <FileText size={13} /> View Profile
                 </button>
               )}
             </div>

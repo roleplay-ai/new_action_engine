@@ -75,7 +75,7 @@ type CohortSummary = {
   trainer?: Trainer | null;
 };
 
-type CompanyUser = { id: string; full_name: string | null };
+type CompanyUser = { id: string; full_name: string | null; email: string | null };
 
 function formatStartDate(date: string | null | undefined) {
   if (!date) return "No dates set";
@@ -523,6 +523,55 @@ function CohortDetailPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Targeted, single-purpose refetchers. Each mutation below only calls the
+  // one or two of these it actually invalidates, instead of reloading every
+  // section of the panel (which used to make every small edit feel like a
+  // full page reload).
+  const fetchMembers = useCallback(async () => {
+    const detailResult = await getCohortDetail(cohort.id);
+    if (detailResult.error) { setError(detailResult.error); return; }
+    setMembers(detailResult.members ?? []);
+    setMemberIds(new Set((detailResult.members ?? []).map((member) => member.id)));
+    setSelectedTrainerId(detailResult.cohort?.trainerId ?? "");
+  }, [cohort.id]);
+
+  const fetchCompanyUsers = useCallback(async () => {
+    const usersResult = await getCompanyUsers(companyId);
+    if (usersResult.error) { setError(usersResult.error); return; }
+    setCompanyUsers(usersResult.users ?? []);
+  }, [companyId]);
+
+  const fetchContent = useCallback(async () => {
+    const contentResult = await listCohortContent(cohort.id);
+    if (contentResult.error) { setError(contentResult.error); return; }
+    setAssignedContentIds(new Set((contentResult.items ?? []).map((item) => item.id)));
+  }, [cohort.id]);
+
+  const fetchNotices = useCallback(async () => {
+    const noticesResult = await getCohortNotices(cohort.id);
+    if (noticesResult.error) { setError(noticesResult.error); return; }
+    setNotices(noticesResult.notices ?? []);
+  }, [cohort.id]);
+
+  const fetchFacilitators = useCallback(async () => {
+    const facilitatorsResult = await listFacilitators(cohort.id);
+    if (facilitatorsResult.error) { setError(facilitatorsResult.error); return; }
+    setFacilitators(facilitatorsResult.facilitators ?? []);
+  }, [cohort.id]);
+
+  const fetchTags = useCallback(async () => {
+    const tagsResult = await listParticipantTags();
+    if (tagsResult.error) { setError(tagsResult.error); return; }
+    setTags(tagsResult.tags ?? []);
+  }, []);
+
+  const fetchDates = useCallback(async () => {
+    const datesResult = await listCohortDates(cohort.id);
+    if (datesResult.error) { setError(datesResult.error); return; }
+    setCohortDates(datesResult.dates ?? []);
+  }, [cohort.id]);
+
+  // Full load — only used when this panel first mounts for a cohort.
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -560,7 +609,8 @@ function CohortDetailPanel({
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cohort.id]);
 
   const currentMembers = members;
   const availableUsers = useMemo(
@@ -570,7 +620,9 @@ function CohortDetailPanel({
   const visibleAvailableUsers = useMemo(() => {
     const needle = memberQuery.trim().toLowerCase();
     if (!needle) return availableUsers;
-    return availableUsers.filter((user) => (user.full_name || "Unnamed user").toLowerCase().includes(needle));
+    return availableUsers.filter((user) =>
+      `${user.full_name || "Unnamed user"} ${user.email ?? ""}`.toLowerCase().includes(needle)
+    );
   }, [availableUsers, memberQuery]);
   const assignedItems = useMemo(
     () => libraryItems.filter((item) => assignedContentIds.has(item.id)),
@@ -604,7 +656,22 @@ function CohortDetailPanel({
     });
   }
 
-  async function runMutation(action: string, mutation: () => Promise<{ error?: string }>, after?: () => void) {
+  /**
+   * Run a mutation and refresh only what it actually invalidates.
+   * `refetch` lists the local sections to reload (e.g. [fetchNotices]);
+   * `syncList` also asks the parent to reload the sidebar/summary list —
+   * only needed when the mutation changes something shown there (name,
+   * logo, trainer, member/content counts, dates).
+   */
+  async function runMutation(
+    action: string,
+    mutation: () => Promise<{ error?: string }>,
+    options?: {
+      after?: () => void;
+      refetch?: Array<() => Promise<void>>;
+      syncList?: boolean;
+    }
+  ) {
     if (busyAction) return;
     setBusyAction(action);
     setError(null);
@@ -614,9 +681,13 @@ function CohortDetailPanel({
         setError(result.error);
         return;
       }
-      after?.();
-      await refresh();
-      await onChange();
+      options?.after?.();
+      if (options?.refetch?.length) {
+        await Promise.all(options.refetch.map((fetcher) => fetcher()));
+      }
+      if (options?.syncList) {
+        await onChange();
+      }
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "The update could not be completed");
     } finally {
@@ -631,14 +702,22 @@ function CohortDetailPanel({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    await runMutation("cohort-logo", async () => {
-      const logoUrl = await uploadCohortLogo(cohort.id, file);
-      return updateCohort(cohort.id, { logoUrl });
-    });
+    await runMutation(
+      "cohort-logo",
+      async () => {
+        const logoUrl = await uploadCohortLogo(cohort.id, file);
+        return updateCohort(cohort.id, { logoUrl });
+      },
+      { syncList: true }
+    );
   }
 
   async function handleAssignTrainer() {
-    await runMutation("assign-trainer", () => updateCohort(cohort.id, { trainerId: selectedTrainerId || null }));
+    await runMutation(
+      "assign-trainer",
+      () => updateCohort(cohort.id, { trainerId: selectedTrainerId || null }),
+      { syncList: true }
+    );
   }
 
   async function handlePostNotice() {
@@ -649,7 +728,7 @@ function CohortDetailPanel({
         const result = await postCohortNotice(cohort.id, noticeDraft);
         return { error: result.error };
       },
-      () => setNoticeDraft("")
+      { after: () => setNoticeDraft(""), refetch: [fetchNotices] }
     );
   }
 
@@ -666,11 +745,14 @@ function CohortDetailPanel({
         });
         return { error: result.error };
       },
-      () => {
-        setFacilitatorName("");
-        setFacilitatorDesignation("");
-        setFacilitatorPdfUrl("");
-        setFacilitatorPdfName("");
+      {
+        after: () => {
+          setFacilitatorName("");
+          setFacilitatorDesignation("");
+          setFacilitatorPdfUrl("");
+          setFacilitatorPdfName("");
+        },
+        refetch: [fetchFacilitators],
       }
     );
   }
@@ -686,14 +768,18 @@ function CohortDetailPanel({
     await runMutation(
       "save-names",
       () => updateCohort(cohort.id, { batchName: editBatchName, moduleName: editModuleName }),
-      () => setEditingNames(false)
+      { after: () => setEditingNames(false), syncList: true }
     );
   }
 
   async function handleAddDate(event: React.FormEvent) {
     event.preventDefault();
     if (!newDateValue || busyAction) return;
-    await runMutation("add-date", () => addCohortDate(cohort.id, newDateValue), () => setNewDateValue(""));
+    await runMutation(
+      "add-date",
+      () => addCohortDate(cohort.id, newDateValue),
+      { after: () => setNewDateValue(""), refetch: [fetchDates], syncList: true }
+    );
   }
 
   async function handleDeleteCohort() {
@@ -818,7 +904,7 @@ function CohortDetailPanel({
               {formatStartDate(cohortDate.date)}
               <button
                 type="button"
-                onClick={() => void runMutation(`remove-date:${cohortDate.id}`, () => removeCohortDate(cohort.id, cohortDate.id))}
+                onClick={() => void runMutation(`remove-date:${cohortDate.id}`, () => removeCohortDate(cohort.id, cohortDate.id), { refetch: [fetchDates], syncList: true })}
                 disabled={Boolean(busyAction)}
                 aria-label={`Remove date ${formatStartDate(cohortDate.date)}`}
                 title="Remove date"
@@ -881,7 +967,7 @@ function CohortDetailPanel({
                 onSubmit={(event) => {
                   event.preventDefault();
                   if (!newTagName.trim() || busyAction) return;
-                  void runMutation("create-tag", () => createParticipantTag(newTagName), () => setNewTagName(""));
+                  void runMutation("create-tag", () => createParticipantTag(newTagName), { after: () => setNewTagName(""), refetch: [fetchTags] });
                 }}
               >
                 <input
@@ -904,7 +990,7 @@ function CohortDetailPanel({
                 {currentMembers.map((member) => (
                   <div key={member.id} className="cohort-admin-person">
                     <span className="cohort-admin-avatar">{initials(member.fullName)}</span>
-                    <div><strong>{member.fullName || "Unnamed user"}</strong><span>Cohort participant</span></div>
+                    <div><strong>{member.fullName || "Unnamed user"}</strong><span>{member.email || "Cohort participant"}</span></div>
                     {role === "superadmin" ? (
                       <select
                         className="cohort-admin-tag-select"
@@ -912,7 +998,7 @@ function CohortDetailPanel({
                         disabled={Boolean(busyAction)}
                         aria-label={`Tag for ${member.fullName || "participant"}`}
                         onChange={(event) =>
-                          void runMutation(`assign-tag:${member.id}`, () => assignMemberTag(cohort.id, member.id, event.target.value || null))
+                          void runMutation(`assign-tag:${member.id}`, () => assignMemberTag(cohort.id, member.id, event.target.value || null), { refetch: [fetchMembers] })
                         }
                       >
                         <option value="">No tag</option>
@@ -923,7 +1009,7 @@ function CohortDetailPanel({
                     )}
                     <button
                       type="button"
-                      onClick={() => void runMutation(`remove-member:${member.id}`, () => removeMembersFromCohort(cohort.id, [member.id]))}
+                      onClick={() => void runMutation(`remove-member:${member.id}`, () => removeMembersFromCohort(cohort.id, [member.id]), { refetch: [fetchMembers, fetchCompanyUsers], syncList: true })}
                       disabled={Boolean(busyAction)}
                       aria-label={`Remove ${member.fullName || "member"}`}
                       title="Remove from cohort"
@@ -955,14 +1041,17 @@ function CohortDetailPanel({
                       <input type="checkbox" checked={pendingAddIds.has(user.id)} onChange={() => toggleSelection(user.id, setPendingAddIds)} disabled={Boolean(busyAction)} />
                       <span className="cohort-admin-checkbox">{pendingAddIds.has(user.id) && <Check size={12} />}</span>
                       <span className="cohort-admin-avatar">{initials(user.full_name)}</span>
-                      <strong>{user.full_name || "Unnamed user"}</strong>
+                      <span className="cohort-admin-select-row-copy">
+                        <strong>{user.full_name || "Unnamed user"}</strong>
+                        {user.email && <small>{user.email}</small>}
+                      </span>
                     </label>
                   ))}
                   {visibleAvailableUsers.length === 0 && <div className="cohort-admin-no-results">No participants match your search.</div>}
                 </div>
                 <div className="cohort-admin-panel-action">
                   <span>{pendingAddIds.size ? `${pendingAddIds.size} selected` : "Select participants to add"}</span>
-                  <button type="button" onClick={() => void runMutation("add-members", () => addMembersToCohort(cohort.id, Array.from(pendingAddIds)), () => setPendingAddIds(new Set()))} disabled={Boolean(busyAction) || pendingAddIds.size === 0} className="cohort-admin-button cohort-admin-button--primary">
+                  <button type="button" onClick={() => void runMutation("add-members", () => addMembersToCohort(cohort.id, Array.from(pendingAddIds)), { after: () => setPendingAddIds(new Set()), refetch: [fetchMembers, fetchCompanyUsers], syncList: true })} disabled={Boolean(busyAction) || pendingAddIds.size === 0} className="cohort-admin-button cohort-admin-button--primary">
                     {busyAction === "add-members" ? <Loader2 size={15} className="cohort-admin-spin" /> : <UserPlus size={15} />} Add to cohort
                   </button>
                 </div>
@@ -982,7 +1071,7 @@ function CohortDetailPanel({
                   <div key={item.id} className="cohort-admin-content-row">
                     <span className="cohort-admin-type-badge">{item.type}</span>
                     <div><strong>{item.title}</strong><span>{item.description || "No description"}</span></div>
-                    <button type="button" onClick={() => void runMutation(`remove-content:${item.id}`, () => removeContentFromCohort(cohort.id, item.id))} disabled={Boolean(busyAction)} aria-label={`Remove ${item.title}`} title="Remove from cohort">
+                    <button type="button" onClick={() => void runMutation(`remove-content:${item.id}`, () => removeContentFromCohort(cohort.id, item.id), { refetch: [fetchContent], syncList: true })} disabled={Boolean(busyAction)} aria-label={`Remove ${item.title}`} title="Remove from cohort">
                       {busyAction === `remove-content:${item.id}` ? <Loader2 size={15} className="cohort-admin-spin" /> : <X size={15} />}
                     </button>
                   </div>
@@ -1016,7 +1105,7 @@ function CohortDetailPanel({
                 </div>
                 <div className="cohort-admin-panel-action">
                   <span>{pendingContentIds.size ? `${pendingContentIds.size} selected` : "Select content to assign"}</span>
-                  <button type="button" onClick={() => void runMutation("add-content", () => assignContentToCohort(cohort.id, Array.from(pendingContentIds)), () => setPendingContentIds(new Set()))} disabled={Boolean(busyAction) || pendingContentIds.size === 0} className="cohort-admin-button cohort-admin-button--primary">
+                  <button type="button" onClick={() => void runMutation("add-content", () => assignContentToCohort(cohort.id, Array.from(pendingContentIds)), { after: () => setPendingContentIds(new Set()), refetch: [fetchContent], syncList: true })} disabled={Boolean(busyAction) || pendingContentIds.size === 0} className="cohort-admin-button cohort-admin-button--primary">
                     {busyAction === "add-content" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Plus size={15} />} Assign content
                   </button>
                 </div>
@@ -1106,7 +1195,7 @@ function CohortDetailPanel({
                     </div>
                     <button
                       type="button"
-                      onClick={() => void runMutation(`delete-notice:${notice.id}`, () => deleteCohortNotice(notice.id))}
+                      onClick={() => void runMutation(`delete-notice:${notice.id}`, () => deleteCohortNotice(notice.id), { refetch: [fetchNotices] })}
                       disabled={Boolean(busyAction)}
                       aria-label="Remove notice"
                       title="Remove notice"
@@ -1169,7 +1258,7 @@ function CohortDetailPanel({
                     )}
                     <button
                       type="button"
-                      onClick={() => void runMutation(`remove-facilitator:${facilitator.id}`, () => deleteFacilitator(cohort.id, facilitator.id))}
+                      onClick={() => void runMutation(`remove-facilitator:${facilitator.id}`, () => deleteFacilitator(cohort.id, facilitator.id), { refetch: [fetchFacilitators] })}
                       disabled={Boolean(busyAction)}
                       aria-label={`Remove ${facilitator.name}`}
                       title="Remove facilitator"

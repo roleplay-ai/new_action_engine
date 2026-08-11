@@ -120,7 +120,7 @@ async function getAdminContext(): Promise<{
  * to zero rows via the regular client — authorization is already enforced by
  * getAdminContext() above, so bypassing RLS here is safe. */
 export async function getCompanyUsers(companyId: string): Promise<
-  { error?: string; users?: { id: string; full_name: string | null }[] }> {
+  { error?: string; users?: { id: string; full_name: string | null; email: string | null }[] }> {
   try {
     const { companyId: myCompanyId, role } = await getAdminContext();
     if (role === "admin" && myCompanyId !== companyId) return { error: "Access denied" };
@@ -133,7 +133,22 @@ export async function getCompanyUsers(companyId: string): Promise<
       .eq("role", "user");
     if (error) return { error: error.message };
 
-    return { users: (profiles ?? []).map((p) => ({ id: p.id, full_name: p.full_name })) };
+    const emailMap = new Map<string, string>();
+    if (profiles?.length) {
+      const ids = new Set(profiles.map((p) => p.id));
+      const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      for (const user of data?.users ?? []) {
+        if (ids.has(user.id) && user.email) emailMap.set(user.id, user.email);
+      }
+    }
+
+    return {
+      users: (profiles ?? []).map((p) => ({
+        id: p.id,
+        full_name: p.full_name,
+        email: emailMap.get(p.id) ?? null,
+      })),
+    };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed" };
   }
@@ -474,7 +489,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
         trainerId: cohort.trainer_id,
         trainer: cohort.trainer_id ? trainerMap.get(cohort.trainer_id) ?? null : null,
       },
-      members: (members ?? []).map(mapMemberRow),
+      members: await withMemberEmails(admin, (members ?? []).map(mapMemberRow)),
     };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed" };

@@ -5950,8 +5950,8 @@ input[type="range"] {
 }
 
 .rcpl-page-heading>span {
-  width: 64px;
-  height: 64px;
+  width: 140px;
+  height: 72px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -11041,6 +11041,7 @@ input[type="range"] {
 }
 
 .cohort-admin-select-row {
+  position: relative;
   display: flex;
   min-width: 0;
   align-items: center;
@@ -11068,6 +11069,28 @@ input[type="range"] {
 .cohort-admin-select-row>strong {
   overflow: hidden;
   font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cohort-admin-select-row-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.cohort-admin-select-row-copy strong {
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cohort-admin-select-row-copy small {
+  overflow: hidden;
+  color: var(--cohort-muted);
+  font-size: 8px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

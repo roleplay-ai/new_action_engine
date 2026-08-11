@@ -65,36 +65,6 @@ const { data: company, error: companyError } = await admin
 if (companyError) throw companyError;
 if (!company) throw new Error(`Company "${companyName}" was not found. Create it first, then run this seed again.`);
 
-let { data: cohort, error: cohortError } = await admin
-  .from("cohorts")
-  .select("id, name")
-  .eq("company_id", company.id)
-  .is("archived_at", null)
-  .order("created_at", { ascending: true })
-  .limit(1)
-  .maybeSingle();
-
-if (cohortError) throw cohortError;
-if (!cohort) {
-  const created = await admin
-    .from("cohorts")
-    .insert({
-      company_id: company.id,
-      name: "Surge Cohort",
-      batch_name: "Surge Cohort",
-      description: "Seeded learning cohort for the Surge workspace.",
-    })
-    .select("id, name")
-    .single();
-  if (created.error) throw created.error;
-  cohort = created.data;
-
-  const dateError = await admin
-    .from("cohort_dates")
-    .insert({ cohort_id: cohort.id, event_date: new Date().toISOString().slice(0, 10) });
-  if (dateError.error) throw dateError.error;
-}
-
 const existingUsers = await listAuthUsers();
 const authByEmail = new Map(existingUsers.map((user) => [user.email?.toLowerCase(), user]));
 
@@ -143,21 +113,12 @@ for (const person of people) {
       full_name: person.fullName,
       company_id: company.id,
       role: "user",
-      current_cohort_id: cohort.id,
-      selected_cohort_id: cohort.id,
+      current_cohort_id: null,
+      selected_cohort_id: null,
     },
     { onConflict: "id" }
   );
   if (profileError) throw profileError;
-
-  const { error: membershipError } = await admin.from("cohort_members").upsert(
-    {
-      cohort_id: cohort.id,
-      user_id: user.id,
-    },
-    { onConflict: "cohort_id,user_id", ignoreDuplicates: true }
-  );
-  if (membershipError) throw membershipError;
 
   const { error: credentialError } = await admin.from("user_credential_delivery").upsert(
     {
@@ -178,7 +139,7 @@ for (const person of people) {
 }
 
 console.log(
-  `Surge seed complete: ${createdCount} created, ${updatedCount} updated/reused, ${people.length} assigned to ${company.name} / ${cohort.name}.`
+  `Surge seed complete: ${createdCount} created, ${updatedCount} updated/reused, ${people.length} assigned to company ${company.name} only (no cohort).`
 );
 console.log("");
 console.log("Team\tEmployee Name\tEmail\tPassword");

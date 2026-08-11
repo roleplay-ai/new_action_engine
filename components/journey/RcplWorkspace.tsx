@@ -31,8 +31,8 @@ const RCPL_PHASES: RcplPhase[] = [
     id: "1",
     label: "Phase 1",
     window: "Month 1 · 18 to 19 Aug",
-    title: "Phase 1 agenda",
-    subtitle: "Module 1 · Leading Business & Leading Future",
+    title: "Module 1 · Leading Business & Leading Future",
+    subtitle: "",
     focus: "Leading Business & Leading Future",
     summary: "Build strategic perspective, business acumen, and confidence for the future. Followed by two days of application and teachbacks.",
     days: [
@@ -264,7 +264,7 @@ export default function RcplWorkspace({
     <div className="rcpl-workspace animate-in fade-in duration-700">
       <header className="rcpl-page-heading">
         <span>{cohort.companyLogoUrl ? <img src={cohort.companyLogoUrl} alt="RCPL University logo" /> : initials(cohort.companyName ?? null)}</span>
-        <div><h1 className="text-2xl font-bold">SURGE</h1></div>
+        {/* <div><h1 className="text-2xl font-bold">SURGE</h1></div> */}
       </header>
 
       <section className="rcpl-program-hero">

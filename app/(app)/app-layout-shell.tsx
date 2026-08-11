@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { EngineProvider } from "@/lib/store";
 import Layout from "@/components/Layout";
 import { PageLoadingProvider } from "@/components/PageLoadingProvider";
+import InstallAppPopup from "@/components/InstallAppPopup";
 
 export default function AppLayoutShell({
   children,
@@ -38,6 +39,7 @@ export default function AppLayoutShell({
             </div>
           )}
           <Layout role={role}>{children}</Layout>
+          <InstallAppPopup />
         </div>
       </PageLoadingProvider>
     </EngineProvider>

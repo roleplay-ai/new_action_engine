@@ -4337,7 +4337,7 @@ input[type="range"] {
   }
 }
 
-/* ── Page loader (favicon + bouncing dots + blur) ── */
+/* ── Page loader (searching magnifier + blur) ── */
 .page-loader {
   position: fixed;
   top: 0;
@@ -4369,36 +4369,231 @@ input[type="range"] {
   gap: 18px;
 }
 
-.page-loader__favicon {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  object-fit: cover;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
-  animation: pageLoaderPulse 1.6s ease-in-out infinite;
+/* Searching magnifier: a large, genuinely transparent lens sweeps right-to-
+   left over a row of files, a thin rail underneath grounding the motion.
+   Each file sits still and colorless until the lens is directly over it —
+   at that exact moment (and only then, per pageLoaderChipMagnify's timing,
+   delayed per-chip to match pageLoaderScan's own dwell stops) that same
+   file grows and turns amber in place, then fades right back down. No
+   duplicate row, no clip-path — position and timing alone keep it locked to
+   whatever the lens is actually over. Replaces the old bouncing-dots loader. */
+.page-loader__scan {
+  display: block;
+  width: min(94vw, 380px);
+  height: auto;
+  overflow: visible;
 }
 
-.page-loader__dots {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.page-loader__rail {
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 0.5 11;
 }
 
-.page-loader__dots span {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #FFCE00;
-  opacity: 0.45;
-  animation: pageLoaderDot 1.05s ease-in-out infinite;
+.page-loader__chip-base {
+  fill: rgba(255, 255, 255, 0.08);
+  stroke: rgba(255, 255, 255, 0.20);
+  stroke-width: 1.2;
 }
 
-.page-loader__dots span:nth-child(2) {
-  animation-delay: 0.15s;
+/* Crossfades opposite page-loader__chip-magnify below, same delay/duration on both — the plain
+   icon disappears for exactly the window the amber one is visible, so they never double up. */
+.page-loader__chip-neutral {
+  animation-name: pageLoaderChipNeutralFade;
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
 }
 
-.page-loader__dots span:nth-child(3) {
-  animation-delay: 0.3s;
+.page-loader__chip-magnify {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation-name: pageLoaderChipMagnify;
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+}
+
+.page-loader__scanner {
+  animation-name: pageLoaderScan;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.page-loader__lens {
+  fill: rgba(255, 255, 255, 0.06);
+  stroke: #221D23;
+  stroke-width: 5;
+}
+
+.page-loader__lens-inner {
+  fill: none;
+  stroke: #FFCE00;
+  stroke-width: 2;
+  opacity: 0.85;
+}
+
+.page-loader__handle,
+.page-loader__handle-tip {
+  stroke: #221D23;
+}
+
+.page-loader__handle {
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+
+.page-loader__handle-tip {
+  fill: #FFCE00;
+  stroke-width: 0;
+}
+
+@keyframes pageLoaderScan {
+  0% {
+    transform: translate(298px, 54px) scale(0.7);
+    opacity: 0;
+  }
+
+  4% {
+    transform: translate(298px, 54px) scale(1);
+    opacity: 1;
+  }
+
+  10% {
+    transform: translate(298px, 54px) scale(1.1);
+  }
+
+  17% {
+    transform: translate(254px, 54px) scale(1);
+  }
+
+  24% {
+    transform: translate(254px, 54px) scale(1.1);
+  }
+
+  31% {
+    transform: translate(210px, 54px) scale(1);
+  }
+
+  38% {
+    transform: translate(210px, 54px) scale(1.1);
+  }
+
+  45% {
+    transform: translate(166px, 54px) scale(1);
+  }
+
+  52% {
+    transform: translate(166px, 54px) scale(1.1);
+  }
+
+  59% {
+    transform: translate(122px, 54px) scale(1);
+  }
+
+  66% {
+    transform: translate(122px, 54px) scale(1.1);
+  }
+
+  73% {
+    transform: translate(78px, 54px) scale(1);
+  }
+
+  80% {
+    transform: translate(78px, 54px) scale(1.1);
+  }
+
+  87% {
+    transform: translate(34px, 54px) scale(1);
+  }
+
+  94% {
+    transform: translate(34px, 54px) scale(1.1);
+  }
+
+  98% {
+    transform: translate(34px, 54px) scale(1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate(34px, 54px) scale(0.7);
+    opacity: 0;
+  }
+}
+
+/* The file directly under the lens grows to ~2x and turns amber, right in its own spot, then
+   fades back to its plain resting state. This ramps up over its first 7% — matching how long
+   pageLoaderScan's lens itself takes to grow from "arrived" to "peak" while parked on a chip — so
+   the file and the lens visibly grow together and hit full size at the same instant (that instant
+   is what SCAN_CHIP_DELAYS + 7% of SCAN_DURATION works out to, in PageLoader.tsx). Past that, the
+   lens starts travelling away, so the file settles back down over the next ~13%. */
+@keyframes pageLoaderChipMagnify {
+  0% {
+    opacity: 0.3;
+    transform: scale(1.15);
+    filter: drop-shadow(0 0 2px rgba(255, 206, 0, 0.25));
+  }
+
+  7%,
+  11% {
+    opacity: 1;
+    transform: scale(1.9);
+    filter: drop-shadow(0 0 8px rgba(255, 206, 0, 0.6));
+  }
+
+  16% {
+    opacity: 0.3;
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 0 rgba(255, 206, 0, 0));
+  }
+
+  20%,
+  100% {
+    opacity: 0;
+    transform: scale(0.6);
+    filter: drop-shadow(0 0 0 rgba(255, 206, 0, 0));
+  }
+}
+
+/* Inverse of pageLoaderChipMagnify above — plain icon dims as the amber one ramps up, fully
+   hidden by the time it peaks (7%–11%), then fades back in as the amber one fades out. */
+@keyframes pageLoaderChipNeutralFade {
+  0% {
+    opacity: 0.6;
+  }
+
+  7%,
+  11% {
+    opacity: 0;
+  }
+
+  16% {
+    opacity: 0.4;
+  }
+
+  20%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-loader__scanner {
+    animation: none;
+    transform: translate(166px, 54px) scale(1);
+    opacity: 1;
+  }
+
+  .page-loader__chip-neutral {
+    animation: none;
+    opacity: 1;
+  }
+
+  .page-loader__chip-magnify {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 .page-loader__bucket {
@@ -4416,33 +4611,6 @@ input[type="range"] {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-@keyframes pageLoaderDot {
-
-  0%,
-  80%,
-  100% {
-    transform: translateY(0);
-    opacity: 0.35;
-  }
-
-  40% {
-    transform: translateY(-7px);
-    opacity: 1;
-  }
-}
-
-@keyframes pageLoaderPulse {
-
-  0%,
-  100% {
-    transform: scale(1);
-  }
-
-  50% {
-    transform: scale(1.04);
-  }
 }
 
 @media (max-width: 940px) {
@@ -5549,9 +5717,11 @@ input[type="range"] {
   overflow: visible;
 }
 
-.reference-actions .plan-review-list.actions-upcoming-list {
-  max-height: min(72vh, 640px);
-  overflow-y: auto;
+@media (min-width: 901px) {
+  .reference-actions .plan-review-list.actions-upcoming-list {
+    max-height: min(72vh, 640px);
+    overflow-y: auto;
+  }
 }
 
 .plan-review-action {
@@ -8838,43 +9008,79 @@ input[type="range"] {
 }
 
 .actions-upcoming-list.plan-review-list {
-  max-height: min(72vh, 640px);
   margin-top: 14px;
   gap: 10px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(34, 29, 35, .22) transparent;
-}
-
-.actions-upcoming-list.plan-review-list::-webkit-scrollbar {
-  width: 5px;
-}
-
-.actions-upcoming-list.plan-review-list::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(34, 29, 35, .2);
 }
 
 .actions-current-list {
-  max-height: min(100vh, 1200px);
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
   align-content: start;
-  padding-right: 4px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(34, 29, 35, .22) transparent;
 }
 
-.actions-current-list::-webkit-scrollbar {
-  width: 5px;
+/* Desktop: keep tall action stacks in nested panes.
+   Mobile: expand fully so the page (not an inner pane) owns vertical scroll —
+   nested overflow + overscroll-behavior:contain was trapping touch gestures. */
+@media (min-width: 901px) {
+  .actions-upcoming-list.plan-review-list {
+    max-height: min(72vh, 640px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(34, 29, 35, .22) transparent;
+  }
+
+  .actions-upcoming-list.plan-review-list::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .actions-upcoming-list.plan-review-list::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(34, 29, 35, .2);
+  }
+
+  .actions-current-list {
+    max-height: min(100vh, 1200px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(34, 29, 35, .22) transparent;
+  }
+
+  .actions-current-list::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .actions-current-list::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(34, 29, 35, .2);
+  }
 }
 
-.actions-current-list::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(34, 29, 35, .2);
+@media (max-width: 900px) {
+  .actions-upcoming-list,
+  .actions-upcoming-list.plan-review-list,
+  .reference-actions .plan-review-list.actions-upcoming-list,
+  .actions-current-list {
+    max-height: none;
+    margin-right: 0;
+    padding-right: 0;
+    overflow: visible;
+    overscroll-behavior: auto;
+    -webkit-overflow-scrolling: auto;
+  }
+
+  .reference-actions {
+    padding-bottom: 8px;
+  }
+
+  /* Let vertical pans scroll the page; tabs only handle horizontal swipe. */
+  .reference-actions .actions-tabs,
+  .actions-tabs {
+    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 .actions-current-group,
@@ -13729,6 +13935,7 @@ input[type="range"] {
     margin-right: -14px;
     padding: 1px 14px 9px 1px;
     overflow-x: auto;
+    touch-action: pan-x;
     border: 0;
     border-radius: 0;
     background: transparent;
@@ -13771,6 +13978,7 @@ input[type="range"] {
   margin: 0 0 15px;
   padding: 0;
   overflow-x: auto;
+  touch-action: pan-x;
   border: 0;
   border-radius: 0;
   background: transparent;

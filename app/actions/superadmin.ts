@@ -218,6 +218,62 @@ export async function deleteUserBySuperadmin(userId: string): Promise<{ error?: 
   }
 }
 
+export async function deleteUsersBySuperadmin(
+  userIds: string[]
+): Promise<{ error?: string; deleted: string[]; failed: { userId: string; error: string }[] }> {
+  try {
+    await ensureSuperadmin();
+    const supabase = await createClient();
+    const {
+      data: { user: me },
+    } = await supabase.auth.getUser();
+    if (!me) return { error: "Not authenticated", deleted: [], failed: [] };
+
+    const uniqueIds = Array.from(new Set(userIds)).filter((id) => id !== me.id);
+    if (uniqueIds.length === 0) {
+      return { error: "No eligible users selected", deleted: [], failed: [] };
+    }
+
+    const admin = createAdminClient();
+    const { data: targets } = await admin
+      .from("profiles")
+      .select("id, role")
+      .in("id", uniqueIds);
+    const roleMap = new Map((targets ?? []).map((t) => [t.id, t.role]));
+
+    const deleted: string[] = [];
+    const failed: { userId: string; error: string }[] = [];
+
+    for (const userId of uniqueIds) {
+      if (roleMap.get(userId) === "superadmin") {
+        failed.push({ userId, error: "Cannot delete a superadmin account" });
+        continue;
+      }
+
+      const { error: purgeError } = await admin.rpc("purge_user_owned_data", {
+        p_user_id: userId,
+      });
+      if (purgeError) {
+        failed.push({ userId, error: purgeError.message });
+        continue;
+      }
+
+      const { error } = await admin.auth.admin.deleteUser(userId);
+      if (error) {
+        failed.push({ userId, error: error.message });
+        continue;
+      }
+
+      deleted.push(userId);
+    }
+
+    revalidateSuperadminUserViews();
+    return { deleted, failed };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed", deleted: [], failed: [] };
+  }
+}
+
 export async function createUser(params: {
   email: string;
   password: string;

@@ -212,7 +212,7 @@ function CreateScheduleForm({
 
   const inputClass =
     "w-full px-3 py-2 border-2 border-black rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#3699FC]";
-  const labelClass = "block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1";
+  const labelClass = "block text-xs font-black uppercase tracking-wider text-slate-600 mb-1";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 p-4 bg-white border-t-2 border-black">
@@ -287,7 +287,7 @@ function CreateScheduleForm({
             <div className={`${inputClass} bg-amber-50`}>
               <strong>11:30 AM IST</strong>
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">Fixed by the free daily Vercel cron.</p>
+            <p className="text-xs text-slate-400 mt-1">Fixed by the free daily Vercel cron.</p>
           </div>
         </div>
       )}
@@ -304,7 +304,7 @@ function CreateScheduleForm({
             }
             required
           />
-          <p className="text-[10px] text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Fires at the first 11:30 AM IST cron after this time, then auto-deactivates.
           </p>
         </div>
@@ -317,9 +317,9 @@ function CreateScheduleForm({
           <button
             type="button"
             onClick={toggleAllUsers}
-            className="flex items-center gap-1 text-[10px] font-bold uppercase text-slate-500 hover:text-slate-800"
+            className="flex items-center gap-1 text-xs font-bold uppercase text-slate-500 hover:text-slate-800"
           >
-            {allSelected ? <CheckSquare size={12} /> : <Square size={12} />}
+            {allSelected ? <CheckSquare size={14} /> : <Square size={14} />}
             {allSelected ? "Deselect all" : "Select all"}
           </button>
         </div>
@@ -336,22 +336,22 @@ function CreateScheduleForm({
                   type="checkbox"
                   checked={form.user_ids.has(u.id)}
                   onChange={() => toggleUser(u.id)}
-                  className="accent-black"
+                  className="h-5 w-5 accent-black cursor-pointer flex-shrink-0"
                 />
                 <span className="flex-1 min-w-0">
-                  <span className="text-xs font-semibold truncate block">{u.email}</span>
+                  <span className="text-sm font-semibold truncate block">{u.email}</span>
                   {u.full_name && (
-                    <span className="text-[10px] text-slate-400">{u.full_name}</span>
+                    <span className="text-xs text-slate-400">{u.full_name}</span>
                   )}
                 </span>
                 {!u.persistent_login_key && (
-                  <span className="text-[10px] text-amber-600 font-bold">No key</span>
+                  <span className="text-sm text-amber-600 font-bold">No key</span>
                 )}
               </label>
             ))
           )}
         </div>
-        <p className="text-[10px] text-slate-400 mt-1">
+        <p className="text-xs text-slate-400 mt-1">
           {form.user_ids.size} user{form.user_ids.size !== 1 ? "s" : ""} selected
         </p>
       </div>
@@ -408,14 +408,14 @@ function ScheduleRow({
     >
       {schedule.is_active && (
         <label
-          className="mt-0.5 flex h-6 w-6 flex-shrink-0 cursor-pointer items-center justify-center rounded-md border border-slate-300 bg-white hover:bg-sky-50"
+          className="mt-0.5 flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded-md border border-slate-300 bg-white hover:bg-sky-50"
           title="Select schedule for bulk run"
         >
           <input
             type="checkbox"
             checked={selected}
             onChange={(event) => onSelect(schedule.id, event.target.checked)}
-            className="h-4 w-4 accent-[#3699FC]"
+            className="h-5 w-5 accent-[#3699FC] cursor-pointer"
             aria-label={`Select ${schedule.name}`}
           />
         </label>
@@ -434,21 +434,21 @@ function ScheduleRow({
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-bold text-sm truncate">{schedule.name}</span>
           <span
-            className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+            className={`px-1.5 py-0.5 rounded text-xs font-bold uppercase ${
               SCHEDULE_BADGE_COLORS[schedule.schedule_type]
             }`}
           >
             {SCHEDULE_LABELS[schedule.schedule_type]}
           </span>
           {!schedule.is_active && schedule.schedule_type === "specific_date" && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-500">
+            <span className="px-1.5 py-0.5 rounded text-xs font-bold uppercase bg-slate-100 text-slate-500">
               Completed
             </span>
           )}
         </div>
 
-        <p className="text-[11px] text-slate-500">{scheduleDescription(schedule)}</p>
-        <p className="text-[11px] text-slate-400">
+        <p className="text-sm text-slate-500">{scheduleDescription(schedule)}</p>
+        <p className="text-sm text-slate-400">
           Template:{" "}
           <span className="font-mono">
             {(EMAIL_TEMPLATES as Record<string, { label: string }>)[schedule.template_id]?.label ??
@@ -459,14 +459,14 @@ function ScheduleRow({
         </p>
 
         {schedule.is_active && (
-          <p className="text-[11px] text-slate-500">
+          <p className="text-sm text-slate-500">
             Next run:{" "}
             <span className="font-semibold">{formatIstTime(schedule.next_run_at)}</span>
           </p>
         )}
 
         {schedule.last_run_at && (
-          <p className="text-[11px] text-slate-400">
+          <p className="text-sm text-slate-400">
             Last run: {formatIstTime(schedule.last_run_at)}{" "}
             {schedule.last_run_status && (
               <span
@@ -493,7 +493,7 @@ function ScheduleRow({
             type="button"
             onClick={() => onToggle(schedule.id, !schedule.is_active)}
             title={schedule.is_active ? "Pause" : "Resume"}
-            className={`p-2 border-2 border-black rounded-lg text-[10px] font-bold uppercase ${
+            className={`p-2 border-2 border-black rounded-lg text-xs font-bold uppercase ${
               schedule.is_active
                 ? "bg-amber-100 hover:bg-amber-200 text-amber-800"
                 : "bg-emerald-100 hover:bg-emerald-200 text-emerald-800"
@@ -509,14 +509,14 @@ function ScheduleRow({
             <button
               type="button"
               onClick={() => onDelete(schedule.id)}
-              className="px-2 py-1.5 bg-red-500 text-white border-2 border-black rounded-lg text-[10px] font-bold uppercase hover:bg-red-600"
+              className="px-2 py-1.5 bg-red-500 text-white border-2 border-black rounded-lg text-xs font-bold uppercase hover:bg-red-600"
             >
               Confirm
             </button>
             <button
               type="button"
               onClick={() => setConfirmDelete(false)}
-              className="px-2 py-1.5 border-2 border-black rounded-lg text-[10px] font-bold uppercase hover:bg-slate-100"
+              className="px-2 py-1.5 border-2 border-black rounded-lg text-xs font-bold uppercase hover:bg-slate-100"
             >
               Cancel
             </button>
@@ -699,7 +699,7 @@ export default function EmailSchedulerPanel({
           <CalendarClock size={18} />
           Email Scheduler
           {schedules.length > 0 && (
-            <span className="px-2 py-0.5 bg-black text-white text-[10px] font-black rounded-full">
+            <span className="px-2 py-0.5 bg-black text-white text-xs font-black rounded-full">
               {activeCount} active
             </span>
           )}
@@ -720,7 +720,7 @@ export default function EmailSchedulerPanel({
         <div className="border-t-2 border-black">
           {/* Info bar */}
           <div className="px-4 py-2 bg-sky-100 border-b border-sky-200">
-            <p className="text-[10px] font-bold text-sky-800 uppercase tracking-wider">
+            <p className="text-xs font-bold text-sky-800 uppercase tracking-wider">
               Automatic delivery runs daily at 11:30 AM IST. Bulk run sends the
               selected upcoming occurrence immediately and moves it to its next cycle.
             </p>
@@ -768,11 +768,11 @@ export default function EmailSchedulerPanel({
                         <h3 className="text-sm font-black uppercase tracking-tight">
                           Upcoming emails
                         </h3>
-                        <span className="rounded-full bg-sky-700 px-2 py-0.5 text-[10px] font-black text-white">
+                        <span className="rounded-full bg-sky-700 px-2 py-0.5 text-xs font-black text-white">
                           {upcomingSchedules.length}
                         </span>
                       </div>
-                      <p className="mt-1 text-[11px] text-slate-500">
+                      <p className="mt-1 text-sm text-slate-500">
                         {upcomingRecipientCount} scheduled recipient
                         {upcomingRecipientCount !== 1 ? "s" : ""}
                         {upcomingSchedules[0]
@@ -787,12 +787,12 @@ export default function EmailSchedulerPanel({
                           type="button"
                           onClick={toggleAllUpcoming}
                           disabled={running}
-                          className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[10px] font-bold uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                         >
                           {allUpcomingSelected ? (
-                            <CheckSquare size={13} />
+                            <CheckSquare size={16} />
                           ) : (
-                            <Square size={13} />
+                            <Square size={16} />
                           )}
                           {allUpcomingSelected ? "Clear all" : "Select all"}
                         </button>
@@ -800,7 +800,7 @@ export default function EmailSchedulerPanel({
                           type="button"
                           onClick={handleBulkRunNow}
                           disabled={running || selectedCount === 0}
-                          className="flex items-center gap-1.5 rounded-lg border-2 border-black bg-black px-3 py-2 text-[10px] font-bold uppercase text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="flex items-center gap-1.5 rounded-lg border-2 border-black bg-black px-3 py-2 text-xs font-bold uppercase text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           {running ? (
                             <Loader2 size={13} className="animate-spin" />
@@ -836,7 +836,7 @@ export default function EmailSchedulerPanel({
 
                 {inactiveSchedules.length > 0 && (
                   <section className="space-y-3 pt-2">
-                    <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                    <h3 className="text-sm font-black uppercase tracking-wider text-slate-500">
                       Paused &amp; completed
                     </h3>
                     {inactiveSchedules.map((schedule) => (

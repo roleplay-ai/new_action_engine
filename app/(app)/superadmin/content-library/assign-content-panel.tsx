@@ -126,6 +126,7 @@ export default function AssignContentPanel({
                 type="checkbox"
                 checked={selectedItemIds.has(item.id)}
                 onChange={() => toggleItem(item.id)}
+                className="h-5 w-5 accent-black cursor-pointer flex-shrink-0"
                 aria-label={item.title}
               />
               <span className="text-xs font-black uppercase tracking-wider text-slate-400">{item.type}</span>

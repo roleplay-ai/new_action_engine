@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Mail, CheckSquare, Square, Loader2, Pencil, Trash2 } from "lucide-react";
+import { Mail, CheckSquare, Square, Loader2, Pencil, Trash2, Building2 } from "lucide-react";
 import {
   updateUserBySuperadmin,
   deleteUserBySuperadmin,
+  deleteUsersBySuperadmin,
 } from "@/app/actions/superadmin";
 import { sendWelcomeEmails, type SendEmailResult } from "@/app/actions/email-campaign";
 
@@ -43,18 +44,33 @@ export default function UsersList({
 
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Email selection state
+  // Company filter
+  const UNASSIGNED = "__unassigned__";
+  const [companyFilter, setCompanyFilter] = useState<string>("");
+
+  const filteredUsers = useMemo(() => {
+    if (!companyFilter) return users;
+    if (companyFilter === UNASSIGNED) return users.filter((u) => !u.company_id);
+    return users.filter((u) => u.company_id === companyFilter);
+  }, [users, companyFilter]);
+
+  // Selection state (shared by bulk delete and welcome email actions)
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [sendingEmails, setSendingEmails] = useState(false);
   const [emailResults, setEmailResults] = useState<SendEmailResult[] | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
-  const selectableUsers = users.filter(
-    (u) =>
-      u.role !== "superadmin" &&
-      !!u.persistent_login_key &&
-      !!u.has_stored_credentials
+  // Any non-superadmin, non-self user can be bulk deleted / checked.
+  const selectableUsers = filteredUsers.filter(
+    (u) => u.role !== "superadmin" && u.id !== currentUserId
   );
+  const emailEligibleUsers = selectableUsers.filter(
+    (u) => !!u.persistent_login_key && !!u.has_stored_credentials
+  );
+  const selectedEmailEligibleCount = Array.from(selectedUserIds).filter((id) =>
+    emailEligibleUsers.some((u) => u.id === id)
+  ).length;
   const allSelected = selectableUsers.length > 0 && selectableUsers.every((u) => selectedUserIds.has(u.id));
 
   function toggleUser(userId: string) {
@@ -78,13 +94,16 @@ export default function UsersList({
   }
 
   async function handleSendEmails() {
-    if (selectedUserIds.size === 0) return;
+    const eligibleIds = Array.from(selectedUserIds).filter((id) =>
+      emailEligibleUsers.some((u) => u.id === id)
+    );
+    if (eligibleIds.length === 0) return;
     setSendingEmails(true);
     setEmailResults(null);
     setEmailError(null);
 
     try {
-      const result = await sendWelcomeEmails(Array.from(selectedUserIds));
+      const result = await sendWelcomeEmails(eligibleIds);
       if (result.error) {
         setEmailError(result.error);
       } else {
@@ -93,6 +112,38 @@ export default function UsersList({
       }
     } finally {
       setSendingEmails(false);
+    }
+  }
+
+  async function handleBulkDelete() {
+    const ids = Array.from(selectedUserIds);
+    if (ids.length === 0) return;
+    if (
+      !window.confirm(
+        `Permanently delete ${ids.length} user${ids.length === 1 ? "" : "s"} and all their data (actions, subscriptions, cohort membership, etc.)? This cannot be undone.`
+      )
+    )
+      return;
+
+    setActionError(null);
+    setBulkDeleting(true);
+    try {
+      const result = await deleteUsersBySuperadmin(ids);
+      if (result.error) {
+        setActionError(result.error);
+        return;
+      }
+      if (result.failed.length > 0) {
+        setActionError(
+          `Deleted ${result.deleted.length} user${result.deleted.length === 1 ? "" : "s"}. ${result.failed.length} could not be deleted: ${result.failed
+            .map((f) => f.error)
+            .join(", ")}`
+        );
+      }
+      setSelectedUserIds(new Set());
+      router.refresh();
+    } finally {
+      setBulkDeleting(false);
     }
   }
 
@@ -151,21 +202,49 @@ export default function UsersList({
 
   return (
     <div className="overflow-x-auto">
-      {/* Email send toolbar */}
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3 p-4 bg-slate-50 border-b-2 border-black">
+        <label className="flex items-center gap-2 text-xs font-bold uppercase text-slate-600">
+          <Building2 size={15} />
+          Company
+        </label>
+        <select
+          value={companyFilter}
+          onChange={(e) => {
+            setCompanyFilter(e.target.value);
+            setSelectedUserIds(new Set());
+          }}
+          className="px-3 py-1.5 border-2 border-black rounded-lg text-xs font-bold bg-white"
+        >
+          <option value="">All companies</option>
+          <option value={UNASSIGNED}>Unassigned</option>
+          {companies.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs font-semibold text-slate-500">
+          {filteredUsers.length} of {users.length} users
+        </span>
+      </div>
+
+      {/* Bulk action toolbar */}
       <div className="flex flex-wrap items-center gap-3 p-4 bg-slate-50 border-b-2 border-black">
         <button
           type="button"
           onClick={toggleAll}
-          className="flex items-center gap-2 px-3 py-1.5 border-2 border-black rounded-lg text-xs font-bold uppercase hover:bg-white transition-colors"
+          disabled={selectableUsers.length === 0}
+          className="flex items-center gap-2 px-3 py-1.5 border-2 border-black rounded-lg text-xs font-bold uppercase hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {allSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+          {allSelected ? <CheckSquare size={18} /> : <Square size={18} />}
           {allSelected ? "Deselect all" : "Select all"}
         </button>
 
         <button
           type="button"
           onClick={handleSendEmails}
-          disabled={selectedUserIds.size === 0 || sendingEmails}
+          disabled={selectedEmailEligibleCount === 0 || sendingEmails}
           className="flex items-center gap-2 px-4 py-1.5 bg-[#3699FC] text-white border-2 border-black rounded-lg text-xs font-bold uppercase disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2980e0] transition-colors"
         >
           {sendingEmails ? (
@@ -173,7 +252,21 @@ export default function UsersList({
           ) : (
             <Mail size={16} />
           )}
-          Send welcome email ({selectedUserIds.size})
+          Send welcome email ({selectedEmailEligibleCount})
+        </button>
+
+        <button
+          type="button"
+          onClick={handleBulkDelete}
+          disabled={selectedUserIds.size === 0 || bulkDeleting}
+          className="flex items-center gap-2 px-4 py-1.5 bg-red-600 text-white border-2 border-black rounded-lg text-xs font-bold uppercase disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-700 transition-colors"
+        >
+          {bulkDeleting ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Trash2 size={16} />
+          )}
+          Delete selected ({selectedUserIds.size})
         </button>
 
         {emailError && (
@@ -197,7 +290,7 @@ export default function UsersList({
             {emailResults.map((r) => (
               <span
                 key={r.userId}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                className={`px-2 py-0.5 rounded text-xs font-bold ${
                   r.success ? "bg-emerald-200 text-emerald-800" : "bg-red-200 text-red-800"
                 }`}
                 title={r.error || "Sent"}
@@ -209,7 +302,7 @@ export default function UsersList({
           <button
             type="button"
             onClick={() => setEmailResults(null)}
-            className="mt-2 text-[10px] font-bold text-emerald-700 underline"
+            className="mt-2 text-xs font-bold text-emerald-700 underline"
           >
             Dismiss
           </button>
@@ -231,7 +324,7 @@ export default function UsersList({
               Edit user
             </h2>
             <div>
-              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Email</label>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Email</label>
               <input
                 type="email"
                 value={editing.email}
@@ -240,7 +333,7 @@ export default function UsersList({
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Full name</label>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Full name</label>
               <input
                 type="text"
                 value={editFullName}
@@ -256,7 +349,7 @@ export default function UsersList({
             ) : (
               <>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Company</label>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Company</label>
                   <select
                     value={editCompanyId}
                     onChange={(e) => setEditCompanyId(e.target.value)}
@@ -271,7 +364,7 @@ export default function UsersList({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Role</label>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Role</label>
                   <select
                     value={editRole}
                     onChange={(e) => setEditRole(e.target.value as "user" | "admin")}
@@ -310,28 +403,40 @@ export default function UsersList({
         <thead>
           <tr className="border-b-2 border-black bg-slate-50">
             <th className="w-10 p-4"></th>
-            <th className="text-left p-4 font-black uppercase text-[10px] tracking-wider">User</th>
-            <th className="text-left p-4 font-black uppercase text-[10px] tracking-wider">Company</th>
-            <th className="text-left p-4 font-black uppercase text-[10px] tracking-wider">Role</th>
-            <th className="text-left p-4 font-black uppercase text-[10px] tracking-wider">Actions</th>
+            <th className="text-left p-4 font-black uppercase text-xs tracking-wider">User</th>
+            <th className="text-left p-4 font-black uppercase text-xs tracking-wider">Company</th>
+            <th className="text-left p-4 font-black uppercase text-xs tracking-wider">Role</th>
+            <th className="text-left p-4 font-black uppercase text-xs tracking-wider">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {users.map((u) => {
+          {filteredUsers.length === 0 && (
+            <tr>
+              <td colSpan={5} className="p-8 text-center text-sm text-slate-400">
+                No users match this filter.
+              </td>
+            </tr>
+          )}
+          {filteredUsers.map((u) => {
             const canDelete = u.role !== "superadmin" && u.id !== currentUserId;
             return (
               <tr key={u.id} className="border-b border-slate-200 hover:bg-slate-50">
                 <td className="p-4">
-                  {selectableUsers.some((item) => item.id === u.id) ? (
+                  {canDelete ? (
                     <button
                       type="button"
                       onClick={() => toggleUser(u.id)}
                       className="text-slate-600 hover:text-slate-900"
+                      title={
+                        emailEligibleUsers.some((item) => item.id === u.id)
+                          ? "Select for bulk delete or welcome email"
+                          : "Select for bulk delete (not eligible for welcome email)"
+                      }
                     >
                       {selectedUserIds.has(u.id) ? (
-                        <CheckSquare size={18} className="text-[#3699FC]" />
+                        <CheckSquare size={20} className="text-[#3699FC]" />
                       ) : (
-                        <Square size={18} />
+                        <Square size={20} />
                       )}
                     </button>
                   ) : (
@@ -339,8 +444,8 @@ export default function UsersList({
                       className="text-slate-300"
                       title={
                         u.role === "superadmin"
-                          ? "Welcome emails are not sent to superadmins"
-                          : "Stored credentials or login key unavailable"
+                          ? "Superadmin accounts cannot be bulk-selected"
+                          : "You cannot select your own account"
                       }
                     >
                       —
@@ -362,7 +467,7 @@ export default function UsersList({
                 </td>
                 <td className="p-4">
                   <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                    className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${
                       u.role === "superadmin"
                         ? "bg-amber-100"
                         : u.role === "admin"

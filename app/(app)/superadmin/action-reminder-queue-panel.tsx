@@ -55,7 +55,7 @@ function ReminderRow({
     >
       <div className="flex items-start gap-3">
         <label
-          className={`mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border ${
+          className={`mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border ${
             reminder.canSend
               ? "cursor-pointer border-slate-300 bg-white hover:bg-sky-50"
               : "cursor-not-allowed border-slate-200 bg-slate-100"
@@ -73,7 +73,7 @@ function ReminderRow({
             onChange={(event) =>
               onSelect(reminder.subscriptionId, event.target.checked)
             }
-            className="h-4 w-4 accent-[#3699FC]"
+            className="h-5 w-5 accent-[#3699FC] cursor-pointer disabled:cursor-not-allowed"
             aria-label={`Select reminder for ${
               reminder.fullName || reminder.email
             }`}
@@ -86,36 +86,36 @@ function ReminderRow({
               {reminder.fullName || reminder.email || "Unknown user"}
             </strong>
             {reminder.fullName && reminder.email && (
-              <span className="truncate text-[11px] text-slate-500">
+              <span className="truncate text-sm text-slate-500">
                 {reminder.email}
               </span>
             )}
-            <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-violet-700">
+            <span className="rounded bg-violet-100 px-1.5 py-0.5 text-xs font-bold uppercase text-violet-700">
               {reminder.track}
             </span>
             {!reminder.canSend && (
-              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-bold uppercase text-amber-700">
                 Not sendable
               </span>
             )}
           </div>
 
-          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600">
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
             <span className="font-semibold">{reminder.cohortName}</span>
             <span>{reminder.scheduleLabel}</span>
           </div>
 
-          <p className="mt-1 flex items-center gap-1 text-[11px] font-bold text-sky-700">
+          <p className="mt-1 flex items-center gap-1 text-sm font-bold text-sky-700">
             <CalendarClock size={12} />
             Next email: {formatIstTime(reminder.scheduledFor)}
           </p>
 
           {!reminder.canSend ? (
-            <p className="mt-2 text-[11px] font-semibold text-amber-700">
+            <p className="mt-2 text-sm font-semibold text-amber-700">
               {reminder.blockedReason} Automatic delivery will skip this email.
             </p>
           ) : (
-            <div className="mt-2 text-[11px] text-slate-600">
+            <div className="mt-2 text-sm text-slate-600">
               <span className="font-bold">
                 {reminder.actionCount} action
                 {reminder.actionCount === 1 ? "" : "s"} in this email:
@@ -256,7 +256,7 @@ export default function ActionReminderQueuePanel({
           <Mail size={18} />
           Upcoming user reminder emails
           {reminders.length > 0 && (
-            <span className="rounded-full bg-black px-2 py-0.5 text-[10px] font-black text-white">
+            <span className="rounded-full bg-black px-2 py-0.5 text-xs font-black text-white">
               {sendableReminders.length} ready
             </span>
           )}
@@ -277,10 +277,10 @@ export default function ActionReminderQueuePanel({
         <div className="border-t-2 border-black">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-violet-200 bg-violet-100 px-4 py-3">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-800">
+              <p className="text-xs font-bold uppercase tracking-wider text-violet-800">
                 Participant-selected reminders · fixed delivery at 11:30 AM IST
               </p>
-              <p className="mt-1 text-[11px] text-violet-700">
+              <p className="mt-1 text-sm text-violet-700">
                 Manual sends can be repeated whenever needed and do not consume
                 the participant&apos;s automatic scheduled reminder.
               </p>
@@ -289,7 +289,7 @@ export default function ActionReminderQueuePanel({
               type="button"
               onClick={loadReminders}
               disabled={loading || sending}
-              className="flex items-center gap-1.5 rounded-lg border border-violet-300 bg-white px-3 py-2 text-[10px] font-bold uppercase text-violet-800 hover:bg-violet-50 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg border border-violet-300 bg-white px-3 py-2 text-xs font-bold uppercase text-violet-800 hover:bg-violet-50 disabled:opacity-50"
             >
               {loading ? (
                 <Loader2 size={13} className="animate-spin" />
@@ -335,12 +335,12 @@ export default function ActionReminderQueuePanel({
                     type="button"
                     onClick={toggleAll}
                     disabled={sending}
-                    className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[10px] font-bold uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                   >
                     {allSelected ? (
-                      <CheckSquare size={13} />
+                      <CheckSquare size={16} />
                     ) : (
-                      <Square size={13} />
+                      <Square size={16} />
                     )}
                     {allSelected ? "Clear all" : "Select all ready"}
                   </button>
@@ -348,7 +348,7 @@ export default function ActionReminderQueuePanel({
                     type="button"
                     onClick={sendSelectedNow}
                     disabled={sending || selectedIds.size === 0}
-                    className="flex items-center gap-1.5 rounded-lg border-2 border-black bg-black px-3 py-2 text-[10px] font-bold uppercase text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex items-center gap-1.5 rounded-lg border-2 border-black bg-black px-3 py-2 text-xs font-bold uppercase text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {sending ? (
                       <Loader2 size={13} className="animate-spin" />

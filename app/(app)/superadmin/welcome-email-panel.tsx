@@ -180,7 +180,7 @@ export default function WelcomeEmailPanel({
 
       <div className="grid gap-3 border-b border-[#ebe8eb] bg-[#faf9fa] p-4 sm:grid-cols-3">
         <div className="rounded-xl border border-[#e4e0e4] bg-white p-3">
-          <small className="text-[8px] font-black uppercase tracking-[.08em] text-[#8f888f]">
+          <small className="text-[11px] font-black uppercase tracking-[.06em] text-[#8f888f]">
             Eligible recipients
           </small>
           <p className="mt-1 text-xl font-black text-[#29252b]">
@@ -188,7 +188,7 @@ export default function WelcomeEmailPanel({
           </p>
         </div>
         <div className="rounded-xl border border-[#e4e0e4] bg-white p-3">
-          <small className="text-[8px] font-black uppercase tracking-[.08em] text-[#8f888f]">
+          <small className="text-[11px] font-black uppercase tracking-[.06em] text-[#8f888f]">
             Already welcomed
           </small>
           <p className="mt-1 text-xl font-black text-[#29252b]">
@@ -196,7 +196,7 @@ export default function WelcomeEmailPanel({
           </p>
         </div>
         <div className="rounded-xl border border-[#ead79c] bg-[#fff9e8] p-3">
-          <small className="text-[8px] font-black uppercase tracking-[.08em] text-[#8c7000]">
+          <small className="text-[11px] font-black uppercase tracking-[.06em] text-[#8c7000]">
             Needs preparation
           </small>
           <p className="mt-1 text-xl font-black text-[#705b13]">
@@ -240,9 +240,9 @@ export default function WelcomeEmailPanel({
           className="superadmin-secondary-action"
         >
           {allVisibleReadySelected ? (
-            <CheckSquare size={14} />
+            <CheckSquare size={16} />
           ) : (
-            <Square size={14} />
+            <Square size={16} />
           )}
           {allVisibleReadySelected ? "Clear visible" : "Select ready"}
         </button>
@@ -272,16 +272,16 @@ export default function WelcomeEmailPanel({
           }`}
         >
           <div>
-            <strong className="text-[11px]">
+            <strong className="text-xs">
               {error
                 ? "Welcome emails could not be sent"
                 : `${sentCount} welcome email${sentCount === 1 ? "" : "s"} sent${
                     failedCount ? ` · ${failedCount} failed` : ""
                   }`}
             </strong>
-            {error && <p className="mt-1 text-[10px]">{error}</p>}
+            {error && <p className="mt-1 text-[11px]">{error}</p>}
             {results && failedCount > 0 && (
-              <p className="mt-1 text-[10px]">
+              <p className="mt-1 text-[11px]">
                 {results
                   .filter((result) => !result.success)
                   .map((result) => `${result.email}: ${result.error}`)
@@ -337,39 +337,39 @@ export default function WelcomeEmailPanel({
                       checked={selected}
                       disabled={!ready || sending}
                       onChange={() => toggleUser(user.id)}
-                      className="h-4 w-4 accent-[#29252b]"
+                      className="h-5 w-5 accent-[#29252b] cursor-pointer disabled:cursor-not-allowed"
                       aria-label={`Select ${user.full_name || user.email}`}
                     />
                   </label>
-                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#f3f1f3] text-[9px] font-black text-[#514b53]">
+                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#f3f1f3] text-[11px] font-black text-[#514b53]">
                     {initials}
                   </span>
                   <div className="min-w-0">
-                    <strong className="block truncate text-[11px] text-[#302b31]">
+                    <strong className="block truncate text-sm text-[#302b31]">
                       {user.full_name || user.email}
                     </strong>
-                    <span className="mt-0.5 block truncate text-[9px] text-[#8d858e]">
+                    <span className="mt-0.5 block truncate text-[11px] text-[#8d858e]">
                       {user.email}
                       {user.company_name ? ` · ${user.company_name}` : " · Unassigned"}
                     </span>
-                    <span className="mt-1 block text-[8px] text-[#a19aa2]">
+                    <span className="mt-1 block text-[10px] text-[#a19aa2]">
                       Last welcome: {formatIstDate(user.welcome_email_sent_at)}
                     </span>
                   </div>
                   <div className="text-right">
                     <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[8px] font-black uppercase ${
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-black uppercase ${
                         ready
                           ? "bg-emerald-50 text-emerald-700"
                           : "bg-amber-50 text-amber-700"
                       }`}
                     >
                       {ready ? (
-                        <CheckCircle2 size={11} />
+                        <CheckCircle2 size={12} />
                       ) : user.persistent_login_key ? (
-                        <ShieldAlert size={11} />
+                        <ShieldAlert size={12} />
                       ) : (
-                        <KeyRound size={11} />
+                        <KeyRound size={12} />
                       )}
                       {readinessLabel(user)}
                     </span>
@@ -381,7 +381,7 @@ export default function WelcomeEmailPanel({
         )}
       </div>
 
-      <div className="border-t border-[#ebe8eb] bg-[#faf9fa] px-4 py-3 text-[9px] leading-relaxed text-[#817a82]">
+      <div className="border-t border-[#ebe8eb] bg-[#faf9fa] px-4 py-3 text-[11px] leading-relaxed text-[#817a82]">
         Welcome emails are sent immediately. Resending keeps the same secure
         login key and stored credentials; it does not create a new password.
       </div>

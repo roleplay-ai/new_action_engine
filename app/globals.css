@@ -16309,6 +16309,14 @@ textarea.commitment-buddy-contact-selectable {
   border-radius: 50%;
 }
 
+.login-story-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
 .login-eyebrow {
   display: inline-flex;
   align-items: center;
@@ -16441,20 +16449,12 @@ textarea.commitment-buddy-contact-selectable {
   margin: auto;
 }
 
-.login-top-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 30px;
-}
-
 .login-lock-mark {
   width: 46px;
   height: 46px;
   display: grid;
-  flex: 0 0 auto;
   place-items: center;
+  margin-bottom: 30px;
   border-radius: 14px;
   background: var(--login-amber);
   border: 1.5px solid var(--login-ink);

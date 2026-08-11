@@ -15,9 +15,14 @@ function composeCohortName(batchName: string, moduleName?: string | null): strin
   return module_ ? `${batch} — ${module_}` : batch;
 }
 
+// `profiles.email` is copied from `auth.users` and kept in sync by DB
+// triggers (see migration 043_profiles_email.sql), so member emails can be
+// read straight off the profiles join below — no need for the expensive
+// admin.auth.admin.listUsers() call (which fetches up to 1000 users across
+// the WHOLE project, not just this cohort/company) that used to run here.
 function mapMemberRow(m: {
   user_id: string;
-  profiles: { id: string; full_name: string | null } | { id: string; full_name: string | null }[] | null;
+  profiles: { id: string; full_name: string | null; email: string | null } | { id: string; full_name: string | null; email: string | null }[] | null;
   participant_tags?: { id: string; name: string } | { id: string; name: string }[] | null;
 }): CohortMember {
   const profile = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
@@ -25,26 +30,9 @@ function mapMemberRow(m: {
   return {
     id: m.user_id,
     fullName: profile?.full_name ?? null,
-    email: null,
+    email: profile?.email ?? null,
     tag: tagRow ? { id: tagRow.id, name: tagRow.name } : null,
   };
-}
-
-async function withMemberEmails(
-  admin: ReturnType<typeof createAdminClient>,
-  members: CohortMember[],
-): Promise<CohortMember[]> {
-  if (members.length === 0) return members;
-  const memberIds = new Set(members.map((member) => member.id));
-  const emailMap = new Map<string, string>();
-  const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
-  for (const user of data?.users ?? []) {
-    if (memberIds.has(user.id) && user.email) emailMap.set(user.id, user.email);
-  }
-  return members.map((member) => ({
-    ...member,
-    email: emailMap.get(member.id) ?? null,
-  }));
 }
 
 async function loadTrainerMap(
@@ -125,28 +113,22 @@ export async function getCompanyUsers(companyId: string): Promise<
     const { companyId: myCompanyId, role } = await getAdminContext();
     if (role === "admin" && myCompanyId !== companyId) return { error: "Access denied" };
 
+    // profiles.email is synced from auth.users by a DB trigger (migration
+    // 043_profiles_email.sql), so it can be selected directly — no need for
+    // the admin.auth.admin.listUsers() full-project user scan this used to do.
     const admin = createAdminClient();
     const { data: profiles, error } = await admin
       .from("profiles")
-      .select("id, full_name")
+      .select("id, full_name, email")
       .eq("company_id", companyId)
       .eq("role", "user");
     if (error) return { error: error.message };
-
-    const emailMap = new Map<string, string>();
-    if (profiles?.length) {
-      const ids = new Set(profiles.map((p) => p.id));
-      const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
-      for (const user of data?.users ?? []) {
-        if (ids.has(user.id) && user.email) emailMap.set(user.id, user.email);
-      }
-    }
 
     return {
       users: (profiles ?? []).map((p) => ({
         id: p.id,
         full_name: p.full_name,
-        email: emailMap.get(p.id) ?? null,
+        email: p.email ?? null,
       })),
     };
   } catch (e) {
@@ -496,7 +478,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
     const [{ data: members }, trainerMap, datesMap] = await Promise.all([
       admin
         .from("cohort_members")
-        .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name), participant_tags(id, name)")
+        .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name, email), participant_tags(id, name)")
         .eq("cohort_id", cohortId),
       loadTrainerMap(admin, [cohort.trainer_id]),
       loadCohortDatesMap(admin, [cohortId]),
@@ -518,7 +500,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
         trainer: cohort.trainer_id ? trainerMap.get(cohort.trainer_id) ?? null : null,
         locked: cohort.locked,
       },
-      members: await withMemberEmails(admin, (members ?? []).map(mapMemberRow)),
+      members: (members ?? []).map(mapMemberRow),
     };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed" };
@@ -796,10 +778,10 @@ export async function getMyCohort(): Promise<{
     const admin = createAdminClient();
     const { data: members } = await admin
       .from("cohort_members")
-      .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name), participant_tags(id, name)")
+      .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name, email), participant_tags(id, name)")
       .eq("cohort_id", cohortId);
 
-    const roster = await withMemberEmails(admin, (members ?? []).map(mapMemberRow));
+    const roster = (members ?? []).map(mapMemberRow);
 
     return {
       cohort: {

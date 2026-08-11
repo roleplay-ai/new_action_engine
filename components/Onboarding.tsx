@@ -26,7 +26,7 @@ const Onboarding: React.FC<{
   const [durationWeeks, setDurationWeeks] = useState(6);
   const [track, setTrack] = useState<DeliveryTrack>("weekly");
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([2]);
-  const [weeklyActionCount, setWeeklyActionCount] = useState<1 | 2 | 3 | 4 | 5>(3);
+  const [weeklyActionCount, setWeeklyActionCount] = useState<1 | 2 | 3 | 4 | 5>(2);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 

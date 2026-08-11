@@ -19,7 +19,7 @@ export async function getMySessionNotes(cohortId?: string | null): Promise<{
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { body: "", error: "Not authenticated" };
-  const { cohort, error: cohortError } = await getMyCohort();
+  const { cohort, error: cohortError } = await getMyCohort({ includeRoster: false });
   if (cohortError) return { body: "", error: cohortError };
   if ((cohort?.id ?? null) !== (cohortId ?? null)) return { body: "", error: "Select this cohort before viewing its notes" };
 
@@ -53,7 +53,7 @@ export async function saveMySessionNotes(
     : parseStoredMyPlanAnswers(null, input);
   const body = buildUserNotesPayload(answers);
   if (body.length > 50000) return { error: "Notes must be shorter than 50,000 characters" };
-  const { cohort, error: cohortError } = await getMyCohort();
+  const { cohort, error: cohortError } = await getMyCohort({ includeRoster: false });
   if (cohortError) return { error: cohortError };
   if ((cohort?.id ?? null) !== (cohortId ?? null)) return { error: "Select this cohort before editing its notes" };
 
@@ -93,7 +93,7 @@ export async function refineMySessionNotes(
   if (!body.trim()) return { error: "Add some answers before refining with AI" };
   if (body.length > 50000) return { error: "Notes must be shorter than 50,000 characters" };
 
-  const { cohort, error: cohortError } = await getMyCohort();
+  const { cohort, error: cohortError } = await getMyCohort({ includeRoster: false });
   if (cohortError) return { error: cohortError };
   if ((cohort?.id ?? null) !== (cohortId ?? null)) return { error: "Select this cohort before editing its notes" };
   if (!isGeminiConfigured()) return { error: "AI refinement is not configured (GEMINI_API_KEY missing)" };

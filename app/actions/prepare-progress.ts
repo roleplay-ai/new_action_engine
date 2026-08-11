@@ -19,7 +19,7 @@ export async function getMyPrepareProgress(cohortId: string): Promise<{
     } = await supabase.auth.getUser();
     if (!user) return { error: "Not authenticated" };
 
-    const { cohort: selectedCohort } = await getMyCohort();
+    const { cohort: selectedCohort } = await getMyCohort({ includeRoster: false });
     if (selectedCohort?.id !== cohortId) return { error: "Select this cohort before viewing its progress" };
 
     // Confirm the caller is actually a member of this cohort before returning anything.
@@ -89,7 +89,7 @@ export async function markContentViewed(contentItemId: string): Promise<{ error?
     } = await supabase.auth.getUser();
     if (!user) return { error: "Not authenticated" };
 
-    const { cohort } = await getMyCohort();
+    const { cohort } = await getMyCohort({ includeRoster: false });
     if (!cohort) return { error: "Select a cohort first" };
 
     const { data: assignment } = await supabase
@@ -133,7 +133,7 @@ export async function getQuizForAttempt(contentItemId: string): Promise<{
     } = await supabase.auth.getUser();
     if (!user) return { error: "Not authenticated" };
 
-    const { cohort } = await getMyCohort();
+    const { cohort } = await getMyCohort({ includeRoster: false });
     if (!cohort) return { error: "Select a cohort first" };
 
     const { data: assignment } = await supabase
@@ -184,7 +184,7 @@ export async function submitQuizAttempt(
     } = await supabase.auth.getUser();
     if (!user) return { error: "Not authenticated" };
 
-    const { cohort } = await getMyCohort();
+    const { cohort } = await getMyCohort({ includeRoster: false });
     if (!cohort) return { error: "Select a cohort first" };
 
     const { data: assignment } = await supabase

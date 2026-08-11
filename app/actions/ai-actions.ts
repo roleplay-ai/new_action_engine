@@ -454,8 +454,13 @@ export async function skipSelfOnboarding(): Promise<{ error?: string }> {
   }
 }
 
-/** Latest background action-plan generation job for the current user, for live status polling. */
-export async function getActiveGenerationJob(): Promise<{
+/**
+ * Latest background action-plan generation job for the current user, for live status polling.
+ * Accepts the caller's already-resolved cohort id — this is polled every 3-12s for as long as a
+ * page is open, so re-deriving the cohort from scratch (~7 queries via getMyCohorts()) on every
+ * single poll was a real, recurring cost, not just a one-time page-load one.
+ */
+export async function getActiveGenerationJob(knownCohortId?: string): Promise<{
   job: { id: string; totalNeeded: number; totalGenerated: number; status: string; errorMessage?: string } | null;
 }> {
   const supabase = await createClient();
@@ -465,7 +470,7 @@ export async function getActiveGenerationJob(): Promise<{
   if (!user) {
     return { job: null };
   }
-  const cohortContext = await getSelectedPlanCohort();
+  const cohortContext = await getSelectedPlanCohort(false, knownCohortId);
   if (!cohortContext.cohortId) return { job: null };
 
   const { data } = await supabase

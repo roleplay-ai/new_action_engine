@@ -167,11 +167,39 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       return;
     }
 
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("full_name, total_points, weekly_goal, league_index, streak")
-      .eq("id", user.id)
-      .single();
+    // Round 1: everything below only needs the user's own id, so it's fired as one
+    // batch instead of four sequential round-trips. self_onboarding_completed_at
+    // stays a separate, best-effort query — it's a newer column (migration 021),
+    // kept isolated so a not-yet-migrated DB doesn't break the core profile fetch.
+    const [profResult, onboardingResult, cohortContext, archivedPlanResult] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("full_name, total_points, weekly_goal, league_index, streak, company_id")
+        .eq("id", user.id)
+        .single(),
+      supabase
+        .from("profiles")
+        .select("self_onboarding_completed_at")
+        .eq("id", user.id)
+        .maybeSingle(),
+      fetch("/api/cohort-context", {
+        method: "GET",
+        cache: "no-store",
+        credentials: "same-origin",
+      }).then((res) => res.json() as Promise<{
+        cohorts?: CohortOption[];
+        selectedCohortId?: string | null;
+        currentCohortId?: string | null;
+        error?: string;
+      }>),
+      supabase
+        .from("personal_action_subscriptions")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .not("archived_at", "is", null),
+    ]);
+
+    const prof = profResult.data;
     if (prof) {
       setProfile({
         name: prof.full_name?.trim() || user.email?.split("@")[0] || "User",
@@ -182,59 +210,82 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
         streak: prof.streak ?? 0,
       });
     }
+    setSelfOnboardingCompletedAt((onboardingResult.data as any)?.self_onboarding_completed_at ?? null);
 
-    // Separate, best-effort query: self_onboarding_completed_at is a newer column
-    // (migration 021) — kept isolated so a not-yet-migrated DB doesn't break the
-    // core profile fetch above.
-    const { data: onboardingRow } = await supabase
-      .from("profiles")
-      .select("self_onboarding_completed_at")
-      .eq("id", user.id)
-      .maybeSingle();
-    setSelfOnboardingCompletedAt((onboardingRow as any)?.self_onboarding_completed_at ?? null);
-
-    const cohortResponse = await fetch("/api/cohort-context", {
-      method: "GET",
-      cache: "no-store",
-      credentials: "same-origin",
-    });
-    const cohortContext = await cohortResponse.json() as {
-      cohorts?: CohortOption[];
-      selectedCohortId?: string | null;
-      currentCohortId?: string | null;
-      error?: string;
-    };
     const availableCohorts = cohortContext.cohorts ?? [];
     const selectedCohort = availableCohorts.find((item) => item.isSelected) ?? null;
     const selectedCohortId = selectedCohort?.id ?? null;
     setCohorts(availableCohorts);
     setCohort(selectedCohort);
 
-    const { data: pointAccount } = selectedCohortId
-      ? await supabase
-          .from("cohort_point_accounts")
-          .select("current_points")
-          .eq("user_id", user.id)
-          .eq("cohort_id", selectedCohortId)
-          .maybeSingle()
-      : { data: null };
+    setHasArchivedPlans((archivedPlanResult.count ?? 0) > 0);
+
+    const companyId = adminCompanyId ?? prof?.company_id;
+    setHasCompany(!!companyId);
+
+    // Round 2: everything below is cohort-scoped, so it can only start once
+    // selectedCohortId (from round 1) is known — but within that constraint, all
+    // five queries are independent of each other and run together.
+    const [pointAccountResult, planSubscriptionResult, actionsResult, uasResult, eventsResult] = await Promise.all([
+      selectedCohortId
+        ? supabase
+            .from("cohort_point_accounts")
+            .select("current_points")
+            .eq("user_id", user.id)
+            .eq("cohort_id", selectedCohortId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      // Plan activation is cohort-specific. A previous finalised plan can be
+      // archived while the newly assigned current cohort starts with no plan.
+      selectedCohortId
+        ? supabase
+            .from("personal_action_subscriptions")
+            .select("is_active, archived_at")
+            .eq("user_id", user.id)
+            .eq("cohort_id", selectedCohortId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      companyId && selectedCohortId
+        ? Promise.all([
+            supabase
+              .from("actions")
+              .select("id, cohort_id, plan_order, theme, title, how, why, time_estimate, is_personal")
+              .eq("company_id", companyId)
+              .eq("cohort_id", selectedCohortId)
+              .order("plan_order", { ascending: true, nullsFirst: false })
+              .order("created_at", { ascending: true }),
+            supabase
+              .from("personal_action_point_allocations")
+              .select("action_id, points")
+              .eq("user_id", user.id)
+              .eq("cohort_id", selectedCohortId),
+          ])
+        : Promise.resolve(null),
+      selectedCohortId
+        ? supabase
+            .from("user_actions")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("cohort_id", selectedCohortId)
+        : Promise.resolve({ data: [] }),
+      selectedCohortId
+        ? supabase
+            .from("feed_events")
+            .select("id, cohort_id, user_id, action_title, type, likes, created_at")
+            .eq("user_id", user.id)
+            .eq("cohort_id", selectedCohortId)
+            .order("created_at", { ascending: false })
+            .limit(50)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const pointAccount = pointAccountResult.data;
     setProfile((current) => ({
       ...current,
       totalPoints: pointAccount?.current_points ?? (selectedCohortId ? 1000 : 0),
     }));
 
-    // Plan activation is cohort-specific. A previous finalised plan can be
-    // archived while the newly assigned current cohort starts with no plan.
-    let planSubscription: { is_active: boolean; archived_at: string | null } | null = null;
-    if (selectedCohortId) {
-      const result = await supabase
-        .from("personal_action_subscriptions")
-        .select("is_active, archived_at")
-        .eq("user_id", user.id)
-        .eq("cohort_id", selectedCohortId)
-        .maybeSingle();
-      planSubscription = result.data;
-    }
+    const planSubscription = planSubscriptionResult.data;
     setPersonalPlanState(
       !planSubscription
         ? "none"
@@ -244,35 +295,9 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
             ? "active"
             : "draft"
     );
-    const { count: archivedPlanCount } = await supabase
-      .from("personal_action_subscriptions")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .not("archived_at", "is", null);
-    setHasArchivedPlans((archivedPlanCount ?? 0) > 0);
 
-    const { data: profRow } = await supabase
-      .from("profiles")
-      .select("company_id")
-      .eq("id", user.id)
-      .single();
-    const companyId = adminCompanyId ?? profRow?.company_id;
-    setHasCompany(!!companyId);
-    if (companyId && selectedCohortId) {
-      const [{ data: actions }, { data: allocations }] = await Promise.all([
-        supabase
-          .from("actions")
-          .select("id, cohort_id, plan_order, theme, title, how, why, time_estimate, is_personal")
-          .eq("company_id", companyId)
-          .eq("cohort_id", selectedCohortId)
-          .order("plan_order", { ascending: true, nullsFirst: false })
-          .order("created_at", { ascending: true }),
-        supabase
-          .from("personal_action_point_allocations")
-          .select("action_id, points")
-          .eq("user_id", user.id)
-          .eq("cohort_id", selectedCohortId),
-      ]);
+    if (actionsResult) {
+      const [{ data: actions }, { data: allocations }] = actionsResult;
       const pointsByAction = new Map((allocations ?? []).map((row) => [row.action_id, row.points]));
       setAllActions((actions ?? []).map((row) => mapDbAction({
         ...row,
@@ -282,26 +307,10 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       setAllActions([]);
     }
 
-    const { data: uas } = selectedCohortId
-      ? await supabase
-          .from("user_actions")
-          .select("*")
-          .eq("user_id", user.id)
-          .eq("cohort_id", selectedCohortId)
-      : { data: [] };
-    setUserActions((uas ?? []).map(mapDbUserAction));
+    setUserActions((uasResult.data ?? []).map(mapDbUserAction));
 
-    const { data: events } = selectedCohortId
-      ? await supabase
-          .from("feed_events")
-          .select("id, cohort_id, user_id, action_title, type, likes, created_at")
-          .eq("user_id", user.id)
-          .eq("cohort_id", selectedCohortId)
-          .order("created_at", { ascending: false })
-          .limit(50)
-      : { data: [] };
     const displayName = prof?.full_name?.trim() || user.email?.split("@")[0] || "User";
-    const items = (events ?? []).map((e) => {
+    const items = (eventsResult.data ?? []).map((e) => {
       const it = mapDbFeedEvent(e);
       it.userName = it.userId === user.id ? displayName : "User";
       return it;
@@ -316,7 +325,11 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
   }, [refetch, adminCompanyId]);
 
   const refreshGenerationStatus = useCallback(async (options?: { refreshActions?: boolean }) => {
-    const response = await fetch("/api/generation-status", {
+    // Pass the cohort this render already resolved, so the poll (fired every
+    // 3-12s for as long as the page is open) doesn't re-derive it from scratch
+    // on every single call.
+    const query = cohort?.id ? `?cohortId=${encodeURIComponent(cohort.id)}` : "";
+    const response = await fetch(`/api/generation-status${query}`, {
       method: "GET",
       cache: "no-store",
     });
@@ -347,7 +360,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       await refetch({ syncPoints: false });
     }
     return job;
-  }, [refetch]);
+  }, [refetch, cohort?.id]);
 
   // Poll for background action-plan generation progress and re-pull actions as
   // they arrive. A completed job is refreshed once even when it finishes before

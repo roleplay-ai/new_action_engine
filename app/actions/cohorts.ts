@@ -677,13 +677,17 @@ export async function getMyCohorts(): Promise<{
     ]);
 
     const cohortById = new Map((cohortRows ?? []).map((cohort) => [cohort.id, cohort]));
-    const trainerMap = await loadTrainerMap(admin, (cohortRows ?? []).map((cohort) => cohort.trainer_id));
-    const datesMap = await loadCohortDatesMap(admin, (cohortRows ?? []).map((cohort) => cohort.id));
     const companyIds = Array.from(new Set((cohortRows ?? []).map((cohort) => cohort.company_id)));
-    const { data: companyRows } = companyIds.length
-      ? await admin.from("companies").select("id, name, logo_url").in("id", companyIds)
-      : { data: [] as { id: string; name: string; logo_url: string | null }[] };
-    const companyById = new Map((companyRows ?? []).map((company) => [company.id, company]));
+    // These three only depend on cohortRows above, not on each other — run together
+    // instead of one after another.
+    const [trainerMap, datesMap, companyRows] = await Promise.all([
+      loadTrainerMap(admin, (cohortRows ?? []).map((cohort) => cohort.trainer_id)),
+      loadCohortDatesMap(admin, (cohortRows ?? []).map((cohort) => cohort.id)),
+      companyIds.length
+        ? admin.from("companies").select("id, name, logo_url").in("id", companyIds).then((res) => res.data ?? [])
+        : Promise.resolve([] as { id: string; name: string; logo_url: string | null }[]),
+    ]);
+    const companyById = new Map(companyRows.map((company) => [company.id, company]));
     const memberCounts = new Map<string, number>();
     for (const row of memberRows ?? []) {
       memberCounts.set(row.cohort_id, (memberCounts.get(row.cohort_id) ?? 0) + 1);
@@ -757,31 +761,39 @@ export async function selectMyCohort(cohortId: string): Promise<{ error?: string
   return {};
 }
 
-/** Selected logged-in cohort + roster, for participant pages. */
-export async function getMyCohort(): Promise<{
+/**
+ * Selected logged-in cohort (+ roster, for participant pages that show fellow
+ * members). Pass { includeRoster: false } when the caller only needs the cohort
+ * itself (e.g. a lock check) — the roster join is a real query of its own (see
+ * below) and several callers were fetching and immediately discarding it.
+ */
+export async function getMyCohort(options?: { includeRoster?: boolean }): Promise<{
   error?: string;
   cohort?: (Cohort & { companyId: string }) | null;
   roster?: CohortMember[];
 }> {
   try {
+    const includeRoster = options?.includeRoster !== false;
     const context = await getMyCohorts();
     if (context.error) return { error: context.error };
     const selected = context.cohorts.find((cohort) => cohort.isSelected) ?? null;
     const cohortId = selected?.id ?? null;
     if (!cohortId) return { cohort: null, roster: [] };
 
-    // Admin client: a plain member's own cohort_members row satisfies RLS
-    // (user_id = auth.uid()), but the embedded profiles join for their
-    // *fellow* members isn't covered by any regular-user SELECT policy on
-    // profiles — without this, "Learn alongside N colleagues" would only
-    // ever resolve the current user's own name.
-    const admin = createAdminClient();
-    const { data: members } = await admin
-      .from("cohort_members")
-      .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name, email), participant_tags(id, name)")
-      .eq("cohort_id", cohortId);
-
-    const roster = (members ?? []).map(mapMemberRow);
+    let roster: CohortMember[] = [];
+    if (includeRoster) {
+      // Admin client: a plain member's own cohort_members row satisfies RLS
+      // (user_id = auth.uid()), but the embedded profiles join for their
+      // *fellow* members isn't covered by any regular-user SELECT policy on
+      // profiles — without this, "Learn alongside N colleagues" would only
+      // ever resolve the current user's own name.
+      const admin = createAdminClient();
+      const { data: members } = await admin
+        .from("cohort_members")
+        .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name, email), participant_tags(id, name)")
+        .eq("cohort_id", cohortId);
+      roster = (members ?? []).map(mapMemberRow);
+    }
 
     return {
       cohort: {
@@ -792,7 +804,9 @@ export async function getMyCohort(): Promise<{
         description: selected!.description,
         dates: selected!.dates,
         logoUrl: selected!.logoUrl,
-        memberCount: roster.length,
+        // getMyCohorts() already computed this from a lightweight id-only query —
+        // only prefer the roster's own count when the roster was actually fetched.
+        memberCount: includeRoster ? roster.length : selected!.memberCount,
         companyId: selected!.companyId,
         companyName: selected!.companyName,
         companyLogoUrl: selected!.companyLogoUrl,

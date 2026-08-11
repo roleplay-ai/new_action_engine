@@ -5,7 +5,7 @@ import { cohortLockInfo } from "@/lib/cohort-lock";
 import { CohortLockedNotice } from "@/components/CohortLockedNotice";
 
 export default async function PlanPage() {
-  const { cohort } = await getMyCohort();
+  const { cohort } = await getMyCohort({ includeRoster: false });
   const lock = cohortLockInfo(cohort);
   if (lock.locked) {
     return (

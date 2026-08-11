@@ -258,7 +258,7 @@ function WalletMilestones({ summary }: { summary: CommitmentWalletSummary }) {
 }
 
 export default async function WalletPage() {
-  const { cohort } = await getMyCohort();
+  const { cohort } = await getMyCohort({ includeRoster: false });
   const lock = cohortLockInfo(cohort);
   if (lock.locked) {
     return (

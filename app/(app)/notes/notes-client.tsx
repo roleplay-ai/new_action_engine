@@ -178,7 +178,7 @@ const NotesClient = forwardRef<NotesClientHandle, {
     month: "long",
     year: "numeric",
   }).format(updatedAt ? new Date(updatedAt) : new Date());
-  const roleLine = [answers.designation.trim(), answers.team.trim()].filter(Boolean).join("  •  ");
+  const roleLine = answers.designation.trim();
   const workAndSkill = [answers.dailyWork.trim(), answers.skillGoal.trim()].filter(Boolean).join(" ");
 
   if (initializing) return embedded
@@ -218,12 +218,11 @@ const NotesClient = forwardRef<NotesClientHandle, {
           <div className="my-plan-question my-plan-details">
             <div className="my-plan-question-heading">
               <h2>Your details</h2>
-              <p>This helps us personalize my plan to your role and team.</p>
+              <p>This helps us personalize my plan to your role.</p>
             </div>
             <div className="my-plan-details-grid">
               <label><span>Name</span><input value={answers.name} onChange={(event) => updateAnswer("name", event.target.value)} placeholder="Your name" maxLength={200} disabled={busy} /></label>
               <label><span>Designation</span><input value={answers.designation} onChange={(event) => updateAnswer("designation", event.target.value)} placeholder="e.g. Team Lead" maxLength={200} disabled={busy} /></label>
-              <label><span>Function</span><input value={answers.team} onChange={(event) => updateAnswer("team", event.target.value)} placeholder="e.g. Customer Success" maxLength={200} disabled={busy} /></label>
             </div>
           </div>
 

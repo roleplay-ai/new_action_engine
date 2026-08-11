@@ -6838,6 +6838,23 @@ input[type="range"] {
   max-height: 286px;
   overflow-y: auto;
   margin-top: 12px;
+  padding-right: 8px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rcpl-line) transparent;
+}
+
+.rcpl-participants>div::-webkit-scrollbar {
+  width: 4px;
+}
+
+.rcpl-participants>div::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.rcpl-participants>div::-webkit-scrollbar-thumb {
+  background: var(--rcpl-line);
+  border-radius: 999px;
 }
 
 .rcpl-tag-group-label {

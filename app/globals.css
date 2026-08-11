@@ -10221,6 +10221,9 @@ input[type="range"] {
 }
 
 .cohort-admin-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   color: #8a6811;
   font-size: 10px;
@@ -10525,19 +10528,59 @@ input[type="range"] {
   gap: 3px;
 }
 
-.cohort-admin-row-copy>strong {
+.cohort-admin-row-name-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.cohort-admin-row-name-line>strong {
   overflow: hidden;
+  min-width: 0;
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.cohort-admin-row-copy>span:not(.cohort-admin-row-meta) {
+.cohort-admin-lock-chip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(217, 119, 6, 0.14);
+  color: #92400e;
+  font-size: 9px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cohort-admin-row-copy>span:not(.cohort-admin-row-meta):not(.cohort-admin-row-name-line) {
   overflow: hidden;
   color: var(--cohort-muted);
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.cohort-admin-lock-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(16, 138, 74, 0.12);
+  color: #0a6632;
+  font-size: 9px;
+  letter-spacing: 0.03em;
+}
+
+.cohort-admin-lock-status.is-locked {
+  background: rgba(217, 119, 6, 0.14);
+  color: #92400e;
 }
 
 .cohort-admin-row-module {
@@ -17231,6 +17274,77 @@ textarea.commitment-buddy-contact-selectable {
   font-size: 12px;
   font-weight: 700;
   flex: 0 0 auto;
+}
+
+/* Cohort locked notice — shown in place of My Plan / Actions / Wallet while
+ * a superadmin has the participant's cohort locked. */
+.cohort-lock-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 420px;
+  margin: 48px auto;
+  padding: 40px 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  background: var(--color-bg-surface);
+  text-align: center;
+}
+
+.cohort-lock-notice-icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-bg-muted);
+  color: var(--color-text-accent);
+}
+
+.cohort-lock-notice h1 {
+  margin: 4px 0 0;
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--color-text-primary);
+}
+
+.cohort-lock-notice>p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.cohort-lock-notice-countdown {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 6px 0;
+  padding: 10px 22px;
+  border-radius: 14px;
+  background: var(--color-bg-muted);
+}
+
+.cohort-lock-notice-countdown strong {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--color-text-primary);
+}
+
+.cohort-lock-notice-countdown span {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--color-text-muted);
+}
+
+.cohort-lock-notice-hint {
+  color: var(--color-text-muted) !important;
+  font-size: 12px !important;
 }
 
 .trainer-spin {

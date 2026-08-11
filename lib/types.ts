@@ -117,6 +117,10 @@ export interface Cohort {
   companyLogoUrl?: string | null;
   trainerId?: string | null;
   trainer?: Trainer | null;
+  /** When true, participants lose access to My Plan, action creation, and the
+   * Commitment Wallet until a superadmin unlocks the cohort. Defaults to true
+   * for new cohorts (see migration 061_cohort_lock.sql). */
+  locked: boolean;
 }
 
 /** One row backing Cohort.dates, with the id needed to remove it individually

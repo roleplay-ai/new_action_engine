@@ -253,6 +253,33 @@ export async function updateCohort(
   }
 }
 
+/** Lock or unlock a cohort. While locked, participants lose access to My
+ * Plan, action creation, and the Commitment Wallet (see cohortLockInfo() in
+ * lib/cohort-lock.ts and the gate at the top of those three pages) — they
+ * see a countdown to the cohort's next date instead. Superadmin only,
+ * unlike the rest of updateCohort's fields which a company admin can touch. */
+export async function setCohortLock(id: string, locked: boolean): Promise<{ error?: string }> {
+  try {
+    const { supabase, role } = await getAdminContext();
+    if (role !== "superadmin") return { error: "Only a superadmin can lock or unlock a cohort" };
+
+    const { error } = await supabase
+      .from("cohorts")
+      .update({ locked, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) return { error: error.message };
+
+    revalidatePath("/admin");
+    revalidatePath("/journey");
+    revalidatePath("/plan");
+    revalidatePath("/actions");
+    revalidatePath("/wallet");
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
 /** The full list of dates on one cohort, with ids so each can be removed
  * individually — used by the cohort management "manage dates" list. */
 export async function listCohortDates(cohortId: string): Promise<{ error?: string; dates?: CohortDate[] }> {
@@ -397,7 +424,7 @@ export async function listCohorts(companyId: string): Promise<{
       supabase.from("companies").select("id, name, logo_url").eq("id", companyId).single(),
       supabase
         .from("cohorts")
-        .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, trainer_id")
+        .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, trainer_id, locked")
         .eq("company_id", companyId)
         .is("archived_at", null)
         .order("created_at", { ascending: false }),
@@ -424,7 +451,7 @@ export async function listCohorts(companyId: string): Promise<{
 
     return {
       company: companyBrand,
-      cohorts: cohorts.map((c: { id: string; name: string; batch_name: string; module_name: string | null; description: string | null; training_content: string | null; business_context: string | null; logo_url: string | null; trainer_id: string | null }) => ({
+      cohorts: cohorts.map((c: { id: string; name: string; batch_name: string; module_name: string | null; description: string | null; training_content: string | null; business_context: string | null; logo_url: string | null; trainer_id: string | null; locked: boolean }) => ({
         id: c.id,
         name: c.name,
         batchName: c.batch_name,
@@ -438,6 +465,7 @@ export async function listCohorts(companyId: string): Promise<{
         contentCount: contentCounts.get(c.id) ?? 0,
         trainerId: c.trainer_id,
         trainer: c.trainer_id ? trainerMap.get(c.trainer_id) ?? null : null,
+        locked: c.locked,
       })),
     };
   } catch (e) {
@@ -455,7 +483,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
 
     const { data: cohort } = await supabase
       .from("cohorts")
-      .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, company_id, trainer_id")
+      .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, company_id, trainer_id, locked")
       .eq("id", cohortId)
       .single();
     if (!cohort) return { error: "Cohort not found" };
@@ -488,6 +516,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
         memberCount: members?.length ?? 0,
         trainerId: cohort.trainer_id,
         trainer: cohort.trainer_id ? trainerMap.get(cohort.trainer_id) ?? null : null,
+        locked: cohort.locked,
       },
       members: await withMemberEmails(admin, (members ?? []).map(mapMemberRow)),
     };
@@ -588,6 +617,11 @@ export async function getMyCohorts(): Promise<{
   cohorts: CohortOption[];
   selectedCohortId: string | null;
   currentCohortId: string | null;
+  /** The caller's own profile role — used by getMyCohort() to scope the
+   * cohort lock (see setCohortLock) to participants ("user") only, so an
+   * admin/superadmin/trainer who happens to land on /plan, /actions, or
+   * /wallet is never blocked by a cohort they merely manage. */
+  role?: string;
 }> {
   try {
     const supabase = await createClient();
@@ -652,7 +686,7 @@ export async function getMyCohorts(): Promise<{
     const [{ data: cohortRows }, { data: memberRows }] = await Promise.all([
       admin
         .from("cohorts")
-        .select("id, name, batch_name, module_name, description, logo_url, company_id, archived_at, trainer_id")
+        .select("id, name, batch_name, module_name, description, logo_url, company_id, archived_at, trainer_id, locked")
         .in("id", orderedIds),
       admin
         .from("cohort_members")
@@ -705,10 +739,11 @@ export async function getMyCohorts(): Promise<{
         isSelected: row.id === selectedCohortId,
         trainerId: row.trainer_id,
         trainer: row.trainer_id ? trainerMap.get(row.trainer_id) ?? null : null,
+        locked: row.locked,
       };
     });
 
-    return { cohorts, selectedCohortId, currentCohortId };
+    return { cohorts, selectedCohortId, currentCohortId, role: profile.role };
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Failed to load cohorts",
@@ -781,6 +816,10 @@ export async function getMyCohort(): Promise<{
         companyLogoUrl: selected!.companyLogoUrl,
         trainerId: selected!.trainerId,
         trainer: selected!.trainer,
+        // The lock only ever applies to participants — an admin/superadmin/
+        // trainer who lands on a participant page via a cohort they merely
+        // manage should never be blocked by it.
+        locked: context.role === "user" && selected!.locked,
       },
       roster,
     };

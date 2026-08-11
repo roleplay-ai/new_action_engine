@@ -8,6 +8,9 @@ import {
   getMyCommitmentWallet,
   type CommitmentWalletSummary,
 } from "@/app/actions/commitment-wallet";
+import { getMyCohort } from "@/app/actions/cohorts";
+import { cohortLockInfo } from "@/lib/cohort-lock";
+import { CohortLockedNotice } from "@/components/CohortLockedNotice";
 import { MILESTONES, milestonePoints } from "@/lib/commitment-wallet-milestones";
 
 function clamp(value: number, min: number, max: number) {
@@ -255,6 +258,18 @@ function WalletMilestones({ summary }: { summary: CommitmentWalletSummary }) {
 }
 
 export default async function WalletPage() {
+  const { cohort } = await getMyCohort();
+  const lock = cohortLockInfo(cohort);
+  if (lock.locked) {
+    return (
+      <CohortLockedNotice
+        title="Your Commitment Wallet isn't open yet"
+        body="Your trainer or admin hasn't opened up the Commitment Wallet for you yet."
+        daysToGo={lock.daysToGo}
+      />
+    );
+  }
+
   const { summary, error } = await getMyCommitmentWallet();
 
   return (

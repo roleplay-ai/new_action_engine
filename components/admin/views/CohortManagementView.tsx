@@ -13,6 +13,8 @@ import {
   Info,
   ImagePlus,
   Loader2,
+  Lock,
+  LockOpen,
   Megaphone,
   MessageSquareText,
   NotebookPen,
@@ -37,6 +39,7 @@ import {
   listCohorts,
   removeCohortDate,
   removeMembersFromCohort,
+  setCohortLock,
   updateCohort,
 } from "@/app/actions/cohorts";
 import { nextUpcomingCohortDate } from "@/lib/cohort-dates";
@@ -73,6 +76,7 @@ type CohortSummary = {
   logoUrl?: string | null;
   trainerId?: string | null;
   trainer?: Trainer | null;
+  locked: boolean;
 };
 
 type CompanyUser = { id: string; full_name: string | null; email: string | null };
@@ -349,7 +353,14 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
                   >
                     <span className="cohort-admin-cohort-mark">{cohort.logoUrl ? <img src={cohort.logoUrl} alt="" /> : initials(cohort.batchName)}</span>
                     <span className="cohort-admin-row-copy">
-                      <strong>{cohort.batchName}</strong>
+                      <span className="cohort-admin-row-name-line">
+                        <strong>{cohort.batchName}</strong>
+                        {cohort.locked && (
+                          <span className="cohort-admin-lock-chip" title="Locked — participants can't access their plan, actions, or wallet">
+                            <Lock size={10} /> Locked
+                          </span>
+                        )}
+                      </span>
                       {cohort.moduleName && <span className="cohort-admin-row-module">{cohort.moduleName}</span>}
                       <span>{cohort.description || formatStartDate(nextUpcomingCohortDate(cohort.dates))}</span>
                       <span className="cohort-admin-row-meta">
@@ -396,6 +407,9 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
                     <Building2 size={12} /> Creating for <strong>{company.name}</strong>
                   </p>
                 )}
+                <p className="cohort-admin-modal-company">
+                  <Lock size={12} /> Starts locked — a superadmin unlocks it to open plan, actions, and wallet access.
+                </p>
               </div>
               <button type="button" onClick={closeCreateDialog} disabled={creatingBusy} aria-label="Close"><X size={18} /></button>
             </div>
@@ -720,6 +734,20 @@ function CohortDetailPanel({
     );
   }
 
+  async function handleToggleLock() {
+    if (role !== "superadmin") return;
+    const nextLocked = !cohort.locked;
+    if (
+      nextLocked &&
+      !window.confirm(
+        "Lock this cohort? Participants will immediately lose access to their plan, action creation, and the Commitment Wallet until you unlock it again."
+      )
+    ) {
+      return;
+    }
+    await runMutation("toggle-lock", () => setCohortLock(cohort.id, nextLocked), { syncList: true });
+  }
+
   async function handlePostNotice() {
     if (!noticeDraft.trim() || busyAction) return;
     await runMutation(
@@ -814,7 +842,13 @@ function CohortDetailPanel({
         <div className="cohort-admin-detail-title">
           <span className="cohort-admin-cohort-mark cohort-admin-cohort-mark--large">{cohort.logoUrl ? <img src={cohort.logoUrl} alt={`${cohort.batchName} logo`} /> : initials(cohort.batchName)}</span>
           <div>
-            <p className="cohort-admin-eyebrow">Active cohort</p>
+            <p className="cohort-admin-eyebrow">
+              Active cohort
+              <span className={`cohort-admin-lock-status${cohort.locked ? " is-locked" : ""}`}>
+                {cohort.locked ? <Lock size={11} /> : <LockOpen size={11} />}
+                {cohort.locked ? "Locked" : "Unlocked"}
+              </span>
+            </p>
             {editingNames ? (
               <div className="cohort-admin-name-edit">
                 <label className="cohort-admin-field">
@@ -881,6 +915,29 @@ function CohortDetailPanel({
             {cohort.logoUrl ? "Replace cohort logo" : "Upload cohort logo"}
             <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" disabled={!!busyAction} onChange={(event) => void handleCohortLogo(event)} />
           </label>
+          {role === "superadmin" && (
+            <button
+              type="button"
+              onClick={() => void handleToggleLock()}
+              disabled={Boolean(busyAction)}
+              className={`cohort-admin-button ${cohort.locked ? "cohort-admin-button--primary" : "cohort-admin-button--secondary"}`}
+              aria-label={cohort.locked ? `Unlock ${cohort.batchName}` : `Lock ${cohort.batchName}`}
+              title={
+                cohort.locked
+                  ? "Unlock — participants regain access to their plan, actions, and wallet"
+                  : "Lock — participants lose access to their plan, actions, and wallet"
+              }
+            >
+              {busyAction === "toggle-lock" ? (
+                <Loader2 size={15} className="cohort-admin-spin" />
+              ) : cohort.locked ? (
+                <LockOpen size={15} />
+              ) : (
+                <Lock size={15} />
+              )}
+              {busyAction === "toggle-lock" ? "Updating…" : cohort.locked ? "Unlock cohort" : "Lock cohort"}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void handleDeleteCohort()}

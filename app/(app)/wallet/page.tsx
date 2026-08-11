@@ -270,7 +270,7 @@ export default async function WalletPage() {
     );
   }
 
-  const { summary, error } = await getMyCommitmentWallet();
+  const { summary, error } = await getMyCommitmentWallet(cohort?.id);
 
   return (
     <div className="commitment-wallet-page animate-in fade-in duration-700">

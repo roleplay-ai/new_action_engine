@@ -13,14 +13,14 @@ type PageLoaderProps = {
   /**
    * Swaps the favicon + dots for a themed visual:
    * - default: Nudgeable favicon + bouncing dots
-   * - wallet: coins dropping into the Commitment Bank bucket
+   * - wallet: coins dropping into the Commitment Points bucket
    */
   theme?: "default" | "wallet";
 };
 
 // Static demo fill so the bucket reads as "already holding something" while
 // data loads — same two-tone treatment and proportions as the live bucket on
-// the Commitment Bank page (see TeamBucket in app/(app)/wallet/page.tsx).
+// the Commitment Points page (see TeamBucket in app/(app)/wallet/page.tsx).
 const LOADER_PLAN_FILL_HEIGHT = 68;
 const LOADER_ACTION_FILL_HEIGHT = 40;
 const LOADER_PLAN_FILL_TOP = 249 - LOADER_PLAN_FILL_HEIGHT;
@@ -92,7 +92,7 @@ function WalletBucketLoader() {
  * push the centerpiece into the wrong place.
  */
 export default function PageLoader({ label, variant = "fullscreen", theme = "default" }: PageLoaderProps) {
-  const resolvedLabel = label ?? (theme === "wallet" ? "Transferring to your Commitment Bank" : undefined);
+  const resolvedLabel = label ?? (theme === "wallet" ? "Transferring to your Commitment Points" : undefined);
   return (
     <div
       className={`page-loader page-loader--${variant}`}

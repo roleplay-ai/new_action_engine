@@ -508,7 +508,7 @@ export default function ActionsClient() {
     router.push("/wallet");
   }
 
-  /** "Done" on the celebration popup — shows the coin-drop-into-bucket loader while it transfers to the Commitment Bank. */
+  /** "Done" on the celebration popup — shows the coin-drop-into-bucket loader while it transfers to the Commitment Points. */
   function continueFromCelebration() {
     setCelebration(null);
     beginNavigation("/wallet", "wallet");

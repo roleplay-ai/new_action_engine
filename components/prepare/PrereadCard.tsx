@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { FileText, CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
 import type { PrepareContentItem } from "@/lib/types";
 import { estimateMinutes } from "@/lib/prepare-estimate";
+import PdfEmbedFrame from "@/components/prepare/PdfEmbedFrame";
 
 export default function PrereadCard({
   item,
@@ -55,9 +56,9 @@ export default function PrereadCard({
         {item.title}
       </h3>
       {item.description && <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>{item.description}</p>}
-      {isPdf && (
+      {isPdf && item.prereadUrl && (
         <div className="journey-pdf-frame">
-          <iframe src={`${item.prereadUrl}#view=FitH`} title={`${item.title} PDF`} />
+          <PdfEmbedFrame url={item.prereadUrl} title={`${item.title} PDF`} hash="view=FitH" />
         </div>
       )}
       {item.prereadBody && (

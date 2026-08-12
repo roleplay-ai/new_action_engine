@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ExternalLink, FileText, X } from "lucide-react";
 import type { Facilitator } from "@/lib/types";
+import PdfEmbedFrame from "@/components/prepare/PdfEmbedFrame";
 
 /** Same PDF popup shape as the Prepare library's pre-read PDFs
  * (components/prepare/PdfReader.tsx + journey-resource-modal--pdf), minus
@@ -34,10 +35,7 @@ function FacilitatorPdfModal({ facilitator, onClose }: { facilitator: Facilitato
         <div className="journey-resource-modal-body">
           <div className="journey-pdf-reader">
             <div className="journey-pdf-reader-frame">
-              <iframe
-                src={`${facilitator.pdfUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
-                title={`${facilitator.name} PDF`}
-              />
+              <PdfEmbedFrame url={facilitator.pdfUrl} title={`${facilitator.name} PDF`} />
             </div>
             <footer className="journey-pdf-reader-bar">
               <p>{facilitator.designation}</p>

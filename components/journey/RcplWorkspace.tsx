@@ -11,6 +11,7 @@ import FacilitatorsCard from "@/components/journey/FacilitatorsCard";
 import FlipCountdown from "@/components/journey/FlipCountdown";
 import type { Cohort, CohortMember, CohortNotice, Facilitator, PrepareContentItem, UserPrepareProgress } from "@/lib/types";
 import { resolveVideoEmbed, resolveVideoThumbnail } from "@/lib/video-embed";
+import { browserNeedsExternalPdfViewer } from "@/lib/pdf-embed";
 import { daysUntil, nextUpcomingCohortDate } from "@/lib/cohort-dates";
 
 type PhaseBlock = { time: string; name: string; description: string };
@@ -155,6 +156,17 @@ function resourceKind(item: PrepareContentItem) {
   return isPdfResource(item) ? "PDF" : "Resource";
 }
 
+function PdfCardPreview({ url, title }: { url: string; title: string }) {
+  const [useNativeIframe, setUseNativeIframe] = useState(false);
+
+  useEffect(() => {
+    setUseNativeIframe(!browserNeedsExternalPdfViewer());
+  }, []);
+
+  if (!useNativeIframe) return <FileText size={28} />;
+  return <iframe src={`${url}#page=1&view=FitH&toolbar=0&navpanes=0`} title={`${title} preview`} tabIndex={-1} loading="lazy" />;
+}
+
 function ResourcePreview({ item }: { item: PrepareContentItem }) {
   if (item.type === "video" && item.videoUrl) {
     const thumbnail = resolveVideoThumbnail(item.videoUrl);
@@ -164,7 +176,7 @@ function ResourcePreview({ item }: { item: PrepareContentItem }) {
   }
 
   if (isPdfResource(item) && item.prereadUrl) {
-    return <iframe src={`${item.prereadUrl}#page=1&view=FitH&toolbar=0&navpanes=0`} title={`${item.title} preview`} tabIndex={-1} loading="lazy" />;
+    return <PdfCardPreview url={item.prereadUrl} title={item.title} />;
   }
 
   return item.type === "video" ? <Play size={30} fill="currentColor" /> : <FileText size={28} />;

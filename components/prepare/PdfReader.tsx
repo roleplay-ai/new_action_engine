@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
 import type { PrepareContentItem } from "@/lib/types";
+import PdfEmbedFrame from "@/components/prepare/PdfEmbedFrame";
 
 export default function PdfReader({
   item,
@@ -29,10 +30,7 @@ export default function PdfReader({
   return (
     <div className="journey-pdf-reader">
       <div className="journey-pdf-reader-frame">
-        <iframe
-          src={`${url}#toolbar=1&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
-          title={`${item.title} PDF reader`}
-        />
+        <PdfEmbedFrame url={url} title={`${item.title} PDF reader`} />
       </div>
       <footer className="journey-pdf-reader-bar">
         {item.description && <p>{item.description}</p>}

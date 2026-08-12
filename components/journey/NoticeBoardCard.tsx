@@ -28,7 +28,7 @@ export default function NoticeBoardCard({
   return (
     <article className={`journey-module-card journey-trainer-card${variant === "rcpl" ? " journey-trainer-card--rcpl" : ""}`}>
       <div className="journey-trainer-heading">
-        <small>Notice board</small>
+        <small>Announcements</small>
         {/* <h3>From your trainer</h3>
         <p>Updates, reminders and anything else your trainer wants this batch to know before the next session.</p> */}
       </div>

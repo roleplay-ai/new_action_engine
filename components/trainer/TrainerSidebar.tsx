@@ -36,7 +36,7 @@ export function TrainerSidebar({ displayName }: { displayName: string }) {
           <img src="/NudgeableBlack.png" alt="Nudgeable" style={{ height: 40, width: "auto", filter: "brightness(0) invert(1)" }} />
         </Link>
         <span className="text-xs font-semibold uppercase tracking-widest mt-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.18em" }}>
-          Trainer
+          Facilitator
         </span>
       </div>
 
@@ -68,7 +68,7 @@ export function TrainerSidebar({ displayName }: { displayName: string }) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold truncate" style={{ color: "var(--white)" }}>{displayName}</p>
-            <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>Trainer</p>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}> Master Facilitator</p>
           </div>
         </div>
         <button

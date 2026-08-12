@@ -17649,6 +17649,46 @@ textarea.commitment-buddy-contact-selectable {
   flex: 0 0 auto;
 }
 
+.trainer-tag-creator {
+  display: flex;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--color-bg-base);
+  border: 1.5px solid var(--color-border-strong);
+}
+
+.trainer-tag-creator input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--color-border-strong);
+  font-size: 13px;
+  color: var(--color-text-primary);
+  background: transparent;
+}
+
+.trainer-tag-creator button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--bright-amber);
+  color: var(--shadow-grey);
+  font-size: 12.5px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.trainer-tag-creator button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Cohort locked notice — shown in place of My Plan / Actions / Wallet while
  * a superadmin has the participant's cohort locked. */
 .cohort-lock-notice {

@@ -21,6 +21,23 @@ async function ensureSuperadmin(): Promise<{ supabase: Awaited<ReturnType<typeof
   return { supabase, userId: user.id };
 }
 
+/** Superadmin (or superadmin email) or any trainer — the roles allowed to
+ * author new tags in the global participant_tags roster. */
+async function ensureTagAuthor(): Promise<{ supabase: Awaited<ReturnType<typeof createClient>>; userId: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const isSuperadminEmail = user.email?.toLowerCase() === SUPERADMIN_EMAIL;
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  if (profile?.role === "superadmin" || isSuperadminEmail || profile?.role === "trainer") {
+    return { supabase, userId: user.id };
+  }
+  throw new Error("Forbidden: superadmin or trainer only");
+}
+
 function mapTagRow(row: { id: string; name: string }): ParticipantTag {
   return { id: row.id, name: row.name };
 }
@@ -43,16 +60,16 @@ export async function listParticipantTags(): Promise<{ error?: string; tags?: Pa
   }
 }
 
-export async function createParticipantTag(name: string): Promise<{ error?: string; id?: string }> {
+export async function createParticipantTag(name: string): Promise<{ error?: string; id?: string; tag?: ParticipantTag }> {
   try {
-    const { supabase, userId } = await ensureSuperadmin();
+    const { supabase, userId } = await ensureTagAuthor();
     const trimmed = name.trim();
     if (!trimmed) return { error: "Tag name is required" };
 
     const { data, error } = await supabase
       .from("participant_tags")
       .insert({ name: trimmed, created_by: userId })
-      .select("id")
+      .select("id, name")
       .single();
     if (error) {
       if (error.code === "23505") return { error: "A tag with this name already exists" };
@@ -61,7 +78,8 @@ export async function createParticipantTag(name: string): Promise<{ error?: stri
 
     revalidatePath("/admin");
     revalidatePath("/superadmin");
-    return { id: data.id };
+    revalidatePath("/trainer/members");
+    return { id: data.id, tag: mapTagRow(data) };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed" };
   }

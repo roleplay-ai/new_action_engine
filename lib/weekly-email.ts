@@ -211,10 +211,8 @@ export async function buildWeeklyEmailTemplateDataForUser(
   const actions = await getAvailableActionsForUser(userId, 3);
 
   return {
-    // No generic app-icon fallback here: leaving this unset when a company
-    // has no logo of its own lets each template render the company name as
-    // plain text instead of a placeholder image (see headerHtml in
-    // lib/email-templates.ts).
+    // No generic app-icon fallback: welcome/reminder templates show the
+    // company logo only (no company-name text) when a logo URL is present.
     company_logo: companyLogoUrl ?? companyLogo,
     company_name: companyName,
     first_name: firstName,

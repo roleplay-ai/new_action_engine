@@ -63,30 +63,24 @@ function headerHtml(data: EmailTemplateData): string {
 }
 
 /**
- * Company logo + name as a white pill. With no logo it falls back to just
- * the name as text, matching headerHtml's own graceful-degradation
- * behavior; with neither, it renders nothing.
+ * Company logo as a white pill. Renders nothing when there is no logo.
  */
 function companyBadgePillHtml(data: EmailTemplateData): string {
   const logo = str(data, "company_logo");
   const companyName = str(data, "company_name");
-  if (!logo && !companyName) return "";
-  const logoCell = logo
-    ? `<td valign="middle" style="padding:8px 0 8px 12px;"><img src="${esc(logo)}" alt="${esc(companyName || "Company")} logo" height="28" style="display:block;max-height:28px;width:auto;border-radius:5px;" /></td>`
-    : "";
-  const nameCell = companyName
-    ? `<td valign="middle" style="padding:8px 14px 8px ${logo ? "10px" : "14px"};"><span style="color:#221D23;font-size:14px;font-weight:800;letter-spacing:.2px;">${esc(companyName)}</span></td>`
-    : "";
+  if (!logo) return "";
   return `
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border-radius:11px;">
-      <tr>${logoCell}${nameCell}</tr>
+      <tr>
+        <td valign="middle" style="padding:8px 12px;"><img src="${esc(logo)}" alt="${esc(companyName || "Company")} logo" height="28" style="display:block;max-height:28px;width:auto;border-radius:5px;" /></td>
+      </tr>
     </table>`;
 }
 
 /**
- * Top row of a hero card: an eyebrow tag on the left and the company badge
- * (logo + name) on the right, on the same line. Falls back to just the
- * eyebrow, full width, when there's no company badge to show.
+ * Top row of a hero card: an eyebrow tag on the left and the company logo
+ * on the right, on the same line. Falls back to just the eyebrow, full
+ * width, when there's no company logo to show.
  */
 function heroTopRowHtml(eyebrowHtml: string, data: EmailTemplateData): string {
   const badge = companyBadgePillHtml(data);

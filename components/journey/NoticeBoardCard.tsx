@@ -44,8 +44,8 @@ export default function NoticeBoardCard({
         {notices.length === 0 ? (
           <div className="journey-chat-state">
             <Megaphone size={22} />
-            <strong>No notices yet</strong>
-            <small>Anything your trainer posts here will show up with the date it was sent.</small>
+            <strong>No announcements yet</strong>
+            <small>Anything your facilitator posts here will show up with the date it was sent.</small>
           </div>
         ) : (
           <ul className="journey-notice-list">

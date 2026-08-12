@@ -66,8 +66,8 @@ const RCPL_PHASES: RcplPhase[] = [
     id: "2",
     label: "Phase 2",
     window: "Month 3 · 20 to 21 Oct",
-    title: "Phase 2 agenda",
-    subtitle: "Module 2 · Leading Self",
+    title: "Module 2 · Leading Self",
+    subtitle: "",
     focus: "Leading Self",
     summary: "Work on the internal drivers: awareness, regulation, curiosity, and resilience. Followed by two months of application and teachbacks.",
     days: [
@@ -99,8 +99,8 @@ const RCPL_PHASES: RcplPhase[] = [
     id: "3",
     label: "Phase 3",
     window: "Month 5 · 15 to 16 Dec",
-    title: "Phase 3 agenda",
-    subtitle: "Module 3 · Leading Others",
+    title: "Module 3 · Leading Others",
+    subtitle: "",
     focus: "Leading Others",
     summary: "Build interpersonal excellence through influence, stakeholder work, and cross-functional collaboration.",
     days: [

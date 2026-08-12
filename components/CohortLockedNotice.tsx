@@ -18,18 +18,18 @@ export function CohortLockedNotice({
         <Lock size={22} />
       </span>
       <h1>{title}</h1>
-      <p>{body}</p>
+      {/* <p>{body}</p> */}
       {daysToGo !== null && (
         <div className="cohort-lock-notice-countdown">
           <strong>{daysToGo > 0 ? daysToGo : "0"}</strong>
           <span>{daysToGo === 1 ? "day to go" : "days to go"}</span>
         </div>
       )}
-      <p className="cohort-lock-notice-hint">
+      {/* <p className="cohort-lock-notice-hint">
         {daysToGo !== null
           ? "Please wait a few days and check back — this will open up automatically."
-          : "Please wait for your trainer or admin to open this up, then check back."}
-      </p>
+          : "Please wait for your facilitator or admin to open this up, then check back."}
+      </p> */}
     </div>
   );
 }

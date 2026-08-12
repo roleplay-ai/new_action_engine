@@ -282,7 +282,7 @@ export default function RcplWorkspace({
       <section className="rcpl-program-hero">
         <div className="rcpl-program-copy">
           <small>RCPL Accelerated Leadership Program</small>
-          <h2>Your 6-month SURGE leadership journey</h2>
+          <h2>Your 5-month SURGE leadership journey</h2>
           <p>Build the capability to lead the future, lead yourself, and lead others through immersive learning, practical application, teachbacks, and continued action at work.</p>
           <div className="rcpl-hero-meta">
             {sessionDates.length === 0 ? (

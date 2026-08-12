@@ -82,7 +82,6 @@ export default function LoginPage() {
       <section className="login-story" aria-labelledby="login-journey-title">
         <div className="login-story-top">
           <div className="login-eyebrow">Your development journey</div>
-          <InstallAppButton />
         </div>
 
         <div className="login-story-copy">
@@ -179,6 +178,7 @@ export default function LoginPage() {
           </form>
 
           <p className="login-powered">Powered by <strong>Nudgeable</strong></p>
+          <InstallAppButton />
         </div>
       </section>
     </main>

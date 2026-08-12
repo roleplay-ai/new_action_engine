@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Download, X } from "lucide-react";
+import { X } from "lucide-react";
 import { usePwaInstall } from "@/lib/use-pwa-install";
 import IosInstallSteps from "@/components/IosInstallSteps";
 
-/** Persistent "install app" button for the login screen — unlike the
- * one-time home-screen popup, this stays visible every visit (there's no
- * "seen it" state for someone who isn't logged in yet). Renders nothing if
- * the browser hasn't offered an install prompt and isn't iOS (already
- * installed, or an unsupported browser). */
+/** Persistent "bookmark this page" control for the login screen (mobile only) —
+ * unlike the one-time home-screen popup, this stays visible every visit
+ * (there's no "seen it" state for someone who isn't logged in yet). Renders
+ * nothing if the browser hasn't offered an install prompt and isn't iOS
+ * (already installed, or an unsupported browser). */
 export default function InstallAppButton({ className }: { className?: string }) {
   const { canInstall, needsIosInstructions, promptInstall } = usePwaInstall();
   const [installing, setInstalling] = useState(false);
@@ -32,9 +32,13 @@ export default function InstallAppButton({ className }: { className?: string }) 
 
   return (
     <>
-      <button type="button" className={className ?? "login-install-button"} onClick={() => void handleClick()} disabled={installing}>
-        <Download size={16} />
-        {installing ? "Installing…" : "Install app"}
+      <button
+        type="button"
+        className={className ?? "login-install-button"}
+        onClick={() => void handleClick()}
+        disabled={installing}
+      >
+        {installing ? "Saving…" : "Bookmark this page"}
       </button>
 
       {showIosHelp ? (
@@ -44,7 +48,7 @@ export default function InstallAppButton({ className }: { className?: string }) 
             <button type="button" className="ios-install-sheet-close" onClick={() => setShowIosHelp(false)} aria-label="Dismiss">
               <X size={16} />
             </button>
-            <strong id="ios-install-title">Install on iPhone</strong>
+            <strong id="ios-install-title">Bookmark on iPhone</strong>
             <p>Add Nudgeable to your home screen for one-tap access.</p>
             <IosInstallSteps />
             <button type="button" className="ios-install-sheet-done" onClick={() => setShowIosHelp(false)}>

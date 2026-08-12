@@ -31,7 +31,7 @@ const RCPL_PHASES: RcplPhase[] = [
   {
     id: "1",
     label: "Phase 1",
-    window: "Month 1 · 18 to 19 Aug",
+    window: "Month 1 · 20 to 21 Aug",
     title: "Module 1 · Leading Business & Leading Future",
     subtitle: "",
     focus: "Leading Business & Leading Future",
@@ -39,7 +39,7 @@ const RCPL_PHASES: RcplPhase[] = [
     days: [
       {
         name: "Day 1 · Leading Future",
-        date: "Mon 18 Aug",
+        date: "Thu 20 Aug",
         takeaway: "Leave with a clear view of where the business is heading and one AI workflow you can run in your own week.",
         blocks: [
           { time: "9.30–10.00", name: "Program Overview", description: "How SURGE runs, what is expected between phases, and how this workspace fits in." },
@@ -51,7 +51,7 @@ const RCPL_PHASES: RcplPhase[] = [
       },
       {
         name: "Day 2 · Business Acumen",
-        date: "Tue 19 Aug",
+        date: "Fri 21 Aug",
         takeaway: "Run a business for three years in a day and see where your decisions create or cost value.",
         blocks: [
           { time: "9.30–11.15", name: "Foundation & Introduction to Simulation", description: "The commercial levers you will pull and the rules of the simulation." },

@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import { X, Download } from "lucide-react";
 import { usePwaInstall } from "@/lib/use-pwa-install";
+import IosInstallSteps from "@/components/IosInstallSteps";
 
 const STORAGE_KEY = "nudgeable-install-popup-shown";
 
 /** One-time "install the app" popup for the home screen. Shows at most once
  * ever per browser (tracked in localStorage) — dismissing it in any way
- * (Install, Not now, or the close button) marks it seen for good. */
+ * (Install, Got it, Not now, or the close button) marks it seen for good. */
 export default function InstallAppPopup() {
-  const { canInstall, promptInstall } = usePwaInstall();
+  const { canInstall, needsIosInstructions, promptInstall } = usePwaInstall();
   const [visible, setVisible] = useState(false);
   const [installing, setInstalling] = useState(false);
 
@@ -59,15 +60,26 @@ export default function InstallAppPopup() {
         <strong id="install-popup-title">Install Nudgeable</strong>
         <span>Add it to your home screen for one-tap access.</span>
       </div>
-      <div className="install-popup-actions">
-        <button type="button" className="install-popup-dismiss" onClick={dismiss}>
-          Not now
-        </button>
-        <button type="button" className="install-popup-install" onClick={() => void handleInstall()} disabled={installing}>
-          <Download size={14} />
-          {installing ? "Installing…" : "Install"}
-        </button>
-      </div>
+      {needsIosInstructions ? (
+        <>
+          <IosInstallSteps className="ios-install-steps install-popup-ios-steps" />
+          <div className="install-popup-actions">
+            <button type="button" className="install-popup-install" onClick={dismiss}>
+              Got it
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="install-popup-actions">
+          <button type="button" className="install-popup-dismiss" onClick={dismiss}>
+            Not now
+          </button>
+          <button type="button" className="install-popup-install" onClick={() => void handleInstall()} disabled={installing}>
+            <Download size={14} />
+            {installing ? "Installing…" : "Install"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -20,14 +20,27 @@ function isStandalone(): boolean {
   );
 }
 
+/** True on iPhone / iPad (including iPadOS desktop UA). iOS browsers never
+ * fire beforeinstallprompt — install is Share → Add to Home Screen only. */
+function isIosDevice(): boolean {
+  if (typeof window === "undefined") return false;
+  const ua = window.navigator.userAgent;
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  // iPadOS 13+ can report as MacIntel with touch
+  return window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1;
+}
+
 /** Drives both the one-time home-screen popup and the login-screen install
  * button off a single shared listener for the browser's install prompt. */
 export function usePwaInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(false);
+  const [iosManual, setIosManual] = useState(false);
 
   useEffect(() => {
-    setInstalled(isStandalone());
+    const alreadyInstalled = isStandalone();
+    setInstalled(alreadyInstalled);
+    setIosManual(!alreadyInstalled && isIosDevice());
 
     function onBeforeInstallPrompt(event: Event) {
       event.preventDefault();
@@ -36,6 +49,7 @@ export function usePwaInstall() {
     function onAppInstalled() {
       setInstalled(true);
       setDeferredPrompt(null);
+      setIosManual(false);
     }
 
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
@@ -54,9 +68,14 @@ export function usePwaInstall() {
     return outcome;
   }, [deferredPrompt]);
 
+  const canUseNativePrompt = !installed && !!deferredPrompt;
+  const needsIosInstructions = !installed && iosManual && !deferredPrompt;
+
   return {
-    /** True once the browser has told us installing is possible right now. */
-    canInstall: !installed && !!deferredPrompt,
+    /** True when we can offer install UI (native prompt or iOS manual steps). */
+    canInstall: canUseNativePrompt || needsIosInstructions,
+    /** iOS has no install API — show Share → Add to Home Screen steps instead. */
+    needsIosInstructions,
     installed,
     promptInstall,
   };

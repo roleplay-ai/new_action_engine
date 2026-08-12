@@ -16700,6 +16700,134 @@ textarea.commitment-buddy-contact-selectable {
   cursor: default;
 }
 
+/* iOS install help — Share → Add to Home Screen (no beforeinstallprompt). */
+.ios-install-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: ios-step;
+}
+
+.ios-install-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  counter-increment: ios-step;
+}
+
+.ios-install-steps li::before {
+  content: counter(ios-step);
+  display: grid;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.ios-install-share-glyph {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 2px;
+  vertical-align: -2px;
+  color: #0a84ff;
+}
+
+.install-popup-ios-steps {
+  flex: 1 0 100%;
+  padding: 4px 2px 0;
+}
+
+.install-popup-ios-steps li::before {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--color-text-inverse);
+}
+
+.ios-install-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: end center;
+}
+
+.ios-install-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(34, 29, 35, 0.45);
+}
+
+.ios-install-sheet-panel {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 420px);
+  margin: 0 12px 16px;
+  padding: 20px 18px 16px;
+  border: 1.5px solid var(--login-ink, #221d23);
+  border-radius: 18px;
+  background: var(--white, #fff);
+  color: var(--login-ink, #221d23);
+  box-shadow: 4px 4px 0 var(--login-ink, #221d23);
+  animation: install-popup-in 220ms ease;
+}
+
+.ios-install-sheet-panel strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.ios-install-sheet-panel > p {
+  margin: 0 0 14px;
+  color: rgba(34, 29, 35, 0.7);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.ios-install-sheet-panel .ios-install-steps li::before {
+  background: rgba(34, 29, 35, 0.08);
+  color: var(--login-ink, #221d23);
+}
+
+.ios-install-sheet-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(34, 29, 35, 0.06);
+  color: var(--login-ink, #221d23);
+  cursor: pointer;
+}
+
+.ios-install-sheet-done {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 11px 16px;
+  border: 1.5px solid var(--login-ink, #221d23);
+  border-radius: 999px;
+  background: var(--login-ink, #221d23);
+  color: var(--white, #fff);
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
 .login-signin h2 {
   margin: 0;
   font-size: clamp(32px, 3vw, 42px);

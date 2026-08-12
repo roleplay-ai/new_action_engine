@@ -28,7 +28,7 @@ export default function NoticeBoardCard({
   return (
     <article className={`journey-module-card journey-trainer-card${variant === "rcpl" ? " journey-trainer-card--rcpl" : ""}`}>
       <div className="journey-trainer-heading">
-        <small>Notice board</small>
+        <small>Announcements</small>
         {/* <h3>From your trainer</h3>
         <p>Updates, reminders and anything else your trainer wants this batch to know before the next session.</p> */}
       </div>
@@ -44,8 +44,8 @@ export default function NoticeBoardCard({
         {notices.length === 0 ? (
           <div className="journey-chat-state">
             <Megaphone size={22} />
-            <strong>No notices yet</strong>
-            <small>Anything your trainer posts here will show up with the date it was sent.</small>
+            <strong>No announcements yet</strong>
+            <small>Anything your facilitator posts here will show up with the date it was sent.</small>
           </div>
         ) : (
           <ul className="journey-notice-list">

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, unstable_cache, updateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Cohort, CohortDate, CohortMember, CohortOption, CompanyBrand, Trainer } from "@/lib/types";
@@ -251,6 +251,9 @@ export async function setCohortLock(id: string, locked: boolean): Promise<{ erro
       .eq("id", id);
     if (error) return { error: error.message };
 
+    // Affects every member of the cohort, not just the caller — cheaper to
+    // drop the whole cache than to look up and tag-bust each member.
+    updateTag("my-cohorts");
     revalidatePath("/admin");
     revalidatePath("/journey");
     revalidatePath("/plan");
@@ -557,6 +560,7 @@ export async function addMembersToCohort(cohortId: string, userIds: string[]): P
         .or(`cohort_id.is.null,cohort_id.neq.${cohortId}`);
     }
 
+    updateTag("my-cohorts");
     revalidatePath("/admin");
     revalidatePath("/journey");
     revalidatePath("/plan");
@@ -581,6 +585,7 @@ export async function removeMembersFromCohort(cohortId: string, userIds: string[
       .eq("cohort_id", cohortId)
       .in("user_id", userIds);
     if (error) return { error: error.message };
+    updateTag("my-cohorts");
 
     revalidatePath("/admin");
     return {};
@@ -589,12 +594,7 @@ export async function removeMembersFromCohort(cohortId: string, userIds: string[
   }
 }
 
-/**
- * Every cohort the caller may view, plus the separate current/selected flags.
- * Participants retain old memberships for history; trainers can switch between
- * the cohorts they manage in their company.
- */
-export async function getMyCohorts(): Promise<{
+type MyCohortsResult = {
   error?: string;
   cohorts: CohortOption[];
   selectedCohortId: string | null;
@@ -604,16 +604,36 @@ export async function getMyCohorts(): Promise<{
    * admin/superadmin/trainer who happens to land on /plan, /actions, or
    * /wallet is never blocked by a cohort they merely manage. */
   role?: string;
-}> {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: "Not authenticated", cohorts: [], selectedCohortId: null, currentCohortId: null };
+};
 
-    const { data: profile, error: profileError } = await supabase
+/**
+ * The expensive per-user half of getMyCohorts() — profile + membership +
+ * cohort/trainer/date/company lookups (~6 Supabase round trips). Only ever
+ * called with a userId that's already been through supabase.auth.getUser(),
+ * so it's safe to run entirely on the admin client, which makes it cacheable:
+ * unstable_cache forbids reading cookies (the request-scoped, RLS-bound
+ * client can't be used in here) but has no problem with the service-role
+ * client.
+ *
+ * Caching this closes the redundant-fetch gap where the same cohort data
+ * was computed twice per page load: once server-side (getMyCohort() gating
+ * a page like /actions before rendering it) and again moments later from
+ * the client's own /api/cohort-context call on EngineProvider's mount
+ * (lib/store.tsx). Both calls now land within the 20s window and the second
+ * one is a cache hit instead of another ~6-query round trip.
+ *
+ * Kept fresh by updateTag("my-cohorts") at every mutation that changes
+ * cohort selection/membership/lock (selectMyCohort, addMembersToCohort,
+ * removeMembersFromCohort, setCohortLock); the 20s TTL is just the fallback
+ * for anything that isn't explicitly busted.
+ */
+const computeMyCohorts = unstable_cache(
+  async (userId: string): Promise<MyCohortsResult> => {
+    const admin = createAdminClient();
+    const { data: profile, error: profileError } = await admin
       .from("profiles")
       .select("role, company_id, current_cohort_id, selected_cohort_id")
-      .eq("id", user.id)
+      .eq("id", userId)
       .single();
     if (profileError) {
       return {
@@ -625,14 +645,13 @@ export async function getMyCohorts(): Promise<{
     }
     if (!profile) return { error: "Profile not found", cohorts: [], selectedCohortId: null, currentCohortId: null };
 
-    const admin = createAdminClient();
     let orderedIds: string[] = [];
 
     if (profile.role === "user") {
       const { data: memberships } = await admin
         .from("cohort_members")
         .select("cohort_id, created_at")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .order("created_at", { ascending: false });
       orderedIds = (memberships ?? []).map((membership) => membership.cohort_id);
     } else if (profile.role === "admin" && profile.company_id) {
@@ -643,7 +662,7 @@ export async function getMyCohorts(): Promise<{
         .order("created_at", { ascending: false });
       orderedIds = (managed ?? []).map((cohort) => cohort.id);
     } else if (profile.role === "trainer") {
-      const { data: trainerRow } = await admin.from("trainers").select("id").eq("user_id", user.id).maybeSingle();
+      const { data: trainerRow } = await admin.from("trainers").select("id").eq("user_id", userId).maybeSingle();
       if (trainerRow) {
         const { data: run } = await admin
           .from("cohorts")
@@ -656,13 +675,13 @@ export async function getMyCohorts(): Promise<{
       const { data: managed } = await admin
         .from("cohorts")
         .select("id")
-        .eq("created_by", user.id)
+        .eq("created_by", userId)
         .order("created_at", { ascending: false });
       orderedIds = (managed ?? []).map((cohort) => cohort.id);
     }
 
     if (!orderedIds.length) {
-      return { cohorts: [], selectedCohortId: null, currentCohortId: null };
+      return { cohorts: [], selectedCohortId: null, currentCohortId: null, role: profile.role };
     }
 
     const [{ data: cohortRows }, { data: memberRows }] = await Promise.all([
@@ -701,8 +720,12 @@ export async function getMyCohorts(): Promise<{
       ? profile.selected_cohort_id
       : currentCohortId;
 
+    // Self-heal an invalid selected_cohort_id. This only runs on a cache
+    // miss (not every call), which is fine — it's a background correction,
+    // not something callers depend on: the corrected id is already returned
+    // below regardless of whether this write happens.
     if (selectedCohortId && selectedCohortId !== profile.selected_cohort_id) {
-      await supabase.from("profiles").update({ selected_cohort_id: selectedCohortId }).eq("id", user.id);
+      await admin.from("profiles").update({ selected_cohort_id: selectedCohortId }).eq("id", userId);
     }
 
     const cohorts: CohortOption[] = accessibleIds.map((id) => {
@@ -730,6 +753,23 @@ export async function getMyCohorts(): Promise<{
     });
 
     return { cohorts, selectedCohortId, currentCohortId, role: profile.role };
+  },
+  ["my-cohorts"],
+  { revalidate: 20, tags: ["my-cohorts"] },
+);
+
+/**
+ * Every cohort the caller may view, plus the separate current/selected flags.
+ * Participants retain old memberships for history; trainers can switch between
+ * the cohorts they manage in their company.
+ */
+export async function getMyCohorts(): Promise<MyCohortsResult> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Not authenticated", cohorts: [], selectedCohortId: null, currentCohortId: null };
+
+    return await computeMyCohorts(user.id);
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Failed to load cohorts",
@@ -752,6 +792,7 @@ export async function selectMyCohort(cohortId: string): Promise<{ error?: string
   const { error } = await supabase.from("profiles").update({ selected_cohort_id: cohortId }).eq("id", user.id);
   if (error) return { error: error.message };
 
+  updateTag("my-cohorts");
   revalidatePath("/journey");
   revalidatePath("/notes");
   revalidatePath("/plan");

@@ -6,21 +6,6 @@ import type { ParticipantTag } from "@/lib/types";
 
 const SUPERADMIN_EMAIL = (process.env.SUPERADMIN_EMAIL || "admin@actionengine").toLowerCase();
 
-async function ensureSuperadmin(): Promise<{ supabase: Awaited<ReturnType<typeof createClient>>; userId: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-
-  const isSuperadminEmail = user.email?.toLowerCase() === SUPERADMIN_EMAIL;
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "superadmin" && !isSuperadminEmail) {
-    throw new Error("Forbidden: superadmin only");
-  }
-  return { supabase, userId: user.id };
-}
-
 /** Superadmin (or superadmin email) or any trainer — the roles allowed to
  * author new tags in the global participant_tags roster. */
 async function ensureTagAuthor(): Promise<{ supabase: Awaited<ReturnType<typeof createClient>>; userId: string }> {
@@ -85,9 +70,13 @@ export async function createParticipantTag(name: string): Promise<{ error?: stri
   }
 }
 
+/** Remove a tag from the global roster entirely (not just one member's
+ * assignment). Superadmin, or any trainer — same authorship pair allowed to
+ * create tags (see ensureTagAuthor), so a trainer can clean up tags they no
+ * longer need from their Members & tags page. */
 export async function deleteParticipantTag(id: string): Promise<{ error?: string }> {
   try {
-    const { supabase } = await ensureSuperadmin();
+    const { supabase } = await ensureTagAuthor();
     const { error } = await supabase.from("participant_tags").delete().eq("id", id);
     if (error) return { error: error.message };
 

@@ -17689,6 +17689,128 @@ textarea.commitment-buddy-contact-selectable {
   cursor: not-allowed;
 }
 
+.trainer-tag-manager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+}
+
+.trainer-tag-manager-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 750;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  flex: 0 0 auto;
+}
+
+.trainer-tag-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trainer-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 12px;
+  border-radius: 999px;
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.trainer-tag-chip button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.trainer-tag-chip button:hover:not(:disabled) {
+  color: #ED4551;
+  background: rgba(237, 69, 81, 0.12);
+}
+
+.trainer-tag-chip button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trainer-member-row--dirty {
+  border-color: var(--bright-amber);
+  background: rgba(255, 206, 0, 0.06);
+}
+
+.trainer-tag-save-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--color-bg-base);
+  border: 1.5px solid var(--color-border-strong);
+  position: sticky;
+  bottom: 8px;
+}
+
+.trainer-tag-save-bar > span {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.trainer-tag-save-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trainer-tag-save-bar-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+}
+
+.trainer-tag-save-bar-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trainer-tag-save-bar-actions button:last-child {
+  background: var(--bright-amber);
+  color: var(--shadow-grey);
+}
+
+.trainer-tag-save-bar-discard {
+  background: transparent !important;
+  color: var(--color-text-muted) !important;
+  border: 1.5px solid var(--color-border-strong) !important;
+}
+
 /* Cohort locked notice — shown in place of My Plan / Actions / Wallet while
  * a superadmin has the participant's cohort locked. */
 .cohort-lock-notice {

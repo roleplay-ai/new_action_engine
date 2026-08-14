@@ -12,11 +12,8 @@ import {
   DashboardView,
   EngagementView,
   ActionMetricsView,
-  ActionManagementView,
   CohortManagementView,
   ContentManagementView,
-  UserManagementView,
-  EmailManagementView,
   CohortAnalyticsView,
   ConversationsView,
 } from "@/components/admin/views";
@@ -32,11 +29,8 @@ type ViewType =
   | "engagement"
   | "action-metrics"
   | "cohort-analytics"
-  | "action-management"
   | "cohort-management"
   | "content-management"
-  | "user-management"
-  | "email-management"
   | "conversations";
 
 interface AdminPageClientProps {
@@ -72,20 +66,11 @@ function AdminContent({ view }: { view: ViewType }) {
       {view === "conversations" && (
         <ConversationsView companyId={effectiveCompanyId} />
       )}
-      {view === "action-management" && (
-        <ActionManagementView companyId={effectiveCompanyId} role={role} />
-      )}
       {view === "cohort-management" && (
         <CohortManagementView companyId={effectiveCompanyId} role={role} />
       )}
       {view === "content-management" && (
         <ContentManagementView companyId={effectiveCompanyId} role={role} />
-      )}
-      {view === "user-management" && (
-        <UserManagementView companyId={effectiveCompanyId} role={role} />
-      )}
-      {view === "email-management" && (
-        <EmailManagementView companyId={effectiveCompanyId} role={role} />
       )}
     </EngineProvider>
   );

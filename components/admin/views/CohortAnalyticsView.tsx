@@ -105,10 +105,10 @@ export function CohortAnalyticsView({ companyId }: CohortAnalyticsViewProps) {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4" style={{ borderBottom: "1px solid var(--color-border)" }}>
         <div className="space-y-1">
           <h2 className="text-2xl font-bold" style={{ color: "var(--color-text-primary)" }}>
-            Cohorts
+            Batches
           </h2>
           <p className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
-            Compare engagement across every cohort, then open a row for the full picture.
+            Compare engagement across every batch, then open a row for the full picture.
           </p>
         </div>
         <button
@@ -124,7 +124,7 @@ export function CohortAnalyticsView({ companyId }: CohortAnalyticsViewProps) {
       <div className="bg-white rounded-2xl overflow-hidden" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-lg)" }}>
         {loading ? (
           <div className="p-6 text-center text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
-            Loading cohorts…
+            Loading batches…
           </div>
         ) : error ? (
           <div className="p-6 text-center text-sm font-semibold" style={{ color: "var(--color-danger)" }}>
@@ -132,7 +132,7 @@ export function CohortAnalyticsView({ companyId }: CohortAnalyticsViewProps) {
           </div>
         ) : entries.length === 0 ? (
           <div className="p-6 text-center text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
-            No cohorts yet. Create one in Cohort management.
+            No batches yet. Create one in Batch management.
           </div>
         ) : (
           <div className="overflow-x-auto no-scrollbar">
@@ -140,7 +140,7 @@ export function CohortAnalyticsView({ companyId }: CohortAnalyticsViewProps) {
               <thead>
                 <tr style={{ background: "var(--color-bg-dark)", color: "var(--white)" }}>
                   <th className="px-3 py-3 font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)" }}>
-                    Cohort
+                    Batch
                   </th>
                   <th className="px-2 py-3 font-semibold text-center">Members</th>
                   <th className="px-2 py-3 font-semibold text-center">Action readers</th>
@@ -206,7 +206,7 @@ export function CohortAnalyticsView({ companyId }: CohortAnalyticsViewProps) {
                             <div className="p-4" style={{ background: "var(--color-bg-muted)" }}>
                               {detailLoading ? (
                                 <div className="flex items-center gap-2 justify-center py-8 text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
-                                  <Loader2 size={16} className="cohort-admin-spin" /> Loading cohort detail…
+                                  <Loader2 size={16} className="cohort-admin-spin" /> Loading batch detail…
                                 </div>
                               ) : detailError ? (
                                 <div className="text-center py-8 text-sm font-semibold" style={{ color: "var(--color-danger)" }}>
@@ -283,7 +283,7 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
           <h4 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Members</h4>
         </div>
         {detail.members.length === 0 ? (
-          <div className="p-5 text-center text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>No members in this cohort yet.</div>
+          <div className="p-5 text-center text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>No members in this batch yet.</div>
         ) : (
           <div className="overflow-x-auto no-scrollbar">
             <table className="w-full text-left border-collapse text-xs">

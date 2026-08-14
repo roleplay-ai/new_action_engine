@@ -120,7 +120,7 @@ export default function UsersList({
     if (ids.length === 0) return;
     if (
       !window.confirm(
-        `Permanently delete ${ids.length} user${ids.length === 1 ? "" : "s"} and all their data (actions, subscriptions, cohort membership, etc.)? This cannot be undone.`
+        `Permanently delete ${ids.length} user${ids.length === 1 ? "" : "s"} and all their data (actions, subscriptions, batch membership, etc.)? This cannot be undone.`
       )
     )
       return;
@@ -180,7 +180,7 @@ export default function UsersList({
   async function handleDelete(userId: string) {
     if (
       !window.confirm(
-        "Permanently delete this user and all their data (actions, subscriptions, cohort membership, etc.)? This cannot be undone."
+        "Permanently delete this user and all their data (actions, subscriptions, batch membership, etc.)? This cannot be undone."
       )
     )
       return;

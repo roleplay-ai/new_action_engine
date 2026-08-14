@@ -108,7 +108,7 @@ export async function getCohortLeaderboard(cohortId: string): Promise<
       || (!!profile?.company_id && profile.role === "admin" && cohortRow?.company_id === profile.company_id)
       || cohortRow?.created_by === user.id;
     if (!cohortRow || !hasAccess) {
-      return { entries: [], error: "You do not have access to this cohort" };
+      return { entries: [], error: "You do not have access to this batch" };
     }
 
     // Participant RLS exposes only their own cohort_members row, so use the
@@ -146,7 +146,7 @@ export async function getCohortLeaderboard(cohortId: string): Promise<
   } catch (e) {
     return {
       entries: [],
-      error: e instanceof Error ? e.message : "Failed to load cohort leaderboard",
+      error: e instanceof Error ? e.message : "Failed to load batch leaderboard",
     };
   }
 }

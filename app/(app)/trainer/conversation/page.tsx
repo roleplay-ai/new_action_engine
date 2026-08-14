@@ -20,7 +20,7 @@ export default async function TrainerConversationPage() {
         <div className="trainer-empty">
           <UserRound size={26} />
           <strong>No batch assigned yet</strong>
-          <p>Ask a superadmin to assign you as the trainer for a cohort in Cohort Management.</p>
+          <p>Ask a superadmin to assign you as the trainer for a batch in Batch Management.</p>
         </div>
       ) : (
         <div className="trainer-chat-shell">

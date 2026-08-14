@@ -11,8 +11,8 @@ interface ConversationsViewProps {
 }
 
 function initials(value: string) {
-  const words = (value || "Cohort").trim().split(/\s+/).slice(0, 2);
-  return words.map((word) => word[0]?.toUpperCase()).join("") || "C";
+  const words = (value || "Batch").trim().split(/\s+/).slice(0, 2);
+  return words.map((word) => word[0]?.toUpperCase()).join("") || "B";
 }
 
 export function ConversationsView({ companyId }: ConversationsViewProps) {
@@ -39,7 +39,7 @@ export function ConversationsView({ companyId }: ConversationsViewProps) {
         return nextCohorts[0]?.id ?? null;
       });
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Failed to load cohorts");
+      setError(caughtError instanceof Error ? caughtError.message : "Failed to load batches");
     } finally {
       setLoading(false);
     }
@@ -70,9 +70,9 @@ export function ConversationsView({ companyId }: ConversationsViewProps) {
         <div>
           <div className="cohort-admin-company-heading">
             <span><MessageSquareText size={22} /></span>
-            <div><h1>Conversations</h1><strong>Cohort conversations</strong></div>
+            <div><h1>Conversations</h1><strong>Batch conversations</strong></div>
           </div>
-          <p>Read and join any cohort&apos;s batch conversation with its participants and trainer.</p>
+          <p>Read and join any batch&apos;s conversation with its participants and trainer.</p>
         </div>
       </header>
 
@@ -87,14 +87,14 @@ export function ConversationsView({ companyId }: ConversationsViewProps) {
       <div className="cohort-admin-layout">
         <aside className="cohort-admin-directory">
           <div className="cohort-admin-directory-head">
-            <div><h2>Cohorts</h2><span>{cohorts.length} active</span></div>
+            <div><h2>Batches</h2><span>{cohorts.length} active</span></div>
             <label className="cohort-admin-search">
               <Search size={16} />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search cohorts"
-                aria-label="Search cohorts"
+                placeholder="Search batches"
+                aria-label="Search batches"
               />
               {query && <button type="button" onClick={() => setQuery("")} aria-label="Clear search"><X size={14} /></button>}
             </label>
@@ -102,17 +102,17 @@ export function ConversationsView({ companyId }: ConversationsViewProps) {
 
           {loading && cohorts.length === 0 ? (
             <div className="cohort-admin-detail-loading" aria-busy="true">
-              <Loader2 size={20} className="cohort-admin-spin" /><span>Loading cohorts…</span>
+              <Loader2 size={20} className="cohort-admin-spin" /><span>Loading batches…</span>
             </div>
           ) : cohorts.length === 0 ? (
             <div className="cohort-admin-empty">
               <span><Users size={23} /></span>
-              <h3>No cohorts yet</h3>
-              <p>Create a cohort in Cohort management first.</p>
+              <h3>No batches yet</h3>
+              <p>Create a batch in Batch management first.</p>
             </div>
           ) : filteredCohorts.length === 0 ? (
             <div className="cohort-admin-empty cohort-admin-empty--compact">
-              <h3>No matching cohorts</h3>
+              <h3>No matching batches</h3>
               <p>Try a different name.</p>
               <button type="button" onClick={() => setQuery("")}>Clear search</button>
             </div>
@@ -152,8 +152,8 @@ export function ConversationsView({ companyId }: ConversationsViewProps) {
           ) : (
             <div className="cohort-admin-placeholder">
               <span><MessageSquareText size={25} /></span>
-              <h2>Select a cohort</h2>
-              <p>Choose a cohort to read and join its conversation.</p>
+              <h2>Select a batch</h2>
+              <p>Choose a batch to read and join its conversation.</p>
             </div>
           )}
         </main>

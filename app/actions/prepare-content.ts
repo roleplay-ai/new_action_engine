@@ -258,7 +258,7 @@ export async function deleteContentItem(id: string): Promise<{ error?: string }>
       .eq("content_item_id", id)
       .limit(1)
       .maybeSingle();
-    if (inUse) return { error: "Cannot delete: item is assigned to a cohort. Archive it instead." };
+    if (inUse) return { error: "Cannot delete: item is assigned to a batch. Archive it instead." };
 
     const { error } = await supabase.from("prepare_content_items").delete().eq("id", id);
     if (error) return { error: error.message };
@@ -390,7 +390,7 @@ export async function assignContentToCohort(cohortId: string, contentItemIds: st
     const { supabase, companyId: myCompanyId, role, userId } = await getAdminContext();
 
     const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).single();
-    if (!cohort) return { error: "Cohort not found" };
+    if (!cohort) return { error: "Batch not found" };
     if (role === "admin" && cohort.company_id !== myCompanyId) return { error: "Access denied" };
 
     // Idempotent assign: ON CONFLICT DO NOTHING (needs INSERT policy only).
@@ -418,7 +418,7 @@ export async function removeContentFromCohort(cohortId: string, contentItemId: s
     const { supabase, companyId: myCompanyId, role } = await getAdminContext();
 
     const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).single();
-    if (!cohort) return { error: "Cohort not found" };
+    if (!cohort) return { error: "Batch not found" };
     if (role === "admin" && cohort.company_id !== myCompanyId) return { error: "Access denied" };
 
     const { error } = await supabase

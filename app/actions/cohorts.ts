@@ -199,12 +199,12 @@ export async function updateCohort(
 
     if (role === "admin") {
       const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", id).single();
-      if (!cohort || cohort.company_id !== companyId) return { error: "Cohort not found or access denied" };
+      if (!cohort || cohort.company_id !== companyId) return { error: "Batch not found or access denied" };
       if (params.trainingContent !== undefined || params.businessContext !== undefined) {
         return { error: "Only a superadmin can change action generation context" };
       }
       if (params.trainerId !== undefined) {
-        return { error: "Only a superadmin can assign this cohort's trainer" };
+        return { error: "Only a superadmin can assign this batch's trainer" };
       }
     }
 
@@ -243,7 +243,7 @@ export async function updateCohort(
 export async function setCohortLock(id: string, locked: boolean): Promise<{ error?: string }> {
   try {
     const { supabase, role } = await getAdminContext();
-    if (role !== "superadmin") return { error: "Only a superadmin can lock or unlock a cohort" };
+    if (role !== "superadmin") return { error: "Only a superadmin can lock or unlock a batch" };
 
     const { error } = await supabase
       .from("cohorts")
@@ -269,7 +269,7 @@ export async function listCohortDates(cohortId: string): Promise<{ error?: strin
     const { supabase, companyId, role } = await getAdminContext();
     if (role === "admin") {
       const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).single();
-      if (!cohort || cohort.company_id !== companyId) return { error: "Cohort not found or access denied" };
+      if (!cohort || cohort.company_id !== companyId) return { error: "Batch not found or access denied" };
     }
 
     const { data, error } = await supabase
@@ -289,7 +289,7 @@ export async function addCohortDate(cohortId: string, date: string): Promise<{ e
     const { supabase, userId, companyId, role } = await getAdminContext();
     if (role === "admin") {
       const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).single();
-      if (!cohort || cohort.company_id !== companyId) return { error: "Cohort not found or access denied" };
+      if (!cohort || cohort.company_id !== companyId) return { error: "Batch not found or access denied" };
     }
     if (!date) return { error: "Date is required" };
 
@@ -313,7 +313,7 @@ export async function removeCohortDate(cohortId: string, dateId: string): Promis
     const { supabase, companyId, role } = await getAdminContext();
     if (role === "admin") {
       const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).single();
-      if (!cohort || cohort.company_id !== companyId) return { error: "Cohort not found or access denied" };
+      if (!cohort || cohort.company_id !== companyId) return { error: "Batch not found or access denied" };
     }
 
     const { error } = await supabase.from("cohort_dates").delete().eq("id", dateId).eq("cohort_id", cohortId);
@@ -335,18 +335,18 @@ export async function createSignedCohortLogoUploadUrl(
     const { companyId, role } = await getAdminContext();
     const admin = createAdminClient();
     const { data: cohort } = await admin.from("cohorts").select("id, company_id").eq("id", cohortId).single();
-    if (!cohort) return { error: "Cohort not found" };
+    if (!cohort) return { error: "Batch not found" };
     if (role === "admin" && cohort.company_id !== companyId) return { error: "Access denied" };
 
     const safeExt = fileExtension.replace(/[^a-zA-Z0-9]/g, "").slice(0, 5).toLowerCase() || "png";
     const path = `${cohortId}/${crypto.randomUUID()}.${safeExt}`;
     const { data, error } = await admin.storage.from(COHORT_LOGOS_BUCKET).createSignedUploadUrl(path);
-    if (error || !data) return { error: error?.message ?? "Failed to prepare cohort logo upload" };
+    if (error || !data) return { error: error?.message ?? "Failed to prepare batch logo upload" };
 
     const { data: publicUrlData } = admin.storage.from(COHORT_LOGOS_BUCKET).getPublicUrl(path);
     return { path, token: data.token, publicUrl: publicUrlData.publicUrl };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Failed to prepare cohort logo upload" };
+    return { error: error instanceof Error ? error.message : "Failed to prepare batch logo upload" };
   }
 }
 
@@ -356,7 +356,7 @@ export async function archiveCohort(id: string): Promise<{ error?: string }> {
 
     if (role === "admin") {
       const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", id).single();
-      if (!cohort || cohort.company_id !== companyId) return { error: "Cohort not found or access denied" };
+      if (!cohort || cohort.company_id !== companyId) return { error: "Batch not found or access denied" };
     }
 
     const { error } = await supabase
@@ -379,7 +379,7 @@ export async function deleteCohort(id: string): Promise<{ error?: string }> {
 
     if (role === "admin") {
       const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", id).single();
-      if (!cohort || cohort.company_id !== companyId) return { error: "Cohort not found or access denied" };
+      if (!cohort || cohort.company_id !== companyId) return { error: "Batch not found or access denied" };
     }
 
     const { error } = await supabase.from("cohorts").delete().eq("id", id);
@@ -468,7 +468,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
       .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, company_id, trainer_id, locked")
       .eq("id", cohortId)
       .single();
-    if (!cohort) return { error: "Cohort not found" };
+    if (!cohort) return { error: "Batch not found" };
     if (role === "admin" && cohort.company_id !== myCompanyId) return { error: "Access denied" };
 
     // Admin client: same profiles-RLS gap as getCompanyUsers above — a superadmin
@@ -512,7 +512,7 @@ export async function addMembersToCohort(cohortId: string, userIds: string[]): P
     const { supabase, companyId: myCompanyId, role } = await getAdminContext();
 
     const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).single();
-    if (!cohort) return { error: "Cohort not found" };
+    if (!cohort) return { error: "Batch not found" };
     if (role === "admin" && cohort.company_id !== myCompanyId) return { error: "Access denied" };
 
     // Admin client: same profiles-RLS gap — otherwise a superadmin's own (null)
@@ -525,7 +525,7 @@ export async function addMembersToCohort(cohortId: string, userIds: string[]): P
       .in("id", userIds);
     const validIds = new Set((companyUsers ?? []).map((u: { id: string }) => u.id));
     const invalid = userIds.filter((id) => !validIds.has(id));
-    if (invalid.length) return { error: "Some users do not belong to this cohort's company" };
+    if (invalid.length) return { error: "Some users do not belong to this batch's company" };
 
     const {
       data: { user },
@@ -551,7 +551,7 @@ export async function addMembersToCohort(cohortId: string, userIds: string[]): P
         .or(`cohort_id.is.null,cohort_id.neq.${cohortId}`);
       await admin
         .from("personal_action_generation_jobs")
-        .update({ status: "failed", error_message: "Archived when participant moved to another cohort", updated_at: new Date().toISOString() })
+        .update({ status: "failed", error_message: "Archived when participant moved to another batch", updated_at: new Date().toISOString() })
         .eq("user_id", userId)
         .eq("status", "generating")
         .or(`cohort_id.is.null,cohort_id.neq.${cohortId}`);
@@ -572,7 +572,7 @@ export async function removeMembersFromCohort(cohortId: string, userIds: string[
     const { supabase, companyId: myCompanyId, role } = await getAdminContext();
 
     const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).single();
-    if (!cohort) return { error: "Cohort not found" };
+    if (!cohort) return { error: "Batch not found" };
     if (role === "admin" && cohort.company_id !== myCompanyId) return { error: "Access denied" };
 
     const { error } = await supabase
@@ -732,7 +732,7 @@ export async function getMyCohorts(): Promise<{
     return { cohorts, selectedCohortId, currentCohortId, role: profile.role };
   } catch (error) {
     return {
-      error: error instanceof Error ? error.message : "Failed to load cohorts",
+      error: error instanceof Error ? error.message : "Failed to load batches",
       cohorts: [],
       selectedCohortId: null,
       currentCohortId: null,
@@ -744,7 +744,7 @@ export async function getMyCohorts(): Promise<{
 export async function selectMyCohort(cohortId: string): Promise<{ error?: string }> {
   const context = await getMyCohorts();
   if (context.error) return { error: context.error };
-  if (!context.cohorts.some((cohort) => cohort.id === cohortId)) return { error: "You do not have access to this cohort" };
+  if (!context.cohorts.some((cohort) => cohort.id === cohortId)) return { error: "You do not have access to this batch" };
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

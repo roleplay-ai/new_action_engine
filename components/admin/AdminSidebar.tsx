@@ -34,9 +34,8 @@ const navItems: NavItem[] = [
     label: "Analytics",
     icon: BarChart3,
     children: [
-      { id: "cohorts-analytics", label: "Cohorts", href: "/admin/analytics/cohorts" },
+      { id: "cohorts-analytics", label: "Batches", href: "/admin/analytics/cohorts" },
       { id: "engagement", label: "Engagement", href: "/admin/analytics/engagement" },
-      { id: "action-metrics", label: "Action Metrics", href: "/admin/analytics/action-metrics" },
     ],
   },
   {
@@ -44,7 +43,7 @@ const navItems: NavItem[] = [
     label: "Control Panel",
     icon: Settings2,
     children: [
-      { id: "cohort-management", label: "Cohort Management", href: "/admin/control-panel/cohorts" },
+      { id: "cohort-management", label: "Batch Management", href: "/admin/control-panel/cohorts" },
       { id: "content-management", label: "Content Management", href: "/admin/control-panel/content" },
     ],
   },

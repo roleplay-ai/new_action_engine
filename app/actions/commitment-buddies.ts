@@ -57,7 +57,7 @@ function mapBuddyGroup(value: unknown): CommitmentBuddyGroup {
         if (typeof buddy.id !== "string") return [];
         return [{
           id: buddy.id,
-          name: typeof buddy.name === "string" && buddy.name.trim() ? buddy.name.trim() : "Cohort member",
+          name: typeof buddy.name === "string" && buddy.name.trim() ? buddy.name.trim() : "Batch member",
           email: typeof buddy.email === "string" && buddy.email.trim() ? buddy.email.trim() : null,
           track: asTrack(buddy.track),
           hasFinalisedPlan: buddy.hasFinalisedPlan === true,

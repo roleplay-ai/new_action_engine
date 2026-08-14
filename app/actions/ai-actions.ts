@@ -48,8 +48,8 @@ async function getSelectedPlanCohort(requireCurrent = false, knownCohortId?: str
   const context = await getMyCohorts();
   if (context.error) return { error: context.error };
   const selected = context.cohorts.find((cohort) => cohort.isSelected);
-  if (!selected) return { error: "Select a cohort first" };
-  if (requireCurrent && !selected.isCurrent) return { error: "New plans can only be built for your current cohort" };
+  if (!selected) return { error: "Select a batch first" };
+  if (requireCurrent && !selected.isCurrent) return { error: "New plans can only be built for your current batch" };
   return { cohortId: selected.id };
 }
 
@@ -242,7 +242,7 @@ export async function saveGeneratedActions(params: {
       .eq("cohort_id", cohortId)
       .maybeSingle();
     if (existingPlan?.is_active || existingPlan?.archived_at) {
-      return { error: "This cohort plan has already been finalised and cannot be edited" };
+      return { error: "This batch plan has already been finalised and cannot be edited" };
     }
 
     if (params.track !== "daily" && params.track !== "weekly") {

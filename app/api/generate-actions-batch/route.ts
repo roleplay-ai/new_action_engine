@@ -48,9 +48,9 @@ export async function POST(request: Request) {
   if (!job.cohort_id) {
     await admin
       .from("personal_action_generation_jobs")
-      .update({ status: "failed", error_message: "Generation job has no cohort", updated_at: new Date().toISOString() })
+      .update({ status: "failed", error_message: "Generation job has no batch", updated_at: new Date().toISOString() })
       .eq("id", jobId);
-    return NextResponse.json({ ok: false, error: "Generation job has no cohort" });
+    return NextResponse.json({ ok: false, error: "Generation job has no batch" });
   }
 
   const remaining = job.total_needed - job.total_generated;

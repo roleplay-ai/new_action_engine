@@ -112,7 +112,7 @@ function TeamBucket({ summary }: { summary: CommitmentWalletSummary }) {
         className="wallet-team-bucket"
         viewBox="0 0 280 300"
         role="img"
-        aria-label={`${formatNumber(summary.teamPoints)} of ${formatNumber(summary.teamMaximumPoints)} possible cohort points: ${formatNumber(summary.teamPlanPoints)} from finalised plans and ${formatNumber(summary.teamActionPoints)} from on-time actions`}
+        aria-label={`${formatNumber(summary.teamPoints)} of ${formatNumber(summary.teamMaximumPoints)} possible batch points: ${formatNumber(summary.teamPlanPoints)} from finalised plans and ${formatNumber(summary.teamActionPoints)} from on-time actions`}
       >
         <defs>
           <clipPath id="commitmentWalletBucketClip">
@@ -222,7 +222,7 @@ function WalletMilestones({ summary }: { summary: CommitmentWalletSummary }) {
         <div>
           <span className="wallet-label">Team impact rewards</span>
           <h3>Turn consistent action into real-world good</h3>
-          <p>Every completed action moves your cohort closer to a meaningful reward.</p>
+          <p>Every completed action moves your batch closer to a meaningful reward.</p>
         </div>
       </div>
 
@@ -307,7 +307,7 @@ export default async function WalletPage() {
 
       <section className="wallet-footer-action">
         <div>
-          <strong>{summary.hasFinalisedPlan ? "Your next on-time action can move the team 50 points closer." : "Finalise your plan to establish your commitment and cohort maximum."}</strong>
+          <strong>{summary.hasFinalisedPlan ? "Your next on-time action can move the team 50 points closer." : "Finalise your plan to establish your commitment and batch maximum."}</strong>
         </div>
         <Link href={summary.hasFinalisedPlan ? "/actions" : "/plan"}>
           {summary.hasFinalisedPlan ? "View my next action" : "Go to my plan"} <ArrowRight size={14} />

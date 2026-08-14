@@ -163,7 +163,7 @@ export default function MembersClient({
         <div className="trainer-empty">
           <Users size={24} />
           <strong>No participants yet</strong>
-          <p>Once a superadmin or admin adds people to this cohort, they&apos;ll show up here.</p>
+          <p>Once a superadmin or admin adds people to this batch, they&apos;ll show up here.</p>
         </div>
       ) : (
         <>

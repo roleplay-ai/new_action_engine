@@ -227,7 +227,7 @@ function CommitmentBuddyCard({
   if (group.buddies.length === 0) {
     return <section className="commitment-buddy-card actions-buddy-waiting">
       <div className="actions-buddy-waiting-icon"><UsersRound size={21} /></div>
-      <div><span>Your commitment buddy</span><strong>Waiting for another cohort member</strong><p>Your pairing will appear here as soon as another unpaired participant joins.</p></div>
+      <div><span>Your commitment buddy</span><strong>Waiting for another batch member</strong><p>Your pairing will appear here as soon as another unpaired participant joins.</p></div>
     </section>;
   }
 
@@ -585,12 +585,12 @@ export default function ActionsClient() {
               </strong>
               <p>
                 {planIsArchived
-                  ? "This archived cohort plan will not release more reminders."
+                  ? "This archived batch plan will not release more reminders."
                   : planIsActive || planCanPerform
                     ? "You have completed all your actions! It's time to log out"
                     : personalPlanState === "draft"
-                      ? "Finish reviewing and finalise this cohort's draft plan first."
-                      : "Build a practice plan for your current cohort to generate workplace actions."}
+                      ? "Finish reviewing and finalise this batch's draft plan first."
+                      : "Build a practice plan for your current batch to generate workplace actions."}
               </p>
             </div>
           </div>
@@ -621,7 +621,7 @@ export default function ActionsClient() {
               <h3>{planIsArchived ? "Remaining archived actions" : "Next reminders"}</h3>
               <p>{planIsArchived
                 ? "Reminder delivery is paused. You can still choose and complete any remaining action."
-                : "Actions scheduled after your current action in this cohort plan."}</p>
+                : "Actions scheduled after your current action in this batch plan."}</p>
               <div className="actions-upcoming-list plan-review-list">
                 {upcoming.length === 0 && <div className="actions-inline-empty">{planIsArchived ? "No archived actions remain." : "No additional actions are scheduled yet."}</div>}
                 {upcoming.map((action, index) => {
@@ -689,9 +689,9 @@ export default function ActionsClient() {
       {notCompleted.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CircleX size={19} /><span><strong>{action.title}</strong><small>{item.pointsDelta && item.pointsDelta < 0 ? `${item.pointsDelta} points · ` : ""}{item.reflection || (item.status === "skipped" ? "Skipped" : "Not completed")}</small></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em><button type="button" disabled={busy} onClick={() => setCompletingId(item.actionId)}>Complete late</button></div>; })}
     </div></section>}
 
-    {tab === "archived" && <section className="actions-list-card actions-completed-card actions-archive-card"><h3>Archived actions</h3><p>Actions from all your earlier cohort plans stay visible here, whichever cohort you are viewing.</p><div className="actions-archive-list">
+    {tab === "archived" && <section className="actions-list-card actions-completed-card actions-archive-card"><h3>Archived actions</h3><p>Actions from all your earlier batch plans stay visible here, whichever batch you are viewing.</p><div className="actions-archive-list">
       {!archiveReady && <div className="actions-empty-state"><span className="actions-inline-loader" /><strong>Loading archived actions</strong></div>}
-      {archiveReady && archivedActions.length === 0 && <div className="actions-empty-state"><ListChecks size={28} /><strong>No archived actions</strong><p>Actions from an earlier cohort will appear here after its plan is archived.</p></div>}
+      {archiveReady && archivedActions.length === 0 && <div className="actions-empty-state"><ListChecks size={28} /><strong>No archived actions</strong><p>Actions from an earlier batch will appear here after its plan is archived.</p></div>}
       {archivedActions.map((action) => {
         const isComplete = archivedActionIsComplete(action.status);
         return <article key={action.id}>
@@ -702,7 +702,7 @@ export default function ActionsClient() {
     </div></section>}
 
     {tab === "settings" && <section className="actions-list-card actions-settings-card"><div className="actions-card-heading"><div><h3>Plan overview</h3><p>Your current duration, pace and reminder schedule.</p></div><Settings2 size={20} /></div>
-      {!settings ? <div className="actions-empty-state"><CalendarDays size={28} /><strong>No plan for this cohort yet</strong><p>Generate, review and finalise your plan before actions appear here.</p>{cohort?.isCurrent && <Link href="/plan" className="journey-primary-button">Go to my plan</Link>}</div> : <><div className="actions-inline-empty">{settings.isArchived ? "Archived · reminders paused · plan settings are read-only" : settings.isActive ? "Finalised · plan settings are read-only" : "Draft · finalise this plan before reminders begin"}</div><div className="actions-settings-grid"><div><span>Action pace</span><strong>{settings.track === "weekly" ? "Weekly actions" : "Daily actions"}</strong></div><div><span>Plan duration</span><strong>{settings.durationWeeks} weeks</strong></div><div><span>Actions per {settings.track === "weekly" ? "week" : "weekday"}</span><strong>{settings.actionCount}</strong></div><div><span>Reminder</span><strong>{settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}{formatTime(settings.reminderTime)}</strong></div><div><span>Email notifications</span><strong className="actions-notification-status"><Mail size={15} />Email reminders on</strong></div><div><span>Total plan</span><strong>{settings.totalActionsPlanned} actions</strong></div><div><span>Starting points</span><strong>1,000</strong></div><div><span>Minimum score</span><strong>0</strong></div></div><p className="actions-points-rule">Every action is worth 50 points. Complete it on the assigned day to earn 100 points. Missing it deducts 50 points, and your balance never drops below zero. A late completion does not restore the deduction.</p></>}
+      {!settings ? <div className="actions-empty-state"><CalendarDays size={28} /><strong>No plan for this batch yet</strong><p>Generate, review and finalise your plan before actions appear here.</p>{cohort?.isCurrent && <Link href="/plan" className="journey-primary-button">Go to my plan</Link>}</div> : <><div className="actions-inline-empty">{settings.isArchived ? "Archived · reminders paused · plan settings are read-only" : settings.isActive ? "Finalised · plan settings are read-only" : "Draft · finalise this plan before reminders begin"}</div><div className="actions-settings-grid"><div><span>Action pace</span><strong>{settings.track === "weekly" ? "Weekly actions" : "Daily actions"}</strong></div><div><span>Plan duration</span><strong>{settings.durationWeeks} weeks</strong></div><div><span>Actions per {settings.track === "weekly" ? "week" : "weekday"}</span><strong>{settings.actionCount}</strong></div><div><span>Reminder</span><strong>{settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}{formatTime(settings.reminderTime)}</strong></div><div><span>Email notifications</span><strong className="actions-notification-status"><Mail size={15} />Email reminders on</strong></div><div><span>Total plan</span><strong>{settings.totalActionsPlanned} actions</strong></div><div><span>Starting points</span><strong>1,000</strong></div><div><span>Minimum score</span><strong>0</strong></div></div><p className="actions-points-rule">Every action is worth 50 points. Complete it on the assigned day to earn 100 points. Missing it deducts 50 points, and your balance never drops below zero. A late completion does not restore the deduction.</p></>}
     </section>}
 
     {typeof document !== "undefined" && planIsActive && buddyGroup?.revealPending && buddyGroup.buddies.length > 0 && createPortal((() => {

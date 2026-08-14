@@ -51,7 +51,7 @@ export default async function SuperadminCompaniesPage() {
           <CompaniesList companies={companyRows} />
         ) : (
           <div className="superadmin-empty">
-            <Building2 size={26} /><strong>No companies yet</strong><p>Create the first organisation to begin assigning users and cohorts.</p>
+            <Building2 size={26} /><strong>No companies yet</strong><p>Create the first organisation to begin assigning users and batches.</p>
           </div>
         )}
       </section>

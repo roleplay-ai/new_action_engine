@@ -97,7 +97,7 @@ function initials(value: string | null | undefined) {
 
 function CohortListSkeleton() {
   return (
-    <div className="cohort-admin-list" aria-label="Loading cohorts" aria-busy="true">
+    <div className="cohort-admin-list" aria-label="Loading batches" aria-busy="true">
       {[0, 1, 2].map((item) => (
         <div key={item} className="cohort-admin-row cohort-admin-row--skeleton">
           <span className="cohort-admin-skeleton cohort-admin-skeleton--avatar" />
@@ -165,7 +165,7 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
         return nextCohorts[0]?.id ?? null;
       });
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Failed to load cohorts");
+      setError(caughtError instanceof Error ? caughtError.message : "Failed to load batches");
     } finally {
       setLoading(false);
     }
@@ -247,7 +247,7 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
       await refresh();
       if (result.id) setSelectedId(result.id);
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Failed to create cohort");
+      setError(caughtError instanceof Error ? caughtError.message : "Failed to create batch");
     } finally {
       setCreatingBusy(false);
     }
@@ -261,7 +261,7 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
         <div>
           <div className="cohort-admin-company-heading">
             <span>{company?.logoUrl ? <img src={company.logoUrl} alt={`${company.name} logo`} /> : <Building2 size={24} />}</span>
-            <div><h1>{company?.name || "Cohort management"}</h1><strong>Cohort management</strong></div>
+            <div><h1>{company?.name || "Batch management"}</h1><strong>Batch management</strong></div>
           </div>
           <p>Organise participants, assign preparation content, and keep every learning group ready.</p>
         </div>
@@ -280,19 +280,19 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
             onClick={() => setCreating(true)}
             className="cohort-admin-button cohort-admin-button--primary"
           >
-            <Plus size={17} /> New cohort
+            <Plus size={17} /> New batch
           </button>
         </div>
       </header>
 
-      <div className="cohort-admin-stats" aria-label="Cohort overview">
+      <div className="cohort-admin-stats" aria-label="Batch overview">
         <div className="cohort-admin-stat">
           <span className="cohort-admin-stat-icon"><Users size={18} /></span>
-          <div><strong>{cohorts.length}</strong><span>Active cohorts</span></div>
+          <div><strong>{cohorts.length}</strong><span>Active batches</span></div>
         </div>
         <div className="cohort-admin-stat">
           <span className="cohort-admin-stat-icon"><UserPlus size={18} /></span>
-          <div><strong>{totals.members}</strong><span>Cohort seats</span></div>
+          <div><strong>{totals.members}</strong><span>Batch seats</span></div>
         </div>
         <div className="cohort-admin-stat">
           <span className="cohort-admin-stat-icon"><BookOpen size={18} /></span>
@@ -311,14 +311,14 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
       <div className="cohort-admin-layout">
         <aside className="cohort-admin-directory">
           <div className="cohort-admin-directory-head">
-            <div><h2>Cohorts</h2><span>{cohorts.length} active</span></div>
+            <div><h2>Batches</h2><span>{cohorts.length} active</span></div>
             <label className="cohort-admin-search">
               <Search size={16} />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search cohorts"
-                aria-label="Search cohorts"
+                placeholder="Search batches"
+                aria-label="Search batches"
               />
               {query && <button type="button" onClick={() => setQuery("")} aria-label="Clear search"><X size={14} /></button>}
             </label>
@@ -329,13 +329,13 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
           ) : cohorts.length === 0 ? (
             <div className="cohort-admin-empty">
               <span><Users size={23} /></span>
-              <h3>Create your first cohort</h3>
+              <h3>Create your first batch</h3>
               <p>Set up a learning group, then add participants and content.</p>
-              <button type="button" onClick={() => setCreating(true)}>Create cohort <ArrowRight size={15} /></button>
+              <button type="button" onClick={() => setCreating(true)}>Create batch <ArrowRight size={15} /></button>
             </div>
           ) : filteredCohorts.length === 0 ? (
             <div className="cohort-admin-empty cohort-admin-empty--compact">
-              <h3>No matching cohorts</h3>
+              <h3>No matching batches</h3>
               <p>Try a different name or description.</p>
               <button type="button" onClick={() => setQuery("")}>Clear search</button>
             </div>
@@ -388,8 +388,8 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
           ) : (
             <div className="cohort-admin-placeholder">
               <span><Users size={25} /></span>
-              <h2>Select a cohort</h2>
-              <p>Choose a cohort to manage its participants and learning content.</p>
+              <h2>Select a batch</h2>
+              <p>Choose a batch to manage its participants and learning content.</p>
             </div>
           )}
         </main>
@@ -401,7 +401,7 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
             <div className="cohort-admin-modal-head">
               <div>
                 <p className="cohort-admin-eyebrow">New learning group</p>
-                <h2 id="new-cohort-title">Create a cohort</h2>
+                <h2 id="new-cohort-title">Create a batch</h2>
                 {role === "superadmin" && company && (
                   <p className="cohort-admin-modal-company">
                     <Building2 size={12} /> Creating for <strong>{company.name}</strong>
@@ -430,12 +430,12 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
               )}
               {duplicateCohort && (
                 <div className="cohort-admin-inline-warning">
-                  <AlertCircle size={14} /> A cohort with this exact batch and module already exists.
+                  <AlertCircle size={14} /> A batch with this exact name and module already exists.
                 </div>
               )}
               <label className="cohort-admin-field">
                 <span>Description <em>Optional</em></span>
-                <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What is this cohort working towards?" rows={3} />
+                <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What is this batch working towards?" rows={3} />
               </label>
 
               {role === "superadmin" && (
@@ -443,7 +443,7 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
                   <p className="cohort-admin-form-section">Action generation context</p>
                   <div className="cohort-admin-notice">
                     <Info size={15} />
-                    <p><strong>Used for every participant in this cohort</strong><span>Training content defines the skill. Business context keeps each action realistic for the company and its work.</span></p>
+                    <p><strong>Used for every participant in this batch</strong><span>Training content defines the skill. Business context keeps each action realistic for the company and its work.</span></p>
                   </div>
                   <label className="cohort-admin-field">
                     <span>Training content <em>Optional</em></span>
@@ -484,7 +484,7 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
               <button type="button" onClick={closeCreateDialog} disabled={creatingBusy} className="cohort-admin-button cohort-admin-button--secondary">Cancel</button>
               <button type="submit" form="new-cohort-form" disabled={creatingBusy || !batchName.trim()} className="cohort-admin-button cohort-admin-button--primary">
                 {creatingBusy ? <Loader2 size={16} className="cohort-admin-spin" /> : <Plus size={16} />}
-                {creatingBusy ? "Creating…" : "Create cohort"}
+                {creatingBusy ? "Creating…" : "Create batch"}
               </button>
             </div>
           </div>
@@ -615,7 +615,7 @@ function CohortDetailPanel({
       setNotices(noticesResult.notices ?? []);
       setFacilitators(facilitatorsResult.facilitators ?? []);
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Failed to load cohort details");
+      setError(caughtError instanceof Error ? caughtError.message : "Failed to load batch details");
     } finally {
       setLoading(false);
     }
@@ -740,7 +740,7 @@ function CohortDetailPanel({
     if (
       nextLocked &&
       !window.confirm(
-        "Lock this cohort? Participants will immediately lose access to their plan, action creation, and the Commitment Wallet until you unlock it again."
+        "Lock this batch? Participants will immediately lose access to their plan, action creation, and the Commitment Wallet until you unlock it again."
       )
     ) {
       return;
@@ -814,7 +814,7 @@ function CohortDetailPanel({
     const displayName = cohort.moduleName ? `${cohort.batchName} — ${cohort.moduleName}` : cohort.batchName;
     if (
       !window.confirm(
-        `Permanently delete “${displayName}”? Members, content assignments, and related cohort data will be removed. This cannot be undone.`
+        `Permanently delete “${displayName}”? Members, content assignments, and related batch data will be removed. This cannot be undone.`
       )
     ) {
       return;
@@ -843,7 +843,7 @@ function CohortDetailPanel({
           <span className="cohort-admin-cohort-mark cohort-admin-cohort-mark--large">{cohort.logoUrl ? <img src={cohort.logoUrl} alt={`${cohort.batchName} logo`} /> : initials(cohort.batchName)}</span>
           <div>
             <p className="cohort-admin-eyebrow">
-              Active cohort
+              Active batch
               <span className={`cohort-admin-lock-status${cohort.locked ? " is-locked" : ""}`}>
                 {cohort.locked ? <Lock size={11} /> : <LockOpen size={11} />}
                 {cohort.locked ? "Locked" : "Unlocked"}
@@ -912,7 +912,7 @@ function CohortDetailPanel({
         <div className="cohort-admin-detail-brand-actions">
           <label className="cohort-admin-logo-upload">
             {busyAction === "cohort-logo" ? <Loader2 size={14} className="cohort-admin-spin" /> : <ImagePlus size={14} />}
-            {cohort.logoUrl ? "Replace cohort logo" : "Upload cohort logo"}
+            {cohort.logoUrl ? "Replace batch logo" : "Upload batch logo"}
             <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" disabled={!!busyAction} onChange={(event) => void handleCohortLogo(event)} />
           </label>
           {role === "superadmin" && (
@@ -935,7 +935,7 @@ function CohortDetailPanel({
               ) : (
                 <Lock size={15} />
               )}
-              {busyAction === "toggle-lock" ? "Updating…" : cohort.locked ? "Unlock cohort" : "Lock cohort"}
+              {busyAction === "toggle-lock" ? "Updating…" : cohort.locked ? "Unlock batch" : "Lock batch"}
             </button>
           )}
           <button
@@ -944,10 +944,10 @@ function CohortDetailPanel({
             disabled={Boolean(busyAction)}
             className="cohort-admin-button cohort-admin-button--danger"
             aria-label={`Delete ${cohort.batchName}`}
-            title="Delete cohort"
+            title="Delete batch"
           >
             {busyAction === "delete-cohort" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Trash2 size={15} />}
-            {busyAction === "delete-cohort" ? "Deleting…" : "Delete cohort"}
+            {busyAction === "delete-cohort" ? "Deleting…" : "Delete batch"}
           </button>
         </div>
       </div>
@@ -986,7 +986,7 @@ function CohortDetailPanel({
         </form>
       </div>
 
-      <div className="cohort-admin-tabs" role="tablist" aria-label="Cohort details">
+      <div className="cohort-admin-tabs" role="tablist" aria-label="Batch details">
         <button type="button" role="tab" aria-selected={tab === "members"} onClick={() => setTab("members")} className={tab === "members" ? "is-active" : ""}>
           <Users size={16} /> Members <span>{currentMembers.length}</span>
         </button>
@@ -1005,19 +1005,19 @@ function CohortDetailPanel({
 
       {error && (
         <div className="cohort-admin-alert cohort-admin-alert--error cohort-admin-alert--inner" role="alert">
-          <AlertCircle size={17} /><div><strong>Unable to update this cohort</strong><span>{error}</span></div>
+          <AlertCircle size={17} /><div><strong>Unable to update this batch</strong><span>{error}</span></div>
           <button type="button" onClick={() => void refresh()}>Retry</button>
         </div>
       )}
 
       {loading ? (
         <div className="cohort-admin-detail-loading" aria-busy="true">
-          <Loader2 size={20} className="cohort-admin-spin" /><span>Loading cohort details…</span>
+          <Loader2 size={20} className="cohort-admin-spin" /><span>Loading batch details…</span>
         </div>
       ) : tab === "members" ? (
         <div className="cohort-admin-picker-grid">
           <section className="cohort-admin-panel">
-            <div className="cohort-admin-panel-head"><div><h3>Current members</h3><p>People currently learning in this cohort.</p></div><span>{currentMembers.length}</span></div>
+            <div className="cohort-admin-panel-head"><div><h3>Current members</h3><p>People currently learning in this batch.</p></div><span>{currentMembers.length}</span></div>
             {role === "superadmin" && (
               <form
                 className="cohort-admin-tag-creator"
@@ -1047,7 +1047,7 @@ function CohortDetailPanel({
                 {currentMembers.map((member) => (
                   <div key={member.id} className="cohort-admin-person">
                     <span className="cohort-admin-avatar">{initials(member.fullName)}</span>
-                    <div><strong>{member.fullName || "Unnamed user"}</strong><span>{member.email || "Cohort participant"}</span></div>
+                    <div><strong>{member.fullName || "Unnamed user"}</strong><span>{member.email || "Batch participant"}</span></div>
                     {role === "superadmin" ? (
                       <select
                         className="cohort-admin-tag-select"
@@ -1069,7 +1069,7 @@ function CohortDetailPanel({
                       onClick={() => void runMutation(`remove-member:${member.id}`, () => removeMembersFromCohort(cohort.id, [member.id]), { refetch: [fetchMembers, fetchCompanyUsers], syncList: true })}
                       disabled={Boolean(busyAction)}
                       aria-label={`Remove ${member.fullName || "member"}`}
-                      title="Remove from cohort"
+                      title="Remove from batch"
                     >
                       {busyAction === `remove-member:${member.id}` ? <Loader2 size={15} className="cohort-admin-spin" /> : <X size={15} />}
                     </button>
@@ -1081,11 +1081,11 @@ function CohortDetailPanel({
 
           <section className="cohort-admin-panel">
             <div className="cohort-admin-panel-head"><div><h3>Add participants</h3><p>{availableUsers.length} available in this company.</p></div></div>
-            <div className="cohort-admin-notice"><Info size={17} /><p><strong>Moving between cohorts</strong><span>Adding an existing participant makes this their current cohort. Any unfinished earlier plan is archived and remains available in Archived actions.</span></p></div>
+            <div className="cohort-admin-notice"><Info size={17} /><p><strong>Moving between batches</strong><span>Adding an existing participant makes this their current batch. Any unfinished earlier plan is archived and remains available in Archived actions.</span></p></div>
             {companyUsers.length === 0 ? (
-              <div className="cohort-admin-mini-empty"><Users size={20} /><strong>No company users</strong><span>Create participants in User management first.</span></div>
+              <div className="cohort-admin-mini-empty"><Users size={20} /><strong>No company users</strong><span>Ask a superadmin to add participants to your company first.</span></div>
             ) : availableUsers.length === 0 ? (
-              <div className="cohort-admin-mini-empty"><Check size={20} /><strong>Everyone is assigned</strong><span>All company participants are in this cohort.</span></div>
+              <div className="cohort-admin-mini-empty"><Check size={20} /><strong>Everyone is assigned</strong><span>All company participants are in this batch.</span></div>
             ) : (
               <>
                 <label className="cohort-admin-search cohort-admin-search--panel"><Search size={15} /><input value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} placeholder="Search participants" aria-label="Search participants" /></label>
@@ -1109,7 +1109,7 @@ function CohortDetailPanel({
                 <div className="cohort-admin-panel-action">
                   <span>{pendingAddIds.size ? `${pendingAddIds.size} selected` : "Select participants to add"}</span>
                   <button type="button" onClick={() => void runMutation("add-members", () => addMembersToCohort(cohort.id, Array.from(pendingAddIds)), { after: () => setPendingAddIds(new Set()), refetch: [fetchMembers, fetchCompanyUsers], syncList: true })} disabled={Boolean(busyAction) || pendingAddIds.size === 0} className="cohort-admin-button cohort-admin-button--primary">
-                    {busyAction === "add-members" ? <Loader2 size={15} className="cohort-admin-spin" /> : <UserPlus size={15} />} Add to cohort
+                    {busyAction === "add-members" ? <Loader2 size={15} className="cohort-admin-spin" /> : <UserPlus size={15} />} Add to batch
                   </button>
                 </div>
               </>
@@ -1119,7 +1119,7 @@ function CohortDetailPanel({
       ) : tab === "content" ? (
         <div className="cohort-admin-picker-grid">
           <section className="cohort-admin-panel">
-            <div className="cohort-admin-panel-head"><div><h3>Assigned content</h3><p>Preparation visible to this cohort.</p></div><span>{assignedItems.length}</span></div>
+            <div className="cohort-admin-panel-head"><div><h3>Assigned content</h3><p>Preparation visible to this batch.</p></div><span>{assignedItems.length}</span></div>
             {assignedItems.length === 0 ? (
               <div className="cohort-admin-mini-empty"><BookOpen size={20} /><strong>No content assigned</strong><span>Select items from the active content library.</span></div>
             ) : (
@@ -1128,7 +1128,7 @@ function CohortDetailPanel({
                   <div key={item.id} className="cohort-admin-content-row">
                     <span className="cohort-admin-type-badge">{item.type}</span>
                     <div><strong>{item.title}</strong><span>{item.description || "No description"}</span></div>
-                    <button type="button" onClick={() => void runMutation(`remove-content:${item.id}`, () => removeContentFromCohort(cohort.id, item.id), { refetch: [fetchContent], syncList: true })} disabled={Boolean(busyAction)} aria-label={`Remove ${item.title}`} title="Remove from cohort">
+                    <button type="button" onClick={() => void runMutation(`remove-content:${item.id}`, () => removeContentFromCohort(cohort.id, item.id), { refetch: [fetchContent], syncList: true })} disabled={Boolean(busyAction)} aria-label={`Remove ${item.title}`} title="Remove from batch">
                       {busyAction === `remove-content:${item.id}` ? <Loader2 size={15} className="cohort-admin-spin" /> : <X size={15} />}
                     </button>
                   </div>
@@ -1142,7 +1142,7 @@ function CohortDetailPanel({
             {libraryItems.length === 0 ? (
               <div className="cohort-admin-mini-empty"><BookOpen size={20} /><strong>The library is empty</strong><span>Add active content in Content management first.</span></div>
             ) : availableItems.length === 0 ? (
-              <div className="cohort-admin-mini-empty"><Check size={20} /><strong>Everything is assigned</strong><span>This cohort has all active library items.</span></div>
+              <div className="cohort-admin-mini-empty"><Check size={20} /><strong>Everything is assigned</strong><span>This batch has all active library items.</span></div>
             ) : (
               <>
                 <label className="cohort-admin-search cohort-admin-search--panel"><Search size={15} /><input value={contentQuery} onChange={(event) => setContentQuery(event.target.value)} placeholder="Search content" aria-label="Search content" /></label>
@@ -1180,7 +1180,7 @@ function CohortDetailPanel({
               </span>
               <div>
                 <strong>{cohort.trainer?.name || "No trainer assigned"}</strong>
-                <span>{cohort.trainer ? "Running this cohort" : "Assign one from the roster below"}</span>
+                <span>{cohort.trainer ? "Running this batch" : "Assign one from the roster below"}</span>
               </div>
             </div>
             {role === "superadmin" ? (
@@ -1210,13 +1210,13 @@ function CohortDetailPanel({
                 </div>
               )
             ) : (
-              <div className="cohort-admin-notice"><Info size={17} /><p><strong>Only a superadmin can change this</strong><span>Ask a superadmin to assign or update this cohort's trainer.</span></p></div>
+              <div className="cohort-admin-notice"><Info size={17} /><p><strong>Only a superadmin can change this</strong><span>Ask a superadmin to assign or update this batch's trainer.</span></p></div>
             )}
           </section>
 
           <section className="cohort-admin-panel">
             <div className="cohort-admin-panel-head">
-              <div><h3>Notice board</h3><p>Dated notices shown to the whole cohort on Base Camp. Normally posted by the trainer once they're logged in.</p></div>
+              <div><h3>Notice board</h3><p>Dated notices shown to the whole batch on Base Camp. Normally posted by the trainer once they're logged in.</p></div>
               <span>{notices.length}</span>
             </div>
             <div className="cohort-admin-tag-creator">
@@ -1267,7 +1267,7 @@ function CohortDetailPanel({
 
           <section className="cohort-admin-panel">
             <div className="cohort-admin-panel-head">
-              <div><h3>Facilitators</h3><p>Name, designation and an optional PDF, shown to participants for this cohort only.</p></div>
+              <div><h3>Facilitators</h3><p>Name, designation and an optional PDF, shown to participants for this batch only.</p></div>
               <span>{facilitators.length}</span>
             </div>
             {role === "superadmin" && (
@@ -1301,7 +1301,7 @@ function CohortDetailPanel({
               </div>
             )}
             {facilitators.length === 0 ? (
-              <div className="cohort-admin-mini-empty"><UserRound size={20} /><strong>No facilitators added</strong><span>Add facilitators running this specific cohort.</span></div>
+              <div className="cohort-admin-mini-empty"><UserRound size={20} /><strong>No facilitators added</strong><span>Add facilitators running this specific batch.</span></div>
             ) : (
               <div className="cohort-admin-people-list">
                 {facilitators.map((facilitator) => (
@@ -1332,10 +1332,10 @@ function CohortDetailPanel({
         <div className="cohort-admin-generation-context">
           <section className="cohort-admin-panel">
             <div className="cohort-admin-panel-head">
-              <div><h3>Action generation context</h3><p>These cohort-level inputs are combined with each participant&apos;s private notes.</p></div>
+              <div><h3>Action generation context</h3><p>These batch-level inputs are combined with each participant&apos;s private notes.</p></div>
             </div>
             <div className="cohort-admin-context-form">
-              <div className="cohort-admin-notice"><Info size={17} /><p><strong>Used for every participant in this cohort</strong><span>Training content defines the skill. Business context keeps each action realistic for the company and its work.</span></p></div>
+              <div className="cohort-admin-notice"><Info size={17} /><p><strong>Used for every participant in this batch</strong><span>Training content defines the skill. Business context keeps each action realistic for the company and its work.</span></p></div>
               <label className="cohort-admin-field">
                 <span>Training content <em>Optional</em></span>
                 <textarea value={trainingContent} onChange={(event) => setTrainingContent(event.target.value)} placeholder="Add session topics, agenda, skills, and learning outcomes" rows={8} disabled={Boolean(busyAction)} />

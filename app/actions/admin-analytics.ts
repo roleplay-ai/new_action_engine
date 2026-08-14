@@ -454,103 +454,8 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
   }
 }
 
-const VALIDATED_STATUSES = ["success"];
 const ACTION_ACCEPTED_STATUSES = ["scheduled", "success", "failed"];
 const DRIVER_ACCEPTED_STATUSES = ["scheduled", "success"];
-
-/** Per-action metrics for Action Performance table: accepted count, validated count, conversion %. */
-export interface ActionMetricEntry {
-  actionId: string;
-  title: string;
-  theme: string;
-  acceptedCount: number;
-  validatedCount: number;
-  conversionPct: number;
-}
-
-/** Per-action acceptance, validation %, and conversion (validated/accepted*100), sorted by conversion descending. */
-export async function getActionMetrics(companyId?: string): Promise<{
-  entries: ActionMetricEntry[];
-  error?: string;
-}> {
-  try {
-    const { companyId: myCompanyId, role } = await getAdminContext();
-    const resolvedCompanyId = role === "admin" ? myCompanyId : companyId;
-    if (!resolvedCompanyId) {
-      return { entries: [], error: "Company required" };
-    }
-
-    const admin = createAdminClient();
-
-    const { data: companyProfiles } = await admin
-      .from("profiles")
-      .select("id, role")
-      .eq("company_id", resolvedCompanyId);
-    const userIds = (companyProfiles ?? [])
-      .filter((p: { role: string }) => p.role === "user")
-      .map((p: { id: string }) => p.id);
-
-    const { data: actions } = await admin
-      .from("actions")
-      .select("id, title, theme")
-      .eq("company_id", resolvedCompanyId);
-    if (!actions?.length) {
-      return { entries: [] };
-    }
-
-    const actionMap = new Map(
-      (actions as { id: string; title: string; theme: string }[]).map((a) => [a.id, a])
-    );
-
-    const acceptedByAction = new Map<string, number>();
-    const validatedByAction = new Map<string, number>();
-    for (const a of actions as { id: string }[]) {
-      acceptedByAction.set(a.id, 0);
-      validatedByAction.set(a.id, 0);
-    }
-
-    if (userIds.length > 0) {
-      const { data: uaRows } = await admin
-        .from("user_actions")
-        .select("action_id, status")
-        .in("user_id", userIds);
-
-      for (const row of (uaRows ?? []) as { action_id: string; status: string }[]) {
-        const actionId = row.action_id;
-        if (!actionMap.has(actionId)) continue;
-        if (ACTION_ACCEPTED_STATUSES.includes(row.status)) {
-          acceptedByAction.set(actionId, (acceptedByAction.get(actionId) ?? 0) + 1);
-        }
-        if (VALIDATED_STATUSES.includes(row.status)) {
-          validatedByAction.set(actionId, (validatedByAction.get(actionId) ?? 0) + 1);
-        }
-      }
-    }
-
-    const entries: ActionMetricEntry[] = (actions as { id: string; title: string; theme: string }[])
-      .map((a) => {
-        const accepted = acceptedByAction.get(a.id) ?? 0;
-        const validated = validatedByAction.get(a.id) ?? 0;
-        const conversionPct = accepted > 0 ? Math.round((validated / accepted) * 100) : 0;
-        return {
-          actionId: a.id,
-          title: a.title,
-          theme: a.theme as string,
-          acceptedCount: accepted,
-          validatedCount: validated,
-          conversionPct,
-        };
-      })
-      .sort((a, b) => b.conversionPct - a.conversionPct);
-
-    return { entries };
-  } catch (e) {
-    return {
-      entries: [],
-      error: e instanceof Error ? e.message : "Failed",
-    };
-  }
-}
 
 /** Theme (action category) acceptance stats for Drivers Effectiveness chart. */
 export interface DriversEffectivenessEntry {
@@ -1118,7 +1023,7 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
       .select("id, batch_name, module_name, company_id")
       .eq("id", cohortId)
       .maybeSingle();
-    if (!cohort) return { error: "Cohort not found" };
+    if (!cohort) return { error: "Batch not found" };
     if (role === "admin" && cohort.company_id !== myCompanyId) return { error: "Access denied" };
 
     const { data: memberRows } = await admin.from("cohort_members").select("user_id").eq("cohort_id", cohortId);

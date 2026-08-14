@@ -22,7 +22,7 @@ export default async function TrainerNoticesPage() {
         <div className="trainer-empty">
           <UserRound size={26} />
           <strong>No batch assigned yet</strong>
-          <p>Ask a superadmin to assign you as the trainer for a cohort in Cohort Management.</p>
+          <p>Ask a superadmin to assign you as the trainer for a batch in Batch Management.</p>
         </div>
       ) : (
         <NoticesClient cohortId={selected.id} initialNotices={noticesResult?.notices ?? []} />

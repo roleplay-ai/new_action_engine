@@ -20,7 +20,7 @@ export async function getMyPrepareProgress(cohortId: string): Promise<{
     if (!user) return { error: "Not authenticated" };
 
     const { cohort: selectedCohort } = await getMyCohort({ includeRoster: false });
-    if (selectedCohort?.id !== cohortId) return { error: "Select this cohort before viewing its progress" };
+    if (selectedCohort?.id !== cohortId) return { error: "Select this batch before viewing its progress" };
 
     // Confirm the caller is actually a member of this cohort before returning anything.
     const { data: membership } = await supabase
@@ -29,7 +29,7 @@ export async function getMyPrepareProgress(cohortId: string): Promise<{
       .eq("cohort_id", cohortId)
       .eq("user_id", user.id)
       .maybeSingle();
-    if (!membership) return { error: "Not a member of this cohort" };
+    if (!membership) return { error: "Not a member of this batch" };
 
     const { data: assignments } = await supabase
       .from("cohort_prepare_assignments")
@@ -90,7 +90,7 @@ export async function markContentViewed(contentItemId: string): Promise<{ error?
     if (!user) return { error: "Not authenticated" };
 
     const { cohort } = await getMyCohort({ includeRoster: false });
-    if (!cohort) return { error: "Select a cohort first" };
+    if (!cohort) return { error: "Select a batch first" };
 
     const { data: assignment } = await supabase
       .from("cohort_prepare_assignments")
@@ -98,7 +98,7 @@ export async function markContentViewed(contentItemId: string): Promise<{ error?
       .eq("content_item_id", contentItemId)
       .eq("cohort_id", cohort.id)
       .maybeSingle();
-    if (!assignment) return { error: "Content not assigned to your cohort" };
+    if (!assignment) return { error: "Content not assigned to your batch" };
 
     const { error } = await supabase.from("user_prepare_progress").upsert(
       {
@@ -134,7 +134,7 @@ export async function getQuizForAttempt(contentItemId: string): Promise<{
     if (!user) return { error: "Not authenticated" };
 
     const { cohort } = await getMyCohort({ includeRoster: false });
-    if (!cohort) return { error: "Select a cohort first" };
+    if (!cohort) return { error: "Select a batch first" };
 
     const { data: assignment } = await supabase
       .from("cohort_prepare_assignments")
@@ -142,7 +142,7 @@ export async function getQuizForAttempt(contentItemId: string): Promise<{
       .eq("content_item_id", contentItemId)
       .eq("cohort_id", cohort.id)
       .maybeSingle();
-    if (!assignment) return { error: "Quiz not assigned to your cohort" };
+    if (!assignment) return { error: "Quiz not assigned to your batch" };
 
     const admin = createAdminClient();
     const { data: item } = await admin
@@ -185,7 +185,7 @@ export async function submitQuizAttempt(
     if (!user) return { error: "Not authenticated" };
 
     const { cohort } = await getMyCohort({ includeRoster: false });
-    if (!cohort) return { error: "Select a cohort first" };
+    if (!cohort) return { error: "Select a batch first" };
 
     const { data: assignment } = await supabase
       .from("cohort_prepare_assignments")
@@ -193,7 +193,7 @@ export async function submitQuizAttempt(
       .eq("content_item_id", contentItemId)
       .eq("cohort_id", cohort.id)
       .maybeSingle();
-    if (!assignment) return { error: "Quiz not assigned to your cohort" };
+    if (!assignment) return { error: "Quiz not assigned to your batch" };
 
     const admin = createAdminClient();
     const { data: qRows } = await admin

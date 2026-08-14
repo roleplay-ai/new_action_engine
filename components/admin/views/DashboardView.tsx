@@ -1,16 +1,22 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   Eye,
   MousePointer2,
   CheckCircle2,
-  Download,
   Trophy,
   AlertCircle,
   TrendingUp,
   ThumbsUp,
   ThumbsDown,
+  Users,
+  BookOpen,
+  MessageSquareText,
+  Layers,
+  ArrowRight,
+  Sparkles,
 } from "lucide-react";
 import {
   BarChart as ReBarChart,
@@ -25,10 +31,11 @@ import {
 import SkillProgressBars from "@/components/admin/SkillProgressBars";
 import {
   getBehaviouralJourneyFunnel,
-  getActionMetrics,
   getWeeklyActionChartData,
-  type ActionMetricEntry,
+  getCohortAnalyticsOverview,
+  type CohortAnalyticsSummary,
 } from "@/app/actions/admin-analytics";
+import { listContentItems } from "@/app/actions/prepare-content";
 
 interface FunnelData {
   usersCount: number;
@@ -50,18 +57,25 @@ interface DashboardViewProps {
   companyId: string | null;
 }
 
+const QUICK_LINKS = [
+  { href: "/admin/control-panel/cohorts", icon: Users, label: "Batch Management", desc: "Create batches, assign members, trainers & content" },
+  { href: "/admin/control-panel/content", icon: BookOpen, label: "Content Management", desc: "Manage the Prepare video, quiz & pre-read library" },
+  { href: "/admin/conversations", icon: MessageSquareText, label: "Conversations", desc: "Read and join any batch's conversation" },
+  { href: "/admin/analytics/cohorts", icon: Layers, label: "Batch Analytics", desc: "Compare engagement across every batch" },
+  { href: "/admin/analytics/engagement", icon: TrendingUp, label: "User Engagement", desc: "Leaderboard & per-user metrics" },
+];
+
 export function DashboardView({ companyId }: DashboardViewProps) {
   const [funnel, setFunnel] = useState<FunnelData | null>(null);
   const [funnelError, setFunnelError] = useState<string | null>(null);
   const [funnelLoading, setFunnelLoading] = useState(true);
-  const [adoptionIndexMetrics, setAdoptionIndexMetrics] = useState<
-    ActionMetricEntry[]
-  >([]);
-  const [adoptionIndexLoading, setAdoptionIndexLoading] = useState(false);
   const [weeklyChartData, setWeeklyChartData] = useState<
     { name: string; Accepted: number; Skipped: number; Successful: number }[]
   >([]);
   const [weeklyChartLoading, setWeeklyChartLoading] = useState(false);
+  const [cohortEntries, setCohortEntries] = useState<CohortAnalyticsSummary[]>([]);
+  const [cohortsLoading, setCohortsLoading] = useState(false);
+  const [contentStats, setContentStats] = useState<{ total: number; active: number } | null>(null);
 
   const engagementSegments = funnel
     ? [
@@ -123,20 +137,6 @@ export function DashboardView({ companyId }: DashboardViewProps) {
 
   useEffect(() => {
     if (!companyId) {
-      setAdoptionIndexMetrics([]);
-      return;
-    }
-    setAdoptionIndexLoading(true);
-    getActionMetrics(companyId)
-      .then(({ entries, error }) => {
-        if (!error && entries?.length) setAdoptionIndexMetrics(entries);
-        else setAdoptionIndexMetrics([]);
-      })
-      .finally(() => setAdoptionIndexLoading(false));
-  }, [companyId]);
-
-  useEffect(() => {
-    if (!companyId) {
       setWeeklyChartData([]);
       return;
     }
@@ -158,8 +158,37 @@ export function DashboardView({ companyId }: DashboardViewProps) {
       .finally(() => setWeeklyChartLoading(false));
   }, [companyId]);
 
-  const top3Adoption = adoptionIndexMetrics.slice(0, 3);
-  const bottom3Resistance = adoptionIndexMetrics.slice(-3).reverse();
+  useEffect(() => {
+    if (!companyId) {
+      setCohortEntries([]);
+      return;
+    }
+    setCohortsLoading(true);
+    getCohortAnalyticsOverview(companyId)
+      .then(({ entries, error }) => {
+        setCohortEntries(!error ? entries ?? [] : []);
+      })
+      .finally(() => setCohortsLoading(false));
+  }, [companyId]);
+
+  useEffect(() => {
+    listContentItems().then(({ items, error }) => {
+      if (error || !items) {
+        setContentStats(null);
+        return;
+      }
+      setContentStats({ total: items.length, active: items.filter((item) => item.isActive).length });
+    });
+  }, []);
+
+  const activeCohorts = cohortEntries.filter((c) => c.memberCount > 0);
+  const avgCohortEngagement = activeCohorts.length
+    ? Math.round(activeCohorts.reduce((sum, c) => sum + c.consistentlyActivePct, 0) / activeCohorts.length)
+    : 0;
+  const topCohorts = [...activeCohorts].sort((a, b) => b.consistentlyActivePct - a.consistentlyActivePct).slice(0, 3);
+  const bottomCohorts = [...activeCohorts]
+    .sort((a, b) => a.consistentlyActivePct - b.consistentlyActivePct)
+    .slice(0, 3);
 
   const tooltipStyle = {
     borderRadius: "12px",
@@ -190,9 +219,27 @@ export function DashboardView({ companyId }: DashboardViewProps) {
             Real-time organizational behavior insights
           </p>
         </div>
-        <button className="btn btn--decline btn--sm flex items-center gap-2">
-          <Download size={14} strokeWidth={2} /> Download Report
-        </button>
+      </div>
+
+      {/* ── QUICK LINKS ── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        {QUICK_LINKS.map((link) => {
+          const Icon = link.icon;
+          return (
+            <Link
+              key={link.href}
+              href={link.href}
+              title={link.desc}
+              className="bg-white rounded-2xl p-3.5 flex flex-col gap-2 transition-shadow hover:shadow-md"
+              style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}
+            >
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(255,206,0,0.14)", color: "var(--shadow-grey)" }}>
+                <Icon size={16} strokeWidth={2} />
+              </div>
+              <span className="text-xs font-semibold leading-tight" style={{ color: "var(--color-text-primary)" }}>{link.label}</span>
+            </Link>
+          );
+        })}
       </div>
 
       {/* ── HERO SUMMARY CARDS ── */}
@@ -260,10 +307,66 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               {funnel ? funnel.inactiveUsersCount.toLocaleString() : "—"}
             </p>
           </div>
-          <button className="btn btn--primary-dark btn--sm btn--full mt-5">
-            Nudge Strategy
-          </button>
+          <Link href="/admin/conversations" className="btn btn--primary-dark btn--sm btn--full mt-5 flex items-center justify-center gap-1.5">
+            <MessageSquareText size={14} /> Message their batch
+          </Link>
         </div>
+      </div>
+
+      {/* ── ORG SNAPSHOT ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Link
+          href="/admin/analytics/cohorts"
+          className="bg-white rounded-2xl p-4 flex items-center gap-3 transition-shadow hover:shadow-md"
+          style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}
+        >
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "#A855F7" }}>
+            <Layers size={18} strokeWidth={2} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-2xl font-bold leading-none" style={{ color: "var(--color-text-primary)" }}>
+              {cohortsLoading ? "…" : activeCohorts.length}
+            </p>
+            <p className="text-xs font-medium mt-1" style={{ color: "var(--color-text-muted)" }}>Active batches</p>
+          </div>
+          <ArrowRight size={15} style={{ color: "var(--color-text-muted)" }} />
+        </Link>
+
+        <Link
+          href="/admin/analytics/cohorts"
+          className="bg-white rounded-2xl p-4 flex items-center gap-3 transition-shadow hover:shadow-md"
+          style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}
+        >
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "#3699FC" }}>
+            <Sparkles size={18} strokeWidth={2} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-2xl font-bold leading-none" style={{ color: "var(--color-text-primary)" }}>
+              {cohortsLoading ? "…" : `${avgCohortEngagement}%`}
+            </p>
+            <p className="text-xs font-medium mt-1" style={{ color: "var(--color-text-muted)" }}>Avg. batch engagement</p>
+          </div>
+          <ArrowRight size={15} style={{ color: "var(--color-text-muted)" }} />
+        </Link>
+
+        <Link
+          href="/admin/control-panel/content"
+          className="bg-white rounded-2xl p-4 flex items-center gap-3 transition-shadow hover:shadow-md"
+          style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}
+        >
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "#23CE6B" }}>
+            <BookOpen size={18} strokeWidth={2} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-2xl font-bold leading-none" style={{ color: "var(--color-text-primary)" }}>
+              {contentStats ? contentStats.active : "…"}
+            </p>
+            <p className="text-xs font-medium mt-1" style={{ color: "var(--color-text-muted)" }}>
+              Active content items{contentStats ? ` · ${contentStats.total} total` : ""}
+            </p>
+          </div>
+          <ArrowRight size={15} style={{ color: "var(--color-text-muted)" }} />
+        </Link>
       </div>
 
       {/* ── BEHAVIORAL JOURNEY FUNNEL ── */}
@@ -345,6 +448,74 @@ export function DashboardView({ companyId }: DashboardViewProps) {
         </div>
       </div>
 
+      {/* ── BATCH SPOTLIGHT ── */}
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-semibold" style={{ color: "var(--color-text-secondary)" }}>
+            Batch Spotlight
+          </h3>
+          <Link href="/admin/analytics/cohorts" className="text-xs font-semibold flex items-center gap-1" style={{ color: "var(--dodger-blue)" }}>
+            View all batches <ArrowRight size={12} />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Top performing */}
+          <div className="bg-white rounded-2xl p-5" style={{ border: "1px solid rgba(35,206,107,0.2)", boxShadow: "0 4px 24px rgba(35,206,107,0.10)" }}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(35,206,107,0.12)", color: "#16a34a" }}>
+                <ThumbsUp size={16} strokeWidth={2} />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Top Batches</h4>
+                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Most consistently active</p>
+              </div>
+            </div>
+            {cohortsLoading ? emptyState("Loading…")
+              : topCohorts.length === 0 ? emptyState("No batch data yet")
+              : (
+              <SkillProgressBars
+                bars={topCohorts.map((c, i) => ({
+                  label: `#${i + 1} ${c.batchName}`,
+                  value: c.consistentlyActivePct,
+                  color: "#23CE6B",
+                  sublabel: `${c.memberCount} member${c.memberCount === 1 ? "" : "s"}`,
+                }))}
+                animationDelay={110}
+                animationDuration={750}
+              />
+            )}
+          </div>
+
+          {/* Needing attention */}
+          <div className="bg-white rounded-2xl p-5" style={{ border: "1px solid rgba(237,69,81,0.15)", boxShadow: "0 4px 24px rgba(237,69,81,0.08)" }}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(237,69,81,0.10)", color: "#dc2626" }}>
+                <ThumbsDown size={16} strokeWidth={2} />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Batches Needing Attention</h4>
+                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Lowest consistency, worth a nudge</p>
+              </div>
+            </div>
+            {cohortsLoading ? emptyState("Loading…")
+              : bottomCohorts.length === 0 ? emptyState("No batch data yet")
+              : (
+              <SkillProgressBars
+                bars={bottomCohorts.map((c, i) => ({
+                  label: `#${i + 1} ${c.batchName}`,
+                  value: c.consistentlyActivePct,
+                  color: "#ED4551",
+                  sublabel: `${c.memberCount} member${c.memberCount === 1 ? "" : "s"}`,
+                }))}
+                animationDelay={110}
+                animationDuration={750}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* ── CHARTS SECTION ── */}
       <div className="grid grid-cols-1 gap-4">
 
@@ -388,74 +559,6 @@ export function DashboardView({ companyId }: DashboardViewProps) {
             )}
           </div>
         </section>
-      </div>
-
-      {/* ── ACTION ADOPTION INDEX ── */}
-      <div className="space-y-3">
-        <div className="flex justify-between items-center">
-          <h3 className="text-sm font-semibold" style={{ color: "var(--color-text-secondary)" }}>
-            Action Adoption Index
-          </h3>
-          <span className="tag tag--blue">Global Benchmarking</span>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-          {/* Highest Adoption */}
-          <div className="bg-white rounded-2xl p-5" style={{ border: "1px solid rgba(35,206,107,0.2)", boxShadow: "0 4px 24px rgba(35,206,107,0.10)" }}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(35,206,107,0.12)", color: "#16a34a" }}>
-                <ThumbsUp size={16} strokeWidth={2} />
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Highest Adoption</h4>
-                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Top performing actions</p>
-              </div>
-            </div>
-            {adoptionIndexLoading ? emptyState("Loading…")
-              : top3Adoption.length === 0 ? emptyState("No action data yet")
-              : (
-              <SkillProgressBars
-                bars={top3Adoption.map((a, i) => ({
-                  label: `#${i + 1} ${a.title}`,
-                  value: a.acceptedCount > 0 ? a.conversionPct : 0,
-                  color: "#23CE6B",
-                  sublabel: `${a.conversionPct}% conversion`,
-                }))}
-                animationDelay={110}
-                animationDuration={750}
-              />
-            )}
-          </div>
-
-          {/* Highest Resistance */}
-          <div className="bg-white rounded-2xl p-5" style={{ border: "1px solid rgba(237,69,81,0.15)", boxShadow: "0 4px 24px rgba(237,69,81,0.08)" }}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(237,69,81,0.10)", color: "#dc2626" }}>
-                <ThumbsDown size={16} strokeWidth={2} />
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Highest Resistance</h4>
-                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Actions needing attention</p>
-              </div>
-            </div>
-            {adoptionIndexLoading ? emptyState("Loading…")
-              : bottom3Resistance.length === 0 ? emptyState("No action data yet")
-              : (
-              <SkillProgressBars
-                bars={bottom3Resistance.map((a, i) => ({
-                  label: `#${i + 1} ${a.title}`,
-                  value: a.acceptedCount > 0 ? a.conversionPct : 0,
-                  color: "#ED4551",
-                  sublabel: `${a.conversionPct}% conversion`,
-                }))}
-                animationDelay={110}
-                animationDuration={750}
-              />
-            )}
-          </div>
-
-        </div>
       </div>
     </div>
   );

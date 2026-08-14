@@ -11,7 +11,6 @@ import {
 import {
   DashboardView,
   EngagementView,
-  ActionMetricsView,
   CohortManagementView,
   ContentManagementView,
   CohortAnalyticsView,
@@ -27,7 +26,6 @@ interface Company {
 type ViewType =
   | "dashboard"
   | "engagement"
-  | "action-metrics"
   | "cohort-analytics"
   | "cohort-management"
   | "content-management"
@@ -56,9 +54,6 @@ function AdminContent({ view }: { view: ViewType }) {
       )}
       {view === "engagement" && (
         <EngagementView companyId={effectiveCompanyId} />
-      )}
-      {view === "action-metrics" && (
-        <ActionMetricsView companyId={effectiveCompanyId} />
       )}
       {view === "cohort-analytics" && (
         <CohortAnalyticsView companyId={effectiveCompanyId} />

@@ -283,7 +283,7 @@ export async function sendDailyActionReminders(
       claimId: String(claimId),
       ...due,
       actions,
-      cohortName: cohortNameMap.get(due.sub.cohort_id) ?? "Your cohort",
+      cohortName: cohortNameMap.get(due.sub.cohort_id) ?? "Your batch",
       batchName: batchModule?.batchName ?? undefined,
       moduleName: batchModule?.moduleName ?? undefined,
       companyName: company?.name ?? undefined,

@@ -17,6 +17,9 @@ import {
   Layers,
   ArrowRight,
   Sparkles,
+  Wallet,
+  Percent,
+  UserCheck,
 } from "lucide-react";
 import {
   BarChart as ReBarChart,
@@ -33,7 +36,9 @@ import {
   getBehaviouralJourneyFunnel,
   getWeeklyActionChartData,
   getCohortAnalyticsOverview,
+  getCompanyCommitmentSummary,
   type CohortAnalyticsSummary,
+  type CompanyCommitmentSummary,
 } from "@/app/actions/admin-analytics";
 import { listContentItems } from "@/app/actions/prepare-content";
 
@@ -76,28 +81,30 @@ export function DashboardView({ companyId }: DashboardViewProps) {
   const [cohortEntries, setCohortEntries] = useState<CohortAnalyticsSummary[]>([]);
   const [cohortsLoading, setCohortsLoading] = useState(false);
   const [contentStats, setContentStats] = useState<{ total: number; active: number } | null>(null);
+  const [commitment, setCommitment] = useState<CompanyCommitmentSummary | null>(null);
+  const [commitmentLoading, setCommitmentLoading] = useState(false);
 
   const engagementSegments = funnel
     ? [
-        {
-          label: "ACTION READERS",
-          sub: "(≥1 USER ACTION)",
-          value: `${funnel.actionReadersPct}%`,
-          color: "#2ecc71",
-        },
-        {
-          label: "ACTION TAKERS",
-          sub: "(VALIDATED)",
-          value: `${funnel.actionTakersPct}%`,
-          color: "#3699FC",
-        },
-        {
-          label: "INACTIVE USERS",
-          sub: "(0 USER ACTIONS)",
-          value: `${funnel.inactiveUsersPct}%`,
-          color: "#f87171",
-        },
-      ]
+      {
+        label: "ACTION READERS",
+        sub: "(≥1 USER ACTION)",
+        value: `${funnel.actionReadersPct}%`,
+        color: "#2ecc71",
+      },
+      {
+        label: "ACTION TAKERS",
+        sub: "(VALIDATED)",
+        value: `${funnel.actionTakersPct}%`,
+        color: "#3699FC",
+      },
+      {
+        label: "INACTIVE USERS",
+        sub: "(0 USER ACTIONS)",
+        value: `${funnel.inactiveUsersPct}%`,
+        color: "#f87171",
+      },
+    ]
     : [];
 
   useEffect(() => {
@@ -169,6 +176,19 @@ export function DashboardView({ companyId }: DashboardViewProps) {
         setCohortEntries(!error ? entries ?? [] : []);
       })
       .finally(() => setCohortsLoading(false));
+  }, [companyId]);
+
+  useEffect(() => {
+    if (!companyId) {
+      setCommitment(null);
+      return;
+    }
+    setCommitmentLoading(true);
+    getCompanyCommitmentSummary(companyId)
+      .then(({ summary, error }) => {
+        setCommitment(!error ? summary ?? null : null);
+      })
+      .finally(() => setCommitmentLoading(false));
   }, [companyId]);
 
   useEffect(() => {
@@ -369,6 +389,53 @@ export function DashboardView({ companyId }: DashboardViewProps) {
         </Link>
       </div>
 
+      {/* ── COMMITMENT POINTS ── */}
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-semibold" style={{ color: "var(--color-text-secondary)" }}>
+            Commitment Points
+          </h3>
+          <span className="tag tag--yellow">Commitment Wallet</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            {
+              icon: <Wallet size={18} strokeWidth={2} />,
+              color: "#F97316",
+              label: "Points banked",
+              value: commitmentLoading ? "…" : (commitment?.commitmentPoints ?? 0).toLocaleString(),
+              detail: commitment ? `of ${commitment.commitmentMaximum.toLocaleString()} possible` : "No finalised plans yet",
+            },
+            {
+              icon: <Percent size={18} strokeWidth={2} />,
+              color: "#3B82F6",
+              label: "Commitment rate",
+              value: commitmentLoading ? "…" : `${commitment?.commitmentPct ?? 0}%`,
+              detail: "Points banked vs. possible, company-wide",
+            },
+            {
+              icon: <UserCheck size={18} strokeWidth={2} />,
+              color: "#23CE6B",
+              label: "Finalised plans",
+              value: commitmentLoading ? "…" : (commitment?.memberCount ?? 0).toLocaleString(),
+              detail: commitment ? `across ${commitment.batchCount} batch${commitment.batchCount === 1 ? "" : "es"}` : "No batches yet",
+            },
+          ].map((card) => (
+            <div key={card.label} className="bg-white rounded-xl p-4 flex flex-col gap-3" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
+              <div className="flex items-center justify-between">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white" style={{ background: card.color }}>
+                  {card.icon}
+                </div>
+                <span className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>{card.label}</span>
+              </div>
+              <span className="text-2xl font-bold leading-none" style={{ color: "var(--color-text-primary)" }}>{card.value}</span>
+              <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>{card.detail}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* ── BEHAVIORAL JOURNEY FUNNEL ── */}
       <div className="space-y-3">
         <div className="flex justify-between items-center">
@@ -473,18 +540,18 @@ export function DashboardView({ companyId }: DashboardViewProps) {
             </div>
             {cohortsLoading ? emptyState("Loading…")
               : topCohorts.length === 0 ? emptyState("No batch data yet")
-              : (
-              <SkillProgressBars
-                bars={topCohorts.map((c, i) => ({
-                  label: `#${i + 1} ${c.batchName}`,
-                  value: c.consistentlyActivePct,
-                  color: "#23CE6B",
-                  sublabel: `${c.memberCount} member${c.memberCount === 1 ? "" : "s"}`,
-                }))}
-                animationDelay={110}
-                animationDuration={750}
-              />
-            )}
+                : (
+                  <SkillProgressBars
+                    bars={topCohorts.map((c, i) => ({
+                      label: `#${i + 1} ${c.batchName}`,
+                      value: c.consistentlyActivePct,
+                      color: "#23CE6B",
+                      sublabel: `${c.memberCount} member${c.memberCount === 1 ? "" : "s"}`,
+                    }))}
+                    animationDelay={110}
+                    animationDuration={750}
+                  />
+                )}
           </div>
 
           {/* Needing attention */}
@@ -500,18 +567,18 @@ export function DashboardView({ companyId }: DashboardViewProps) {
             </div>
             {cohortsLoading ? emptyState("Loading…")
               : bottomCohorts.length === 0 ? emptyState("No batch data yet")
-              : (
-              <SkillProgressBars
-                bars={bottomCohorts.map((c, i) => ({
-                  label: `#${i + 1} ${c.batchName}`,
-                  value: c.consistentlyActivePct,
-                  color: "#ED4551",
-                  sublabel: `${c.memberCount} member${c.memberCount === 1 ? "" : "s"}`,
-                }))}
-                animationDelay={110}
-                animationDuration={750}
-              />
-            )}
+                : (
+                  <SkillProgressBars
+                    bars={bottomCohorts.map((c, i) => ({
+                      label: `#${i + 1} ${c.batchName}`,
+                      value: c.consistentlyActivePct,
+                      color: "#ED4551",
+                      sublabel: `${c.memberCount} member${c.memberCount === 1 ? "" : "s"}`,
+                    }))}
+                    animationDelay={110}
+                    animationDuration={750}
+                  />
+                )}
           </div>
         </div>
       </div>
@@ -520,45 +587,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
       <div className="grid grid-cols-1 gap-4">
 
         {/* Weekly Actions bar chart */}
-        <section className="bg-white rounded-2xl p-5" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)" }}>
-          <h3 className="text-base font-semibold" style={{ color: "var(--color-text-primary)" }}>
-            Weekly Actions
-          </h3>
-          <p className="text-xs font-medium mt-0.5 mb-4" style={{ color: "var(--color-text-muted)" }}>
-            Per delivery (actions × users)
-          </p>
-          <div className="h-[260px] w-full">
-            {weeklyChartLoading ? emptyState("Loading…")
-              : weeklyChartData.length === 0 ? emptyState("No delivery data yet")
-              : (
-              <ResponsiveContainer width="100%" height="100%">
-                <ReBarChart data={weeklyChartData} barGap={3} barCategoryGap="30%">
-                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="var(--color-border)" />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 11, fontWeight: 500, fill: "#8A8090" }}
-                    axisLine={{ stroke: "var(--color-border)", strokeWidth: 1 }}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11, fontWeight: 500, fill: "#8A8090" }}
-                  />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend
-                    verticalAlign="top"
-                    align="right"
-                    wrapperStyle={{ paddingBottom: "16px", fontSize: "12px", fontWeight: 600 }}
-                  />
-                  <Bar dataKey="Accepted" fill="#23CE6B" barSize={10} radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Skipped" fill="#FFCE00" barSize={10} radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Successful" fill="#3699FC" barSize={10} radius={[4, 4, 0, 0]} />
-                </ReBarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </section>
+
       </div>
     </div>
   );

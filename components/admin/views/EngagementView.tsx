@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, Flame } from "lucide-react";
-import { League } from "@/lib/types";
+import { Search } from "lucide-react";
 import {
   getEngagementLeaderboard,
   type EngagementLeaderboardEntry,
@@ -11,11 +10,11 @@ import {
 interface UserEngagementRow {
   id: string;
   name: string;
-  totalPoints: number;
-  streak: number;
+  commitmentPoints: number;
+  commitmentMaximum: number;
+  commitmentPct: number;
   acceptedCount: number;
   validatedCount: number;
-  league: League;
 }
 
 interface EngagementViewProps {
@@ -53,11 +52,11 @@ export function EngagementView({ companyId }: EngagementViewProps) {
           (e: EngagementLeaderboardEntry) => ({
             id: e.id,
             name: e.name,
-            totalPoints: e.totalPoints,
-            streak: e.streak,
+            commitmentPoints: e.commitmentPoints,
+            commitmentMaximum: e.commitmentMaximum,
+            commitmentPct: e.commitmentPct,
             acceptedCount: e.acceptedCount,
             validatedCount: e.validatedCount,
-            league: e.league,
           })
         );
         setRows(mapped);
@@ -72,25 +71,18 @@ export function EngagementView({ companyId }: EngagementViewProps) {
   }, [companyId]);
 
   const filteredUsers = useMemo(() => {
-    const sorted = [...rows].sort((a, b) => b.totalPoints - a.totalPoints);
+    const sorted = [...rows].sort((a, b) => b.commitmentPoints - a.commitmentPoints);
     return sorted.filter((u) =>
       u.name.toLowerCase().includes(search.toLowerCase())
     );
   }, [rows, search]);
 
-  const getLevelBadgeColor = (level: League) => {
-    switch (level) {
-      case League.Diamond:
-        return "bg-purple-600 text-white";
-      case League.Gold:
-        return "bg-[#FFCE00] text-black";
-      case League.Silver:
-        return "bg-gray-300 text-black";
-      case League.Bronze:
-        return "bg-orange-600 text-white";
-      default:
-        return "bg-gray-100 text-gray-400";
-    }
+  const commitmentBadgeColor = (pct: number) => {
+    if (pct >= 90) return "bg-purple-600 text-white";
+    if (pct >= 70) return "bg-[#FFCE00] text-black";
+    if (pct >= 40) return "bg-gray-300 text-black";
+    if (pct > 0) return "bg-orange-600 text-white";
+    return "bg-gray-100 text-gray-400";
   };
 
   return (
@@ -102,7 +94,7 @@ export function EngagementView({ companyId }: EngagementViewProps) {
             User Engagement
           </h2>
           <p className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
-            Engagement leaderboard &amp; user metrics
+            Engagement leaderboard &amp; commitment points, ranked by points banked
           </p>
         </div>
       </div>
@@ -149,8 +141,7 @@ export function EngagementView({ companyId }: EngagementViewProps) {
                   </th>
                   <th className="px-2 py-3 text-xs font-semibold text-center">Accepted</th>
                   <th className="px-2 py-3 text-xs font-semibold text-center">Validated</th>
-                  <th className="px-2 py-3 text-xs font-semibold text-center">Streak</th>
-                  <th className="px-2 py-3 text-xs font-semibold text-center">League / Pts</th>
+                  <th className="px-2 py-3 text-xs font-semibold text-center">Commitment</th>
                 </tr>
               </thead>
               <tbody>
@@ -185,20 +176,13 @@ export function EngagementView({ companyId }: EngagementViewProps) {
                       <span className="text-xs font-semibold text-green-600">{user.validatedCount}</span>
                     </td>
                     <td className="px-2 py-2.5 text-center">
-                      <div className="flex items-center gap-1 justify-center">
-                        <Flame
-                          size={12}
-                          className={user.streak > 0 ? "text-orange-500 fill-current" : "text-gray-300"}
-                        />
-                        <span className="text-xs font-semibold">{user.streak}</span>
-                      </div>
-                    </td>
-                    <td className="px-2 py-2.5 text-center">
                       <div className="flex flex-col items-center gap-0.5">
-                        <div className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getLevelBadgeColor(user.league)}`}>
-                          {user.league}
+                        <div className={`px-2 py-0.5 rounded-full text-xs font-semibold ${commitmentBadgeColor(user.commitmentPct)}`}>
+                          {user.commitmentMaximum > 0 ? `${user.commitmentPct}%` : "No plan"}
                         </div>
-                        <span className="text-xs font-semibold">{user.totalPoints}</span>
+                        {user.commitmentMaximum > 0 && (
+                          <span className="text-xs font-semibold">{user.commitmentPoints}/{user.commitmentMaximum} pts</span>
+                        )}
                       </div>
                     </td>
                   </tr>

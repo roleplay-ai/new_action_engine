@@ -2,8 +2,6 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { League } from "@/lib/types";
-import { getPointsForEvent } from "@/lib/points";
 
 async function getAdminContext(): Promise<{
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -32,6 +30,103 @@ async function getAdminContext(): Promise<{
     companyId: profile?.company_id ?? null,
     role,
   };
+}
+
+export interface UserCommitment {
+  points: number;
+  maximum: number;
+  plannedActions: number;
+  missedActions: number;
+  completedOnTimeActions: number;
+}
+
+interface CohortCommitment {
+  team: { points: number; maximum: number; planPoints: number; actionPoints: number; memberCount: number };
+  perUser: Map<string, UserCommitment>;
+}
+
+/** Loads Commitment Wallet totals (the real points system — see app/actions/commitment-wallet.ts
+ * and 045/046_commitment_wallet.sql) for a set of cohorts, grouped per cohort and per user within
+ * it. Mirrors the math in the get_my_commitment_wallet() SQL function: a finalised plan is worth
+ * maximum_points (planned actions × 50) + a one-time 50pt plan_bonus_points, and each
+ * commitment_wallet_event adds its points_awarded (50 for completed_on_time, 0 otherwise). */
+async function loadCommitmentWalletByCohort(
+  admin: ReturnType<typeof createAdminClient>,
+  cohortIds: string[]
+): Promise<Map<string, CohortCommitment>> {
+  const result = new Map<string, CohortCommitment>();
+  if (!cohortIds.length) return result;
+
+  const { data: plans } = await admin
+    .from("commitment_wallet_plans")
+    .select("id, user_id, cohort_id, maximum_points, plan_bonus_points")
+    .in("cohort_id", cohortIds);
+  const planRows = (plans ?? []) as {
+    id: string;
+    user_id: string;
+    cohort_id: string;
+    maximum_points: number;
+    plan_bonus_points: number;
+  }[];
+  if (!planRows.length) return result;
+
+  const planIds = planRows.map((p) => p.id);
+  const { data: events } = await admin
+    .from("commitment_wallet_events")
+    .select("plan_id, points_awarded, event_type")
+    .in("plan_id", planIds);
+  const eventRows = (events ?? []) as { plan_id: string; points_awarded: number; event_type: string }[];
+
+  const actionPointsByPlan = new Map<string, number>();
+  const missedByPlan = new Map<string, number>();
+  const completedOnTimeByPlan = new Map<string, number>();
+  for (const event of eventRows) {
+    actionPointsByPlan.set(event.plan_id, (actionPointsByPlan.get(event.plan_id) ?? 0) + (event.points_awarded ?? 0));
+    if (event.event_type === "missed" || event.event_type === "completed_late") {
+      missedByPlan.set(event.plan_id, (missedByPlan.get(event.plan_id) ?? 0) + 1);
+    }
+    if (event.event_type === "completed_on_time") {
+      completedOnTimeByPlan.set(event.plan_id, (completedOnTimeByPlan.get(event.plan_id) ?? 0) + 1);
+    }
+  }
+
+  for (const plan of planRows) {
+    const actionPoints = actionPointsByPlan.get(plan.id) ?? 0;
+    const points = plan.plan_bonus_points + actionPoints;
+    const maximum = plan.maximum_points + plan.plan_bonus_points;
+    const plannedActions = plan.maximum_points > 0 ? Math.round(plan.maximum_points / 50) : 0;
+    const missedActions = missedByPlan.get(plan.id) ?? 0;
+    const completedOnTimeActions = completedOnTimeByPlan.get(plan.id) ?? 0;
+
+    const cohortEntry = result.get(plan.cohort_id) ?? {
+      team: { points: 0, maximum: 0, planPoints: 0, actionPoints: 0, memberCount: 0 },
+      perUser: new Map<string, UserCommitment>(),
+    };
+    cohortEntry.team.points += points;
+    cohortEntry.team.maximum += maximum;
+    cohortEntry.team.planPoints += plan.plan_bonus_points;
+    cohortEntry.team.actionPoints += actionPoints;
+    cohortEntry.team.memberCount += 1;
+
+    const existingUser = cohortEntry.perUser.get(plan.user_id);
+    if (existingUser) {
+      existingUser.points += points;
+      existingUser.maximum += maximum;
+      existingUser.plannedActions += plannedActions;
+      existingUser.missedActions += missedActions;
+      existingUser.completedOnTimeActions += completedOnTimeActions;
+    } else {
+      cohortEntry.perUser.set(plan.user_id, { points, maximum, plannedActions, missedActions, completedOnTimeActions });
+    }
+
+    result.set(plan.cohort_id, cohortEntry);
+  }
+
+  return result;
+}
+
+function commitmentPct(points: number, maximum: number) {
+  return maximum > 0 ? Math.round((points / maximum) * 100) : 0;
 }
 
 /** Get company-scoped analytics. Superadmin must pass companyId. */
@@ -322,30 +417,19 @@ export async function getBehaviouralJourneyFunnel(companyId?: string): Promise<{
 export interface EngagementLeaderboardEntry {
   id: string;
   name: string;
-  totalPoints: number;
-  streak: number;
+  commitmentPoints: number;
+  commitmentMaximum: number;
+  commitmentPct: number;
+  plannedActions: number;
+  completedOnTimeActions: number;
+  missedActions: number;
   acceptedCount: number;
   validatedCount: number;
-  league: League;
 }
 
-function leagueFromIndex(index: number | null | undefined): League {
-  switch (index) {
-    case 1:
-      return League.Bronze;
-    case 2:
-      return League.Silver;
-    case 3:
-      return League.Gold;
-    case 4:
-      return League.Diamond;
-    case 0:
-    default:
-      return League.Starter;
-  }
-}
-
-/** Per-user engagement leaderboard for admin User Engagement tab (company-scoped, end-users only). */
+/** Per-user engagement leaderboard for admin User Engagement tab (company-scoped, end-users
+ * only). Ranked by Commitment Wallet points banked — the app's real points system — summed
+ * across every batch the person has finalised a plan in within this company. */
 export async function getEngagementLeaderboard(companyId?: string): Promise<{
   entries: EngagementLeaderboardEntry[];
   error?: string;
@@ -361,14 +445,10 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
 
     const { data: profiles } = await admin
       .from("profiles")
-      .select("id, full_name, total_points, streak, league_index, role")
+      .select("id, full_name, role")
       .eq("company_id", resolvedCompanyId);
 
-    const userProfiles =
-      (profiles ?? []).filter(
-        (p: { role: string }) => p.role === "user"
-      ) ?? [];
-
+    const userProfiles = (profiles ?? []).filter((p: { role: string }) => p.role === "user") ?? [];
     const userIds = userProfiles.map((p: { id: string }) => p.id);
 
     type Counters = {
@@ -377,13 +457,8 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
     };
 
     const countersByUser = new Map<string, Counters>();
-    for (const p of userProfiles as {
-      id: string;
-    }[]) {
-      countersByUser.set(p.id, {
-        acceptedCount: 0,
-        validatedCount: 0,
-      });
+    for (const p of userProfiles as { id: string }[]) {
+      countersByUser.set(p.id, { acceptedCount: 0, validatedCount: 0 });
     }
 
     if (userIds.length > 0) {
@@ -392,58 +467,64 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
         .select("user_id, status")
         .in("user_id", userIds);
 
-      for (const row of (uaRows ??
-        []) as { user_id: string; status: string }[]) {
-        const counters =
-          countersByUser.get(row.user_id) ??
-          {
-            acceptedCount: 0,
-            validatedCount: 0,
-          };
+      for (const row of (uaRows ?? []) as { user_id: string; status: string }[]) {
+        const counters = countersByUser.get(row.user_id) ?? { acceptedCount: 0, validatedCount: 0 };
 
         const status = row.status;
-        const wasAccepted =
-          status === "scheduled" || status === "success" || status === "failed";
+        const wasAccepted = status === "scheduled" || status === "success" || status === "failed";
 
-        if (wasAccepted) {
-          counters.acceptedCount += 1;
-        }
-
-        if (status === "success") {
-          counters.validatedCount += 1;
-        }
+        if (wasAccepted) counters.acceptedCount += 1;
+        if (status === "success") counters.validatedCount += 1;
 
         countersByUser.set(row.user_id, counters);
       }
     }
 
-    const entries: EngagementLeaderboardEntry[] = (userProfiles as {
-      id: string;
-      full_name: string | null;
-      total_points: number | null;
-      streak: number | null;
-      league_index: number | null;
-    }[]).map((p) => {
-      const counters =
-        countersByUser.get(p.id) ??
-        ({
-          acceptedCount: 0,
-          validatedCount: 0,
-        } as Counters);
+    const { data: companyCohorts } = await admin
+      .from("cohorts")
+      .select("id")
+      .eq("company_id", resolvedCompanyId);
+    const companyCohortIds = (companyCohorts ?? []).map((c: { id: string }) => c.id);
+    const commitmentByCohort = await loadCommitmentWalletByCohort(admin, companyCohortIds);
 
-      return {
-        id: p.id,
-        name: (p.full_name?.trim() || "User") as string,
-        totalPoints: p.total_points ?? 0,
-        streak: p.streak ?? 0,
-        acceptedCount: counters.acceptedCount,
-        validatedCount: counters.validatedCount,
-        league: leagueFromIndex(p.league_index ?? 0),
-      };
-    });
+    const commitmentByUser = new Map<string, UserCommitment>();
+    for (const cohortCommitment of commitmentByCohort.values()) {
+      for (const [userId, userCommitment] of cohortCommitment.perUser) {
+        const existing = commitmentByUser.get(userId);
+        if (existing) {
+          existing.points += userCommitment.points;
+          existing.maximum += userCommitment.maximum;
+          existing.plannedActions += userCommitment.plannedActions;
+          existing.missedActions += userCommitment.missedActions;
+          existing.completedOnTimeActions += userCommitment.completedOnTimeActions;
+        } else {
+          commitmentByUser.set(userId, { ...userCommitment });
+        }
+      }
+    }
 
-    // Sort by total points descending for leaderboard rank.
-    entries.sort((a, b) => b.totalPoints - a.totalPoints);
+    const entries: EngagementLeaderboardEntry[] = (userProfiles as { id: string; full_name: string | null }[]).map(
+      (p) => {
+        const counters = countersByUser.get(p.id) ?? ({ acceptedCount: 0, validatedCount: 0 } as Counters);
+        const commitment = commitmentByUser.get(p.id);
+
+        return {
+          id: p.id,
+          name: p.full_name?.trim() || "User",
+          commitmentPoints: commitment?.points ?? 0,
+          commitmentMaximum: commitment?.maximum ?? 0,
+          commitmentPct: commitmentPct(commitment?.points ?? 0, commitment?.maximum ?? 0),
+          plannedActions: commitment?.plannedActions ?? 0,
+          completedOnTimeActions: commitment?.completedOnTimeActions ?? 0,
+          missedActions: commitment?.missedActions ?? 0,
+          acceptedCount: counters.acceptedCount,
+          validatedCount: counters.validatedCount,
+        };
+      }
+    );
+
+    // Sort by commitment points banked descending for leaderboard rank.
+    entries.sort((a, b) => b.commitmentPoints - a.commitmentPoints);
 
     return { entries };
   } catch (e) {
@@ -455,17 +536,6 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
 }
 
 const ACTION_ACCEPTED_STATUSES = ["scheduled", "success", "failed"];
-const DRIVER_ACCEPTED_STATUSES = ["scheduled", "success"];
-
-/** Theme (action category) acceptance stats for Drivers Effectiveness chart. */
-export interface DriversEffectivenessEntry {
-  theme: string;
-  acceptedCount: number;
-  totalCount: number;
-  acceptancePct: number;
-}
-
-const THEME_ORDER: string[] = ["Collaboration", "Accountability", "Feedback", "Connection", "Coaching"];
 
 /** Statuses for weekly action chart: accepted = engaged (did not skip). */
 const WEEKLY_ACCEPTED_STATUSES = ["scheduled", "success", "failed"];
@@ -590,221 +660,6 @@ export async function getWeeklyActionChartData(companyId?: string): Promise<{
   }
 }
 
-export interface WeeklyPointsChartEntry {
-  weekNumber: number;
-  name: string;
-  totalPoints: number;
-}
-
-/** Per-week total points earned by all users from actions delivered in that week.
- * Points are computed from user_actions (read, accept, success, etc.) and attributed
- * to the earliest delivery week for each (user, action) slot to avoid double-counting. */
-export async function getWeeklyPointsChartData(companyId?: string): Promise<{
-  entries: WeeklyPointsChartEntry[];
-  error?: string;
-}> {
-  try {
-    const { companyId: myCompanyId, role } = await getAdminContext();
-    const resolvedCompanyId = role === "admin" ? myCompanyId : companyId;
-    if (!resolvedCompanyId) {
-      return { entries: [], error: "Company required" };
-    }
-
-    const admin = createAdminClient();
-
-    const { data: packages } = await admin
-      .from("packages")
-      .select("id")
-      .eq("company_id", resolvedCompanyId);
-    const packageIds = (packages ?? []).map((p) => p.id);
-    if (packageIds.length === 0) {
-      return { entries: [] };
-    }
-
-    const { data: companyProfiles } = await admin
-      .from("profiles")
-      .select("id, role")
-      .eq("company_id", resolvedCompanyId);
-    const endUserIds = (companyProfiles ?? [])
-      .filter((p: { role: string }) => p.role === "user")
-      .map((p: { id: string }) => p.id);
-
-    const { data: packageActions } = await admin
-      .from("package_actions")
-      .select("package_id, action_id, week_number")
-      .in("package_id", packageIds);
-    const { data: assignments } = await admin
-      .from("package_assignments")
-      .select("package_id, user_id")
-      .in("package_id", packageIds);
-
-    const filteredAssignments = (assignments ?? []).filter((a: { user_id: string }) =>
-      endUserIds.includes(a.user_id)
-    );
-
-    if (endUserIds.length === 0 || !packageActions?.length) {
-      return { entries: [] };
-    }
-
-    const slotsByWeek = new Map<number, Array<{ actionId: string; userId: string }>>();
-    const slotToEarliestWeek = new Map<string, number>();
-    for (const pa of packageActions as { package_id: string; action_id: string; week_number: number | null }[]) {
-      const week = pa.week_number ?? 1;
-      const users = (filteredAssignments as { package_id: string; user_id: string }[])
-        .filter((a) => a.package_id === pa.package_id)
-        .map((a) => a.user_id);
-      for (const uid of users) {
-        const key = `${uid}|${pa.action_id}`;
-        const existing = slotToEarliestWeek.get(key);
-        if (existing == null || week < existing) {
-          slotToEarliestWeek.set(key, week);
-        }
-        const slots = slotsByWeek.get(week) ?? [];
-        slots.push({ actionId: pa.action_id, userId: uid });
-        slotsByWeek.set(week, slots);
-      }
-    }
-
-    const { data: uaRows } = await admin
-      .from("user_actions")
-      .select("user_id, action_id, status, is_calendar_synced")
-      .in("user_id", endUserIds);
-
-    const uaMap = new Map<string, { status: string; is_calendar_synced: boolean }>();
-    for (const ua of uaRows ?? []) {
-      uaMap.set(`${ua.user_id}|${ua.action_id}`, {
-        status: ua.status,
-        is_calendar_synced: !!ua.is_calendar_synced,
-      });
-    }
-
-    const pointsByWeek = new Map<number, number>();
-    for (const [slotKey, weekNum] of slotToEarliestWeek) {
-      const ua = uaMap.get(slotKey);
-      if (!ua) continue;
-
-      const status = ua.status;
-      const synced = ua.is_calendar_synced;
-
-      let pts = 0;
-      pts += getPointsForEvent("read");
-      const wasAccepted = status === "scheduled" || status === "success" || status === "failed";
-      if (wasAccepted) {
-        pts += getPointsForEvent("accept", synced);
-      }
-      if (status === "skipped") {
-        pts += getPointsForEvent("honesty_skip");
-      }
-      if (status === "failed") {
-        pts += getPointsForEvent("inaction");
-      }
-      if (status === "success") {
-        pts += getPointsForEvent("success");
-      }
-
-      pointsByWeek.set(weekNum, (pointsByWeek.get(weekNum) ?? 0) + pts);
-    }
-
-    const entries: WeeklyPointsChartEntry[] = [];
-    for (const [weekNum, total] of pointsByWeek) {
-      entries.push({
-        weekNumber: weekNum,
-        name: `Week ${weekNum}`,
-        totalPoints: total,
-      });
-    }
-    entries.sort((a, b) => a.weekNumber - b.weekNumber);
-
-    return { entries };
-  } catch (e) {
-    return {
-      entries: [],
-      error: e instanceof Error ? e.message : "Failed",
-    };
-  }
-}
-
-/** Per-theme acceptance percentage across all company users (action themes = drivers). */
-export async function getDriversEffectiveness(companyId?: string): Promise<{
-  entries: DriversEffectivenessEntry[];
-  error?: string;
-}> {
-  try {
-    const { companyId: myCompanyId, role } = await getAdminContext();
-    const resolvedCompanyId = role === "admin" ? myCompanyId : companyId;
-    if (!resolvedCompanyId) {
-      return { entries: [], error: "Company required" };
-    }
-
-    const admin = createAdminClient();
-
-    const { data: companyProfiles } = await admin
-      .from("profiles")
-      .select("id, role")
-      .eq("company_id", resolvedCompanyId);
-    const userIds = (companyProfiles ?? [])
-      .filter((p: { role: string }) => p.role === "user")
-      .map((p: { id: string }) => p.id);
-
-    const { data: actions } = await admin
-      .from("actions")
-      .select("id, theme")
-      .eq("company_id", resolvedCompanyId);
-    const actionIdToTheme = new Map<string, string>();
-    for (const a of actions ?? []) {
-      actionIdToTheme.set(a.id, a.theme as string);
-    }
-
-    const themeTotals = new Map<string, number>();
-    const themeAccepted = new Map<string, number>();
-    for (const t of THEME_ORDER) {
-      themeTotals.set(t, 0);
-      themeAccepted.set(t, 0);
-    }
-
-    // Denominator: (count of actions in theme) × (count of assigned users)
-    const usersCount = userIds.length;
-    for (const a of actions ?? []) {
-      const theme = a.theme as string;
-      if (!themeTotals.has(theme)) continue;
-      themeTotals.set(theme, (themeTotals.get(theme) ?? 0) + 1);
-    }
-    for (const t of THEME_ORDER) {
-      themeTotals.set(t, (themeTotals.get(t) ?? 0) * usersCount);
-    }
-
-    if (userIds.length > 0) {
-      const { data: uaRows } = await admin
-        .from("user_actions")
-        .select("action_id, status")
-        .in("user_id", userIds);
-
-      for (const row of (uaRows ?? []) as { action_id: string; status: string }[]) {
-        const theme = actionIdToTheme.get(row.action_id);
-        if (!theme) continue;
-        if (DRIVER_ACCEPTED_STATUSES.includes(row.status)) {
-          const acc = (themeAccepted.get(theme) ?? 0) + 1;
-          themeAccepted.set(theme, acc);
-        }
-      }
-    }
-
-    const entries: DriversEffectivenessEntry[] = THEME_ORDER.map((theme) => {
-      const total = themeTotals.get(theme) ?? 0;
-      const accepted = themeAccepted.get(theme) ?? 0;
-      const acceptancePct = total > 0 ? Math.round((accepted / total) * 100) : 0;
-      return { theme, acceptedCount: accepted, totalCount: total, acceptancePct };
-    });
-
-    return { entries };
-  } catch (e) {
-    return {
-      entries: [],
-      error: e instanceof Error ? e.message : "Failed",
-    };
-  }
-}
-
 /** Shared per-user rollup used by both the cohort comparison table and the single-cohort
  * drill-down below — same math as getBehaviouralJourneyFunnel's funnel, scoped to whatever
  * user set (a cohort's members) is passed in. */
@@ -813,18 +668,15 @@ function summarizeCohortFunnel(
   deliveriesByUser: Map<string, Set<string>>,
   userActionIdsByUser: Map<string, Set<string>>,
   usersWithAnyAction: Set<string>,
-  usersWithSuccess: Set<string>,
-  totalPointsByUser: Map<string, number>
+  usersWithSuccess: Set<string>
 ) {
   let totalActionsDelivered = 0;
   let consistencySum = 0;
   let consistencyUsers = 0;
   let actionReadersCount = 0;
   let actionTakersCount = 0;
-  let totalPoints = 0;
 
   for (const userId of userIds) {
-    totalPoints += totalPointsByUser.get(userId) ?? 0;
     const delivered = deliveriesByUser.get(userId);
     if (delivered) totalActionsDelivered += delivered.size;
     if (usersWithAnyAction.has(userId)) actionReadersCount += 1;
@@ -852,7 +704,6 @@ function summarizeCohortFunnel(
     consistentlyActivePct: consistencyUsers > 0 ? Math.round((consistencySum / consistencyUsers) * 100) : 0,
     totalActionsDelivered,
     averageActionsPerUser: memberCount > 0 ? Math.round((totalActionsDelivered / memberCount) * 10) / 10 : 0,
-    totalPoints,
   };
 }
 
@@ -868,7 +719,9 @@ export interface CohortAnalyticsSummary {
   consistentlyActivePct: number;
   totalActionsDelivered: number;
   averageActionsPerUser: number;
-  totalPoints: number;
+  commitmentPoints: number;
+  commitmentMaximum: number;
+  commitmentPct: number;
 }
 
 /** Per-cohort rollup of the same funnel shown on the company Dashboard, for the Cohorts
@@ -902,12 +755,12 @@ export async function getCohortAnalyticsOverview(companyId?: string): Promise<{
 
     const memberUserIds = [...new Set((memberRows ?? []).map((m: { user_id: string }) => m.user_id))];
     const { data: profiles } = memberUserIds.length
-      ? await admin.from("profiles").select("id, role, total_points").in("id", memberUserIds)
-      : { data: [] as { id: string; role: string; total_points: number | null }[] };
+      ? await admin.from("profiles").select("id, role").in("id", memberUserIds)
+      : { data: [] as { id: string; role: string }[] };
     const profileMap = new Map(
       (profiles ?? [])
         .filter((p: { role: string }) => p.role === "user")
-        .map((p: { id: string; total_points: number | null }) => [p.id, p])
+        .map((p: { id: string }) => [p.id, p])
     );
 
     const { data: packages } = await admin.from("packages").select("id").eq("company_id", resolvedCompanyId);
@@ -956,9 +809,6 @@ export async function getCohortAnalyticsOverview(companyId?: string): Promise<{
       if (row.status === "success") usersWithSuccess.add(row.user_id);
     }
 
-    const totalPointsByUser = new Map<string, number>();
-    for (const [id, p] of profileMap) totalPointsByUser.set(id, p.total_points ?? 0);
-
     const membersByCohort = new Map<string, string[]>();
     for (const row of (memberRows ?? []) as { cohort_id: string; user_id: string }[]) {
       if (!profileMap.has(row.user_id)) continue;
@@ -966,6 +816,8 @@ export async function getCohortAnalyticsOverview(companyId?: string): Promise<{
       list.push(row.user_id);
       membersByCohort.set(row.cohort_id, list);
     }
+
+    const commitmentByCohort = await loadCommitmentWalletByCohort(admin, cohortIds);
 
     const entries: CohortAnalyticsSummary[] = (
       cohorts as { id: string; batch_name: string; module_name: string | null }[]
@@ -976,14 +828,17 @@ export async function getCohortAnalyticsOverview(companyId?: string): Promise<{
         deliveriesByUser,
         userActionIdsByUser,
         usersWithAnyAction,
-        usersWithSuccess,
-        totalPointsByUser
+        usersWithSuccess
       );
+      const team = commitmentByCohort.get(cohort.id)?.team;
       return {
         cohortId: cohort.id,
         batchName: cohort.batch_name,
         moduleName: cohort.module_name,
         ...summary,
+        commitmentPoints: team?.points ?? 0,
+        commitmentMaximum: team?.maximum ?? 0,
+        commitmentPct: commitmentPct(team?.points ?? 0, team?.maximum ?? 0),
       };
     });
 
@@ -996,11 +851,14 @@ export async function getCohortAnalyticsOverview(companyId?: string): Promise<{
 export interface CohortMemberEngagement {
   id: string;
   name: string;
-  totalPoints: number;
-  streak: number;
+  commitmentPoints: number;
+  commitmentMaximum: number;
+  commitmentPct: number;
+  plannedActions: number;
+  completedOnTimeActions: number;
+  missedActions: number;
   acceptedCount: number;
   validatedCount: number;
-  league: League;
 }
 
 export interface CohortAnalyticsDetail extends CohortAnalyticsSummary {
@@ -1030,18 +888,12 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
     const memberIds = (memberRows ?? []).map((m: { user_id: string }) => m.user_id);
 
     const { data: profiles } = memberIds.length
-      ? await admin
-          .from("profiles")
-          .select("id, full_name, role, total_points, streak, league_index")
-          .in("id", memberIds)
+      ? await admin.from("profiles").select("id, full_name, role").in("id", memberIds)
       : {
           data: [] as {
             id: string;
             full_name: string | null;
             role: string;
-            total_points: number | null;
-            streak: number | null;
-            league_index: number | null;
           }[],
         };
     const userProfiles = (profiles ?? []).filter((p: { role: string }) => p.role === "user");
@@ -1105,19 +957,16 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
       }
     }
 
-    const totalPointsByUser = new Map<string, number>();
-    for (const p of userProfiles as { id: string; total_points: number | null }[]) {
-      totalPointsByUser.set(p.id, p.total_points ?? 0);
-    }
-
     const summary = summarizeCohortFunnel(
       userIds,
       deliveriesByUser,
       userActionIdsByUser,
       usersWithAnyAction,
-      usersWithSuccess,
-      totalPointsByUser
+      usersWithSuccess
     );
+    const commitmentByCohort = await loadCommitmentWalletByCohort(admin, [cohortId]);
+    const cohortCommitment = commitmentByCohort.get(cohortId);
+    const team = cohortCommitment?.team;
 
     const slotsByWeek = new Map<number, Array<{ actionId: string; userId: string }>>();
     for (const pa of packageActions) {
@@ -1149,24 +998,24 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
     weeklyChart.sort((a, b) => a.weekNumber - b.weekNumber);
 
     const members: CohortMemberEngagement[] = (
-      userProfiles as {
-        id: string;
-        full_name: string | null;
-        total_points: number | null;
-        streak: number | null;
-        league_index: number | null;
-      }[]
+      userProfiles as { id: string; full_name: string | null }[]
     )
-      .map((p) => ({
-        id: p.id,
-        name: p.full_name?.trim() || "User",
-        totalPoints: p.total_points ?? 0,
-        streak: p.streak ?? 0,
-        acceptedCount: acceptedByUser.get(p.id) ?? 0,
-        validatedCount: validatedByUser.get(p.id) ?? 0,
-        league: leagueFromIndex(p.league_index ?? 0),
-      }))
-      .sort((a, b) => b.totalPoints - a.totalPoints);
+      .map((p) => {
+        const commitment = cohortCommitment?.perUser.get(p.id);
+        return {
+          id: p.id,
+          name: p.full_name?.trim() || "User",
+          commitmentPoints: commitment?.points ?? 0,
+          commitmentMaximum: commitment?.maximum ?? 0,
+          commitmentPct: commitmentPct(commitment?.points ?? 0, commitment?.maximum ?? 0),
+          plannedActions: commitment?.plannedActions ?? 0,
+          completedOnTimeActions: commitment?.completedOnTimeActions ?? 0,
+          missedActions: commitment?.missedActions ?? 0,
+          acceptedCount: acceptedByUser.get(p.id) ?? 0,
+          validatedCount: validatedByUser.get(p.id) ?? 0,
+        };
+      })
+      .sort((a, b) => b.commitmentPoints - a.commitmentPoints);
 
     return {
       detail: {
@@ -1174,8 +1023,77 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
         batchName: cohort.batch_name,
         moduleName: cohort.module_name,
         ...summary,
+        commitmentPoints: team?.points ?? 0,
+        commitmentMaximum: team?.maximum ?? 0,
+        commitmentPct: commitmentPct(team?.points ?? 0, team?.maximum ?? 0),
         weeklyChart,
         members,
+      },
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export interface CompanyCommitmentSummary {
+  commitmentPoints: number;
+  commitmentMaximum: number;
+  commitmentPct: number;
+  planPoints: number;
+  actionPoints: number;
+  memberCount: number;
+  batchCount: number;
+}
+
+/** Company-wide Commitment Wallet rollup — total points banked across every batch's finalised
+ * plans, for the Dashboard. Same source data as the participant Wallet's team bucket and the
+ * Batches analytics page, just summed across all of a company's batches instead of one. */
+export async function getCompanyCommitmentSummary(companyId?: string): Promise<{
+  summary?: CompanyCommitmentSummary;
+  error?: string;
+}> {
+  try {
+    const { companyId: myCompanyId, role } = await getAdminContext();
+    const resolvedCompanyId = role === "admin" ? myCompanyId : companyId;
+    if (!resolvedCompanyId) {
+      return { error: "Company required" };
+    }
+
+    const admin = createAdminClient();
+
+    const { data: cohorts } = await admin
+      .from("cohorts")
+      .select("id")
+      .eq("company_id", resolvedCompanyId)
+      .is("archived_at", null);
+    const cohortIds = (cohorts ?? []).map((c: { id: string }) => c.id);
+
+    const commitmentByCohort = await loadCommitmentWalletByCohort(admin, cohortIds);
+
+    let points = 0;
+    let maximum = 0;
+    let planPoints = 0;
+    let actionPoints = 0;
+    let memberCount = 0;
+    let batchCount = 0;
+    for (const { team } of commitmentByCohort.values()) {
+      points += team.points;
+      maximum += team.maximum;
+      planPoints += team.planPoints;
+      actionPoints += team.actionPoints;
+      memberCount += team.memberCount;
+      batchCount += 1;
+    }
+
+    return {
+      summary: {
+        commitmentPoints: points,
+        commitmentMaximum: maximum,
+        commitmentPct: commitmentPct(points, maximum),
+        planPoints,
+        actionPoints,
+        memberCount,
+        batchCount,
       },
     };
   } catch (e) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, Flame, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import {
   BarChart as ReBarChart,
   Bar,
@@ -18,7 +18,6 @@ import {
   type CohortAnalyticsSummary,
   type CohortAnalyticsDetail,
 } from "@/app/actions/admin-analytics";
-import { League } from "@/lib/types";
 
 interface CohortAnalyticsViewProps {
   companyId: string | null;
@@ -29,19 +28,12 @@ function initials(value: string) {
   return words.map((word) => word[0]?.toUpperCase()).join("") || "C";
 }
 
-function leagueBadgeColor(league: League) {
-  switch (league) {
-    case League.Diamond:
-      return "bg-purple-600 text-white";
-    case League.Gold:
-      return "bg-[#FFCE00] text-black";
-    case League.Silver:
-      return "bg-gray-300 text-black";
-    case League.Bronze:
-      return "bg-orange-600 text-white";
-    default:
-      return "bg-gray-100 text-gray-400";
-  }
+function commitmentBadgeColor(pct: number, hasPlan: boolean) {
+  if (!hasPlan) return "bg-gray-100 text-gray-400";
+  if (pct >= 90) return "bg-purple-600 text-white";
+  if (pct >= 70) return "bg-[#FFCE00] text-black";
+  if (pct >= 40) return "bg-gray-300 text-black";
+  return "bg-orange-600 text-white";
 }
 
 const tooltipStyle = {
@@ -146,6 +138,7 @@ export function CohortAnalyticsView({ companyId }: CohortAnalyticsViewProps) {
                   <th className="px-2 py-3 font-semibold text-center">Action readers</th>
                   <th className="px-2 py-3 font-semibold text-center">Action takers</th>
                   <th className="px-2 py-3 font-semibold text-center">Consistently active</th>
+                  <th className="px-2 py-3 font-semibold text-center">Commitment</th>
                   <th className="px-2 py-3 font-semibold text-center">Actions delivered</th>
                   <th className="px-2 py-3 font-semibold text-center">Avg / user</th>
                   <th className="px-2 py-3 font-semibold text-center" />
@@ -194,6 +187,9 @@ export function CohortAnalyticsView({ companyId }: CohortAnalyticsViewProps) {
                         <td className="px-2 py-2.5 text-center text-xs font-semibold text-blue-600">{entry.actionReadersPct}%</td>
                         <td className="px-2 py-2.5 text-center text-xs font-semibold text-green-600">{entry.actionTakersPct}%</td>
                         <td className="px-2 py-2.5 text-center text-xs font-semibold">{entry.consistentlyActivePct}%</td>
+                        <td className="px-2 py-2.5 text-center text-xs font-semibold" title={`${entry.commitmentPoints}/${entry.commitmentMaximum} points banked`}>
+                          {entry.commitmentMaximum > 0 ? `${entry.commitmentPct}%` : "—"}
+                        </td>
                         <td className="px-2 py-2.5 text-center text-xs font-semibold">{entry.totalActionsDelivered.toLocaleString()}</td>
                         <td className="px-2 py-2.5 text-center text-xs font-semibold">{entry.averageActionsPerUser}</td>
                         <td className="px-2 py-2.5 text-center">
@@ -202,7 +198,7 @@ export function CohortAnalyticsView({ companyId }: CohortAnalyticsViewProps) {
                       </tr>
                       {isOpen && (
                         <tr>
-                          <td colSpan={8} className="p-0" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                          <td colSpan={9} className="p-0" style={{ borderBottom: "1px solid var(--color-border)" }}>
                             <div className="p-4" style={{ background: "var(--color-bg-muted)" }}>
                               {detailLoading ? (
                                 <div className="flex items-center gap-2 justify-center py-8 text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
@@ -248,7 +244,11 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
           { label: "Action readers", value: `${detail.actionReadersPct}%`, sub: `${detail.actionReadersCount} people` },
           { label: "Action takers", value: `${detail.actionTakersPct}%`, sub: `${detail.actionTakersCount} people` },
           { label: "Consistently active", value: `${detail.consistentlyActivePct}%` },
-          { label: "Combined points", value: detail.totalPoints.toLocaleString() },
+          {
+            label: "Commitment points",
+            value: detail.commitmentMaximum > 0 ? `${detail.commitmentPct}%` : "—",
+            sub: detail.commitmentMaximum > 0 ? `${detail.commitmentPoints}/${detail.commitmentMaximum} pts banked` : "No finalised plans yet",
+          },
         ].map((card) => (
           <div key={card.label} className="bg-white rounded-xl p-3.5" style={{ border: "1px solid var(--color-border)" }}>
             <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>{card.label}</p>
@@ -292,30 +292,30 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
                   <th className="px-3 py-2 font-semibold" style={{ color: "var(--color-text-muted)" }}>Name</th>
                   <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Accepted</th>
                   <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Validated</th>
-                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Streak</th>
-                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>League / Pts</th>
+                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Missed</th>
+                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Commitment</th>
                 </tr>
               </thead>
               <tbody>
-                {detail.members.map((member) => (
-                  <tr key={member.id} style={{ borderTop: "1px solid var(--color-border)" }}>
-                    <td className="px-3 py-2 font-semibold" style={{ color: "var(--color-text-primary)" }}>{member.name}</td>
-                    <td className="px-2 py-2 text-center text-blue-600 font-semibold">{member.acceptedCount}</td>
-                    <td className="px-2 py-2 text-center text-green-600 font-semibold">{member.validatedCount}</td>
-                    <td className="px-2 py-2 text-center">
-                      <span className="inline-flex items-center gap-1 justify-center">
-                        <Flame size={11} className={member.streak > 0 ? "text-orange-500 fill-current" : "text-gray-300"} />
-                        {member.streak}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 text-center">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${leagueBadgeColor(member.league)}`}>{member.league}</span>
-                        <span className="text-[10px] font-semibold">{member.totalPoints}</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {detail.members.map((member) => {
+                  const hasPlan = member.commitmentMaximum > 0;
+                  return (
+                    <tr key={member.id} style={{ borderTop: "1px solid var(--color-border)" }}>
+                      <td className="px-3 py-2 font-semibold" style={{ color: "var(--color-text-primary)" }}>{member.name}</td>
+                      <td className="px-2 py-2 text-center text-blue-600 font-semibold">{member.acceptedCount}</td>
+                      <td className="px-2 py-2 text-center text-green-600 font-semibold">{member.validatedCount}</td>
+                      <td className="px-2 py-2 text-center text-red-500 font-semibold">{member.missedActions}</td>
+                      <td className="px-2 py-2 text-center">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${commitmentBadgeColor(member.commitmentPct, hasPlan)}`}>
+                            {hasPlan ? `${member.commitmentPct}%` : "No plan"}
+                          </span>
+                          {hasPlan && <span className="text-[10px] font-semibold">{member.commitmentPoints}/{member.commitmentMaximum} pts</span>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

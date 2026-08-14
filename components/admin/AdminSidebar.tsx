@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronRight,
   LogOut,
+  MessageSquareText,
 } from "lucide-react";
 
 interface NavItem {
@@ -33,6 +34,7 @@ const navItems: NavItem[] = [
     label: "Analytics",
     icon: BarChart3,
     children: [
+      { id: "cohorts-analytics", label: "Cohorts", href: "/admin/analytics/cohorts" },
       { id: "engagement", label: "Engagement", href: "/admin/analytics/engagement" },
       { id: "action-metrics", label: "Action Metrics", href: "/admin/analytics/action-metrics" },
     ],
@@ -48,6 +50,12 @@ const navItems: NavItem[] = [
       { id: "user-management", label: "User Management", href: "/admin/control-panel/users" },
       { id: "email-management", label: "Email Management", href: "/admin/control-panel/email" },
     ],
+  },
+  {
+    id: "conversations",
+    label: "Conversations",
+    icon: MessageSquareText,
+    href: "/admin/conversations",
   },
 ];
 

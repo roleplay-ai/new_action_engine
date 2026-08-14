@@ -899,3 +899,381 @@ export async function getDriversEffectiveness(companyId?: string): Promise<{
     };
   }
 }
+
+/** Shared per-user rollup used by both the cohort comparison table and the single-cohort
+ * drill-down below — same math as getBehaviouralJourneyFunnel's funnel, scoped to whatever
+ * user set (a cohort's members) is passed in. */
+function summarizeCohortFunnel(
+  userIds: string[],
+  deliveriesByUser: Map<string, Set<string>>,
+  userActionIdsByUser: Map<string, Set<string>>,
+  usersWithAnyAction: Set<string>,
+  usersWithSuccess: Set<string>,
+  totalPointsByUser: Map<string, number>
+) {
+  let totalActionsDelivered = 0;
+  let consistencySum = 0;
+  let consistencyUsers = 0;
+  let actionReadersCount = 0;
+  let actionTakersCount = 0;
+  let totalPoints = 0;
+
+  for (const userId of userIds) {
+    totalPoints += totalPointsByUser.get(userId) ?? 0;
+    const delivered = deliveriesByUser.get(userId);
+    if (delivered) totalActionsDelivered += delivered.size;
+    if (usersWithAnyAction.has(userId)) actionReadersCount += 1;
+    if (usersWithSuccess.has(userId)) actionTakersCount += 1;
+    if (delivered && delivered.size > 0) {
+      const userActionIds = userActionIdsByUser.get(userId);
+      let active = 0;
+      if (userActionIds) {
+        for (const actionId of delivered) {
+          if (userActionIds.has(actionId)) active += 1;
+        }
+      }
+      consistencySum += active / delivered.size;
+      consistencyUsers += 1;
+    }
+  }
+
+  const memberCount = userIds.length;
+  return {
+    memberCount,
+    actionReadersCount,
+    actionReadersPct: memberCount > 0 ? Math.round((actionReadersCount / memberCount) * 100) : 0,
+    actionTakersCount,
+    actionTakersPct: memberCount > 0 ? Math.round((actionTakersCount / memberCount) * 100) : 0,
+    consistentlyActivePct: consistencyUsers > 0 ? Math.round((consistencySum / consistencyUsers) * 100) : 0,
+    totalActionsDelivered,
+    averageActionsPerUser: memberCount > 0 ? Math.round((totalActionsDelivered / memberCount) * 10) / 10 : 0,
+    totalPoints,
+  };
+}
+
+export interface CohortAnalyticsSummary {
+  cohortId: string;
+  batchName: string;
+  moduleName: string | null;
+  memberCount: number;
+  actionReadersCount: number;
+  actionReadersPct: number;
+  actionTakersCount: number;
+  actionTakersPct: number;
+  consistentlyActivePct: number;
+  totalActionsDelivered: number;
+  averageActionsPerUser: number;
+  totalPoints: number;
+}
+
+/** Per-cohort rollup of the same funnel shown on the company Dashboard, for the Cohorts
+ * analytics comparison table (one row per cohort, all cohorts in the company at once). */
+export async function getCohortAnalyticsOverview(companyId?: string): Promise<{
+  entries: CohortAnalyticsSummary[];
+  error?: string;
+}> {
+  try {
+    const { companyId: myCompanyId, role } = await getAdminContext();
+    const resolvedCompanyId = role === "admin" ? myCompanyId : companyId;
+    if (!resolvedCompanyId) {
+      return { entries: [], error: "Company required" };
+    }
+
+    const admin = createAdminClient();
+
+    const { data: cohorts } = await admin
+      .from("cohorts")
+      .select("id, batch_name, module_name")
+      .eq("company_id", resolvedCompanyId)
+      .is("archived_at", null)
+      .order("created_at", { ascending: false });
+    if (!cohorts?.length) return { entries: [] };
+    const cohortIds = cohorts.map((c: { id: string }) => c.id);
+
+    const { data: memberRows } = await admin
+      .from("cohort_members")
+      .select("cohort_id, user_id")
+      .in("cohort_id", cohortIds);
+
+    const memberUserIds = [...new Set((memberRows ?? []).map((m: { user_id: string }) => m.user_id))];
+    const { data: profiles } = memberUserIds.length
+      ? await admin.from("profiles").select("id, role, total_points").in("id", memberUserIds)
+      : { data: [] as { id: string; role: string; total_points: number | null }[] };
+    const profileMap = new Map(
+      (profiles ?? [])
+        .filter((p: { role: string }) => p.role === "user")
+        .map((p: { id: string; total_points: number | null }) => [p.id, p])
+    );
+
+    const { data: packages } = await admin.from("packages").select("id").eq("company_id", resolvedCompanyId);
+    const packageIds = (packages ?? []).map((p: { id: string }) => p.id);
+
+    let packageActions: { package_id: string; action_id: string }[] = [];
+    let assignments: { package_id: string; user_id: string }[] = [];
+    if (packageIds.length > 0) {
+      const [{ data: paRows }, { data: assignRows }] = await Promise.all([
+        admin.from("package_actions").select("package_id, action_id").in("package_id", packageIds),
+        admin.from("package_assignments").select("package_id, user_id").in("package_id", packageIds),
+      ]);
+      packageActions = paRows ?? [];
+      assignments = assignRows ?? [];
+    }
+
+    const actionsByPackage = new Map<string, string[]>();
+    for (const pa of packageActions) {
+      const list = actionsByPackage.get(pa.package_id) ?? [];
+      list.push(pa.action_id);
+      actionsByPackage.set(pa.package_id, list);
+    }
+
+    const deliveriesByUser = new Map<string, Set<string>>();
+    for (const a of assignments) {
+      const actionIds = actionsByPackage.get(a.package_id) ?? [];
+      if (!actionIds.length) continue;
+      const set = deliveriesByUser.get(a.user_id) ?? new Set<string>();
+      actionIds.forEach((id) => set.add(id));
+      deliveriesByUser.set(a.user_id, set);
+    }
+
+    const relevantUserIds = memberUserIds.filter((id) => profileMap.has(id));
+    const { data: uaRows } = relevantUserIds.length
+      ? await admin.from("user_actions").select("user_id, action_id, status").in("user_id", relevantUserIds)
+      : { data: [] as { user_id: string; action_id: string; status: string }[] };
+
+    const userActionIdsByUser = new Map<string, Set<string>>();
+    const usersWithAnyAction = new Set<string>();
+    const usersWithSuccess = new Set<string>();
+    for (const row of (uaRows ?? []) as { user_id: string; action_id: string; status: string }[]) {
+      usersWithAnyAction.add(row.user_id);
+      const set = userActionIdsByUser.get(row.user_id) ?? new Set<string>();
+      set.add(row.action_id);
+      userActionIdsByUser.set(row.user_id, set);
+      if (row.status === "success") usersWithSuccess.add(row.user_id);
+    }
+
+    const totalPointsByUser = new Map<string, number>();
+    for (const [id, p] of profileMap) totalPointsByUser.set(id, p.total_points ?? 0);
+
+    const membersByCohort = new Map<string, string[]>();
+    for (const row of (memberRows ?? []) as { cohort_id: string; user_id: string }[]) {
+      if (!profileMap.has(row.user_id)) continue;
+      const list = membersByCohort.get(row.cohort_id) ?? [];
+      list.push(row.user_id);
+      membersByCohort.set(row.cohort_id, list);
+    }
+
+    const entries: CohortAnalyticsSummary[] = (
+      cohorts as { id: string; batch_name: string; module_name: string | null }[]
+    ).map((cohort) => {
+      const userIds = membersByCohort.get(cohort.id) ?? [];
+      const summary = summarizeCohortFunnel(
+        userIds,
+        deliveriesByUser,
+        userActionIdsByUser,
+        usersWithAnyAction,
+        usersWithSuccess,
+        totalPointsByUser
+      );
+      return {
+        cohortId: cohort.id,
+        batchName: cohort.batch_name,
+        moduleName: cohort.module_name,
+        ...summary,
+      };
+    });
+
+    return { entries };
+  } catch (e) {
+    return { entries: [], error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export interface CohortMemberEngagement {
+  id: string;
+  name: string;
+  totalPoints: number;
+  streak: number;
+  acceptedCount: number;
+  validatedCount: number;
+  league: League;
+}
+
+export interface CohortAnalyticsDetail extends CohortAnalyticsSummary {
+  weeklyChart: WeeklyActionChartEntry[];
+  members: CohortMemberEngagement[];
+}
+
+/** Full funnel + weekly chart + per-member leaderboard for one cohort, used by the Cohorts
+ * analytics page's drill-down. */
+export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
+  detail?: CohortAnalyticsDetail;
+  error?: string;
+}> {
+  try {
+    const { companyId: myCompanyId, role } = await getAdminContext();
+    const admin = createAdminClient();
+
+    const { data: cohort } = await admin
+      .from("cohorts")
+      .select("id, batch_name, module_name, company_id")
+      .eq("id", cohortId)
+      .maybeSingle();
+    if (!cohort) return { error: "Cohort not found" };
+    if (role === "admin" && cohort.company_id !== myCompanyId) return { error: "Access denied" };
+
+    const { data: memberRows } = await admin.from("cohort_members").select("user_id").eq("cohort_id", cohortId);
+    const memberIds = (memberRows ?? []).map((m: { user_id: string }) => m.user_id);
+
+    const { data: profiles } = memberIds.length
+      ? await admin
+          .from("profiles")
+          .select("id, full_name, role, total_points, streak, league_index")
+          .in("id", memberIds)
+      : {
+          data: [] as {
+            id: string;
+            full_name: string | null;
+            role: string;
+            total_points: number | null;
+            streak: number | null;
+            league_index: number | null;
+          }[],
+        };
+    const userProfiles = (profiles ?? []).filter((p: { role: string }) => p.role === "user");
+    const userIds = userProfiles.map((p: { id: string }) => p.id);
+
+    const { data: packages } = await admin.from("packages").select("id").eq("company_id", cohort.company_id);
+    const packageIds = (packages ?? []).map((p: { id: string }) => p.id);
+
+    let packageActions: { package_id: string; action_id: string; week_number: number | null }[] = [];
+    let assignments: { package_id: string; user_id: string }[] = [];
+    if (packageIds.length > 0 && userIds.length > 0) {
+      const [{ data: paRows }, { data: assignRows }] = await Promise.all([
+        admin.from("package_actions").select("package_id, action_id, week_number").in("package_id", packageIds),
+        admin
+          .from("package_assignments")
+          .select("package_id, user_id")
+          .in("package_id", packageIds)
+          .in("user_id", userIds),
+      ]);
+      packageActions = paRows ?? [];
+      assignments = assignRows ?? [];
+    }
+
+    const { data: uaRows } = userIds.length
+      ? await admin.from("user_actions").select("user_id, action_id, status").in("user_id", userIds)
+      : { data: [] as { user_id: string; action_id: string; status: string }[] };
+
+    const actionsByPackage = new Map<string, string[]>();
+    for (const pa of packageActions) {
+      const list = actionsByPackage.get(pa.package_id) ?? [];
+      list.push(pa.action_id);
+      actionsByPackage.set(pa.package_id, list);
+    }
+    const deliveriesByUser = new Map<string, Set<string>>();
+    for (const a of assignments) {
+      const actionIds = actionsByPackage.get(a.package_id) ?? [];
+      if (!actionIds.length) continue;
+      const set = deliveriesByUser.get(a.user_id) ?? new Set<string>();
+      actionIds.forEach((id) => set.add(id));
+      deliveriesByUser.set(a.user_id, set);
+    }
+
+    const userActionIdsByUser = new Map<string, Set<string>>();
+    const usersWithAnyAction = new Set<string>();
+    const usersWithSuccess = new Set<string>();
+    const acceptedByUser = new Map<string, number>();
+    const validatedByUser = new Map<string, number>();
+    const uaMap = new Map<string, string>();
+    for (const row of (uaRows ?? []) as { user_id: string; action_id: string; status: string }[]) {
+      usersWithAnyAction.add(row.user_id);
+      const set = userActionIdsByUser.get(row.user_id) ?? new Set<string>();
+      set.add(row.action_id);
+      userActionIdsByUser.set(row.user_id, set);
+      uaMap.set(`${row.user_id}|${row.action_id}`, row.status);
+      if (ACTION_ACCEPTED_STATUSES.includes(row.status)) {
+        acceptedByUser.set(row.user_id, (acceptedByUser.get(row.user_id) ?? 0) + 1);
+      }
+      if (row.status === "success") {
+        usersWithSuccess.add(row.user_id);
+        validatedByUser.set(row.user_id, (validatedByUser.get(row.user_id) ?? 0) + 1);
+      }
+    }
+
+    const totalPointsByUser = new Map<string, number>();
+    for (const p of userProfiles as { id: string; total_points: number | null }[]) {
+      totalPointsByUser.set(p.id, p.total_points ?? 0);
+    }
+
+    const summary = summarizeCohortFunnel(
+      userIds,
+      deliveriesByUser,
+      userActionIdsByUser,
+      usersWithAnyAction,
+      usersWithSuccess,
+      totalPointsByUser
+    );
+
+    const slotsByWeek = new Map<number, Array<{ actionId: string; userId: string }>>();
+    for (const pa of packageActions) {
+      const week = pa.week_number ?? 1;
+      const users = assignments.filter((a) => a.package_id === pa.package_id).map((a) => a.user_id);
+      for (const uid of users) {
+        const slots = slotsByWeek.get(week) ?? [];
+        slots.push({ actionId: pa.action_id, userId: uid });
+        slotsByWeek.set(week, slots);
+      }
+    }
+    const weeklyChart: WeeklyActionChartEntry[] = [];
+    for (const [weekNum, slots] of slotsByWeek) {
+      let accepted = 0;
+      let skipped = 0;
+      let successful = 0;
+      for (const slot of slots) {
+        const status = uaMap.get(`${slot.userId}|${slot.actionId}`);
+        if (!status) continue;
+        if (status === "skipped") {
+          skipped += 1;
+        } else if (WEEKLY_ACCEPTED_STATUSES.includes(status)) {
+          accepted += 1;
+          if (WEEKLY_SUCCESSFUL_STATUSES.includes(status)) successful += 1;
+        }
+      }
+      weeklyChart.push({ weekNumber: weekNum, name: `Week ${weekNum}`, accepted, skipped, successful });
+    }
+    weeklyChart.sort((a, b) => a.weekNumber - b.weekNumber);
+
+    const members: CohortMemberEngagement[] = (
+      userProfiles as {
+        id: string;
+        full_name: string | null;
+        total_points: number | null;
+        streak: number | null;
+        league_index: number | null;
+      }[]
+    )
+      .map((p) => ({
+        id: p.id,
+        name: p.full_name?.trim() || "User",
+        totalPoints: p.total_points ?? 0,
+        streak: p.streak ?? 0,
+        acceptedCount: acceptedByUser.get(p.id) ?? 0,
+        validatedCount: validatedByUser.get(p.id) ?? 0,
+        league: leagueFromIndex(p.league_index ?? 0),
+      }))
+      .sort((a, b) => b.totalPoints - a.totalPoints);
+
+    return {
+      detail: {
+        cohortId: cohort.id,
+        batchName: cohort.batch_name,
+        moduleName: cohort.module_name,
+        ...summary,
+        weeklyChart,
+        members,
+      },
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}

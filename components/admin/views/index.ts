@@ -6,3 +6,5 @@ export { UserManagementView } from "./UserManagementView";
 export { EmailManagementView } from "./EmailManagementView";
 export { CohortManagementView } from "./CohortManagementView";
 export { ContentManagementView } from "./ContentManagementView";
+export { CohortAnalyticsView } from "./CohortAnalyticsView";
+export { ConversationsView } from "./ConversationsView";

@@ -3,7 +3,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-async function getAdminContext(): Promise<{
+/** Exported so app/actions/admin-dashboard.ts can reuse the same role/company
+ * resolution instead of duplicating it — "use server" files may only export
+ * async functions (plus types), which this already is. */
+export async function getAdminContext(): Promise<{
   supabase: Awaited<ReturnType<typeof createClient>>;
   companyId: string | null;
   role: string;
@@ -49,8 +52,9 @@ interface CohortCommitment {
  * and 045/046_commitment_wallet.sql) for a set of cohorts, grouped per cohort and per user within
  * it. Mirrors the math in the get_my_commitment_wallet() SQL function: a finalised plan is worth
  * maximum_points (planned actions × 50) + a one-time 50pt plan_bonus_points, and each
- * commitment_wallet_event adds its points_awarded (50 for completed_on_time, 0 otherwise). */
-async function loadCommitmentWalletByCohort(
+ * commitment_wallet_event adds its points_awarded (50 for completed_on_time, 0 otherwise).
+ * Exported for reuse by app/actions/admin-dashboard.ts. */
+export async function loadCommitmentWalletByCohort(
   admin: ReturnType<typeof createAdminClient>,
   cohortIds: string[]
 ): Promise<Map<string, CohortCommitment>> {

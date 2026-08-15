@@ -259,7 +259,35 @@ CRON_SECRET
 
 The Supabase URL, anonymous key, and server-side service-role configuration must also be present for authentication, recipient lookup, logging, and scheduled processing.
 
-## 9. Main implementation map
+## 9. Open + click tracking (admin Dashboard)
+
+The admin Dashboard's "Email Engagement" section (welcome vs. reminder, weekly and total, opens
+**and** clicks) reads `opened_at`/`open_count` and `clicked_at`/`click_count` columns on
+`email_campaign_logs`, populated by a Resend webhook.
+
+This requires things that are **account settings, not code** — only whoever owns the Resend
+account can do these:
+
+1. In the Resend dashboard, turn on both **Open Tracking** and **Click Tracking**. Resend does
+   not report either at all until its own toggle is enabled — they're independent, so both must be
+   on to see both metrics.
+2. In the Resend dashboard, under **Webhooks**, add an endpoint at
+   `https://<deployed-host>/api/webhooks/resend`, subscribed to at least `email.opened` and
+   `email.clicked`. Copy its signing secret into `RESEND_WEBHOOK_SECRET`.
+
+Until both are done, every send is still logged as usual, but `opened_at`/`clicked_at` stay `NULL`
+and the Dashboard shows a "tracking not enabled yet" banner instead of a real 0%. Once enabled,
+opens/clicks are only counted **from that point forward** — there's no way to retroactively know
+whether an already-sent email was opened or clicked before tracking was turned on. Note also that
+Resend can only report a click if Click Tracking rewrote the link, so an email sent before Click
+Tracking was on will never show a click even after the fact.
+
+Category is inferred from `email_campaign_logs.template_id`: `credentials` = welcome/login email,
+`daily_reminder` = participant action reminder. The batch/module a send is attributed to is
+captured at send time from the recipient's cohort (`email_campaign_logs.cohort_id`), so opens and
+clicks can be bucketed into batch-relative weeks the same way the rest of the Dashboard does.
+
+## 10. Main implementation map
 
 | Area | Main implementation |
 |---|---|
@@ -277,8 +305,11 @@ The Supabase URL, anonymous key, and server-side service-role configuration must
 | Persistent login infrastructure | migrations `013` and `014` |
 | Stored credential delivery | migration `020` |
 | Reminder preferences and send claims | migration `038` |
+| Resend open/click-tracking webhook | `app/api/webhooks/resend/route.ts` |
+| Dashboard open-rate / bucket queries | `app/actions/admin-dashboard.ts` |
+| Open/click-tracking schema | migrations `065`, `066` |
 
-## 10. Operational checklist
+## 11. Operational checklist
 
 Before relying on the feature in production, confirm:
 

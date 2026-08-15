@@ -256,7 +256,7 @@ export async function sendTemplateToUsers({
       const senderName = (trainerId ? trainerNameById.get(trainerId) : undefined) ?? "Nudgeable";
 
       const { subject, html } = renderEmailTemplate(templateKey, dynamicTemplateData);
-      const { error: sendError } = await resend.emails.send({
+      const { data: sendData, error: sendError } = await resend.emails.send({
         to: email,
         from: buildFromHeader(fromEmail, senderName),
         subject,
@@ -270,6 +270,8 @@ export async function sendTemplateToUsers({
         template_id: templateId,
         status: "sent",
         sent_by: sentBy,
+        resend_message_id: sendData?.id ?? null,
+        cohort_id: prof?.cohortId ?? null,
       });
 
       results.push({ userId, email, success: true });
@@ -292,6 +294,7 @@ export async function sendTemplateToUsers({
         status: "failed",
         error_message: errorMessage,
         sent_by: sentBy,
+        cohort_id: prof?.cohortId ?? null,
       });
 
       results.push({ userId, email, success: false, error: errorMessage });

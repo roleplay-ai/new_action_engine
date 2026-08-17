@@ -132,10 +132,10 @@ export function DashboardView({ companyId }: DashboardViewProps) {
 
   const completionTiles = completionBuckets
     ? [
-      { label: "More than 50%", value: completionBuckets.moreThan50, color: "#23CE6B" },
-      { label: "25% – 50%", value: completionBuckets.between25And50, color: "#FFCE00" },
-      { label: "Less than 25%", value: completionBuckets.lessThan25, color: "#F97316" },
       { label: "Inactive (0%)", value: completionBuckets.inactive, color: "#ED4551" },
+      { label: "Less than 25%", value: completionBuckets.lessThan25, color: "#F97316" },
+      { label: "25% – 50%", value: completionBuckets.between25And50, color: "#FFCE00" },
+      { label: "More than 50%", value: completionBuckets.moreThan50, color: "#23CE6B" },
     ]
     : [];
 
@@ -194,32 +194,63 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               </h4>
               <span className="tag tag--yellow">% of delivered actions validated</span>
             </div>
-            <div className="bg-white rounded-2xl p-4" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 300 }}>
+            <div className="bg-white rounded-2xl p-4 flex flex-col" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 320 }}>
               {completionLoading ? (
                 emptyState("Loading…")
               ) : !completionBuckets || completionBuckets.totalUsers === 0 ? (
                 emptyState("No members in scope yet")
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={completionTiles}
-                      dataKey="value"
-                      nameKey="label"
-                      cx="50%"
-                      cy="48%"
-                      outerRadius="70%"
-                      label={({ name, value }) => `${name}: ${value}`}
-                      labelLine={false}
-                    >
-                      {completionTiles.map((tile) => (
-                        <Cell key={tile.label} fill={tile.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={tooltipStyle} />
-                    <Legend wrapperStyle={{ fontSize: 11, fontWeight: 600 }} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <>
+                  <div className="flex-1 min-h-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                        <Pie
+                          data={completionTiles}
+                          dataKey="value"
+                          nameKey="label"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius="62%"
+                          minAngle={2}
+                          labelLine={false}
+                          label={(entry) => {
+                            if (!entry.value) return null;
+                            const RADIAN = Math.PI / 180;
+                            const radius = entry.outerRadius + 20;
+                            const x = entry.cx + radius * Math.cos(-entry.midAngle * RADIAN);
+                            const y = entry.cy + radius * Math.sin(-entry.midAngle * RADIAN);
+                            return (
+                              <text
+                                x={x}
+                                y={y}
+                                fill={entry.fill}
+                                textAnchor={x > entry.cx ? "start" : "end"}
+                                dominantBaseline="central"
+                                fontSize={11}
+                                fontWeight={600}
+                              >
+                                {`${entry.name}: ${entry.value}`}
+                              </text>
+                            );
+                          }}
+                        >
+                          {completionTiles.map((tile) => (
+                            <Cell key={tile.label} fill={tile.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={tooltipStyle} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 pt-2 pb-0.5 shrink-0">
+                    {completionTiles.map((tile) => (
+                      <li key={tile.label} className="flex items-center gap-1.5 text-[11px] font-semibold leading-none" style={{ color: tile.color }}>
+                        <span className="w-2.5 h-2.5 rounded-[2px] shrink-0" style={{ background: tile.color }} />
+                        {tile.label}
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </div>
           </div>
@@ -234,17 +265,17 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                 <span className="tag tag--yellow">{scoreBuckets.notStarted} not started (no plan yet)</span>
               )}
             </div>
-            <div className="bg-white rounded-2xl p-4" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 300 }}>
+            <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 320 }}>
               {scoreBucketsLoading ? (
                 emptyState("Loading…")
               ) : !scoreBuckets || scoreBuckets.totalUsers === 0 ? (
                 emptyState("No commitment data yet")
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <ReBarChart data={scoreBucketChartData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                  <ReBarChart data={scoreBucketChartData} margin={{ top: 8, right: 12, left: 8, bottom: 28 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} label={{ value: "Commitment score band", position: "insideBottom", offset: -2, fontSize: 11 }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} label={{ value: "Users", angle: -90, position: "insideLeft", fontSize: 11 }} />
+                    <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Commitment score band", position: "insideBottom", offset: -16, fontSize: 11 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={48} label={{ value: "Users", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
                     <Tooltip contentStyle={tooltipStyle} />
                     <Bar dataKey="Users" radius={[6, 6, 0, 0]}>
                       {scoreBucketChartData.map((entry) => (
@@ -326,17 +357,17 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               </span>
             )}
           </div>
-          <div className="bg-white rounded-2xl p-4" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 260 }}>
+          <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 300 }}>
             {weeklyTrendLoading ? (
               emptyState("Loading…")
             ) : weeklyTrend.length === 0 ? (
               emptyState("No finalised plans yet")
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <ReBarChart data={weeklyTrendChartData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                <ReBarChart data={weeklyTrendChartData} margin={{ top: 8, right: 12, left: 8, bottom: 28 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -2, fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} label={{ value: "Avg. commitment %", angle: -90, position: "insideLeft", fontSize: 11 }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -16, fontSize: 11 }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Avg. commitment %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
                   <Tooltip contentStyle={tooltipStyle} />
                   <Bar dataKey="Avg. commitment %" fill="#3699FC" radius={[6, 6, 0, 0]} />
                 </ReBarChart>
@@ -376,19 +407,19 @@ export function DashboardView({ companyId }: DashboardViewProps) {
             ))}
           </div>
 
-          <div className="bg-white rounded-2xl p-4" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 280 }}>
+          <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 320 }}>
             {emailLoading ? (
               emptyState("Loading…")
             ) : emailOpenChartData.length === 0 ? (
               emptyState("No week-attributed sends yet")
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <ReBarChart data={emailOpenChartData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                <ReBarChart data={emailOpenChartData} margin={{ top: 24, right: 12, left: 8, bottom: 28 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -2, fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} label={{ value: "Rate %", angle: -90, position: "insideLeft", fontSize: 11 }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -16, fontSize: 11 }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Rate %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 12, fontWeight: 600 }} />
+                  <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 8 }} />
                   <Bar dataKey="Reminder open %" fill="#23CE6B" radius={[6, 6, 0, 0]} />
                   <Bar dataKey="Reminder click %" fill="#F97316" radius={[6, 6, 0, 0]} />
                 </ReBarChart>

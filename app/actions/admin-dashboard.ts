@@ -503,20 +503,65 @@ export async function getEmailOpenRates(
     if (!cohortIds.length) return empty;
 
     const anchors = await resolveCohortStartAnchors(admin, cohortIds);
+    const scopedUserIds = await resolveScopedUserIds(admin, resolvedCompanyId, cohortId ?? null);
+    const cohortIdSet = new Set(cohortIds);
+    const scopedUserSet = new Set(scopedUserIds);
 
-    const { data: rows } = await admin
+    const { data: attributedRows } = await admin
       .from("email_campaign_logs")
-      .select("template_id, cohort_id, created_at, opened_at, clicked_at")
+      .select("user_id, template_id, cohort_id, created_at, opened_at, clicked_at")
       .in("cohort_id", cohortIds)
       .in("template_id", ["credentials", "daily_reminder"])
       .eq("status", "sent");
-    const emailRows = (rows ?? []) as {
+
+    // Older sends logged cohort_id as null, so also pull those rows by recipient
+    // membership in the selected batch(es).
+    const { data: unattributedRows } = scopedUserIds.length
+      ? await admin
+          .from("email_campaign_logs")
+          .select("user_id, template_id, cohort_id, created_at, opened_at, clicked_at")
+          .is("cohort_id", null)
+          .in("user_id", scopedUserIds)
+          .in("template_id", ["credentials", "daily_reminder"])
+          .eq("status", "sent")
+      : { data: [] };
+
+    const seen = new Set<string>();
+    const emailRows: {
+      user_id: string | null;
       template_id: string;
       cohort_id: string | null;
       created_at: string;
       opened_at: string | null;
       clicked_at: string | null;
-    }[];
+    }[] = [];
+    for (const row of [...(attributedRows ?? []), ...(unattributedRows ?? [])] as typeof emailRows) {
+      const key = `${row.user_id ?? ""}|${row.template_id}|${row.created_at}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (row.cohort_id) {
+        if (!cohortIdSet.has(row.cohort_id)) continue;
+      } else if (!row.user_id || !scopedUserSet.has(row.user_id)) {
+        continue;
+      }
+      emailRows.push(row);
+    }
+
+    const profileCohortByUser = new Map<string, string>();
+    if (scopedUserIds.length) {
+      const { data: profileRows } = await admin
+        .from("profiles")
+        .select("id, selected_cohort_id, current_cohort_id")
+        .in("id", scopedUserIds);
+      for (const p of (profileRows ?? []) as {
+        id: string;
+        selected_cohort_id: string | null;
+        current_cohort_id: string | null;
+      }[]) {
+        const inferred = p.selected_cohort_id ?? p.current_cohort_id;
+        if (inferred && cohortIdSet.has(inferred)) profileCohortByUser.set(p.id, inferred);
+      }
+    }
 
     let welcomeSentTotal = 0;
     let welcomeOpenedTotal = 0;
@@ -549,7 +594,11 @@ export async function getEmailOpenRates(
         if (clicked) reminderClickedTotal += 1;
       }
 
-      const anchor = row.cohort_id ? anchors.get(row.cohort_id) : undefined;
+      const attributedCohortId =
+        row.cohort_id
+        ?? (cohortId && cohortIdSet.has(cohortId) ? cohortId : null)
+        ?? (row.user_id ? profileCohortByUser.get(row.user_id) ?? null : null);
+      const anchor = attributedCohortId ? anchors.get(attributedCohortId) : undefined;
       if (!anchor) continue; // no batch attribution (e.g. pre-migration send) — still in totals above
 
       const week = weekNumberFor(new Date(row.created_at), anchor);

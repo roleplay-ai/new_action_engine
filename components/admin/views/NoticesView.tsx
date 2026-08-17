@@ -55,7 +55,7 @@ function NoticesWorkspace({ cohortId }: { cohortId: string }) {
   if (loading) {
     return (
       <div className="cohort-admin-detail-loading" aria-busy="true">
-        <Loader2 size={20} className="cohort-admin-spin" /><span>Loading notices…</span>
+        <Loader2 size={20} className="cohort-admin-spin" /><span>Loading announcements…</span>
       </div>
     );
   }

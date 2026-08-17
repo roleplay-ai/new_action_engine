@@ -4,9 +4,8 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleCheckBig, CircleX, Clock3, Coffee, Hand, Handshake, HeartHandshake, ListChecks, Loader2, Mail, Medal, MessageCircle, MessageCircleHeart, Settings2, TrendingDown, TrendingUp, Trophy, UsersRound, X } from "lucide-react";
+import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleCheckBig, CircleX, Clock3, Coffee, Hand, Handshake, HeartHandshake, ListChecks, Loader2, Mail, MessageCircle, MessageCircleHeart, Settings2, TrendingDown, TrendingUp, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
-import { getCohortLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard";
 import { getMyPlanSettings, syncMyDuePersonalActions, type MyPlanSettings } from "@/app/actions/ai-actions";
 import {
   getMyCommitmentBuddies,
@@ -370,7 +369,6 @@ export default function ActionsClient() {
   const [busy, setBusy] = useState(false);
   const [skippingId, setSkippingId] = useState<string | null>(null);
   const [completeError, setCompleteError] = useState<string | null>(null);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [settings, setSettings] = useState<MyPlanSettings | null>(null);
   const [buddyGroup, setBuddyGroup] = useState<CommitmentBuddyGroup | null>(null);
   const [buddyReady, setBuddyReady] = useState(false);
@@ -395,9 +393,9 @@ export default function ActionsClient() {
     setReady(false);
     void (async () => {
       // Current actions and Next reminders only need these two calls, so
-      // resolve just them and let the page paint immediately — leaderboard,
-      // commitment buddy and wallet data are fetched separately below and
-      // enhance the page once they land, instead of holding up first paint.
+      // resolve just them and let the page paint immediately — commitment
+      // buddy and wallet data are fetched separately below and enhance the
+      // page once they land, instead of holding up first paint.
       const [syncResult, settingsResult] = await Promise.allSettled([
         // Release any batch whose IST delivery date is today or earlier, so
         // Current actions does not wait for the once-daily cron.
@@ -423,13 +421,11 @@ export default function ActionsClient() {
       // Background enhancement only: these feed the commitment-buddy sidebar
       // and the reminder-email preview, both of which already render
       // conditionally on buddyReady, so they can trail the main page.
-      const [leaderboardResult, buddyResult, walletResult] = await Promise.allSettled([
-        cohort?.id ? getCohortLeaderboard(cohort.id) : Promise.resolve({ entries: [] as LeaderboardEntry[] }),
+      const [buddyResult, walletResult] = await Promise.allSettled([
         cohort?.id ? getMyCommitmentBuddies(cohort.id) : Promise.resolve({ group: null }),
         getMyCommitmentWallet(cohort?.id),
       ]);
       if (cancelled) return;
-      setLeaderboard(leaderboardResult.status === "fulfilled" ? leaderboardResult.value.entries ?? [] : []);
       setBuddyGroup(buddyResult.status === "fulfilled" ? buddyResult.value.group : null);
       if (walletResult.status === "fulfilled") {
         setCommitmentScore({
@@ -687,11 +683,6 @@ export default function ActionsClient() {
           </aside>
         )}
       </div>
-
-      {/* <aside className="actions-leaderboard-card"><div className="actions-card-heading"><div><h3>{cohort?.name ?? "Cohort"} leaderboard</h3><p>Current cohort balance · everyone starts at 1,000</p></div><Trophy size={20} /></div><div className="actions-leaderboard-list">
-        {leaderboard.length === 0 && <div className="actions-inline-empty">No rankings yet.</div>}
-        {leaderboard.slice(0, 8).map((entry, index) => <div className={entry.isCurrentUser ? "me" : ""} key={entry.id}><b>{index === 0 ? <Medal size={17} /> : index + 1}</b><i>{entry.name.substring(0, 2).toUpperCase()}</i><span><strong>{entry.name}{entry.isCurrentUser ? " (You)" : ""}</strong><small>{entry.totalPoints} points</small></span></div>)}
-      </div></aside> */}
     </div>}
 
     {tab === "completed" && <section className="actions-list-card actions-completed-card"><h3>Completed actions</h3><p>A record of the workplace actions you have finished.</p><div className="actions-completed-list">

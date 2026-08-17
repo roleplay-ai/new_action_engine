@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleCheckBig, CircleX, Clock3, Coffee, Hand, Handshake, HeartHandshake, ListChecks, Loader2, Mail, MessageCircle, MessageCircleHeart, Settings2, TrendingDown, TrendingUp, UsersRound, X } from "lucide-react";
+import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleCheckBig, CircleX, Clock3, Coffee, Hand, Handshake, HeartHandshake, Hourglass, ListChecks, Loader2, Mail, MessageCircle, MessageCircleHeart, Settings2, TrendingDown, TrendingUp, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getMyPlanSettings, syncMyDuePersonalActions, type MyPlanSettings } from "@/app/actions/ai-actions";
 import {
@@ -19,7 +19,7 @@ import { nextMilestoneFor, milestonePoints } from "@/lib/commitment-wallet-miles
 import { usePageLoading, usePageLoadingControls } from "@/components/PageLoadingProvider";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
 
-type Tab = "upcoming" | "completed" | "not-completed" | "archived" | "settings";
+type Tab = "upcoming" | "completed" | "pending-validation" | "not-completed" | "archived" | "settings";
 type ArchivedActionEntry = {
   id: string;
   cohortId: string;
@@ -357,9 +357,10 @@ function ReminderEmailPreview({
 
 export default function ActionsClient() {
   const router = useRouter();
-  const { profile, cohort, personalPlanState, allActions, userActions, completeAction, refetch } = useEngine();
+  const { profile, cohort, personalPlanState, allActions, userActions, completeAction, dismissPendingValidation, refetch } = useEngine();
   const [tab, setTab] = useState<Tab>("upcoming");
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<{
     title: string;
     pointsDelta?: number;
@@ -469,7 +470,11 @@ export default function ActionsClient() {
   const planCanPerform = planIsActive || planIsArchived;
   const scheduled = planCanPerform ? userActions.filter((item) => item.status === "scheduled" && actionMap.has(item.actionId)) : [];
   const completed = userActions.filter((item) => item.status === "success" && actionMap.has(item.actionId));
-  const notCompleted = userActions.filter((item) => (item.status === "failed" || item.status === "skipped") && actionMap.has(item.actionId));
+  // An action the daily scheduler auto-failed (date passed, no check-in) is
+  // unresolved, not a confirmed miss — it stays out of "Didn't complete"
+  // until the participant either validates it as done or confirms the miss.
+  const pendingValidation = userActions.filter((item) => item.status === "failed" && item.autoExpired && actionMap.has(item.actionId));
+  const notCompleted = userActions.filter((item) => (item.status === "failed" || item.status === "skipped") && !item.autoExpired && actionMap.has(item.actionId));
   const usedActionIds = new Set(userActions.map((item) => item.actionId));
   const currentActions = scheduled.map((item) => ({ userAction: item, action: actionMap.get(item.actionId)! }));
   const upcoming = planCanPerform ? allActions.filter((action) => action.isPersonal && !usedActionIds.has(action.id)) : [];
@@ -544,6 +549,18 @@ export default function ActionsClient() {
     }
   }
 
+  async function confirmNotDone(actionId: string) {
+    setBusy(true);
+    setDismissingId(actionId);
+    try {
+      const result = await dismissPendingValidation(actionId);
+      if (!result.error) setTab("not-completed");
+    } finally {
+      setBusy(false);
+      setDismissingId(null);
+    }
+  }
+
   if (!ready) return null;
 
   return <div className="reference-actions animate-in fade-in duration-700">
@@ -560,6 +577,7 @@ export default function ActionsClient() {
     <nav className="actions-tabs" aria-label="Action views">
       <button type="button" className={tab === "upcoming" ? "active" : ""} onClick={() => setTab("upcoming")}>Upcoming <span>{scheduled.length}</span></button>
       <button type="button" className={tab === "completed" ? "active" : ""} onClick={() => setTab("completed")}>Completed <span>{completed.length}</span></button>
+      <button type="button" className={tab === "pending-validation" ? "active" : ""} onClick={() => setTab("pending-validation")}>Pending validation <span>{pendingValidation.length}</span></button>
       <button type="button" className={tab === "not-completed" ? "active" : ""} onClick={() => setTab("not-completed")}>Didn&apos;t complete <span>{notCompleted.length}</span></button>
       <button type="button" className={tab === "archived" ? "active" : ""} onClick={() => setTab("archived")}>Archived <span>{archiveReady ? archivedActions.length : "…"}</span></button>
       <button type="button" className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>Plan overview</button>
@@ -688,6 +706,11 @@ export default function ActionsClient() {
     {tab === "completed" && <section className="actions-list-card actions-completed-card"><h3>Completed actions</h3><p>A record of the workplace actions you have finished.</p><div className="actions-completed-list">
       {completed.length === 0 && <div className="actions-empty-state"><CheckCircle2 size={28} /><strong>No completed actions yet</strong><p>Your completed workplace actions will appear here.</p></div>}
       {completed.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CheckCircle2 size={19} /><span><strong>{action.title}</strong><small>{item.completedLate ? `Completed late · no Wallet points${item.reflection ? ` · ${item.reflection}` : ""}` : `Completed on time${item.pointsDelta ? ` · +${item.pointsDelta} points` : ""}${item.reflection ? ` · ${item.reflection}` : ""}`}</small></span><em>{formatDate(item.completedAt || item.scheduledAt || item.scheduledDate)}</em></div>; })}
+    </div></section>}
+
+    {tab === "pending-validation" && <section className="actions-list-card actions-completed-card"><h3>Pending validation</h3><p>Your plan marked these missed automatically because their date passed before you checked in. If you actually did one, mark it done — it&apos;ll count in full: points go to your Team Action Bank and your Commitment Score goes back up.</p><div className="actions-completed-list actions-not-completed-list actions-pending-validation-list">
+      {pendingValidation.length === 0 && <div className="actions-empty-state"><Hourglass size={28} /><strong>Nothing awaiting validation</strong><p>Actions your plan auto-marks as missed will wait here for you to confirm.</p></div>}
+      {pendingValidation.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><Hourglass size={19} /><span><strong>{action.title}</strong><small>Auto-marked as missed on {formatDate(item.missedAt || item.scheduledAt || item.scheduledDate)} — did you do this?</small></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em><div className="actions-pending-validation-buttons"><button type="button" className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(item.actionId)}><Check size={16} /> I did it</button><button type="button" disabled={busy} aria-busy={dismissingId === item.actionId} onClick={() => void confirmNotDone(item.actionId)}>{dismissingId === item.actionId ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> Saving…</> : "No, I didn't"}</button></div></div>; })}
     </div></section>}
 
     {tab === "not-completed" && <section className="actions-list-card actions-completed-card"><h3>Actions not completed</h3><p>A record of workplace actions you skipped or could not complete.</p><div className="actions-completed-list actions-not-completed-list">

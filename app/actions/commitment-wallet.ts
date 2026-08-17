@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getMyCohorts } from "@/app/actions/cohorts";
 
@@ -114,4 +115,27 @@ export async function getMyCommitmentWallet(knownCohortId?: string): Promise<{
       error: error instanceof Error ? error.message : "Failed to load the Commitment Wallet",
     };
   }
+}
+
+/**
+ * Confirm a "Pending validation" action really wasn't done. Leaves its
+ * missed, 0-point Wallet settlement untouched — this only clears the
+ * auto-expired flag so it moves out of Pending validation and into
+ * Didn't complete for good.
+ */
+export async function dismissCommitmentWalletValidation(actionId: string): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError || !user) return { error: "Not authenticated" };
+
+  const { error } = await supabase.rpc("dismiss_my_commitment_wallet_validation", {
+    p_action_id: actionId,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/");
+  return {};
 }

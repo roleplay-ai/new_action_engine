@@ -4629,6 +4629,10 @@ input[type="range"] {
   color: #c94a4a;
 }
 
+.actions-pending-validation-list>div>svg {
+  color: #b8860b;
+}
+
 /* Journey cohort chat */
 .journey-chat-card {
   padding: 0;
@@ -14237,6 +14241,46 @@ input[type="range"] {
   cursor: not-allowed;
 }
 
+.actions-pending-validation-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.actions-pending-validation-buttons>.journey-primary-button {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.actions-pending-validation-buttons>button:not(.journey-primary-button) {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--journey-line);
+  border-radius: 10px;
+  color: var(--journey-ink);
+  background: #fff;
+  font-size: 9px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.actions-pending-validation-buttons>button:not(.journey-primary-button):hover {
+  border-color: var(--journey-line);
+  background: var(--journey-yellow-soft);
+}
+
+.actions-pending-validation-buttons>button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
 @media (max-width: 560px) {
   .actions-overview-meta {
     width: 100%;
@@ -14253,6 +14297,11 @@ input[type="range"] {
   }
 
   .actions-not-completed-list>div>button {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .actions-not-completed-list>div>.actions-pending-validation-buttons {
     grid-column: 2;
     justify-self: start;
   }

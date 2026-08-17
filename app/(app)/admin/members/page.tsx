@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { AdminPageClient } from "../../admin-page-client";
+import { AdminPageClient } from "../admin-page-client";
 
-export default async function EmailManagementPage() {
+export default async function AdminMembersPage() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -29,7 +29,7 @@ export default async function EmailManagementPage() {
       companies={companies ?? []}
       role={profile?.role ?? "user"}
       companyId={profile?.company_id ?? null}
-      view="email-management"
+      view="members"
     />
   );
 }

@@ -112,7 +112,7 @@ function TeamBucket({ summary }: { summary: CommitmentWalletSummary }) {
         className="wallet-team-bucket"
         viewBox="0 0 280 300"
         role="img"
-        aria-label={`${formatNumber(summary.teamPoints)} of ${formatNumber(summary.teamMaximumPoints)} possible cohort points: ${formatNumber(summary.teamPlanPoints)} from finalised plans and ${formatNumber(summary.teamActionPoints)} from on-time actions`}
+        aria-label={`${formatNumber(summary.teamPoints)} of ${formatNumber(summary.teamMaximumPoints)} possible batch points: ${formatNumber(summary.teamPlanPoints)} from finalised plans and ${formatNumber(summary.teamActionPoints)} from on-time actions`}
       >
         <defs>
           <clipPath id="commitmentWalletBucketClip">
@@ -174,12 +174,12 @@ function TeamWallet({ summary }: { summary: CommitmentWalletSummary }) {
       <div className="wallet-team-top">
         <div>
           <div className="wallet-label">Our shared impact</div>
-          <h2>Team Action Bank</h2>
+          <h2>Batch Action Bank</h2>
         </div>
         <div className="wallet-team-total">
           <strong>{formatNumber(summary.teamPoints)}</strong>
-          <span>Team Action Points</span>
-          <i className="wallet-team-badge">+50 · Just added to the team</i>
+          <span>Batch Action Points</span>
+          <i className="wallet-team-badge">+50 · Just added to the batch</i>
         </div>
       </div>
 
@@ -220,9 +220,9 @@ function WalletMilestones({ summary }: { summary: CommitmentWalletSummary }) {
     <section className="wallet-milestone-section">
       <div className="wallet-milestone-head">
         <div>
-          <span className="wallet-label">Team impact rewards</span>
+          <span className="wallet-label">Batch impact rewards</span>
           <h3>Turn consistent action into real-world good</h3>
-          <p>Every completed action moves your cohort closer to a meaningful reward.</p>
+          <p>Every completed action moves your batch closer to a meaningful reward.</p>
         </div>
       </div>
 
@@ -275,7 +275,7 @@ export default async function WalletPage() {
   return (
     <div className="commitment-wallet-page animate-in fade-in duration-700">
       <header className="wallet-page-heading">
-        <h1>Keep your promise.<br />Grow your team&apos;s impact.</h1>
+        <h1>Keep your promise.<br />Grow your batch&apos;s impact.</h1>
         <p>Stay consistent, build shared Action Points, and unlock meaningful rewards together.</p>
       </header>
 
@@ -293,7 +293,7 @@ export default async function WalletPage() {
           <span className="wallet-banner-icon"><Check size={22} /></span>
           <div>
             <small>Complete an action</small>
-            <strong>+50 Action Points to your Team Action Bank</strong>
+            <strong>+50 Action Points to your Batch Action Bank</strong>
           </div>
         </div>
       </section>
@@ -307,7 +307,7 @@ export default async function WalletPage() {
 
       <section className="wallet-footer-action">
         <div>
-          <strong>{summary.hasFinalisedPlan ? "Your next on-time action can move the team 50 points closer." : "Finalise your plan to establish your commitment and cohort maximum."}</strong>
+          <strong>{summary.hasFinalisedPlan ? "Your next on-time action can move the batch 50 points closer." : "Finalise your plan to establish your commitment and batch maximum."}</strong>
         </div>
         <Link href={summary.hasFinalisedPlan ? "/actions" : "/plan"}>
           {summary.hasFinalisedPlan ? "View my next action" : "Go to my plan"} <ArrowRight size={14} />

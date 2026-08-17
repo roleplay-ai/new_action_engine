@@ -16,6 +16,7 @@ import {
   completeAction as completeActionServer,
 } from "@/app/actions/user-actions";
 import { validateAction as validateActionServer } from "@/app/actions/validate-action";
+import { dismissCommitmentWalletValidation as dismissPendingValidationServer } from "@/app/actions/commitment-wallet";
 import { utcToISTDateTime } from "@/lib/timezone-utils";
 
 export type GenerationJobStatus = {
@@ -55,6 +56,8 @@ interface EngineContextType {
     completedLate?: boolean;
   }>;
   declineAction: (actionId: string) => Promise<void>;
+  /** Confirm a Pending validation action really wasn't done — moves it into Didn't complete for good. */
+  dismissPendingValidation: (actionId: string) => Promise<{ error?: string }>;
   retryAction: (actionId: string) => Promise<void>;
   validateAction: (userActionId: string, success: boolean, reflection?: string) => Promise<void>;
   addFeedItem: (type: FeedItem["type"], actionTitle: string) => Promise<void>;
@@ -89,6 +92,7 @@ function mapDbUserAction(row: {
   completed_at?: string | null;
   completed_late?: boolean | null;
   missed_at?: string | null;
+  auto_expired?: boolean | null;
   reflection: string | null;
   is_calendar_synced: boolean;
   points_delta?: number | null;
@@ -112,6 +116,7 @@ function mapDbUserAction(row: {
     completedAt: row.completed_at ?? undefined,
     completedLate: row.completed_late === true,
     missedAt: row.missed_at ?? undefined,
+    autoExpired: row.auto_expired === true,
     isCalendarSynced: row.is_calendar_synced ?? false,
     reflection: row.reflection ?? undefined,
     pointsDelta: row.points_delta ?? undefined,
@@ -404,6 +409,12 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
     if (!error) await refetch();
   };
 
+  const dismissPendingValidation = async (actionId: string) => {
+    const result = await dismissPendingValidationServer(actionId);
+    if (!result.error) await refetch();
+    return result;
+  };
+
   const retryAction = async () => { };
 
   const validateAction = async (userActionId: string, success: boolean, reflection?: string) => {
@@ -432,6 +443,7 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
       updatePoints,
       completeAction,
       declineAction,
+      dismissPendingValidation,
       retryAction,
       validateAction,
       addFeedItem,

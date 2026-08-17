@@ -4,9 +4,8 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleCheckBig, CircleX, Clock3, Coffee, Hand, Handshake, HeartHandshake, ListChecks, Loader2, Mail, Medal, MessageCircle, MessageCircleHeart, Settings2, TrendingDown, TrendingUp, Trophy, UsersRound, X } from "lucide-react";
+import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleCheckBig, CircleX, Clock3, Coffee, Hand, Handshake, HeartHandshake, Hourglass, ListChecks, Loader2, Mail, MessageCircle, MessageCircleHeart, Settings2, TrendingDown, TrendingUp, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
-import { getCohortLeaderboard, type LeaderboardEntry } from "@/app/actions/leaderboard";
 import { getMyPlanSettings, syncMyDuePersonalActions, type MyPlanSettings } from "@/app/actions/ai-actions";
 import {
   getMyCommitmentBuddies,
@@ -20,7 +19,7 @@ import { nextMilestoneFor, milestonePoints } from "@/lib/commitment-wallet-miles
 import { usePageLoading, usePageLoadingControls } from "@/components/PageLoadingProvider";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
 
-type Tab = "upcoming" | "completed" | "not-completed" | "archived" | "settings";
+type Tab = "upcoming" | "completed" | "pending-validation" | "not-completed" | "archived" | "settings";
 type ArchivedActionEntry = {
   id: string;
   cohortId: string;
@@ -122,7 +121,7 @@ function buddyPeriodLabels(track: CommitmentBuddyTrack) {
 function buddyStateMessage(buddy: CommitmentBuddyProgress, state: BuddyCardState) {
   const firstName = buddy.name.split(/\s+/)[0] || buddy.name;
   const { sincePhrase } = buddyPeriodLabels(buddy.track);
-  if (state === "pending-plan") return `${firstName} hasn't finalised their Wallet plan yet.`;
+  if (state === "pending-plan") return `${firstName} hasn't finalised their Commitment plan yet.`;
   if (state === "new") return `${firstName} just finalised their plan — no comparison yet.`;
   if (state === "dipped") return `${firstName}'s commitment has dipped ${sincePhrase}.`;
   return `${firstName} is keeping their commitment steady.`;
@@ -182,7 +181,7 @@ function CommitmentBuddyScoreCard({
       <div className="commitment-buddy-identity">
         <p className="commitment-buddy-eyebrow">Your Commitment Buddy</p>
         <h3 className="commitment-buddy-name">{buddy.name}</h3>
-        <p className="commitment-buddy-relation">You are each other&apos;s buddy</p>
+        <p className="commitment-buddy-relation">You are their commitment buddy</p>
       </div>
       <span className="commitment-buddy-tag">1-to-1</span>
     </div>
@@ -227,7 +226,7 @@ function CommitmentBuddyCard({
   if (group.buddies.length === 0) {
     return <section className="commitment-buddy-card actions-buddy-waiting">
       <div className="actions-buddy-waiting-icon"><UsersRound size={21} /></div>
-      <div><span>Your commitment buddy</span><strong>Waiting for another cohort member</strong><p>Your pairing will appear here as soon as another unpaired participant joins.</p></div>
+      <div><span>Your commitment buddy</span><strong>Waiting for another batch member</strong><p>Your pairing will appear here as soon as another unpaired participant joins.</p></div>
     </section>;
   }
 
@@ -358,9 +357,10 @@ function ReminderEmailPreview({
 
 export default function ActionsClient() {
   const router = useRouter();
-  const { profile, cohort, personalPlanState, allActions, userActions, completeAction, refetch } = useEngine();
+  const { profile, cohort, personalPlanState, allActions, userActions, completeAction, dismissPendingValidation, refetch } = useEngine();
   const [tab, setTab] = useState<Tab>("upcoming");
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<{
     title: string;
     pointsDelta?: number;
@@ -370,7 +370,6 @@ export default function ActionsClient() {
   const [busy, setBusy] = useState(false);
   const [skippingId, setSkippingId] = useState<string | null>(null);
   const [completeError, setCompleteError] = useState<string | null>(null);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [settings, setSettings] = useState<MyPlanSettings | null>(null);
   const [buddyGroup, setBuddyGroup] = useState<CommitmentBuddyGroup | null>(null);
   const [buddyReady, setBuddyReady] = useState(false);
@@ -393,27 +392,41 @@ export default function ActionsClient() {
   useEffect(() => {
     let cancelled = false;
     setReady(false);
-    setBuddyReady(false);
     void (async () => {
-      // These five calls are independent of each other, so run them together
-      // instead of waiting on the due-actions sync before starting the rest —
-      // and pass the cohort we already resolved via useEngine() so none of them
-      // has to re-derive "which cohort" from scratch.
-      const [syncResult, leaderboardResult, settingsResult, buddyResult, walletResult] = await Promise.allSettled([
+      // Current actions and Next reminders only need these two calls, so
+      // resolve just them and let the page paint immediately — commitment
+      // buddy and wallet data are fetched separately below and enhance the
+      // page once they land, instead of holding up first paint.
+      const [syncResult, settingsResult] = await Promise.allSettled([
         // Release any batch whose IST delivery date is today or earlier, so
         // Current actions does not wait for the once-daily cron.
         syncMyDuePersonalActions(cohort?.id),
-        cohort?.id ? getCohortLeaderboard(cohort.id) : Promise.resolve({ entries: [] as LeaderboardEntry[] }),
         getMyPlanSettings(cohort?.id),
-        cohort?.id ? getMyCommitmentBuddies(cohort.id) : Promise.resolve({ group: null }),
-        getMyCommitmentWallet(cohort?.id),
       ]);
       if (cancelled) return;
       const assigned = syncResult.status === "fulfilled" ? syncResult.value.assigned : 0;
       if (assigned > 0) await refetch();
       if (cancelled) return;
-      setLeaderboard(leaderboardResult.status === "fulfilled" ? leaderboardResult.value.entries ?? [] : []);
       setSettings(settingsResult.status === "fulfilled" ? settingsResult.value.settings : null);
+      setReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cohort?.id, refetch]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBuddyReady(false);
+    void (async () => {
+      // Background enhancement only: these feed the commitment-buddy sidebar
+      // and the reminder-email preview, both of which already render
+      // conditionally on buddyReady, so they can trail the main page.
+      const [buddyResult, walletResult] = await Promise.allSettled([
+        cohort?.id ? getMyCommitmentBuddies(cohort.id) : Promise.resolve({ group: null }),
+        getMyCommitmentWallet(cohort?.id),
+      ]);
+      if (cancelled) return;
       setBuddyGroup(buddyResult.status === "fulfilled" ? buddyResult.value.group : null);
       if (walletResult.status === "fulfilled") {
         setCommitmentScore({
@@ -428,12 +441,11 @@ export default function ActionsClient() {
         setCommitmentScore(null);
       }
       setBuddyReady(true);
-      setReady(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, [cohort?.id, refetch]);
+  }, [cohort?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -458,7 +470,11 @@ export default function ActionsClient() {
   const planCanPerform = planIsActive || planIsArchived;
   const scheduled = planCanPerform ? userActions.filter((item) => item.status === "scheduled" && actionMap.has(item.actionId)) : [];
   const completed = userActions.filter((item) => item.status === "success" && actionMap.has(item.actionId));
-  const notCompleted = userActions.filter((item) => (item.status === "failed" || item.status === "skipped") && actionMap.has(item.actionId));
+  // An action the daily scheduler auto-failed (date passed, no check-in) is
+  // unresolved, not a confirmed miss — it stays out of "Didn't complete"
+  // until the participant either validates it as done or confirms the miss.
+  const pendingValidation = userActions.filter((item) => item.status === "failed" && item.autoExpired && actionMap.has(item.actionId));
+  const notCompleted = userActions.filter((item) => (item.status === "failed" || item.status === "skipped") && !item.autoExpired && actionMap.has(item.actionId));
   const usedActionIds = new Set(userActions.map((item) => item.actionId));
   const currentActions = scheduled.map((item) => ({ userAction: item, action: actionMap.get(item.actionId)! }));
   const upcoming = planCanPerform ? allActions.filter((action) => action.isPersonal && !usedActionIds.has(action.id)) : [];
@@ -533,6 +549,18 @@ export default function ActionsClient() {
     }
   }
 
+  async function confirmNotDone(actionId: string) {
+    setBusy(true);
+    setDismissingId(actionId);
+    try {
+      const result = await dismissPendingValidation(actionId);
+      if (!result.error) setTab("not-completed");
+    } finally {
+      setBusy(false);
+      setDismissingId(null);
+    }
+  }
+
   if (!ready) return null;
 
   return <div className="reference-actions animate-in fade-in duration-700">
@@ -549,6 +577,7 @@ export default function ActionsClient() {
     <nav className="actions-tabs" aria-label="Action views">
       <button type="button" className={tab === "upcoming" ? "active" : ""} onClick={() => setTab("upcoming")}>Upcoming <span>{scheduled.length}</span></button>
       <button type="button" className={tab === "completed" ? "active" : ""} onClick={() => setTab("completed")}>Completed <span>{completed.length}</span></button>
+      <button type="button" className={tab === "pending-validation" ? "active" : ""} onClick={() => setTab("pending-validation")}>Pending validation <span>{pendingValidation.length}</span></button>
       <button type="button" className={tab === "not-completed" ? "active" : ""} onClick={() => setTab("not-completed")}>Didn&apos;t complete <span>{notCompleted.length}</span></button>
       <button type="button" className={tab === "archived" ? "active" : ""} onClick={() => setTab("archived")}>Archived <span>{archiveReady ? archivedActions.length : "…"}</span></button>
       <button type="button" className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>Plan overview</button>
@@ -585,12 +614,12 @@ export default function ActionsClient() {
               </strong>
               <p>
                 {planIsArchived
-                  ? "This archived cohort plan will not release more reminders."
+                  ? "This archived batch plan will not release more reminders."
                   : planIsActive || planCanPerform
                     ? "You have completed all your actions! It's time to log out"
                     : personalPlanState === "draft"
-                      ? "Finish reviewing and finalise this cohort's draft plan first."
-                      : "Build a practice plan for your current cohort to generate workplace actions."}
+                      ? "Finish reviewing and finalise this batch's draft plan first."
+                      : "Build a practice plan for your current batch to generate workplace actions."}
               </p>
             </div>
           </div>
@@ -621,7 +650,7 @@ export default function ActionsClient() {
               <h3>{planIsArchived ? "Remaining archived actions" : "Next reminders"}</h3>
               <p>{planIsArchived
                 ? "Reminder delivery is paused. You can still choose and complete any remaining action."
-                : "Actions scheduled after your current action in this cohort plan."}</p>
+                : "Actions scheduled after your current action in this batch plan."}</p>
               <div className="actions-upcoming-list plan-review-list">
                 {upcoming.length === 0 && <div className="actions-inline-empty">{planIsArchived ? "No archived actions remain." : "No additional actions are scheduled yet."}</div>}
                 {upcoming.map((action, index) => {
@@ -672,11 +701,6 @@ export default function ActionsClient() {
           </aside>
         )}
       </div>
-
-      {/* <aside className="actions-leaderboard-card"><div className="actions-card-heading"><div><h3>{cohort?.name ?? "Cohort"} leaderboard</h3><p>Current cohort balance · everyone starts at 1,000</p></div><Trophy size={20} /></div><div className="actions-leaderboard-list">
-        {leaderboard.length === 0 && <div className="actions-inline-empty">No rankings yet.</div>}
-        {leaderboard.slice(0, 8).map((entry, index) => <div className={entry.isCurrentUser ? "me" : ""} key={entry.id}><b>{index === 0 ? <Medal size={17} /> : index + 1}</b><i>{entry.name.substring(0, 2).toUpperCase()}</i><span><strong>{entry.name}{entry.isCurrentUser ? " (You)" : ""}</strong><small>{entry.totalPoints} points</small></span></div>)}
-      </div></aside> */}
     </div>}
 
     {tab === "completed" && <section className="actions-list-card actions-completed-card"><h3>Completed actions</h3><p>A record of the workplace actions you have finished.</p><div className="actions-completed-list">
@@ -684,14 +708,19 @@ export default function ActionsClient() {
       {completed.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CheckCircle2 size={19} /><span><strong>{action.title}</strong><small>{item.completedLate ? `Completed late · no Wallet points${item.reflection ? ` · ${item.reflection}` : ""}` : `Completed on time${item.pointsDelta ? ` · +${item.pointsDelta} points` : ""}${item.reflection ? ` · ${item.reflection}` : ""}`}</small></span><em>{formatDate(item.completedAt || item.scheduledAt || item.scheduledDate)}</em></div>; })}
     </div></section>}
 
+    {tab === "pending-validation" && <section className="actions-list-card actions-completed-card"><h3>Pending validation</h3><p>Your plan marked these missed automatically because their date passed before you checked in. If you actually did one, mark it done — it&apos;ll count in full: points go to your Batch Action Bank and your Commitment Score goes back up.</p><div className="actions-completed-list actions-not-completed-list actions-pending-validation-list">
+      {pendingValidation.length === 0 && <div className="actions-empty-state"><Hourglass size={28} /><strong>Nothing awaiting validation</strong><p>Actions your plan auto-marks as missed will wait here for you to confirm.</p></div>}
+      {pendingValidation.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><Hourglass size={19} /><span><strong>{action.title}</strong><small>Auto-marked as missed on {formatDate(item.missedAt || item.scheduledAt || item.scheduledDate)} — did you do this?</small></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em><div className="actions-pending-validation-buttons"><button type="button" className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(item.actionId)}><Check size={16} /> I did it</button><button type="button" disabled={busy} aria-busy={dismissingId === item.actionId} onClick={() => void confirmNotDone(item.actionId)}>{dismissingId === item.actionId ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> Saving…</> : "No, I didn't"}</button></div></div>; })}
+    </div></section>}
+
     {tab === "not-completed" && <section className="actions-list-card actions-completed-card"><h3>Actions not completed</h3><p>A record of workplace actions you skipped or could not complete.</p><div className="actions-completed-list actions-not-completed-list">
       {notCompleted.length === 0 && <div className="actions-empty-state"><CircleX size={28} /><strong>No uncompleted actions</strong><p>Actions you don&apos;t complete will appear here.</p></div>}
       {notCompleted.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CircleX size={19} /><span><strong>{action.title}</strong><small>{item.pointsDelta && item.pointsDelta < 0 ? `${item.pointsDelta} points · ` : ""}{item.reflection || (item.status === "skipped" ? "Skipped" : "Not completed")}</small></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em><button type="button" disabled={busy} onClick={() => setCompletingId(item.actionId)}>Complete late</button></div>; })}
     </div></section>}
 
-    {tab === "archived" && <section className="actions-list-card actions-completed-card actions-archive-card"><h3>Archived actions</h3><p>Actions from all your earlier cohort plans stay visible here, whichever cohort you are viewing.</p><div className="actions-archive-list">
+    {tab === "archived" && <section className="actions-list-card actions-completed-card actions-archive-card"><h3>Archived actions</h3><p>Actions from all your earlier batch plans stay visible here, whichever batch you are viewing.</p><div className="actions-archive-list">
       {!archiveReady && <div className="actions-empty-state"><span className="actions-inline-loader" /><strong>Loading archived actions</strong></div>}
-      {archiveReady && archivedActions.length === 0 && <div className="actions-empty-state"><ListChecks size={28} /><strong>No archived actions</strong><p>Actions from an earlier cohort will appear here after its plan is archived.</p></div>}
+      {archiveReady && archivedActions.length === 0 && <div className="actions-empty-state"><ListChecks size={28} /><strong>No archived actions</strong><p>Actions from an earlier batch will appear here after its plan is archived.</p></div>}
       {archivedActions.map((action) => {
         const isComplete = archivedActionIsComplete(action.status);
         return <article key={action.id}>
@@ -702,7 +731,7 @@ export default function ActionsClient() {
     </div></section>}
 
     {tab === "settings" && <section className="actions-list-card actions-settings-card"><div className="actions-card-heading"><div><h3>Plan overview</h3><p>Your current duration, pace and reminder schedule.</p></div><Settings2 size={20} /></div>
-      {!settings ? <div className="actions-empty-state"><CalendarDays size={28} /><strong>No plan for this cohort yet</strong><p>Generate, review and finalise your plan before actions appear here.</p>{cohort?.isCurrent && <Link href="/plan" className="journey-primary-button">Go to my plan</Link>}</div> : <><div className="actions-inline-empty">{settings.isArchived ? "Archived · reminders paused · plan settings are read-only" : settings.isActive ? "Finalised · plan settings are read-only" : "Draft · finalise this plan before reminders begin"}</div><div className="actions-settings-grid"><div><span>Action pace</span><strong>{settings.track === "weekly" ? "Weekly actions" : "Daily actions"}</strong></div><div><span>Plan duration</span><strong>{settings.durationWeeks} weeks</strong></div><div><span>Actions per {settings.track === "weekly" ? "week" : "weekday"}</span><strong>{settings.actionCount}</strong></div><div><span>Reminder</span><strong>{settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}{formatTime(settings.reminderTime)}</strong></div><div><span>Email notifications</span><strong className="actions-notification-status"><Mail size={15} />Email reminders on</strong></div><div><span>Total plan</span><strong>{settings.totalActionsPlanned} actions</strong></div><div><span>Starting points</span><strong>1,000</strong></div><div><span>Minimum score</span><strong>0</strong></div></div><p className="actions-points-rule">Every action is worth 50 points. Complete it on the assigned day to earn 100 points. Missing it deducts 50 points, and your balance never drops below zero. A late completion does not restore the deduction.</p></>}
+      {!settings ? <div className="actions-empty-state"><CalendarDays size={28} /><strong>No plan for this batch yet</strong><p>Generate, review and finalise your plan before actions appear here.</p>{cohort?.isCurrent && <Link href="/plan" className="journey-primary-button">Go to my plan</Link>}</div> : <><div className="actions-inline-empty">{settings.isArchived ? "Archived · reminders paused · plan settings are read-only" : settings.isActive ? "Finalised · plan settings are read-only" : "Draft · finalise this plan before reminders begin"}</div><div className="actions-settings-grid"><div><span>Action pace</span><strong>{settings.track === "weekly" ? "Weekly actions" : "Daily actions"}</strong></div><div><span>Plan duration</span><strong>{settings.durationWeeks} weeks</strong></div><div><span>Actions per {settings.track === "weekly" ? "week" : "weekday"}</span><strong>{settings.actionCount}</strong></div><div><span>Reminder</span><strong>{settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}{formatTime(settings.reminderTime)}</strong></div><div><span>Email notifications</span><strong className="actions-notification-status"><Mail size={15} />Email reminders on</strong></div><div><span>Total plan</span><strong>{settings.totalActionsPlanned} actions</strong></div></div></>}
     </section>}
 
     {typeof document !== "undefined" && planIsActive && buddyGroup?.revealPending && buddyGroup.buddies.length > 0 && createPortal((() => {
@@ -763,8 +792,8 @@ export default function ActionsClient() {
                 <h3>How you&apos;ll support each other</h3>
               </div>
               <p>{buddyGroup.buddies.length === 1
-                ? "You'll both see each other's Commitment Score."
-                : "You'll all see each other's Commitment Score."}</p>
+                ? "You'll see their Commitment Score."
+                : "You'll see their Commitment Scores."}</p>
 
               <div className="commitment-buddy-popup-states">
                 <div className="commitment-buddy-popup-state is-steady">

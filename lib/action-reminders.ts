@@ -283,7 +283,7 @@ export async function sendDailyActionReminders(
       claimId: String(claimId),
       ...due,
       actions,
-      cohortName: cohortNameMap.get(due.sub.cohort_id) ?? "Your cohort",
+      cohortName: cohortNameMap.get(due.sub.cohort_id) ?? "Your batch",
       batchName: batchModule?.batchName ?? undefined,
       moduleName: batchModule?.moduleName ?? undefined,
       companyName: company?.name ?? undefined,
@@ -301,6 +301,7 @@ export async function sendDailyActionReminders(
     baseUrl: ACTION_REMINDER_APP_URL,
     sentBy: null,
     loginPath: "/actions",
+    cohortIdForUser: (userId) => claimedByUser.get(userId)?.sub.cohort_id ?? null,
     getPerUserTemplateData: async (userId) => {
       const item = claimedByUser.get(userId);
       const walletSummary: WalletEmailSummary | null = item

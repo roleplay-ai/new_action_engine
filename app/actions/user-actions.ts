@@ -449,18 +449,37 @@ export async function completeAction(params: {
 
   const { data: existingUa } = await supabase
     .from("user_actions")
-    .select("status")
+    .select("status, auto_expired")
     .eq("user_id", user.id)
     .eq("action_id", actionId)
     .maybeSingle();
 
+  // An action the daily scheduler auto-failed (date passed, no check-in) is
+  // "pending validation", not a real miss the participant chose. Marking it
+  // done there validates it: unlike an ordinary late completion, this
+  // restores the commitment share and awards its points to the Team Action
+  // Bank, so it needs the dedicated RPC instead of the normal settlement one.
+  let walletValidation: { pointsAdded?: number; completedLate?: boolean } | undefined;
   if (actionRow.is_personal) {
-    const { error: walletError } = await supabase.rpc("settle_my_commitment_wallet_action", {
-      p_action_id: actionId,
-      p_success: success,
-      p_reflection: reflection || null,
-    });
-    if (walletError) return { error: walletError.message };
+    const isPendingValidation = existingUa?.status === "failed" && existingUa?.auto_expired === true;
+    if (success && isPendingValidation) {
+      const { data: validateResult, error: validateError } = await supabase.rpc(
+        "validate_my_commitment_wallet_action",
+        { p_action_id: actionId, p_reflection: reflection || null }
+      );
+      if (validateError) return { error: validateError.message };
+      const row = Array.isArray(validateResult) ? validateResult[0] : validateResult;
+      // Validating counts as a genuine completion — not a no-credit late one —
+      // so the celebration should not carry the "no points restored" copy.
+      walletValidation = { pointsAdded: row?.points_added ?? 50, completedLate: false };
+    } else {
+      const { error: walletError } = await supabase.rpc("settle_my_commitment_wallet_action", {
+        p_action_id: actionId,
+        p_success: success,
+        p_reflection: reflection || null,
+      });
+      if (walletError) return { error: walletError.message };
+    }
   } else {
     const { error: upsertError } = await supabase.from("user_actions").upsert(
       {
@@ -505,5 +524,8 @@ export async function completeAction(params: {
 
   revalidatePath("/");
   revalidatePath("/wallet");
-  return {};
+  return {
+    pointsDelta: walletValidation?.pointsAdded,
+    completedLate: walletValidation?.completedLate,
+  };
 }

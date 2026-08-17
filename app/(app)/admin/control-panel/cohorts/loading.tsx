@@ -1,6 +1,6 @@
 export default function CohortManagementLoading() {
   return (
-    <div className="max-w-7xl mx-auto w-full space-y-5" aria-label="Loading cohort management" aria-busy="true">
+    <div className="max-w-7xl mx-auto w-full space-y-5" aria-label="Loading batch management" aria-busy="true">
       <div className="flex items-start justify-between gap-4 py-2">
         <div className="space-y-3">
           <div className="h-3 w-36 rounded bg-zinc-200 animate-pulse" />

@@ -105,7 +105,7 @@ export default function AssignContentPanel({
           className="flex-1 px-3 py-2 border-2 border-black rounded-lg text-sm font-semibold disabled:opacity-50"
         >
           {cohortsLoading || cohorts.length === 0 ? (
-            <option value="">{cohortsLoading ? "Loading cohorts…" : "No cohorts in this company"}</option>
+            <option value="">{cohortsLoading ? "Loading batches…" : "No batches in this company"}</option>
           ) : (
             cohorts.map((c) => (
               <option key={c.id} value={c.id}>

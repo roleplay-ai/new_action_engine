@@ -10,7 +10,9 @@ const CONTENT_DOCUMENTS_BUCKET = "content-documents";
 
 const SUPERADMIN_EMAIL = (process.env.SUPERADMIN_EMAIL || "admin@actionengine").toLowerCase();
 
-async function ensureSuperadmin() {
+/** Superadmin (or superadmin email) or any company admin — both roles can
+ * author items in the (global) Prepare content library. */
+async function ensureContentAuthor() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -20,8 +22,8 @@ async function ensureSuperadmin() {
   const isSuperadminEmail = user.email?.toLowerCase() === SUPERADMIN_EMAIL;
 
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "superadmin" && !isSuperadminEmail) {
-    throw new Error("Forbidden: superadmin only");
+  if (profile?.role !== "superadmin" && profile?.role !== "admin" && !isSuperadminEmail) {
+    throw new Error("Forbidden: admin or superadmin only");
   }
   return { supabase, userId: user.id };
 }
@@ -58,7 +60,7 @@ export async function createSignedVideoUploadUrl(fileExtension: string): Promise
   publicUrl?: string;
 }> {
   try {
-    await ensureSuperadmin();
+    await ensureContentAuthor();
     const admin = createAdminClient();
 
     const safeExt = fileExtension.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "mp4";
@@ -83,7 +85,7 @@ export async function createSignedDocumentUploadUrl(): Promise<{
   publicUrl?: string;
 }> {
   try {
-    await ensureSuperadmin();
+    await ensureContentAuthor();
     const admin = createAdminClient();
     const path = `${crypto.randomUUID()}.pdf`;
     const { data, error } = await admin.storage.from(CONTENT_DOCUMENTS_BUCKET).createSignedUploadUrl(path);
@@ -104,7 +106,7 @@ export async function createVideoContentItem(params: {
   videoDurationSeconds?: number;
 }): Promise<{ error?: string; id?: string }> {
   try {
-    const { supabase, userId } = await ensureSuperadmin();
+    const { supabase, userId } = await ensureContentAuthor();
     const { data, error } = await supabase
       .from("prepare_content_items")
       .insert({
@@ -134,7 +136,7 @@ export async function createPrereadContentItem(params: {
   prereadBody?: string;
 }): Promise<{ error?: string; id?: string }> {
   try {
-    const { supabase, userId } = await ensureSuperadmin();
+    const { supabase, userId } = await ensureContentAuthor();
     const { data, error } = await supabase
       .from("prepare_content_items")
       .insert({
@@ -163,7 +165,7 @@ export async function createQuizContentItem(params: {
   questions: QuizQuestionInput[];
 }): Promise<{ error?: string; id?: string }> {
   try {
-    const { supabase, userId } = await ensureSuperadmin();
+    const { supabase, userId } = await ensureContentAuthor();
     if (!params.questions.length) return { error: "Quiz needs at least one question" };
     for (const q of params.questions) {
       if (!q.options.some((o) => o.isCorrect)) {
@@ -215,7 +217,7 @@ export async function updateContentItem(
   params: { title?: string; description?: string; badgeLabel?: string; isActive?: boolean; videoUrl?: string; prereadUrl?: string; prereadBody?: string }
 ): Promise<{ error?: string }> {
   try {
-    const { supabase } = await ensureSuperadmin();
+    const { supabase } = await ensureContentAuthor();
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (params.title != null) updates.title = params.title.trim();
     if (params.description != null) updates.description = params.description.trim() || null;
@@ -236,7 +238,7 @@ export async function updateContentItem(
 
 export async function archiveContentItem(id: string): Promise<{ error?: string }> {
   try {
-    const { supabase } = await ensureSuperadmin();
+    const { supabase } = await ensureContentAuthor();
     const { error } = await supabase.from("prepare_content_items").update({ is_active: false }).eq("id", id);
     if (error) return { error: error.message };
     revalidatePath("/superadmin");
@@ -248,7 +250,7 @@ export async function archiveContentItem(id: string): Promise<{ error?: string }
 
 export async function deleteContentItem(id: string): Promise<{ error?: string }> {
   try {
-    const { supabase } = await ensureSuperadmin();
+    const { supabase } = await ensureContentAuthor();
 
     const { data: inUse } = await supabase
       .from("cohort_prepare_assignments")
@@ -256,7 +258,7 @@ export async function deleteContentItem(id: string): Promise<{ error?: string }>
       .eq("content_item_id", id)
       .limit(1)
       .maybeSingle();
-    if (inUse) return { error: "Cannot delete: item is assigned to a cohort. Archive it instead." };
+    if (inUse) return { error: "Cannot delete: item is assigned to a batch. Archive it instead." };
 
     const { error } = await supabase.from("prepare_content_items").delete().eq("id", id);
     if (error) return { error: error.message };
@@ -272,7 +274,7 @@ export async function listContentItems(type?: PrepareContentType): Promise<{
   items?: PrepareContentItem[];
 }> {
   try {
-    const { supabase } = await ensureSuperadmin();
+    const { supabase } = await ensureContentAuthor();
     let query = supabase
       .from("prepare_content_items")
       .select("id, type, title, description, badge_label, is_active, video_url, video_duration_seconds, preread_url, preread_body")
@@ -302,7 +304,7 @@ export async function listContentItems(type?: PrepareContentType): Promise<{
 
 export async function getContentItemDetail(id: string): Promise<{ error?: string; item?: PrepareContentItem }> {
   try {
-    const { supabase } = await ensureSuperadmin();
+    const { supabase } = await ensureContentAuthor();
     const { data: row, error } = await supabase
       .from("prepare_content_items")
       .select("id, type, title, description, badge_label, is_active, video_url, video_duration_seconds, preread_url, preread_body")
@@ -388,7 +390,7 @@ export async function assignContentToCohort(cohortId: string, contentItemIds: st
     const { supabase, companyId: myCompanyId, role, userId } = await getAdminContext();
 
     const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).single();
-    if (!cohort) return { error: "Cohort not found" };
+    if (!cohort) return { error: "Batch not found" };
     if (role === "admin" && cohort.company_id !== myCompanyId) return { error: "Access denied" };
 
     // Idempotent assign: ON CONFLICT DO NOTHING (needs INSERT policy only).
@@ -416,7 +418,7 @@ export async function removeContentFromCohort(cohortId: string, contentItemId: s
     const { supabase, companyId: myCompanyId, role } = await getAdminContext();
 
     const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).single();
-    if (!cohort) return { error: "Cohort not found" };
+    if (!cohort) return { error: "Batch not found" };
     if (role === "admin" && cohort.company_id !== myCompanyId) return { error: "Access denied" };
 
     const { error } = await supabase

@@ -14,7 +14,7 @@ export default function CohortRoster({ roster }: { roster: CohortMember[] }) {
     <section>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <span className="tag tag--blue mb-2 inline-block">Your cohort</span>
+          <span className="tag tag--blue mb-2 inline-block">Your batch</span>
           <h2
             style={{
               fontSize: "var(--text-xl)", fontWeight: "var(--weight-bold)",

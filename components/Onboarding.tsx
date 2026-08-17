@@ -120,7 +120,7 @@ const Onboarding: React.FC<{
           <div className="plan-setup-field"><span>Reminder time</span><div className="plan-fixed-action-count"><strong>11:30 AM IST</strong><small>Fixed processing time</small></div></div>
         </div>
 
-        <div className="plan-setup-summary"><div><strong>{cadenceSummary}</strong><small>Generated from your answers and cohort context</small></div><b>{totalActions} actions</b></div>
+        <div className="plan-setup-summary"><div><strong>{cadenceSummary}</strong><small>Generated from your answers and batch context</small></div><b>{totalActions} actions</b></div>
 
         {planWarning && <p className="plan-setup-warning">{planWarning}</p>}
         {errorMsg && <p className="plan-setup-error">{errorMsg}</p>}

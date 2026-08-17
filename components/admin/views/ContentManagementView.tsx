@@ -27,7 +27,10 @@ const TYPE_META: Record<PrepareContentType, { label: string; icon: typeof PlayCi
 };
 
 export function ContentManagementView({ role }: ContentManagementViewProps) {
-  const isSuperadmin = role === "superadmin";
+  // Both admin and superadmin can fully author the (global) content library —
+  // this view only ever renders for one of those two roles (route-gated in
+  // app/(app)/admin/layout.tsx), so canManage is always true in practice.
+  const canManage = role === "superadmin" || role === "admin";
   const [items, setItems] = useState<PrepareContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +41,7 @@ export function ContentManagementView({ role }: ContentManagementViewProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = isSuperadmin ? await listContentItems() : await listActiveLibraryItems();
+      const res = canManage ? await listContentItems() : await listActiveLibraryItems();
       if (res.error) setError(res.error);
       else setItems(res.items ?? []);
     } catch (e) {
@@ -46,7 +49,7 @@ export function ContentManagementView({ role }: ContentManagementViewProps) {
     } finally {
       setLoading(false);
     }
-  }, [isSuperadmin]);
+  }, [canManage]);
 
   useEffect(() => {
     refresh();
@@ -84,21 +87,20 @@ export function ContentManagementView({ role }: ContentManagementViewProps) {
         <h2 className="text-xl font-bold" style={{ color: "var(--color-text-primary)" }}>
           Content Management
         </h2>
-        {isSuperadmin && (
+        {canManage && (
           <button onClick={() => setCreating((v) => !v)} className="btn btn--sm btn--primary">
             <Plus size={14} strokeWidth={2.5} /> New Content
           </button>
         )}
       </div>
 
-      {!isSuperadmin && (
+      {!canManage && (
         <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-          Only superadmin can add or edit content items. You can view the library here and attach items to your
-          cohorts from Cohort Management.
+          You can view the library here and attach items to your cohorts from Cohort Management.
         </p>
       )}
 
-      {creating && isSuperadmin && (
+      {creating && canManage && (
         <CreateContentForm
           onCreated={() => {
             setCreating(false);
@@ -120,7 +122,7 @@ export function ContentManagementView({ role }: ContentManagementViewProps) {
       ) : items.length === 0 ? (
         <div className="card card--flat text-center">
           <p className="card__subtitle mb-0">
-            {isSuperadmin ? "No content yet. Create a video, quiz, or pre-read above." : "No content available yet."}
+            {canManage ? "No content yet. Create a video, quiz, or pre-read above." : "No content available yet."}
           </p>
         </div>
       ) : (
@@ -144,7 +146,7 @@ export function ContentManagementView({ role }: ContentManagementViewProps) {
                     )}
                   </div>
                 </div>
-                {isSuperadmin && (
+                {canManage && (
                   <div className="flex gap-2 shrink-0">
                     <button
                       onClick={() => handleArchiveToggle(item)}

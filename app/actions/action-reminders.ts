@@ -425,6 +425,7 @@ export async function bulkSendUpcomingActionReminders(
           baseUrl: ACTION_REMINDER_APP_URL,
           sentBy: null,
           loginPath: "/actions",
+          cohortIdForUser: () => reminder.cohortId,
           getPerUserTemplateData: async () => {
             const walletSummary = await fetchWalletEmailSummary(admin, reminder.userId, reminder.cohortId);
             return {

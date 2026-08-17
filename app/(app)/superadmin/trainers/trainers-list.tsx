@@ -54,7 +54,7 @@ export default function TrainersList({ trainers }: { trainers: TrainerRow[] }) {
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm("Remove this trainer? Cohorts currently assigned to them will show no trainer, and their login (if any) stops working.")) return;
+    if (!window.confirm("Remove this trainer? Batches currently assigned to them will show no trainer, and their login (if any) stops working.")) return;
     setError(null);
     setBusyId(id);
     try {
@@ -141,7 +141,7 @@ export default function TrainersList({ trainers }: { trainers: TrainerRow[] }) {
                       <div className="min-w-0">
                         <p className="font-bold text-slate-900 truncate">{trainer.name}</p>
                         <p className="text-xs text-slate-500 truncate">
-                          {trainer.cohortCount} {trainer.cohortCount === 1 ? "cohort" : "cohorts"}
+                          {trainer.cohortCount} {trainer.cohortCount === 1 ? "batch" : "batches"}
                           {trainer.loginEmail ? ` · Login: ${trainer.loginEmail}` : " · No login yet"}
                         </p>
                       </div>

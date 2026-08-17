@@ -12,7 +12,7 @@ export async function uploadCohortLogo(cohortId: string, file: File): Promise<st
 
   const extension = file.name.split(".").pop() || "png";
   const signed = await createSignedCohortLogoUploadUrl(cohortId, extension);
-  if (signed.error || !signed.path || !signed.token || !signed.publicUrl) throw new Error(signed.error || "Failed to prepare cohort logo upload");
+  if (signed.error || !signed.path || !signed.token || !signed.publicUrl) throw new Error(signed.error || "Failed to prepare batch logo upload");
 
   const supabase = createClient();
   const { error } = await supabase.storage.from("cohort-logos").uploadToSignedUrl(signed.path, signed.token, file, { contentType: file.type });

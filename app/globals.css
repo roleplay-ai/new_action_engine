@@ -3786,6 +3786,15 @@ input[type="range"] {
   max-width: 900px;
 }
 
+.actions-completed-card>h3 {
+  font-size: 19px;
+}
+
+.actions-completed-card>p {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .actions-completed-list {
   display: grid;
   gap: 9px;
@@ -3812,18 +3821,19 @@ input[type="range"] {
 }
 
 .actions-completed-list strong {
-  font-size: 11px;
+  font-size: 15px;
+  line-height: 1.35;
 }
 
 .actions-completed-list small {
   margin-top: 3px;
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .actions-completed-list em {
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 12px;
   font-style: normal;
 }
 
@@ -4627,6 +4637,10 @@ input[type="range"] {
 
 .actions-not-completed-list>div>svg {
   color: #c94a4a;
+}
+
+.actions-pending-validation-list>div>svg {
+  color: #b8860b;
 }
 
 /* Journey cohort chat */
@@ -10596,7 +10610,7 @@ input[type="range"] {
 
 .cohort-admin-layout {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
   align-items: start;
   overflow: hidden;
   border: 1px solid var(--cohort-border);
@@ -10614,8 +10628,8 @@ input[type="range"] {
 
 .cohort-admin-directory-head {
   display: grid;
-  gap: 13px;
-  padding: 18px;
+  gap: 10px;
+  padding: 12px;
   border-bottom: 1px solid var(--cohort-border);
 }
 
@@ -10640,10 +10654,10 @@ input[type="range"] {
 
 .cohort-admin-search {
   display: flex;
-  min-height: 38px;
+  min-height: 32px;
   align-items: center;
   gap: 8px;
-  padding: 0 10px;
+  padding: 0 8px;
   border: 1px solid var(--cohort-border);
   border-radius: 9px;
   background: #fff;
@@ -10682,10 +10696,10 @@ input[type="range"] {
 .cohort-admin-row {
   display: grid;
   width: 100%;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 11px;
-  padding: 14px 15px;
+  gap: 8px;
+  padding: 8px 12px;
   border: 0;
   border-bottom: 1px solid var(--cohort-border);
   background: transparent;
@@ -10707,7 +10721,20 @@ input[type="range"] {
   box-shadow: inset 3px 0 0 var(--cohort-accent);
 }
 
-.cohort-admin-cohort-mark,
+.cohort-admin-cohort-mark {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border: 1px solid #dfd8dc;
+  border-radius: 8px;
+  background: #fff;
+  color: #625b61;
+  font-size: 9px;
+  font-weight: 850;
+}
+
 .cohort-admin-avatar {
   display: grid;
   width: 38px;
@@ -10731,7 +10758,7 @@ input[type="range"] {
 .cohort-admin-row-copy {
   display: grid;
   min-width: 0;
-  gap: 3px;
+  gap: 1px;
 }
 
 .cohort-admin-row-name-line {
@@ -10796,10 +10823,10 @@ input[type="range"] {
 
 .cohort-admin-row-meta {
   display: flex;
-  gap: 11px;
-  margin-top: 3px;
+  gap: 8px;
+  margin-top: 1px;
   color: #827a80;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .cohort-admin-row-meta span {
@@ -10819,6 +10846,102 @@ input[type="range"] {
 .cohort-admin-workspace {
   min-width: 0;
   height: 100%;
+}
+
+.cohort-admin-page--fill {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 13rem);
+}
+
+.cohort-admin-layout--chat {
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+  gap: 12px;
+  padding: 12px;
+}
+
+.cohort-admin-layout--chat .cohort-admin-directory {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  max-height: 260px;
+  overflow: hidden;
+  border: 1px solid var(--cohort-border);
+  border-radius: 12px;
+}
+
+.cohort-admin-layout--chat .cohort-admin-list {
+  flex: 1 1 auto;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.cohort-admin-layout--chat .cohort-admin-workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 4px 8px 8px;
+}
+
+.cohort-admin-chat-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.cohort-admin-chat-shell .journey-chat-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  margin: 0;
+  padding: 18px 20px 16px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.cohort-admin-chat-shell .journey-chat-heading {
+  flex: 0 0 auto;
+}
+
+.cohort-admin-chat-shell .journey-chat-messages {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  height: auto;
+  margin-top: 12px;
+}
+
+.cohort-admin-chat-shell .journey-chat-state {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.cohort-admin-chat-shell .journey-chat-composer {
+  flex: 0 0 auto;
+  margin-top: 12px;
+}
+
+.cohort-admin-chat-shell .journey-chat-composer textarea {
+  resize: none;
+}
+
+.cohort-admin-trainer-panel {
+  padding: 20px;
+  min-height: 480px;
 }
 
 .cohort-admin-placeholder,
@@ -11801,7 +11924,7 @@ input[type="range"] {
 }
 
 .cohort-admin-row--skeleton {
-  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-columns: 28px minmax(0, 1fr);
 }
 
 .cohort-admin-spin {
@@ -11822,7 +11945,7 @@ input[type="range"] {
 
 @media (max-width: 1080px) {
   .cohort-admin-layout {
-    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-columns: 220px minmax(0, 1fr);
   }
 
   .cohort-admin-picker-grid {
@@ -11845,6 +11968,18 @@ input[type="range"] {
 
   .cohort-admin-layout {
     grid-template-columns: 1fr;
+  }
+
+  .cohort-admin-page--fill {
+    min-height: 0;
+  }
+
+  .cohort-admin-layout--chat {
+    min-height: 560px;
+  }
+
+  .cohort-admin-layout--chat .cohort-admin-chat-shell .journey-chat-messages {
+    min-height: 240px;
   }
 
   .cohort-admin-directory {
@@ -14116,6 +14251,46 @@ input[type="range"] {
   cursor: not-allowed;
 }
 
+.actions-pending-validation-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.actions-pending-validation-buttons>.journey-primary-button {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.actions-pending-validation-buttons>button:not(.journey-primary-button) {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--journey-line);
+  border-radius: 10px;
+  color: var(--journey-ink);
+  background: #fff;
+  font-size: 9px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.actions-pending-validation-buttons>button:not(.journey-primary-button):hover {
+  border-color: var(--journey-line);
+  background: var(--journey-yellow-soft);
+}
+
+.actions-pending-validation-buttons>button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
 @media (max-width: 560px) {
   .actions-overview-meta {
     width: 100%;
@@ -14132,6 +14307,11 @@ input[type="range"] {
   }
 
   .actions-not-completed-list>div>button {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .actions-not-completed-list>div>.actions-pending-validation-buttons {
     grid-column: 2;
     justify-self: start;
   }
@@ -17687,6 +17867,128 @@ textarea.commitment-buddy-contact-selectable {
 .trainer-tag-creator button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.trainer-tag-manager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+}
+
+.trainer-tag-manager-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 750;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  flex: 0 0 auto;
+}
+
+.trainer-tag-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trainer-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 12px;
+  border-radius: 999px;
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.trainer-tag-chip button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.trainer-tag-chip button:hover:not(:disabled) {
+  color: #ED4551;
+  background: rgba(237, 69, 81, 0.12);
+}
+
+.trainer-tag-chip button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trainer-member-row--dirty {
+  border-color: var(--bright-amber);
+  background: rgba(255, 206, 0, 0.06);
+}
+
+.trainer-tag-save-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--color-bg-base);
+  border: 1.5px solid var(--color-border-strong);
+  position: sticky;
+  bottom: 8px;
+}
+
+.trainer-tag-save-bar > span {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.trainer-tag-save-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trainer-tag-save-bar-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+}
+
+.trainer-tag-save-bar-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trainer-tag-save-bar-actions button:last-child {
+  background: var(--bright-amber);
+  color: var(--shadow-grey);
+}
+
+.trainer-tag-save-bar-discard {
+  background: transparent !important;
+  color: var(--color-text-muted) !important;
+  border: 1.5px solid var(--color-border-strong) !important;
 }
 
 /* Cohort locked notice — shown in place of My Plan / Actions / Wallet while

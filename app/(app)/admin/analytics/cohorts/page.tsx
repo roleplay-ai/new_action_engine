@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AdminPageClient } from "../../admin-page-client";
 
-export default async function ActionMetricsPage() {
+export default async function CohortAnalyticsPage() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -29,7 +29,7 @@ export default async function ActionMetricsPage() {
       companies={companies ?? []}
       role={profile?.role ?? "user"}
       companyId={profile?.company_id ?? null}
-      view="action-metrics"
+      view="cohort-analytics"
     />
   );
 }

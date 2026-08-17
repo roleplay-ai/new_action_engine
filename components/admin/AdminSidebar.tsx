@@ -11,6 +11,9 @@ import {
   ChevronDown,
   ChevronRight,
   LogOut,
+  MessageSquareText,
+  Megaphone,
+  Users,
 } from "lucide-react";
 
 interface NavItem {
@@ -33,8 +36,8 @@ const navItems: NavItem[] = [
     label: "Analytics",
     icon: BarChart3,
     children: [
+      { id: "cohorts-analytics", label: "Batches", href: "/admin/analytics/cohorts" },
       { id: "engagement", label: "Engagement", href: "/admin/analytics/engagement" },
-      { id: "action-metrics", label: "Action Metrics", href: "/admin/analytics/action-metrics" },
     ],
   },
   {
@@ -42,12 +45,27 @@ const navItems: NavItem[] = [
     label: "Control Panel",
     icon: Settings2,
     children: [
-      { id: "action-management", label: "Action Management", href: "/admin/control-panel/actions" },
-      { id: "cohort-management", label: "Cohort Management", href: "/admin/control-panel/cohorts" },
+      { id: "cohort-management", label: "Batch Management", href: "/admin/control-panel/cohorts" },
       { id: "content-management", label: "Content Management", href: "/admin/control-panel/content" },
-      { id: "user-management", label: "User Management", href: "/admin/control-panel/users" },
-      { id: "email-management", label: "Email Management", href: "/admin/control-panel/email" },
     ],
+  },
+  {
+    id: "conversations",
+    label: "Conversations",
+    icon: MessageSquareText,
+    href: "/admin/conversations",
+  },
+  {
+    id: "notices",
+    label: "Announcements",
+    icon: Megaphone,
+    href: "/admin/notices",
+  },
+  {
+    id: "members",
+    label: "Members & tags",
+    icon: Users,
+    href: "/admin/members",
   },
 ];
 

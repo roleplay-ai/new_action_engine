@@ -26,7 +26,7 @@ export default async function ContentLibraryPage() {
   return (
     <div className="superadmin-page">
       <div className="superadmin-page-heading">
-        <div><h1>Content library</h1><p>Build reusable preparation content and distribute it to cohorts.</p></div>
+        <div><h1>Content library</h1><p>Build reusable preparation content and distribute it to batches.</p></div>
         <CreateContentForm />
       </div>
 
@@ -47,7 +47,7 @@ export default async function ContentLibraryPage() {
         )}
       </section>
 
-      <section><div className="superadmin-section-heading standalone"><div><h2>Assign to a cohort</h2><p>Choose an organisation, cohort, and active learning items.</p></div></div><AssignContentPanel companies={companies ?? []} items={contentItems} /></section>
+      <section><div className="superadmin-section-heading standalone"><div><h2>Assign to a batch</h2><p>Choose an organisation, batch, and active learning items.</p></div></div><AssignContentPanel companies={companies ?? []} items={contentItems} /></section>
     </div>
   );
 }

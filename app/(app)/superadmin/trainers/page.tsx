@@ -24,7 +24,7 @@ export default async function TrainersPage() {
   return (
     <div className="superadmin-page">
       <div className="superadmin-page-heading">
-        <div><h1>Trainers</h1><p>Build the trainer roster, assign one to each cohort from Cohort Management, then give them a login below.</p></div>
+        <div><h1>Trainers</h1><p>Build the trainer roster, assign one to each batch from Batch Management, then give them a login below.</p></div>
         <CreateTrainerForm />
       </div>
 
@@ -37,7 +37,7 @@ export default async function TrainersPage() {
           <TrainersList trainers={trainerList} />
         ) : (
           <div className="superadmin-empty">
-            <UserRound size={26} /><strong>No trainers yet</strong><p>Add a trainer's name and photo to assign them to a cohort.</p>
+            <UserRound size={26} /><strong>No trainers yet</strong><p>Add a trainer's name and photo to assign them to a batch.</p>
           </div>
         )}
       </section>

@@ -4,11 +4,10 @@
  * agree on the same thresholds and copy.
  */
 export const MILESTONES = [
-  { percent: 5, headline: "A tree gets planted", feeling: "Your team helped nature grow.", icon: "🌱" },
-  { percent: 10, headline: "A child gets a meal", feeling: "Your team helped feed a hungry child.", icon: "🍲" },
-  { percent: 25, headline: "An elder gets a meal", feeling: "Your team helped care for an elder.", icon: "🍱" },
-  { percent: 50, headline: "Someone gets crutches", feeling: "Your team helped a person walk again.", icon: "🩼" },
-  { percent: 75, headline: "A child goes to school", feeling: "Your team is helping a child study for 6 months.", icon: "🏫" },
+  { percent: 25, headline: "A tree gets planted", feeling: "Your team helped nature grow.", icon: "🌱" },
+  { percent: 50, headline: "A child gets a meal", feeling: "Your team helped feed a hungry child.", icon: "🍲" },
+  { percent: 75, headline: "An elder gets a meal", feeling: "Your team helped care for an elder.", icon: "🍱" },
+  { percent: 100, headline: "Someone gets crutches", feeling: "Your team helped a person walk again.", icon: "🩼" }
 ] as const;
 
 export function milestonePoints(maximum: number, percent: number): number {

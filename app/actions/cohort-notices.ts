@@ -110,6 +110,8 @@ export async function postCohortNotice(cohortId: string, message: string): Promi
 
     revalidatePath("/journey");
     revalidatePath("/trainer/notices");
+    revalidatePath("/admin/notices");
+    revalidatePath("/admin");
     return {
       notice: {
         id: row.id,
@@ -125,7 +127,7 @@ export async function postCohortNotice(cohortId: string, message: string): Promi
   }
 }
 
-/** Remove a notice: its author, or a superadmin. */
+/** Remove a notice: its author, a company admin of that batch, or a superadmin. */
 export async function deleteCohortNotice(noticeId: string): Promise<{ error?: string }> {
   try {
     const supabase = await createClient();
@@ -139,6 +141,8 @@ export async function deleteCohortNotice(noticeId: string): Promise<{ error?: st
 
     revalidatePath("/journey");
     revalidatePath("/trainer/notices");
+    revalidatePath("/admin/notices");
+    revalidatePath("/admin");
     return {};
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not remove the notice" };

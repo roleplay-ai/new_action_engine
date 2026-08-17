@@ -2,7 +2,7 @@ import { UserRound } from "lucide-react";
 import { getMyCohort, getMyCohorts } from "@/app/actions/cohorts";
 import { listParticipantTags } from "@/app/actions/participant-tags";
 import { TrainerCohortSwitcher } from "@/components/trainer/TrainerCohortSwitcher";
-import MembersClient from "./members-client";
+import MembersClient from "@/components/trainer/MembersClient";
 
 export default async function TrainerMembersPage() {
   const [{ cohorts, error }, cohortResult, tagsResult] = await Promise.all([
@@ -25,7 +25,7 @@ export default async function TrainerMembersPage() {
         <div className="trainer-empty">
           <UserRound size={26} />
           <strong>No batch assigned yet</strong>
-          <p>Ask a superadmin to assign you as the trainer for a cohort in Cohort Management.</p>
+          <p>Ask a superadmin to assign you as the trainer for a batch in Batch Management.</p>
         </div>
       ) : (
         <MembersClient cohortId={selected.id} initialRoster={cohortResult.roster ?? []} tags={tagsResult.tags ?? []} />

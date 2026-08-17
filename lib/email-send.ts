@@ -68,6 +68,18 @@ function safeTemplateDataSummary(data: Record<string, unknown>) {
   };
 }
 
+function readResendMessageId(sendData: unknown): string | null {
+  if (!sendData || typeof sendData !== "object") return null;
+  const record = sendData as Record<string, unknown>;
+  if (typeof record.id === "string" && record.id) return record.id;
+  const nested = record.data;
+  if (nested && typeof nested === "object") {
+    const nestedId = (nested as Record<string, unknown>).id;
+    if (typeof nestedId === "string" && nestedId) return nestedId;
+  }
+  return null;
+}
+
 export async function sendTemplateToUsers({
   userIds,
   templateId,
@@ -78,6 +90,7 @@ export async function sendTemplateToUsers({
   getPerUserTemplateData,
   includeStoredCredentials = false,
   loginPath,
+  cohortIdForUser,
 }: {
   userIds: string[];
   /** Key of a template defined in lib/email-templates.ts (e.g. "weekly_challenges", "credentials"). */
@@ -91,6 +104,8 @@ export async function sendTemplateToUsers({
   includeStoredCredentials?: boolean;
   /** Optional safe in-app destination after auto-login, e.g. "/actions". */
   loginPath?: string;
+  /** Prefer this batch over profiles.selected_cohort_id when logging the send. */
+  cohortIdForUser?: (userId: string) => string | null | undefined;
 }): Promise<SendToUsersResult[]> {
   if (!isEmailTemplateKey(templateId)) {
     return userIds.map((userId) => ({
@@ -121,6 +136,15 @@ export async function sendTemplateToUsers({
       { key: p.persistent_login_key, fullName: p.full_name, cohortId: p.selected_cohort_id ?? p.current_cohort_id },
     ])
   );
+
+  if (cohortIdForUser) {
+    for (const userId of userIds) {
+      const override = cohortIdForUser(userId);
+      if (!override) continue;
+      const existing = profileMap.get(userId);
+      if (existing) existing.cohortId = override;
+    }
+  }
 
   // Each recipient's email shows their cohort's assigned trainer as the
   // sender name (falls back to "Nudgeable" when the cohort has none, or the
@@ -256,7 +280,7 @@ export async function sendTemplateToUsers({
       const senderName = (trainerId ? trainerNameById.get(trainerId) : undefined) ?? "Nudgeable";
 
       const { subject, html } = renderEmailTemplate(templateKey, dynamicTemplateData);
-      const { error: sendError } = await resend.emails.send({
+      const { data: sendData, error: sendError } = await resend.emails.send({
         to: email,
         from: buildFromHeader(fromEmail, senderName),
         subject,
@@ -264,13 +288,27 @@ export async function sendTemplateToUsers({
       });
       if (sendError) throw new Error(sendError.message);
 
-      await admin.from("email_campaign_logs").insert({
+      const resendMessageId = readResendMessageId(sendData);
+      if (isEmailDebugEnabled() && !resendMessageId) {
+        console.log("[email-send] Resend send succeeded but no message id on response", {
+          userId,
+          templateId,
+          sendData,
+        });
+      }
+
+      const { error: logError } = await admin.from("email_campaign_logs").insert({
         user_id: userId,
         email,
         template_id: templateId,
         status: "sent",
         sent_by: sentBy,
+        resend_message_id: resendMessageId,
+        cohort_id: prof?.cohortId ?? null,
       });
+      if (logError) {
+        console.error("[email-send] failed to write campaign log", logError.message);
+      }
 
       results.push({ userId, email, success: true });
     } catch (err) {
@@ -292,6 +330,7 @@ export async function sendTemplateToUsers({
         status: "failed",
         error_message: errorMessage,
         sent_by: sentBy,
+        cohort_id: prof?.cohortId ?? null,
       });
 
       results.push({ userId, email, success: false, error: errorMessage });

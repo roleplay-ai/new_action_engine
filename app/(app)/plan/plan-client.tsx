@@ -257,17 +257,17 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
       : hasDraft
         ? "Review my draft plan"
         : canBuildPlan
-          ? "Build my plan for this cohort"
-          : "No plan was created for this cohort";
+          ? "Build my plan for this batch"
+          : "No plan was created for this batch";
   const summary = isPlanActive
-    ? `${generatedActions.length} personalised actions are part of this cohort's read-only practice plan.`
+    ? `${generatedActions.length} personalised actions are part of this batch's read-only practice plan.`
     : isPlanArchived
-      ? "Reminders are paused, but you can revisit this cohort and complete any remaining released actions."
+      ? "Reminders are paused, but you can revisit this batch and complete any remaining released actions."
       : hasDraft
         ? "Drag actions into your preferred order, check their planned dates, and edit or remove anything before finalising."
         : canBuildPlan
           ? "Your saved notes will shape the plan. Choose only its duration, action pace and reminder schedule."
-          : "Switch to your current cohort to build a new plan.";
+          : "Switch to your current batch to build a new plan.";
 
   return <section className={`journey-page plan-page${embedded ? " unified-plan-section" : ""}`} id={embedded ? "action-plan" : undefined}>
     {!embedded && <div className="participant-page-heading"><h1>My Plan</h1><p>Shape what you want to build, review every suggested action, then activate the plan when it feels right.</p></div>}
@@ -286,9 +286,9 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
       ]);
     }} />}
 
-    {!showInitialSetup && !editingSetup && !isPlanActive && !hasDraft && <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your cohort"}</span><h2>{heading}</h2><p>{summary}</p></div></div>}
+    {!showInitialSetup && !editingSetup && !isPlanActive && !hasDraft && <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your batch"}</span><h2>{heading}</h2><p>{summary}</p></div></div>}
 
-    {canBuildPlan && hasArchivedPlans && <div className="journey-card plan-history-notice"><strong>Your earlier cohort plans are safely archived.</strong><p>Use the cohort switcher above whenever you want to revisit earlier actions and complete any that remain.</p></div>}
+    {canBuildPlan && hasArchivedPlans && <div className="journey-card plan-history-notice"><strong>Your earlier batch plans are safely archived.</strong><p>Use the batch switcher above whenever you want to revisit earlier actions and complete any that remain.</p></div>}
 
     {generationJob && <div className="journey-card plan-generation-status" role="status"><GenerationStatus job={generationJob} /><p>Keep this page open or come back later. New actions will appear here automatically as each batch is ready.</p></div>}
     {hasDraft && generationError && !generationJob && <div className="journey-card plan-generation-error" role="alert"><div><X size={18} /><span><strong>Generation paused</strong><small>{generationError}</small></span></div><button type="button" onClick={openPlanSetup}>Try again</button></div>}
@@ -360,7 +360,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
 
     {isPlanActive && <div className="plan-active-callout"><div><Check size={20} /><span><strong>My actions are live</strong><small>Current actions and future reminders are available on the Actions page.</small></span></div><Link href="/actions" className="journey-primary-button">View my actions</Link></div>}
 
-    {isPlanArchived && <div className="plan-active-callout"><div><Check size={20} /><span><strong>Archived cohort plan</strong><small>This plan is view-only. Its reminder schedule will not release new actions.</small></span></div><Link href="/actions" className="journey-primary-button">Revisit remaining actions</Link></div>}
+    {isPlanArchived && <div className="plan-active-callout"><div><Check size={20} /><span><strong>Archived batch plan</strong><small>This plan is view-only. Its reminder schedule will not release new actions.</small></span></div><Link href="/actions" className="journey-primary-button">Revisit remaining actions</Link></div>}
 
     {/* {!isPlanActive && !isPlanArchived && !hasDraft && <div className="journey-card plan-empty-preview"><span><ListChecks size={34} /></span><h3>Your actions will appear here</h3><p>Choose a realistic pace above, then generate them from your saved notes.</p></div>} */}
 

@@ -1,22 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { EngineProvider } from "@/lib/store";
 import {
   AdminContextProvider,
-  CompanySelector,
+  AdminContextBar,
   NoCompanyWarning,
   useAdminContext,
+  useOptionalAdminContext,
 } from "@/components/admin/AdminContext";
 import {
   DashboardView,
   EngagementView,
-  ActionMetricsView,
-  ActionManagementView,
   CohortManagementView,
   ContentManagementView,
-  UserManagementView,
-  EmailManagementView,
+  CohortAnalyticsView,
+  ConversationsView,
+  MembersView,
+  NoticesView,
 } from "@/components/admin/views";
 
 interface Company {
@@ -28,12 +28,12 @@ interface Company {
 type ViewType =
   | "dashboard"
   | "engagement"
-  | "action-metrics"
-  | "action-management"
+  | "cohort-analytics"
   | "cohort-management"
   | "content-management"
-  | "user-management"
-  | "email-management";
+  | "conversations"
+  | "members"
+  | "notices";
 
 interface AdminPageClientProps {
   companies: Company[];
@@ -59,23 +59,23 @@ function AdminContent({ view }: { view: ViewType }) {
       {view === "engagement" && (
         <EngagementView companyId={effectiveCompanyId} />
       )}
-      {view === "action-metrics" && (
-        <ActionMetricsView companyId={effectiveCompanyId} />
+      {view === "cohort-analytics" && (
+        <CohortAnalyticsView companyId={effectiveCompanyId} />
       )}
-      {view === "action-management" && (
-        <ActionManagementView companyId={effectiveCompanyId} role={role} />
+      {view === "conversations" && (
+        <ConversationsView companyId={effectiveCompanyId} />
+      )}
+      {view === "members" && (
+        <MembersView companyId={effectiveCompanyId} />
+      )}
+      {view === "notices" && (
+        <NoticesView companyId={effectiveCompanyId} />
       )}
       {view === "cohort-management" && (
         <CohortManagementView companyId={effectiveCompanyId} role={role} />
       )}
       {view === "content-management" && (
         <ContentManagementView companyId={effectiveCompanyId} role={role} />
-      )}
-      {view === "user-management" && (
-        <UserManagementView companyId={effectiveCompanyId} role={role} />
-      )}
-      {view === "email-management" && (
-        <EmailManagementView companyId={effectiveCompanyId} role={role} />
       )}
     </EngineProvider>
   );
@@ -87,12 +87,16 @@ export function AdminPageClient({
   companyId,
   view,
 }: AdminPageClientProps) {
+  const existing = useOptionalAdminContext();
+  const content = <AdminContent view={view} />;
+  if (existing) return content;
+
   return (
     <AdminContextProvider companies={companies} role={role} companyId={companyId}>
       <div className="max-w-7xl mx-auto w-full space-y-4">
-        <CompanySelector />
+        <AdminContextBar />
         <NoCompanyWarning />
-        <AdminContent view={view} />
+        {content}
       </div>
     </AdminContextProvider>
   );

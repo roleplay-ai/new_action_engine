@@ -1,5 +1,6 @@
 import { Type } from "@google/genai";
 import { getGeminiClient, isGeminiConfigured, GEMINI_MODEL } from "@/lib/gemini";
+import { callGeminiWithLimit, isRateLimitError } from "@/lib/gemini-limiter";
 import type { ActionTheme } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { IST_OFFSET_MINUTES, getCurrentISTDate, utcToISTDate, utcToISTTime, utcToISTDateTime, istToUTCDateTime } from "@/lib/timezone-utils";
@@ -149,21 +150,26 @@ export async function generateDraftActions(params: {
 
     const count = params.count ?? DEFAULT_BATCH_SIZE;
     const ai = getGeminiClient();
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: buildPrompt(
-        params.trainingContent,
-        params.userNotes,
-        params.businessContext,
-        params.focusThemes,
-        count,
-        params.avoidTitles
-      ),
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: draftSchema,
-      },
-    });
+    // Bounded by GEMINI_MAX_CONCURRENCY so a burst of concurrent generation
+    // jobs (one per user) can't exceed Gemini's rate limit; a 429 is retried
+    // with backoff instead of failing this batch outright.
+    const response = await callGeminiWithLimit(() =>
+      ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: buildPrompt(
+          params.trainingContent,
+          params.userNotes,
+          params.businessContext,
+          params.focusThemes,
+          count,
+          params.avoidTitles
+        ),
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: draftSchema,
+        },
+      })
+    );
 
     const text = response.text;
     if (!text) {
@@ -194,6 +200,9 @@ export async function generateDraftActions(params: {
       })),
     };
   } catch (e) {
+    if (isRateLimitError(e)) {
+      return { error: "AI generation is rate-limited right now; please try again in a moment" };
+    }
     return { error: e instanceof Error ? e.message : "Failed to generate actions" };
   }
 }

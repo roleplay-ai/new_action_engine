@@ -393,27 +393,43 @@ export default function ActionsClient() {
   useEffect(() => {
     let cancelled = false;
     setReady(false);
-    setBuddyReady(false);
     void (async () => {
-      // These five calls are independent of each other, so run them together
-      // instead of waiting on the due-actions sync before starting the rest —
-      // and pass the cohort we already resolved via useEngine() so none of them
-      // has to re-derive "which cohort" from scratch.
-      const [syncResult, leaderboardResult, settingsResult, buddyResult, walletResult] = await Promise.allSettled([
+      // Current actions and Next reminders only need these two calls, so
+      // resolve just them and let the page paint immediately — leaderboard,
+      // commitment buddy and wallet data are fetched separately below and
+      // enhance the page once they land, instead of holding up first paint.
+      const [syncResult, settingsResult] = await Promise.allSettled([
         // Release any batch whose IST delivery date is today or earlier, so
         // Current actions does not wait for the once-daily cron.
         syncMyDuePersonalActions(cohort?.id),
-        cohort?.id ? getCohortLeaderboard(cohort.id) : Promise.resolve({ entries: [] as LeaderboardEntry[] }),
         getMyPlanSettings(cohort?.id),
-        cohort?.id ? getMyCommitmentBuddies(cohort.id) : Promise.resolve({ group: null }),
-        getMyCommitmentWallet(cohort?.id),
       ]);
       if (cancelled) return;
       const assigned = syncResult.status === "fulfilled" ? syncResult.value.assigned : 0;
       if (assigned > 0) await refetch();
       if (cancelled) return;
-      setLeaderboard(leaderboardResult.status === "fulfilled" ? leaderboardResult.value.entries ?? [] : []);
       setSettings(settingsResult.status === "fulfilled" ? settingsResult.value.settings : null);
+      setReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cohort?.id, refetch]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBuddyReady(false);
+    void (async () => {
+      // Background enhancement only: these feed the commitment-buddy sidebar
+      // and the reminder-email preview, both of which already render
+      // conditionally on buddyReady, so they can trail the main page.
+      const [leaderboardResult, buddyResult, walletResult] = await Promise.allSettled([
+        cohort?.id ? getCohortLeaderboard(cohort.id) : Promise.resolve({ entries: [] as LeaderboardEntry[] }),
+        cohort?.id ? getMyCommitmentBuddies(cohort.id) : Promise.resolve({ group: null }),
+        getMyCommitmentWallet(cohort?.id),
+      ]);
+      if (cancelled) return;
+      setLeaderboard(leaderboardResult.status === "fulfilled" ? leaderboardResult.value.entries ?? [] : []);
       setBuddyGroup(buddyResult.status === "fulfilled" ? buddyResult.value.group : null);
       if (walletResult.status === "fulfilled") {
         setCommitmentScore({
@@ -428,12 +444,11 @@ export default function ActionsClient() {
         setCommitmentScore(null);
       }
       setBuddyReady(true);
-      setReady(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, [cohort?.id, refetch]);
+  }, [cohort?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -702,7 +717,7 @@ export default function ActionsClient() {
     </div></section>}
 
     {tab === "settings" && <section className="actions-list-card actions-settings-card"><div className="actions-card-heading"><div><h3>Plan overview</h3><p>Your current duration, pace and reminder schedule.</p></div><Settings2 size={20} /></div>
-      {!settings ? <div className="actions-empty-state"><CalendarDays size={28} /><strong>No plan for this batch yet</strong><p>Generate, review and finalise your plan before actions appear here.</p>{cohort?.isCurrent && <Link href="/plan" className="journey-primary-button">Go to my plan</Link>}</div> : <><div className="actions-inline-empty">{settings.isArchived ? "Archived · reminders paused · plan settings are read-only" : settings.isActive ? "Finalised · plan settings are read-only" : "Draft · finalise this plan before reminders begin"}</div><div className="actions-settings-grid"><div><span>Action pace</span><strong>{settings.track === "weekly" ? "Weekly actions" : "Daily actions"}</strong></div><div><span>Plan duration</span><strong>{settings.durationWeeks} weeks</strong></div><div><span>Actions per {settings.track === "weekly" ? "week" : "weekday"}</span><strong>{settings.actionCount}</strong></div><div><span>Reminder</span><strong>{settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}{formatTime(settings.reminderTime)}</strong></div><div><span>Email notifications</span><strong className="actions-notification-status"><Mail size={15} />Email reminders on</strong></div><div><span>Total plan</span><strong>{settings.totalActionsPlanned} actions</strong></div><div><span>Starting points</span><strong>1,000</strong></div><div><span>Minimum score</span><strong>0</strong></div></div><p className="actions-points-rule">Every action is worth 50 points. Complete it on the assigned day to earn 100 points. Missing it deducts 50 points, and your balance never drops below zero. A late completion does not restore the deduction.</p></>}
+      {!settings ? <div className="actions-empty-state"><CalendarDays size={28} /><strong>No plan for this batch yet</strong><p>Generate, review and finalise your plan before actions appear here.</p>{cohort?.isCurrent && <Link href="/plan" className="journey-primary-button">Go to my plan</Link>}</div> : <><div className="actions-inline-empty">{settings.isArchived ? "Archived · reminders paused · plan settings are read-only" : settings.isActive ? "Finalised · plan settings are read-only" : "Draft · finalise this plan before reminders begin"}</div><div className="actions-settings-grid"><div><span>Action pace</span><strong>{settings.track === "weekly" ? "Weekly actions" : "Daily actions"}</strong></div><div><span>Plan duration</span><strong>{settings.durationWeeks} weeks</strong></div><div><span>Actions per {settings.track === "weekly" ? "week" : "weekday"}</span><strong>{settings.actionCount}</strong></div><div><span>Reminder</span><strong>{settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}{formatTime(settings.reminderTime)}</strong></div><div><span>Email notifications</span><strong className="actions-notification-status"><Mail size={15} />Email reminders on</strong></div><div><span>Total plan</span><strong>{settings.totalActionsPlanned} actions</strong></div></div></>}
     </section>}
 
     {typeof document !== "undefined" && planIsActive && buddyGroup?.revealPending && buddyGroup.buddies.length > 0 && createPortal((() => {

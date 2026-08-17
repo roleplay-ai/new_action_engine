@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, Loader2, Megaphone, Search, Users, X } from "lucide-react";
 import { listCohorts } from "@/app/actions/cohorts";
 import { getCohortNotices } from "@/app/actions/cohort-notices";
+import { useSelectedAdminBatch } from "@/components/admin/AdminContext";
 import NoticesClient from "@/components/trainer/NoticesClient";
 import type { Cohort, CohortNotice } from "@/lib/types";
 
@@ -68,8 +69,8 @@ export function NoticesView({ companyId }: NoticesViewProps) {
   const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const { selectedCohortId, setSelectedCohortId, selectedCohort } = useSelectedAdminBatch(cohorts);
 
   const refresh = useCallback(async () => {
     if (!companyId) return;
@@ -81,12 +82,7 @@ export function NoticesView({ companyId }: NoticesViewProps) {
         setError(result.error);
         return;
       }
-      const nextCohorts = result.cohorts ?? [];
-      setCohorts(nextCohorts);
-      setSelectedId((current) => {
-        if (current && nextCohorts.some((cohort) => cohort.id === current)) return current;
-        return nextCohorts[0]?.id ?? null;
-      });
+      setCohorts(result.cohorts ?? []);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load batches");
     } finally {
@@ -96,7 +92,6 @@ export function NoticesView({ companyId }: NoticesViewProps) {
 
   useEffect(() => {
     setCohorts([]);
-    setSelectedId(null);
     setQuery("");
     void refresh();
   }, [companyId, refresh]);
@@ -108,8 +103,6 @@ export function NoticesView({ companyId }: NoticesViewProps) {
       `${cohort.batchName} ${cohort.moduleName ?? ""}`.toLowerCase().includes(needle)
     );
   }, [cohorts, query]);
-
-  const selectedCohort = useMemo(() => cohorts.find((cohort) => cohort.id === selectedId) ?? null, [cohorts, selectedId]);
 
   if (!companyId) return null;
 
@@ -168,13 +161,13 @@ export function NoticesView({ companyId }: NoticesViewProps) {
           ) : (
             <div className="cohort-admin-list">
               {filteredCohorts.map((cohort) => {
-                const selected = selectedId === cohort.id;
+                const selected = selectedCohortId === cohort.id;
                 return (
                   <button
                     type="button"
                     key={cohort.id}
                     className={`cohort-admin-row${selected ? " cohort-admin-row--selected" : ""}`}
-                    onClick={() => setSelectedId(cohort.id)}
+                    onClick={() => setSelectedCohortId(cohort.id)}
                     aria-current={selected ? "true" : undefined}
                   >
                     <span className="cohort-admin-cohort-mark">{cohort.logoUrl ? <img src={cohort.logoUrl} alt="" /> : initials(cohort.batchName)}</span>

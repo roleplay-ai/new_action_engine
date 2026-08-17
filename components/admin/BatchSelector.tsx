@@ -11,9 +11,8 @@ interface BatchSelectorProps {
   onChange: (cohortId: string | null) => void;
 }
 
-/** Dropdown feeding the Dashboard's batch drill-down sections. Each option is labeled
- * "{batchName} — {moduleName}" (module is an attribute of the batch, not an independent
- * filter), with a default "All batches" option for the consolidated view. */
+/** Shared admin batch dropdown. Each option is labeled
+ * "{batchName} — {moduleName}", with a default "All batches" option. */
 export function BatchSelector({ companyId, value, onChange }: BatchSelectorProps) {
   const [options, setOptions] = useState<BatchOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,9 +25,14 @@ export function BatchSelector({ companyId, value, onChange }: BatchSelectorProps
     }
     setLoading(true);
     getBatchOptions(companyId)
-      .then(({ options }) => setOptions(options ?? []))
+      .then(({ options: nextOptions }) => setOptions(nextOptions ?? []))
       .finally(() => setLoading(false));
   }, [companyId]);
+
+  useEffect(() => {
+    if (!value || options.length === 0) return;
+    if (!options.some((opt) => opt.cohortId === value)) onChange(null);
+  }, [options, value, onChange]);
 
   return (
     <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
@@ -39,6 +43,7 @@ export function BatchSelector({ companyId, value, onChange }: BatchSelectorProps
         onChange={(e) => onChange(e.target.value || null)}
         className="text-sm font-semibold bg-transparent outline-none cursor-pointer"
         style={{ color: "var(--color-text-primary)" }}
+        aria-label="Batch"
       >
         <option value="">All batches (consolidated)</option>
         {options.map((opt) => (

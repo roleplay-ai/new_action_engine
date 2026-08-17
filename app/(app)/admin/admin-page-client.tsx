@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { EngineProvider } from "@/lib/store";
 import {
   AdminContextProvider,
-  CompanySelector,
+  AdminContextBar,
   NoCompanyWarning,
   useAdminContext,
+  useOptionalAdminContext,
 } from "@/components/admin/AdminContext";
 import {
   DashboardView,
@@ -87,12 +87,16 @@ export function AdminPageClient({
   companyId,
   view,
 }: AdminPageClientProps) {
+  const existing = useOptionalAdminContext();
+  const content = <AdminContent view={view} />;
+  if (existing) return content;
+
   return (
     <AdminContextProvider companies={companies} role={role} companyId={companyId}>
       <div className="max-w-7xl mx-auto w-full space-y-4">
-        <CompanySelector />
+        <AdminContextBar />
         <NoCompanyWarning />
-        <AdminContent view={view} />
+        {content}
       </div>
     </AdminContextProvider>
   );

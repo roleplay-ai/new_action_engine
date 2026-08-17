@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { AdminShell } from "@/components/admin/AdminContext";
 
 export default async function AdminLayout({
   children,
@@ -25,11 +26,24 @@ export default async function AdminLayout({
 
   const displayName = profile?.full_name || user.email?.split("@")[0] || "Admin";
 
+  const { data: companies } = await supabase
+    .from("companies")
+    .select("id, name, slug")
+    .order("name");
+
   return (
     <div className="h-screen flex overflow-hidden" style={{ background: "var(--color-bg-base)" }}>
       <AdminSidebar displayName={displayName} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative">{children}</main>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative">
+          <AdminShell
+            companies={companies ?? []}
+            role={profile?.role ?? "user"}
+            companyId={profile?.company_id ?? null}
+          >
+            {children}
+          </AdminShell>
+        </main>
       </div>
     </div>
   );

@@ -14,7 +14,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { BatchSelector } from "@/components/admin/BatchSelector";
+import { useAdminContext } from "@/components/admin/AdminContext";
 import {
   getActionCompletionBuckets,
   getCommitmentScoreBuckets,
@@ -34,8 +34,8 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ companyId }: DashboardViewProps) {
+  const { selectedCohortId } = useAdminContext();
   // ── Batch/module drill-down (selector + buckets, leaderboard, weekly trend, email opens) ──
-  const [selectedCohortId, setSelectedCohortId] = useState<string | null>(null);
   const [completionBuckets, setCompletionBuckets] = useState<ActionCompletionBuckets | null>(null);
   const [completionLoading, setCompletionLoading] = useState(false);
   const [scoreBuckets, setScoreBuckets] = useState<CommitmentScoreBuckets | null>(null);
@@ -179,10 +179,9 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               Batch &amp; Module Drill-down
             </h3>
             <p className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
-              Pick a batch to focus on it, or leave on &quot;All batches&quot; for the consolidated view.
+              Use the batch selector above to focus on one batch, or leave on &quot;All batches&quot; for the consolidated view.
             </p>
           </div>
-          <BatchSelector companyId={companyId} value={selectedCohortId} onChange={setSelectedCohortId} />
         </div>
 
         {/* Action Completion (pie, left) + Commitment Score Distribution (bar, right) */}

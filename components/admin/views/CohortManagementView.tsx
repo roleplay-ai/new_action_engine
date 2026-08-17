@@ -55,6 +55,7 @@ import { getCohortNotices, postCohortNotice, deleteCohortNotice } from "@/app/ac
 import { createFacilitator, deleteFacilitator, listFacilitators } from "@/app/actions/facilitators";
 import { assignMemberTag, createParticipantTag, listParticipantTags } from "@/app/actions/participant-tags";
 import { FacilitatorPdfUploadField } from "@/components/admin/content/FacilitatorPdfUploadField";
+import { useSelectedAdminBatch } from "@/components/admin/AdminContext";
 import type { CohortDate, CohortMember, CohortNotice, CompanyBrand, Facilitator, ParticipantTag, PrepareContentItem, Trainer } from "@/lib/types";
 
 interface CohortManagementViewProps {
@@ -118,7 +119,6 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [creatingBusy, setCreatingBusy] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [batchName, setBatchName] = useState("");
   const [moduleName, setModuleName] = useState("");
@@ -160,10 +160,6 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
       const nextCohorts = result.cohorts ?? [];
       setCompany(result.company ?? null);
       setCohorts(nextCohorts);
-      setSelectedId((current) => {
-        if (current && nextCohorts.some((cohort) => cohort.id === current)) return current;
-        return nextCohorts[0]?.id ?? null;
-      });
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load batches");
     } finally {
@@ -174,7 +170,6 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
   useEffect(() => {
     setCohorts([]);
     setCompany(null);
-    setSelectedId(null);
     setCreating(false);
     setQuery("");
     void refresh();
@@ -188,10 +183,7 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
     );
   }, [cohorts, query]);
 
-  const selectedCohort = useMemo(
-    () => cohorts.find((cohort) => cohort.id === selectedId) ?? null,
-    [cohorts, selectedId]
-  );
+  const { selectedCohortId, setSelectedCohortId, selectedCohort } = useSelectedAdminBatch(cohorts);
 
   const totals = useMemo(
     () => ({
@@ -245,7 +237,7 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
       setPendingDateValue("");
       setCreating(false);
       await refresh();
-      if (result.id) setSelectedId(result.id);
+      if (result.id) setSelectedCohortId(result.id);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Failed to create batch");
     } finally {
@@ -342,13 +334,13 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
           ) : (
             <div className="cohort-admin-list">
               {filteredCohorts.map((cohort) => {
-                const selected = selectedId === cohort.id;
+                const selected = selectedCohortId === cohort.id;
                 return (
                   <button
                     type="button"
                     key={cohort.id}
                     className={`cohort-admin-row${selected ? " cohort-admin-row--selected" : ""}`}
-                    onClick={() => setSelectedId(cohort.id)}
+                    onClick={() => setSelectedCohortId(cohort.id)}
                     aria-current={selected ? "true" : undefined}
                   >
                     <span className="cohort-admin-cohort-mark">{cohort.logoUrl ? <img src={cohort.logoUrl} alt="" /> : initials(cohort.batchName)}</span>

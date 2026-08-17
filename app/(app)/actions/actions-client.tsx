@@ -121,7 +121,7 @@ function buddyPeriodLabels(track: CommitmentBuddyTrack) {
 function buddyStateMessage(buddy: CommitmentBuddyProgress, state: BuddyCardState) {
   const firstName = buddy.name.split(/\s+/)[0] || buddy.name;
   const { sincePhrase } = buddyPeriodLabels(buddy.track);
-  if (state === "pending-plan") return `${firstName} hasn't finalised their Wallet plan yet.`;
+  if (state === "pending-plan") return `${firstName} hasn't finalised their Commitment plan yet.`;
   if (state === "new") return `${firstName} just finalised their plan — no comparison yet.`;
   if (state === "dipped") return `${firstName}'s commitment has dipped ${sincePhrase}.`;
   return `${firstName} is keeping their commitment steady.`;
@@ -181,7 +181,7 @@ function CommitmentBuddyScoreCard({
       <div className="commitment-buddy-identity">
         <p className="commitment-buddy-eyebrow">Your Commitment Buddy</p>
         <h3 className="commitment-buddy-name">{buddy.name}</h3>
-        <p className="commitment-buddy-relation">You are each other&apos;s buddy</p>
+        <p className="commitment-buddy-relation">You are their commitment buddy</p>
       </div>
       <span className="commitment-buddy-tag">1-to-1</span>
     </div>
@@ -769,8 +769,8 @@ export default function ActionsClient() {
                 <h3>How you&apos;ll support each other</h3>
               </div>
               <p>{buddyGroup.buddies.length === 1
-                ? "You'll both see each other's Commitment Score."
-                : "You'll all see each other's Commitment Score."}</p>
+                ? "You'll see their Commitment Score."
+                : "You'll see their Commitment Scores."}</p>
 
               <div className="commitment-buddy-popup-states">
                 <div className="commitment-buddy-popup-state is-steady">

@@ -10596,7 +10596,7 @@ input[type="range"] {
 
 .cohort-admin-layout {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
   align-items: start;
   overflow: hidden;
   border: 1px solid var(--cohort-border);
@@ -10614,8 +10614,8 @@ input[type="range"] {
 
 .cohort-admin-directory-head {
   display: grid;
-  gap: 13px;
-  padding: 18px;
+  gap: 10px;
+  padding: 12px;
   border-bottom: 1px solid var(--cohort-border);
 }
 
@@ -10640,10 +10640,10 @@ input[type="range"] {
 
 .cohort-admin-search {
   display: flex;
-  min-height: 38px;
+  min-height: 32px;
   align-items: center;
   gap: 8px;
-  padding: 0 10px;
+  padding: 0 8px;
   border: 1px solid var(--cohort-border);
   border-radius: 9px;
   background: #fff;
@@ -10682,10 +10682,10 @@ input[type="range"] {
 .cohort-admin-row {
   display: grid;
   width: 100%;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 11px;
-  padding: 14px 15px;
+  gap: 8px;
+  padding: 8px 12px;
   border: 0;
   border-bottom: 1px solid var(--cohort-border);
   background: transparent;
@@ -10707,7 +10707,20 @@ input[type="range"] {
   box-shadow: inset 3px 0 0 var(--cohort-accent);
 }
 
-.cohort-admin-cohort-mark,
+.cohort-admin-cohort-mark {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border: 1px solid #dfd8dc;
+  border-radius: 8px;
+  background: #fff;
+  color: #625b61;
+  font-size: 9px;
+  font-weight: 850;
+}
+
 .cohort-admin-avatar {
   display: grid;
   width: 38px;
@@ -10731,7 +10744,7 @@ input[type="range"] {
 .cohort-admin-row-copy {
   display: grid;
   min-width: 0;
-  gap: 3px;
+  gap: 1px;
 }
 
 .cohort-admin-row-name-line {
@@ -10796,10 +10809,10 @@ input[type="range"] {
 
 .cohort-admin-row-meta {
   display: flex;
-  gap: 11px;
-  margin-top: 3px;
+  gap: 8px;
+  margin-top: 1px;
   color: #827a80;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .cohort-admin-row-meta span {
@@ -10819,6 +10832,97 @@ input[type="range"] {
 .cohort-admin-workspace {
   min-width: 0;
   height: 100%;
+}
+
+.cohort-admin-page--fill {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 13rem);
+}
+
+.cohort-admin-layout--chat {
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+  gap: 12px;
+  padding: 12px;
+}
+
+.cohort-admin-layout--chat .cohort-admin-directory {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  max-height: 260px;
+  overflow: hidden;
+  border: 1px solid var(--cohort-border);
+  border-radius: 12px;
+}
+
+.cohort-admin-layout--chat .cohort-admin-list {
+  flex: 1 1 auto;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.cohort-admin-layout--chat .cohort-admin-workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 4px 8px 8px;
+}
+
+.cohort-admin-chat-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.cohort-admin-chat-shell .journey-chat-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  margin: 0;
+  padding: 18px 20px 16px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.cohort-admin-chat-shell .journey-chat-heading {
+  flex: 0 0 auto;
+}
+
+.cohort-admin-chat-shell .journey-chat-messages {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  height: auto;
+  margin-top: 12px;
+}
+
+.cohort-admin-chat-shell .journey-chat-state {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.cohort-admin-chat-shell .journey-chat-composer {
+  flex: 0 0 auto;
+  margin-top: 12px;
+}
+
+.cohort-admin-chat-shell .journey-chat-composer textarea {
+  resize: none;
 }
 
 .cohort-admin-trainer-panel {
@@ -11806,7 +11910,7 @@ input[type="range"] {
 }
 
 .cohort-admin-row--skeleton {
-  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-columns: 28px minmax(0, 1fr);
 }
 
 .cohort-admin-spin {
@@ -11827,7 +11931,7 @@ input[type="range"] {
 
 @media (max-width: 1080px) {
   .cohort-admin-layout {
-    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-columns: 220px minmax(0, 1fr);
   }
 
   .cohort-admin-picker-grid {
@@ -11850,6 +11954,18 @@ input[type="range"] {
 
   .cohort-admin-layout {
     grid-template-columns: 1fr;
+  }
+
+  .cohort-admin-page--fill {
+    min-height: 0;
+  }
+
+  .cohort-admin-layout--chat {
+    min-height: 560px;
+  }
+
+  .cohort-admin-layout--chat .cohort-admin-chat-shell .journey-chat-messages {
+    min-height: 240px;
   }
 
   .cohort-admin-directory {

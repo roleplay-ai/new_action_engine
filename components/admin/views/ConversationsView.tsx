@@ -65,7 +65,7 @@ export function ConversationsView({ companyId }: ConversationsViewProps) {
   if (!companyId) return null;
 
   return (
-    <section className="cohort-admin-page">
+    <section className="cohort-admin-page cohort-admin-page--fill">
       <header className="cohort-admin-header">
         <div>
           <div className="cohort-admin-company-heading">
@@ -84,7 +84,7 @@ export function ConversationsView({ companyId }: ConversationsViewProps) {
         </div>
       )}
 
-      <div className="cohort-admin-layout">
+      <div className="cohort-admin-layout cohort-admin-layout--chat">
         <aside className="cohort-admin-directory">
           <div className="cohort-admin-directory-head">
             <div><h2>Batches</h2><span>{cohorts.length} active</span></div>
@@ -146,7 +146,7 @@ export function ConversationsView({ companyId }: ConversationsViewProps) {
 
         <main className="cohort-admin-workspace">
           {selectedCohort ? (
-            <div className="trainer-chat-shell" key={selectedCohort.id}>
+            <div className="cohort-admin-chat-shell" key={selectedCohort.id}>
               <CohortChat cohortId={selectedCohort.id} />
             </div>
           ) : (

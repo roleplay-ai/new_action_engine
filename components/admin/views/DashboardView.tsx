@@ -352,16 +352,13 @@ export function DashboardView({ companyId }: DashboardViewProps) {
             <h4 className="text-sm font-semibold" style={{ color: "var(--color-text-secondary)" }}>
               Email Engagement
             </h4>
-            <span className="tag tag--yellow">Resend · Reminder Emails · Opens &amp; Clicks</span>
+            <span className="tag tag--yellow">Reminder Emails · Opens &amp; Clicks</span>
           </div>
 
           {!emailWebhookConfigured && !emailLoading && (
             <div className="card__inset flex items-start gap-3" style={{ borderColor: "var(--color-warning, #f0bc00)", background: "rgba(255,206,0,0.08)" }}>
               <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: "#f0bc00" }} />
-              <p className="text-xs font-semibold" style={{ color: "var(--shadow-grey)" }}>
-                Open/click tracking isn&apos;t enabled yet. Turn on &quot;Open Tracking&quot; and &quot;Click Tracking&quot; in the
-                Resend dashboard and set <code>RESEND_WEBHOOK_SECRET</code> — rates below will stay at 0% until then.
-              </p>
+
             </div>
           )}
 

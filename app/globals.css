@@ -10821,6 +10821,11 @@ input[type="range"] {
   height: 100%;
 }
 
+.cohort-admin-trainer-panel {
+  padding: 20px;
+  min-height: 480px;
+}
+
 .cohort-admin-placeholder,
 .cohort-admin-empty,
 .cohort-admin-mini-empty {

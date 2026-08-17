@@ -2,7 +2,7 @@ import { UserRound } from "lucide-react";
 import { getMyCohorts } from "@/app/actions/cohorts";
 import { getCohortNotices } from "@/app/actions/cohort-notices";
 import { TrainerCohortSwitcher } from "@/components/trainer/TrainerCohortSwitcher";
-import NoticesClient from "./notices-client";
+import NoticesClient from "@/components/trainer/NoticesClient";
 
 export default async function TrainerNoticesPage() {
   const { cohorts, error } = await getMyCohorts();

@@ -15,6 +15,8 @@ import {
   ContentManagementView,
   CohortAnalyticsView,
   ConversationsView,
+  MembersView,
+  NoticesView,
 } from "@/components/admin/views";
 
 interface Company {
@@ -29,7 +31,9 @@ type ViewType =
   | "cohort-analytics"
   | "cohort-management"
   | "content-management"
-  | "conversations";
+  | "conversations"
+  | "members"
+  | "notices";
 
 interface AdminPageClientProps {
   companies: Company[];
@@ -60,6 +64,12 @@ function AdminContent({ view }: { view: ViewType }) {
       )}
       {view === "conversations" && (
         <ConversationsView companyId={effectiveCompanyId} />
+      )}
+      {view === "members" && (
+        <MembersView companyId={effectiveCompanyId} />
+      )}
+      {view === "notices" && (
+        <NoticesView companyId={effectiveCompanyId} />
       )}
       {view === "cohort-management" && (
         <CohortManagementView companyId={effectiveCompanyId} role={role} />

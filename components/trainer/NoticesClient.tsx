@@ -65,7 +65,7 @@ export default function NoticesClient({ cohortId, initialNotices }: { cohortId: 
         <div className="trainer-empty">
           <Megaphone size={24} />
           <strong>No notices posted yet</strong>
-          <p>Anything you post appears here and on every participant's Base Camp page, with the date.</p>
+          <p>Anything you post appears here and on every participant&apos;s Base Camp page, with the date.</p>
         </div>
       ) : (
         <ul className="trainer-notice-list">

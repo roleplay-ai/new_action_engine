@@ -536,6 +536,7 @@ function CohortDetailPanel({
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const canManageTags = role === "admin" || role === "superadmin";
 
   // Targeted, single-purpose refetchers. Each mutation below only calls the
   // one or two of these it actually invalidates, instead of reloading every
@@ -1018,7 +1019,7 @@ function CohortDetailPanel({
         <div className="cohort-admin-picker-grid">
           <section className="cohort-admin-panel">
             <div className="cohort-admin-panel-head"><div><h3>Current members</h3><p>People currently learning in this batch.</p></div><span>{currentMembers.length}</span></div>
-            {role === "superadmin" && (
+            {canManageTags && (
               <form
                 className="cohort-admin-tag-creator"
                 onSubmit={(event) => {
@@ -1048,7 +1049,7 @@ function CohortDetailPanel({
                   <div key={member.id} className="cohort-admin-person">
                     <span className="cohort-admin-avatar">{initials(member.fullName)}</span>
                     <div><strong>{member.fullName || "Unnamed user"}</strong><span>{member.email || "Batch participant"}</span></div>
-                    {role === "superadmin" ? (
+                    {canManageTags ? (
                       <select
                         className="cohort-admin-tag-select"
                         value={member.tag?.id ?? ""}

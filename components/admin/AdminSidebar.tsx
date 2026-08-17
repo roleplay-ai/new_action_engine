@@ -12,6 +12,8 @@ import {
   ChevronRight,
   LogOut,
   MessageSquareText,
+  Megaphone,
+  Users,
 } from "lucide-react";
 
 interface NavItem {
@@ -52,6 +54,18 @@ const navItems: NavItem[] = [
     label: "Conversations",
     icon: MessageSquareText,
     href: "/admin/conversations",
+  },
+  {
+    id: "notices",
+    label: "Announcements",
+    icon: Megaphone,
+    href: "/admin/notices",
+  },
+  {
+    id: "members",
+    label: "Members & tags",
+    icon: Users,
+    href: "/admin/members",
   },
 ];
 

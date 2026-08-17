@@ -2,7 +2,7 @@ import { UserRound } from "lucide-react";
 import { getMyCohort, getMyCohorts } from "@/app/actions/cohorts";
 import { listParticipantTags } from "@/app/actions/participant-tags";
 import { TrainerCohortSwitcher } from "@/components/trainer/TrainerCohortSwitcher";
-import MembersClient from "./members-client";
+import MembersClient from "@/components/trainer/MembersClient";
 
 export default async function TrainerMembersPage() {
   const [{ cohorts, error }, cohortResult, tagsResult] = await Promise.all([

@@ -214,22 +214,23 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                           minAngle={2}
                           labelLine={false}
                           label={(entry) => {
-                            if (!entry.value) return null;
+                            const { cx, cy, midAngle, outerRadius, fill, name, value } = entry;
+                            if (!value || cx == null || cy == null || midAngle == null || outerRadius == null) return null;
                             const RADIAN = Math.PI / 180;
-                            const radius = entry.outerRadius + 20;
-                            const x = entry.cx + radius * Math.cos(-entry.midAngle * RADIAN);
-                            const y = entry.cy + radius * Math.sin(-entry.midAngle * RADIAN);
+                            const radius = outerRadius + 20;
+                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
                             return (
                               <text
                                 x={x}
                                 y={y}
-                                fill={entry.fill}
-                                textAnchor={x > entry.cx ? "start" : "end"}
+                                fill={fill}
+                                textAnchor={x > cx ? "start" : "end"}
                                 dominantBaseline="central"
                                 fontSize={11}
                                 fontWeight={600}
                               >
-                                {`${entry.name}: ${entry.value}`}
+                                {`${name}: ${value}`}
                               </text>
                             );
                           }}

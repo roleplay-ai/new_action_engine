@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, Loader2, MessageSquareText, Search, Users, X } from "lucide-react";
-import { listCohorts } from "@/app/actions/cohorts";
 import { useSelectedAdminBatch } from "@/components/admin/AdminContext";
 import CohortChat from "@/components/journey/CohortChat";
+import { fetchAdminJson, isAbortError } from "@/lib/admin-fetch";
 import type { Cohort } from "@/lib/types";
 
 interface ConversationsViewProps {
@@ -23,28 +23,34 @@ export function ConversationsView({ companyId }: ConversationsViewProps) {
   const [query, setQuery] = useState("");
   const { selectedCohortId, setSelectedCohortId, selectedCohort } = useSelectedAdminBatch(cohorts);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (signal?: AbortSignal) => {
     if (!companyId) return;
     setLoading(true);
     setError(null);
     try {
-      const result = await listCohorts(companyId);
+      const result = await fetchAdminJson<{ error?: string; cohorts?: Cohort[] }>(
+        `/api/admin/cohorts?companyId=${encodeURIComponent(companyId)}`,
+        signal
+      );
       if (result.error) {
         setError(result.error);
         return;
       }
       setCohorts(result.cohorts ?? []);
     } catch (caughtError) {
+      if (isAbortError(caughtError)) return;
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load batches");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [companyId]);
 
   useEffect(() => {
+    const controller = new AbortController();
     setCohorts([]);
     setQuery("");
-    void refresh();
+    void refresh(controller.signal);
+    return () => controller.abort();
   }, [companyId, refresh]);
 
   const filteredCohorts = useMemo(() => {

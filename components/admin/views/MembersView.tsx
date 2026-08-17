@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, Loader2, Search, Tag, Users, X } from "lucide-react";
-import { getCohortDetail, listCohorts } from "@/app/actions/cohorts";
-import { listParticipantTags } from "@/app/actions/participant-tags";
 import { useSelectedAdminBatch } from "@/components/admin/AdminContext";
 import MembersClient from "@/components/trainer/MembersClient";
+import { fetchAdminJson, isAbortError } from "@/lib/admin-fetch";
 import type { Cohort, CohortMember, ParticipantTag } from "@/lib/types";
 
 interface MembersViewProps {
@@ -24,31 +23,38 @@ function MembersWorkspace({ cohortId }: { cohortId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     async function load() {
       setLoading(true);
       setError(null);
-      const [detailResult, tagsResult] = await Promise.all([
-        getCohortDetail(cohortId),
-        listParticipantTags(),
-      ]);
-      if (cancelled) return;
-      if (detailResult.error || tagsResult.error) {
-        setError(detailResult.error || tagsResult.error || "Could not load members");
+      try {
+        const result = await fetchAdminJson<{
+          error?: string;
+          members?: CohortMember[];
+          tags?: ParticipantTag[];
+        }>(`/api/admin/cohorts/${encodeURIComponent(cohortId)}?bundle=members`, controller.signal);
+        if (controller.signal.aborted) return;
+        if (result.error) {
+          setError(result.error);
+          setRoster([]);
+          setTags([]);
+        } else {
+          setRoster(result.members ?? []);
+          setTags(result.tags ?? []);
+        }
+      } catch (caughtError) {
+        if (isAbortError(caughtError) || controller.signal.aborted) return;
+        setError(caughtError instanceof Error ? caughtError.message : "Could not load members");
         setRoster([]);
         setTags([]);
-      } else {
-        setRoster(detailResult.members ?? []);
-        setTags(tagsResult.tags ?? []);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
       }
-      setLoading(false);
     }
 
     void load();
-    return () => {
-      cancelled = true;
-    };
+    return () => controller.abort();
   }, [cohortId]);
 
   if (loading) {
@@ -78,28 +84,34 @@ export function MembersView({ companyId }: MembersViewProps) {
   const [query, setQuery] = useState("");
   const { selectedCohortId, setSelectedCohortId, selectedCohort } = useSelectedAdminBatch(cohorts);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (signal?: AbortSignal) => {
     if (!companyId) return;
     setLoading(true);
     setError(null);
     try {
-      const result = await listCohorts(companyId);
+      const result = await fetchAdminJson<{ error?: string; cohorts?: Cohort[] }>(
+        `/api/admin/cohorts?companyId=${encodeURIComponent(companyId)}`,
+        signal
+      );
       if (result.error) {
         setError(result.error);
         return;
       }
       setCohorts(result.cohorts ?? []);
     } catch (caughtError) {
+      if (isAbortError(caughtError)) return;
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load batches");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [companyId]);
 
   useEffect(() => {
+    const controller = new AbortController();
     setCohorts([]);
     setQuery("");
-    void refresh();
+    void refresh(controller.signal);
+    return () => controller.abort();
   }, [companyId, refresh]);
 
   const filteredCohorts = useMemo(() => {

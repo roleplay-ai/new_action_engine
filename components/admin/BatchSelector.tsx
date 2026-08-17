@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Layers } from "lucide-react";
-import { getBatchOptions, type BatchOption } from "@/app/actions/admin-dashboard";
+import { fetchAdminJson, isAbortError } from "@/lib/admin-fetch";
 
 interface BatchSelectorProps {
   companyId: string | null;
@@ -10,6 +10,8 @@ interface BatchSelectorProps {
   value: string | null;
   onChange: (cohortId: string | null) => void;
 }
+
+type BatchOption = { cohortId: string; label: string };
 
 /** Shared admin batch dropdown. Each option is labeled
  * "{batchName} — {moduleName}", with a default "All batches" option. */
@@ -23,10 +25,23 @@ export function BatchSelector({ companyId, value, onChange }: BatchSelectorProps
       setLoading(false);
       return;
     }
+    const controller = new AbortController();
     setLoading(true);
-    getBatchOptions(companyId)
-      .then(({ options: nextOptions }) => setOptions(nextOptions ?? []))
-      .finally(() => setLoading(false));
+    fetchAdminJson<{ options?: BatchOption[] }>(
+      `/api/admin/batch-options?companyId=${encodeURIComponent(companyId)}`,
+      controller.signal
+    )
+      .then(({ options: nextOptions }) => {
+        if (!controller.signal.aborted) setOptions(nextOptions ?? []);
+      })
+      .catch((error) => {
+        if (isAbortError(error) || controller.signal.aborted) return;
+        setOptions([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
   }, [companyId]);
 
   useEffect(() => {

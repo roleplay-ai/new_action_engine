@@ -36,7 +36,6 @@ import {
   getCohortDetail,
   getCompanyUsers,
   listCohortDates,
-  listCohorts,
   removeCohortDate,
   removeMembersFromCohort,
   setCohortLock,
@@ -46,12 +45,11 @@ import { nextUpcomingCohortDate } from "@/lib/cohort-dates";
 import { uploadCohortLogo } from "@/lib/cohort-logo-upload";
 import {
   assignContentToCohort,
-  listActiveLibraryItems,
   listCohortContent,
   removeContentFromCohort,
 } from "@/app/actions/prepare-content";
-import { listTrainers } from "@/app/actions/trainers";
 import { getCohortNotices, postCohortNotice, deleteCohortNotice } from "@/app/actions/cohort-notices";
+import { fetchAdminJson, isAbortError } from "@/lib/admin-fetch";
 import { createFacilitator, deleteFacilitator, listFacilitators } from "@/app/actions/facilitators";
 import { assignMemberTag, createParticipantTag, listParticipantTags } from "@/app/actions/participant-tags";
 import { FacilitatorPdfUploadField } from "@/components/admin/content/FacilitatorPdfUploadField";
@@ -147,32 +145,38 @@ export function CohortManagementView({ companyId, role }: CohortManagementViewPr
     setInitialDates((current) => current.filter((existing) => existing !== date));
   }
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (signal?: AbortSignal) => {
     if (!companyId) return;
     setLoading(true);
     setError(null);
     try {
-      const result = await listCohorts(companyId);
+      const result = await fetchAdminJson<{
+        error?: string;
+        company?: CompanyBrand | null;
+        cohorts?: CohortSummary[];
+      }>(`/api/admin/cohorts?companyId=${encodeURIComponent(companyId)}`, signal);
       if (result.error) {
         setError(result.error);
         return;
       }
-      const nextCohorts = result.cohorts ?? [];
       setCompany(result.company ?? null);
-      setCohorts(nextCohorts);
+      setCohorts(result.cohorts ?? []);
     } catch (caughtError) {
+      if (isAbortError(caughtError)) return;
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load batches");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [companyId]);
 
   useEffect(() => {
+    const controller = new AbortController();
     setCohorts([]);
     setCompany(null);
     setCreating(false);
     setQuery("");
-    void refresh();
+    void refresh(controller.signal);
+    return () => controller.abort();
   }, [companyId, refresh]);
 
   const filteredCohorts = useMemo(() => {
@@ -579,45 +583,51 @@ function CohortDetailPanel({
   }, [cohort.id]);
 
   // Full load — only used when this panel first mounts for a cohort.
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
-      const [detailResult, usersResult, contentResult, libraryResult, trainersResult, noticesResult, facilitatorsResult, tagsResult, datesResult] = await Promise.all([
-        getCohortDetail(cohort.id),
-        getCompanyUsers(companyId),
-        listCohortContent(cohort.id),
-        listActiveLibraryItems(),
-        role === "superadmin" ? listTrainers() : Promise.resolve({ trainers: [] as Trainer[], error: undefined as string | undefined }),
-        getCohortNotices(cohort.id),
-        listFacilitators(cohort.id),
-        listParticipantTags(),
-        listCohortDates(cohort.id),
-      ]);
-      const firstError = detailResult.error || usersResult.error || contentResult.error || libraryResult.error || trainersResult.error || noticesResult.error || facilitatorsResult.error || tagsResult.error || datesResult.error;
-      if (firstError) setError(firstError);
-      setMembers(detailResult.members ?? []);
-      setMemberIds(new Set((detailResult.members ?? []).map((member) => member.id)));
-      setCompanyUsers(usersResult.users ?? []);
-      setTags(tagsResult.tags ?? []);
-      setCohortDates(datesResult.dates ?? []);
-      setAssignedContentIds(new Set((contentResult.items ?? []).map((item) => item.id)));
-      setLibraryItems(libraryResult.items ?? []);
-      setTrainerRoster(trainersResult.trainers ?? []);
-      setSelectedTrainerId(detailResult.cohort?.trainerId ?? "");
-      setNotices(noticesResult.notices ?? []);
-      setFacilitators(facilitatorsResult.facilitators ?? []);
+      const payload = await fetchAdminJson<{
+        error?: string;
+        members?: CohortMember[];
+        trainerId?: string;
+        companyUsers?: CompanyUser[];
+        assignedContentIds?: string[];
+        libraryItems?: PrepareContentItem[];
+        trainers?: Trainer[];
+        notices?: CohortNotice[];
+        facilitators?: Facilitator[];
+        tags?: ParticipantTag[];
+        dates?: CohortDate[];
+      }>(
+        `/api/admin/cohorts/${encodeURIComponent(cohort.id)}?bundle=workspace&companyId=${encodeURIComponent(companyId)}`,
+        signal
+      );
+      if (payload.error) setError(payload.error);
+      setMembers(payload.members ?? []);
+      setMemberIds(new Set((payload.members ?? []).map((member) => member.id)));
+      setCompanyUsers(payload.companyUsers ?? []);
+      setTags(payload.tags ?? []);
+      setCohortDates(payload.dates ?? []);
+      setAssignedContentIds(new Set(payload.assignedContentIds ?? []));
+      setLibraryItems(payload.libraryItems ?? []);
+      setTrainerRoster(payload.trainers ?? []);
+      setSelectedTrainerId(payload.trainerId ?? "");
+      setNotices(payload.notices ?? []);
+      setFacilitators(payload.facilitators ?? []);
     } catch (caughtError) {
+      if (isAbortError(caughtError)) return;
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load batch details");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [cohort.id, companyId, role]);
+  }, [cohort.id, companyId]);
 
   useEffect(() => {
-    void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cohort.id]);
+    const controller = new AbortController();
+    void refresh(controller.signal);
+    return () => controller.abort();
+  }, [refresh]);
 
   const currentMembers = members;
   const availableUsers = useMemo(

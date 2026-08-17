@@ -420,7 +420,7 @@ export default function RcplWorkspace({
               <div>
                 <small>Accountability</small>
                 <h3 id="rcpl-buddy-modal-title">How commitment buddies work</h3>
-                <p>Everyone in the batch is paired with one other person, with one group of three when needed.</p>
+                <p>Everyone in the batch is paired with another person.</p>
               </div>
               <button type="button" onClick={() => setBuddyInfoOpen(false)} aria-label="Close commitment buddy explanation"><X size={17} /></button>
             </header>
@@ -429,14 +429,14 @@ export default function RcplWorkspace({
                 <b aria-hidden="true">1</b>
                 <span>
                   <strong>Assigned at random</strong>
-                  <p>Your buddy or group is created within your batch and revealed after your personal action plan goes live.</p>
+                  <p>Your buddy is created within your batch and revealed after your personal action plan goes live.</p>
                 </span>
               </li>
               <li>
                 <b aria-hidden="true">2</b>
                 <span>
                   <strong>See overall progress</strong>
-                  <p>You can see each other&apos;s done, skipped and missed totals, plus points earned and lost. Actions, plans, schedules and reflections stay private.</p>
+                  <p>You can see your buddy&apos;s done, skipped and missed totals, plus points earned and lost. Actions, plans, schedules and reflections stay private.</p>
                 </span>
               </li>
               <li>

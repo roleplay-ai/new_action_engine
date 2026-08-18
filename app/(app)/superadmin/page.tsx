@@ -24,7 +24,7 @@ export default async function SuperadminCompaniesPage() {
 
   const { data: companies } = await supabase
     .from("companies")
-    .select("id, name, slug, logo_url, created_at")
+    .select("id, name, slug, logo_url, program_phases, created_at")
     .order("name");
   const companyRows = companies ?? [];
   const thisMonth = new Date();

@@ -5977,9 +5977,15 @@ input[type="range"] {
   }
 }
 
-/* RCPL University-only SURGE workspace. Mirrors the supplied branded HTML
-   while retaining the application's live cohort, content, progress and chat. */
-.participant-shell--rcpl {
+/* RcplWorkspace's design language — originally RCPL University-only (SURGE),
+   now the shared design for every company (see RcplWorkspace.tsx). The
+   sidebar/topbar treatment below `.participant-shell--rcpl` still only
+   applies to Surge/RCPL University (Layout.tsx's isRcpl), but the workspace
+   card colors these variables drive must resolve for any company, since
+   `.rcpl-workspace` itself is no longer RCPL-exclusive — so it gets the same
+   variables directly, not just inherited from the shell wrapper. */
+.participant-shell--rcpl,
+.rcpl-workspace {
   --rcpl-navy-900: #0c1f3f;
   --rcpl-navy-800: #13294b;
   --rcpl-navy-700: #1d3c66;
@@ -6407,6 +6413,84 @@ input[type="range"] {
   to {
     stroke-dashoffset: 0;
   }
+}
+
+/* Generic stand-in for the hand-plotted SURGE journey SVG above — used for
+   any company with a seeded phase count the 3-point curve wasn't drawn for. */
+.rcpl-journey-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 6px;
+  margin: 0;
+  padding: 6px 2px;
+  list-style: none;
+}
+
+.rcpl-journey-steps>li {
+  min-width: 96px;
+  flex: 1 1 96px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rcpl-journey-steps>li:not(:last-child)::after {
+  content: "";
+  height: 1px;
+  flex: 1 1 auto;
+  margin-left: 8px;
+  background: rgba(255, 255, 255, .16);
+}
+
+.rcpl-journey-step-dot {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, .75);
+  background: rgba(255, 255, 255, .08);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.rcpl-journey-steps>li.active .rcpl-journey-step-dot {
+  color: var(--rcpl-navy-900);
+  background: var(--rcpl-gold);
+}
+
+.rcpl-journey-step-copy {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.rcpl-journey-step-copy>strong {
+  overflow: hidden;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rcpl-journey-step-copy>small {
+  color: var(--rcpl-gold-soft);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.rcpl-agenda-window {
+  flex: 0 0 auto;
+  padding: 5px 11px;
+  border: 1px solid var(--rcpl-line);
+  border-radius: 999px;
+  color: var(--rcpl-muted);
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .rcpl-content-shell {
@@ -9674,6 +9758,51 @@ input[type="range"] {
 
 .superadmin-company-logo-editor button {
   color: #a83a45;
+}
+
+.superadmin-program-phases-editor {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.superadmin-program-phases-editor>span {
+  color: #29252b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.superadmin-program-phases-editor>small {
+  color: #948d95;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.superadmin-program-phases-editor>small code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: #f1eff1;
+  font-size: 9px;
+}
+
+.superadmin-program-phases-editor textarea {
+  padding: 9px 11px;
+  border: 1px solid #ddd9de;
+  border-radius: 11px;
+  background: #faf9fa;
+  color: #29252b;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.superadmin-program-phases-editor textarea:focus {
+  outline: none;
+  border-color: #cbb8ff;
+  background: #fff;
 }
 
 .cohort-admin-company-heading {

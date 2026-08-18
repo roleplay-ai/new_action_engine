@@ -117,6 +117,9 @@ export interface Cohort {
   logoUrl?: string | null;
   companyName?: string | null;
   companyLogoUrl?: string | null;
+  /** The company's seeded program agenda, if any. Empty/undefined means the
+   * generic Journey workspace shows no agenda section. */
+  companyProgramPhases?: ProgramPhase[];
   trainerId?: string | null;
   trainer?: Trainer | null;
   /** When true, participants lose access to My Plan, action creation, and the
@@ -160,6 +163,36 @@ export interface CompanyBrand {
   id: string;
   name: string;
   logoUrl: string | null;
+}
+
+/** One timed segment within a program day, e.g. "9.30–11.00 · Workshop title". */
+export interface ProgramBlock {
+  time: string;
+  name: string;
+  description: string;
+}
+
+/** One day within a program phase, made up of session blocks. */
+export interface ProgramDay {
+  name: string;
+  date: string;
+  takeaway: string;
+  blocks: ProgramBlock[];
+}
+
+/** One phase of a company's seeded program agenda (companies.program_phases).
+ * Set by a superadmin, usually at company creation, and rendered on the
+ * generic Journey workspace's agenda section — mirrors the shape SURGE/RCPL
+ * University hardcode in RcplWorkspace, but data-driven per company. */
+export interface ProgramPhase {
+  id: string;
+  label: string;
+  window: string;
+  title: string;
+  subtitle?: string;
+  focus: string;
+  summary: string;
+  days: ProgramDay[];
 }
 
 /** A cohort available in the participant-wide cohort switcher. */

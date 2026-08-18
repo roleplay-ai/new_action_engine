@@ -3,7 +3,7 @@
 import { revalidatePath, unstable_cache, updateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Cohort, CohortDate, CohortMember, CohortOption, CompanyBrand, Trainer } from "@/lib/types";
+import type { Cohort, CohortDate, CohortMember, CohortOption, CompanyBrand, ProgramPhase, Trainer } from "@/lib/types";
 
 const COHORT_LOGOS_BUCKET = "cohort-logos";
 
@@ -46,6 +46,30 @@ async function loadTrainerMap(
     row.id,
     { id: row.id, name: row.name, imageUrl: row.image_url },
   ]));
+}
+
+type CompanyBrandRow = { id: string; name: string; logo_url: string | null; program_phases: ProgramPhase[] };
+
+/** Company id/name/logo (+ seeded program_phases) for a batch of companies.
+ * program_phases is fetched as a best-effort extra: if that column isn't
+ * there yet (e.g. migration 069 not applied), the whole query must not fail —
+ * companyName/companyLogoUrl are load-bearing for routing (isRcplWorkspace)
+ * and must never come back empty because of an unrelated optional field. */
+async function loadCompanyBrandRows(
+  supabase: Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient>,
+  companyIds: string[],
+): Promise<CompanyBrandRow[]> {
+  const ids = [...new Set(companyIds)];
+  if (ids.length === 0) return [];
+
+  const withPhases = await supabase.from("companies").select("id, name, logo_url, program_phases").in("id", ids);
+  if (!withPhases.error) {
+    return (withPhases.data ?? []) as CompanyBrandRow[];
+  }
+
+  console.error("companies query with program_phases failed, falling back without it:", withPhases.error.message);
+  const fallback = await supabase.from("companies").select("id, name, logo_url").in("id", ids);
+  return (fallback.data ?? []).map((row: { id: string; name: string; logo_url: string | null }) => ({ ...row, program_phases: [] }));
 }
 
 /** Every cohort_dates row for a batch of cohorts, grouped and sorted ascending
@@ -702,9 +726,7 @@ const computeMyCohorts = unstable_cache(
     const [trainerMap, datesMap, companyRows] = await Promise.all([
       loadTrainerMap(admin, (cohortRows ?? []).map((cohort) => cohort.trainer_id)),
       loadCohortDatesMap(admin, (cohortRows ?? []).map((cohort) => cohort.id)),
-      companyIds.length
-        ? admin.from("companies").select("id, name, logo_url").in("id", companyIds).then((res) => res.data ?? [])
-        : Promise.resolve([] as { id: string; name: string; logo_url: string | null }[]),
+      companyIds.length ? loadCompanyBrandRows(admin, companyIds) : Promise.resolve([] as CompanyBrandRow[]),
     ]);
     const companyById = new Map(companyRows.map((company) => [company.id, company]));
     const memberCounts = new Map<string, number>();
@@ -743,6 +765,7 @@ const computeMyCohorts = unstable_cache(
         companyId: row.company_id,
         companyName: company?.name ?? null,
         companyLogoUrl: company?.logo_url ?? null,
+        companyProgramPhases: company?.program_phases ?? [],
         archivedAt: row.archived_at,
         isCurrent: row.id === currentCohortId,
         isSelected: row.id === selectedCohortId,
@@ -851,6 +874,7 @@ export async function getMyCohort(options?: { includeRoster?: boolean }): Promis
         companyId: selected!.companyId,
         companyName: selected!.companyName,
         companyLogoUrl: selected!.companyLogoUrl,
+        companyProgramPhases: selected!.companyProgramPhases,
         trainerId: selected!.trainerId,
         trainer: selected!.trainer,
         // The lock only ever applies to participants — an admin/superadmin/

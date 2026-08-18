@@ -6,7 +6,7 @@ import { updateCompany } from "@/app/actions/companies";
 import { uploadCompanyLogo } from "@/lib/company-logo-upload";
 import { Building2, CalendarDays, Pencil, Check, ImagePlus, Loader2, Trash2, X } from "lucide-react";
 
-type Company = { id: string; name: string; slug: string | null; logo_url: string | null; created_at: string };
+type Company = { id: string; name: string; slug: string | null; logo_url: string | null; program_phases: unknown; created_at: string };
 
 export default function CompaniesList({ companies }: { companies: Company[] }) {
   const router = useRouter();
@@ -15,6 +15,7 @@ export default function CompaniesList({ companies }: { companies: Company[] }) {
   const [editSlug, setEditSlug] = useState("");
   const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
   const [editLogoFile, setEditLogoFile] = useState<File | null>(null);
+  const [editProgramPhasesJson, setEditProgramPhasesJson] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,7 +24,7 @@ export default function CompaniesList({ companies }: { companies: Company[] }) {
     setLoading(true);
     try {
       const logoUrl = editLogoFile ? await uploadCompanyLogo(id, editLogoFile) : editLogoUrl;
-      const result = await updateCompany(id, { name: editName, slug: editSlug || undefined, logoUrl });
+      const result = await updateCompany(id, { name: editName, slug: editSlug || undefined, logoUrl, programPhasesJson: editProgramPhasesJson });
       if (result.error) {
         setError(result.error);
         return;
@@ -44,6 +45,7 @@ export default function CompaniesList({ companies }: { companies: Company[] }) {
     setEditSlug(c.slug ?? "");
     setEditLogoUrl(c.logo_url);
     setEditLogoFile(null);
+    setEditProgramPhasesJson(JSON.stringify(c.program_phases ?? [], null, 2));
     setError(null);
   }
 
@@ -80,6 +82,16 @@ export default function CompaniesList({ companies }: { companies: Company[] }) {
                   </label>
                   {(editLogoUrl || editLogoFile) && <button type="button" onClick={() => { setEditLogoUrl(null); setEditLogoFile(null); }}><Trash2 size={14} /> Remove</button>}
                 </div>
+                <label className="superadmin-program-phases-editor">
+                  <span>Program agenda (JSON, optional)</span>
+                  <small>Phases/days/session blocks shown on this company&apos;s Journey workspace. Leave as <code>[]</code> to show no agenda section.</small>
+                  <textarea
+                    value={editProgramPhasesJson}
+                    onChange={(e) => setEditProgramPhasesJson(e.target.value)}
+                    rows={8}
+                    spellCheck={false}
+                  />
+                </label>
               </div>
               <div className="flex gap-2">
                 <button

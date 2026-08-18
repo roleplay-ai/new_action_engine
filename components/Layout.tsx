@@ -49,14 +49,26 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   const isActive = (href: string) => activePath.startsWith(href);
   const showLoader = isLoading || contentLoading;
   const companyName = cohort?.companyName?.trim().toLowerCase();
-  const isRcpl = companyName === "rcpl university" || companyName === "surge";
-  const rcplPhase = ["1", "2", "3"].includes(searchParams.get("phase") ?? "") ? searchParams.get("phase")! : "1";
-  const rcplPhases = [
+  const isSurgeOrRcplUniversity = companyName === "rcpl university" || companyName === "surge";
+  // The RcplWorkspace design (navy/gold shell, "Workspace" topbar label, phase
+  // picker) is now shared by every company — see RcplWorkspace.tsx. Surge/RCPL
+  // University keep their own hardcoded 3-phase list unchanged; every other
+  // company's picker is built from its seeded companies.program_phases.
+  const defaultRcplPhases = [
     { id: "1", label: "Phase 1", title: "Leading Business & Future", window: "Month 1" },
     { id: "2", label: "Phase 2", title: "Leading Self", window: "Month 3" },
     { id: "3", label: "Phase 3", title: "Leading Others", window: "Month 5" },
   ];
-  const currentRcplPhase = rcplPhases.find((phase) => phase.id === rcplPhase) ?? rcplPhases[0];
+  const rcplPhases = isSurgeOrRcplUniversity
+    ? defaultRcplPhases
+    : (cohort?.companyProgramPhases ?? []).map((phase) => ({
+      id: phase.id,
+      label: phase.label,
+      title: phase.focus || phase.title,
+      window: phase.window,
+    }));
+  const rcplPhase = searchParams.get("phase") ?? rcplPhases[0]?.id ?? "1";
+  const currentRcplPhase = rcplPhases.find((phase) => phase.id === rcplPhase) ?? rcplPhases[0] ?? null;
 
   async function switchCohort(cohortId: string) {
     if (!cohortId || cohortId === cohort?.id || switchingCohort) return;
@@ -96,7 +108,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
     : "—";
 
   return (
-    <div className={`participant-shell participant-shell--sidebar${isRcpl ? " participant-shell--rcpl" : ""}`}>
+    <div className="participant-shell participant-shell--sidebar participant-shell--rcpl">
       <aside className="participant-sidebar">
         <div>
           <Link href="/journey" className="participant-brand" onClick={() => beginNavigation("/journey")}>
@@ -110,7 +122,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             <span><strong>{cohort?.companyName || "Your company"}</strong></span>
           </Link>
 
-          {isRcpl && pathname.startsWith("/journey") && (
+          {currentRcplPhase && pathname.startsWith("/journey") && (
             <details className="rcpl-sidebar-phase-picker">
               <summary>
                 <span><small>Current phase</small><strong>{currentRcplPhase.label} · {currentRcplPhase.title}</strong></span>
@@ -148,7 +160,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
         <header className="participant-topbar" style={showLoader ? { visibility: "hidden" } : undefined} aria-hidden={showLoader}>
           <div className="participant-topbar-row">
             <div className="participant-topbar-side">
-              {isRcpl && <span className="rcpl-topbar-title">Workspace</span>}
+              <span className="rcpl-topbar-title">Workspace</span>
               <Link href="/journey" className="participant-mobile-brand" onClick={() => beginNavigation("/journey")}>
                 {cohort?.companyLogoUrl ? (
                   <img src={cohort.companyLogoUrl} alt="" />

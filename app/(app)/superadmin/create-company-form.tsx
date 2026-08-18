@@ -12,6 +12,8 @@ export default function CreateCompanyForm() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [programPhasesJson, setProgramPhasesJson] = useState("");
+  const [showProgramPhases, setShowProgramPhases] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +23,7 @@ export default function CreateCompanyForm() {
     setLoading(true);
     try {
       const logoUrl = logoFile ? await uploadCompanyLogo(null, logoFile) : undefined;
-      const result = await createCompany({ name, slug: slug || undefined, logoUrl });
+      const result = await createCompany({ name, slug: slug || undefined, logoUrl, programPhasesJson: programPhasesJson || undefined });
       if (result.error) {
         setError(result.error);
         return;
@@ -29,6 +31,8 @@ export default function CreateCompanyForm() {
       setName("");
       setSlug("");
       setLogoFile(null);
+      setProgramPhasesJson("");
+      setShowProgramPhases(false);
       setOpen(false);
       router.refresh();
     } catch (caughtError) {
@@ -78,6 +82,22 @@ export default function CreateCompanyForm() {
             onChange={(event) => setLogoFile(event.target.files?.[0] ?? null)}
           />
         </label>
+        <button type="button" className="superadmin-secondary-action" onClick={() => setShowProgramPhases((v) => !v)}>
+          {showProgramPhases ? "Hide" : "Add"} program agenda (optional)
+        </button>
+        {showProgramPhases && (
+          <label className="superadmin-program-phases-editor">
+            <span>Program agenda (JSON, optional)</span>
+            <small>Phases/days/session blocks for this company&apos;s Journey workspace agenda. Can be added or edited later from the company row below.</small>
+            <textarea
+              value={programPhasesJson}
+              onChange={(e) => setProgramPhasesJson(e.target.value)}
+              placeholder={'[\n  {\n    "id": "1",\n    "label": "Phase 1",\n    "window": "Month 1 · 12 to 13 Jan",\n    "title": "Module 1 · ...",\n    "focus": "...",\n    "summary": "...",\n    "days": [\n      {\n        "name": "Day 1 · ...",\n        "date": "Mon 12 Jan",\n        "takeaway": "...",\n        "blocks": [\n          { "time": "9.30-11.00", "name": "...", "description": "..." }\n        ]\n      }\n    ]\n  }\n]'}
+              rows={8}
+              spellCheck={false}
+            />
+          </label>
+        )}
         <div className="flex gap-2">
           <button
             type="submit"

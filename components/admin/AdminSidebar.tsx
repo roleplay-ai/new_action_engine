@@ -14,6 +14,7 @@ import {
   MessageSquareText,
   Megaphone,
   Users,
+  ArrowLeft,
 } from "lucide-react";
 
 interface NavItem {
@@ -259,11 +260,34 @@ export function AdminSidebar({ displayName }: AdminSidebarProps) {
         })}
       </nav>
 
+      {/* Back to app */}
+      <Link
+        href="/journey"
+        className="w-full flex items-center justify-center gap-2 px-3 py-2.5 mb-2 rounded-xl text-sm font-semibold transition-all"
+        style={{
+          background: "rgba(255,255,255,0.06)",
+          color: "rgba(255,255,255,0.7)",
+          border: "1px solid rgba(255,255,255,0.08)",
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.background = "rgba(255,206,0,0.12)";
+          (e.currentTarget as HTMLElement).style.color = "var(--bright-amber)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)";
+          (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.7)";
+        }}
+      >
+        <ArrowLeft size={14} strokeWidth={2} />
+        Back to app
+      </Link>
       {/* ── Footer ── */}
       <div
         className="p-4 space-y-3"
         style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
       >
+
+
         {/* User info */}
         <div className="flex items-center gap-3">
           <div

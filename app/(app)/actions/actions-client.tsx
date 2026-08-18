@@ -183,7 +183,7 @@ function CommitmentBuddyScoreCard({
         <h3 className="commitment-buddy-name">{buddy.name}</h3>
         <p className="commitment-buddy-relation">You are their commitment buddy</p>
       </div>
-      <span className="commitment-buddy-tag">1-to-1</span>
+      {/* <span className="commitment-buddy-tag">1-to-1</span> */}
     </div>
 
     <div className="commitment-buddy-score-panel" aria-label="Commitment score comparison">
@@ -789,7 +789,7 @@ export default function ActionsClient() {
             <div className="commitment-buddy-popup-support">
               <div className="commitment-buddy-popup-support-title">
                 <UsersRound size={16} aria-hidden="true" />
-                <h3>How you&apos;ll support each other</h3>
+                <h3>How you&apos;ll support your buddy</h3>
               </div>
               <p>{buddyGroup.buddies.length === 1
                 ? "You'll see their Commitment Score."

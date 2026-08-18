@@ -610,7 +610,9 @@ export default function ActionsClient() {
               <strong>
                 {planIsArchived
                   ? "No released actions remain"
-                  : "So efficient!"}
+                  : planIsActive
+                    ? "So efficient!"
+                    : "No action plan made"}
               </strong>
               <p>
                 {planIsArchived

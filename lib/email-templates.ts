@@ -57,7 +57,13 @@ function headerHtml(data: EmailTemplateData): string {
   return `
     <tr>
       <td style="padding:24px 32px;background-color:#111827;" align="center">
-        ${logo ? `<img src="${esc(logo)}" alt="${esc(companyName || "Logo")}" height="32" style="display:block;margin:0 auto;" />` : `<span style="color:#ffffff;font-weight:bold;font-size:18px;">${esc(companyName || "Action Engine")}</span>`}
+        ${logo
+          ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;background:#FFFFFF;border-radius:12px;">
+              <tr>
+                <td valign="middle" style="padding:10px 14px;"><img src="${esc(logo)}" alt="${esc(companyName || "Logo")}" height="32" style="display:block;max-height:32px;width:auto;border-radius:5px;" /></td>
+              </tr>
+            </table>`
+          : `<span style="color:#ffffff;font-weight:bold;font-size:18px;">${esc(companyName || "Action Engine")}</span>`}
       </td>
     </tr>`;
 }
@@ -559,6 +565,92 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
 </html>`;
 }
 
+// ─── Cohort announcement ────────────────────────────────────────────────────
+
+function renderAnnouncementHtml(data: EmailTemplateData): string {
+  const firstName = str(data, "first_name", "there");
+  const batchName = str(data, "batch_name");
+  const postedBy = str(data, "posted_by");
+  const message = str(data, "message");
+  const loginUrl = str(data, "login_url", "#");
+  const preheader = `${postedBy || "Your trainer"} posted a new announcement${batchName ? ` for ${batchName}` : ""}.`;
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>New announcement</title>
+    <style>
+      body { margin: 0; padding: 0; background: #F6F2E6; }
+      table { border-spacing: 0; }
+      td { padding: 0; }
+      a { color: inherit; }
+
+      @media only screen and (max-width: 620px) {
+        .shell { width: 100% !important; }
+        .pad { padding-left: 20px !important; padding-right: 20px !important; }
+        .headline { font-size: 29px !important; line-height: 31px !important; }
+        .cta { width: 100% !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(preheader)}</div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#F6F2E6;">
+      <tr>
+        <td align="center" style="padding:18px 8px 30px;">
+          <table role="presentation" class="shell" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#FFFFFF;border-top:3px solid #FFCE00;border-left:1px solid #E8DFC6;border-right:1px solid #E8DFC6;border-bottom:1px solid #E8DFC6;">
+
+            <tr>
+              <td class="pad" style="padding:30px 34px 28px;background:#221D23;color:#FFFFFF;font-family:Inter,Arial,sans-serif;">
+                ${heroTopRowHtml(`<div style="display:inline-block;padding:6px 10px;border:1px solid #756510;border-radius:18px;color:#FFCE00;font-size:9px;line-height:10px;font-weight:800;letter-spacing:1.15px;text-transform:uppercase;">New announcement</div>`, data)}
+                <div class="headline" style="margin-top:16px;font-size:34px;line-height:36px;font-weight:800;letter-spacing:-1.25px;">There&apos;s an update<br /><span style="color:#FFCE00;">for you.</span></div>
+                <div style="margin-top:12px;color:#E2DEE1;font-size:13px;line-height:19px;">Hey ${esc(firstName)}, ${esc(postedBy || "your trainer")} shared a new announcement${batchName ? ` for ${esc(batchName)}` : ""}.</div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" style="padding:22px 34px 8px;font-family:Inter,Arial,sans-serif;">
+                <div style="font-size:17px;line-height:21px;font-weight:800;color:#221D23;">Announcement</div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" style="padding:0 34px 8px;font-family:Inter,Arial,sans-serif;">
+                <div style="padding:18px 18px;background:#FFFFFF;border:1px solid #E8DFC6;border-radius:14px;color:#3D3740;font-size:14px;line-height:22px;white-space:pre-wrap;">${esc(message)}</div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" style="padding:8px 34px 2px;font-family:Inter,Arial,sans-serif;">
+                <div style="padding:11px 13px;background:#FFF8D9;border-radius:11px;color:#4F484D;font-size:11px;line-height:16px;"><strong style="color:#221D23;">Want to respond or check what&apos;s next?</strong> Open your dashboard to stay up to date with your batch.</div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" align="center" style="padding:14px 34px 24px;font-family:Inter,Arial,sans-serif;">
+                <table role="presentation" class="cta" cellpadding="0" cellspacing="0" border="0">
+                  <tr><td align="center" style="background:#FFCE00;border:2px solid #221D23;border-radius:10px;box-shadow:3px 3px 0 #221D23;"><a href="${esc(loginUrl)}" target="_blank" style="display:block;padding:13px 34px;color:#221D23;text-decoration:none;font-size:12px;line-height:16px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;">Open Dashboard</a></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" style="padding:0 34px 22px;font-family:Inter,Arial,sans-serif;text-align:center;">
+                <div style="padding-top:15px;border-top:1px solid #ECE7E0;color:#8B8489;font-size:10px;line-height:15px;">Powered by <a href="https://www.nudgeable.ai" style="color:#623CEA;text-decoration:none;font-weight:700;">Nudgeable.ai</a></div>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
 // ─── Registry ───────────────────────────────────────────────────────────────
 
 export const EMAIL_TEMPLATES = {
@@ -589,6 +681,14 @@ export const EMAIL_TEMPLATES = {
       return `Your actions are ready${parts.length ? ` — ${parts.join(" — ")}` : ""}`;
     },
     render: renderDailyReminderHtml,
+  },
+  announcement: {
+    label: "Batch Announcement",
+    subject: (data: EmailTemplateData) => {
+      const batch = str(data, "batch_name");
+      return `New announcement${batch ? ` — ${batch}` : ""}`;
+    },
+    render: renderAnnouncementHtml,
   },
 } as const;
 

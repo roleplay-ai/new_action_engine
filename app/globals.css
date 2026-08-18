@@ -17660,6 +17660,12 @@ textarea.commitment-buddy-contact-selectable {
   background: transparent;
 }
 
+.trainer-notice-composer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .trainer-notice-composer button,
 .trainer-facilitator-form button {
   justify-self: start;
@@ -17674,6 +17680,12 @@ textarea.commitment-buddy-contact-selectable {
   font-weight: 800;
   border: none;
   cursor: pointer;
+}
+
+.trainer-notice-composer-actions button[type="button"] {
+  background: transparent;
+  color: var(--color-text-primary);
+  border: 1.5px solid var(--color-border-strong);
 }
 
 .trainer-notice-composer button:disabled,
@@ -17739,6 +17751,13 @@ textarea.commitment-buddy-contact-selectable {
   font-size: 10.5px;
 }
 
+.trainer-notice-email-status {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a9e5c;
+}
+
 .trainer-notice-row > button,
 .trainer-facilitator-row > button,
 .trainer-member-row > button {
@@ -17755,6 +17774,11 @@ textarea.commitment-buddy-contact-selectable {
 .trainer-facilitator-row > button:hover {
   color: #ED4551;
   background: rgba(237, 69, 81, 0.08);
+}
+
+.trainer-notice-row > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .trainer-facilitator-form-fields {

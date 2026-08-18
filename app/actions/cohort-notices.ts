@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { isResendConfigured } from "@/lib/resend";
+import { sendTemplateToUsers } from "@/lib/email-send";
 import type { CohortNotice } from "@/lib/types";
 
 /** Shared access check: who can see/post to a cohort's notice board.
@@ -124,6 +126,89 @@ export async function postCohortNotice(cohortId: string, message: string): Promi
     };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not post the notice" };
+  }
+}
+
+/** Email an announcement to every member of a batch, using the "announcement"
+ * template (company logo, the message, a link back in). Works straight off
+ * the composer draft — independent of whether it's also posted to the board.
+ * Only the trainer of the cohort, or an admin/superadmin standing in, may send. */
+export async function emailCohortAnnouncement(cohortId: string, message: string): Promise<{ error?: string; sent?: number; failed?: number }> {
+  try {
+    if (!isResendConfigured()) {
+      return { error: "Email is not configured. Set RESEND_API_KEY and RESEND_FROM_EMAIL." };
+    }
+
+    const access = await getNoticeBoardAccess(cohortId);
+    if ("error" in access) return { error: access.error };
+    if (!access.canPost) return { error: "Only the trainer or an admin can email this batch" };
+
+    const cleanMessage = message.trim();
+    if (!cleanMessage) return { error: "Write something before emailing" };
+    if (cleanMessage.length > 2000) return { error: "Announcements can be up to 2,000 characters" };
+
+    const admin = createAdminClient();
+    const { data: cohort, error: cohortError } = await admin
+      .from("cohorts")
+      .select("id, batch_name, module_name, company_id")
+      .eq("id", cohortId)
+      .maybeSingle();
+    if (cohortError) return { error: cohortError.message };
+    if (!cohort) return { error: "Batch not found" };
+
+    let companyName: string | undefined;
+    let companyLogo: string | undefined;
+    if (cohort.company_id) {
+      const { data: company } = await admin
+        .from("companies")
+        .select("name, logo_url")
+        .eq("id", cohort.company_id)
+        .maybeSingle();
+      companyName = company?.name ?? undefined;
+      companyLogo = company?.logo_url ?? undefined;
+    }
+
+    const { data: members, error: membersError } = await admin
+      .from("cohort_members")
+      .select("user_id")
+      .eq("cohort_id", cohortId);
+    if (membersError) return { error: membersError.message };
+    const userIds = [...new Set((members ?? []).map((member) => member.user_id as string))];
+    if (userIds.length === 0) return { error: "This batch has no members to email" };
+
+    const { data: authorProfile } = await access.supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", access.userId)
+      .maybeSingle();
+
+    const fromEmail = process.env.RESEND_FROM_EMAIL;
+    if (!fromEmail) return { error: "RESEND_FROM_EMAIL is not set" };
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const batchName = [cohort.batch_name, cohort.module_name].filter(Boolean).join(" — ");
+
+    const results = await sendTemplateToUsers({
+      userIds,
+      templateId: "announcement",
+      fromEmail,
+      baseUrl,
+      sentBy: access.userId,
+      cohortIdForUser: () => cohortId,
+      loginPath: "/journey",
+      extraTemplateData: {
+        message: cleanMessage,
+        batch_name: batchName || undefined,
+        company_name: companyName,
+        company_logo: companyLogo,
+        posted_by: authorProfile?.full_name?.trim() || undefined,
+      },
+    });
+
+    const sent = results.filter((result) => result.success).length;
+    const failed = results.length - sent;
+    return { sent, failed, error: sent === 0 ? results[0]?.error ?? "Could not send the email" : undefined };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not send the announcement email" };
   }
 }
 

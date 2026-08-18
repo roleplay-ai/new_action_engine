@@ -9,23 +9,20 @@ import CohortChat from "@/components/journey/CohortChat";
 import NoticeBoardCard from "@/components/journey/NoticeBoardCard";
 import FacilitatorsCard from "@/components/journey/FacilitatorsCard";
 import FlipCountdown from "@/components/journey/FlipCountdown";
-import type { Cohort, CohortMember, CohortNotice, Facilitator, PrepareContentItem, UserPrepareProgress } from "@/lib/types";
+import type { Cohort, CohortMember, CohortNotice, Facilitator, PrepareContentItem, ProgramBlock, ProgramDay, ProgramPhase, UserPrepareProgress } from "@/lib/types";
 import { resolveVideoEmbed, resolveVideoThumbnail } from "@/lib/video-embed";
 import { browserNeedsExternalPdfViewer } from "@/lib/pdf-embed";
 import { daysUntil, nextUpcomingCohortDate } from "@/lib/cohort-dates";
 
-type PhaseBlock = { time: string; name: string; description: string };
-type PhaseDay = { name: string; date: string; takeaway: string; blocks: PhaseBlock[] };
-type RcplPhase = {
-  id: string;
-  label: string;
-  window: string;
-  title: string;
-  subtitle: string;
-  focus: string;
-  summary: string;
-  days: PhaseDay[];
-};
+// This component is also used, unmodified in visual language, for every
+// non-Surge/RCPL University company — see prepare-client.tsx. Those callers
+// pass `phases` sourced from companies.program_phases (seeded by a superadmin)
+// instead of the hardcoded RCPL_PHASES below, plus their own hero copy. Surge
+// itself passes none of the optional props, so it renders byte-for-byte what
+// it always has.
+type PhaseBlock = ProgramBlock;
+type PhaseDay = ProgramDay;
+type RcplPhase = ProgramPhase;
 
 const RCPL_PHASES: RcplPhase[] = [
   {
@@ -182,6 +179,25 @@ function ResourcePreview({ item }: { item: PrepareContentItem }) {
   return item.type === "video" ? <Play size={30} fill="currentColor" /> : <FileText size={28} />;
 }
 
+/** Replaces the hand-plotted SURGE journey SVG for companies with seeded,
+ * variable-length phase lists — a simple stepper generalises to any count
+ * where the bespoke 3-point curve can't. */
+function PhaseJourneyGraphic({ phases, activePhaseId }: { phases: RcplPhase[]; activePhaseId?: string }) {
+  return (
+    <ol className="rcpl-journey-steps" aria-label="Programme phases">
+      {phases.map((item, index) => (
+        <li key={item.id} className={item.id === activePhaseId ? "active" : undefined}>
+          <span className="rcpl-journey-step-dot">{index + 1}</span>
+          <span className="rcpl-journey-step-copy">
+            <strong>{item.label}</strong>
+            {item.window && <small>{item.window}</small>}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 type RcplWorkspaceProps = {
   cohort: Cohort;
   roster: CohortMember[];
@@ -196,6 +212,14 @@ type RcplWorkspaceProps = {
   onOpenResource: (item: PrepareContentItem) => void;
   notices: CohortNotice[];
   facilitators: Facilitator[];
+  /** Program agenda. Omit for Surge's own hardcoded SURGE curriculum; every
+   * other company passes its companies.program_phases here instead. */
+  phases?: RcplPhase[];
+  /** Hero copy overrides — all default to Surge's existing SURGE copy, so
+   * passing none of these keeps Surge pixel-identical. */
+  programEyebrow?: string;
+  heroTitle?: string;
+  heroDescription?: string;
 };
 
 export default function RcplWorkspace({
@@ -212,10 +236,16 @@ export default function RcplWorkspace({
   onOpenResource,
   notices,
   facilitators,
+  phases = RCPL_PHASES,
+  programEyebrow = "RCPL Accelerated Leadership Program",
+  heroTitle = "Your 5-month SURGE leadership journey",
+  heroDescription = "Build the capability to lead the future, lead yourself, and lead others through immersive learning, practical application, teachbacks, and continued action at work.",
 }: RcplWorkspaceProps) {
   const searchParams = useSearchParams();
-  const phaseId = searchParams.get("phase") ?? "1";
-  const phase = RCPL_PHASES.find((item) => item.id === phaseId) ?? RCPL_PHASES[0];
+  const hasPhases = phases.length > 0;
+  const isDefaultJourney = phases === RCPL_PHASES;
+  const phaseId = searchParams.get("phase") ?? phases[0]?.id;
+  const phase = phases.find((item) => item.id === phaseId) ?? phases[0] ?? null;
   const [buddyInfoOpen, setBuddyInfoOpen] = useState(false);
 
   const sessionDates = useMemo(
@@ -275,15 +305,15 @@ export default function RcplWorkspace({
   return (
     <div className="rcpl-workspace animate-in fade-in duration-700">
       <header className="rcpl-page-heading">
-        <span>{cohort.companyLogoUrl ? <img src={cohort.companyLogoUrl} alt="RCPL University logo" /> : initials(cohort.companyName ?? null)}</span>
+        <span>{cohort.companyLogoUrl ? <img src={cohort.companyLogoUrl} alt={`${cohort.companyName || "Company"} logo`} /> : initials(cohort.companyName ?? null)}</span>
         {/* <div><h1 className="text-2xl font-bold">SURGE</h1></div> */}
       </header>
 
       <section className="rcpl-program-hero">
         <div className="rcpl-program-copy">
-          <small>RCPL Accelerated Leadership Program</small>
-          <h2>Your 5-month SURGE leadership journey</h2>
-          <p>Build the capability to lead the future, lead yourself, and lead others through immersive learning, practical application, teachbacks, and continued action at work.</p>
+          <small>{programEyebrow}</small>
+          <h2>{heroTitle}</h2>
+          <p>{heroDescription}</p>
           <div className="rcpl-hero-meta">
             {sessionDates.length === 0 ? (
               <span><CalendarDays size={14} />Date to be announced</span>
@@ -298,30 +328,36 @@ export default function RcplWorkspace({
               <FlipCountdown days={daysToNextSession} label={daysToGoLabel} />
             )}
           </div>
-          <nav className="rcpl-phase-chips" aria-label="SURGE programme phases">
-            {RCPL_PHASES.map((item) => <Link key={item.id} href={`/journey?phase=${item.id}`} className={item.id === phase.id ? "active" : ""}>{item.focus}</Link>)}
-          </nav>
+          {hasPhases && (
+            <nav className="rcpl-phase-chips" aria-label="Programme phases">
+              {phases.map((item) => <Link key={item.id} href={`/journey?phase=${item.id}`} className={item.id === phase?.id ? "active" : ""}>{item.focus || item.label}</Link>)}
+            </nav>
+          )}
         </div>
-        <div className="rcpl-program-journey" aria-label="The SURGE journey rises through three phases across six months">
+        <div className="rcpl-program-journey" aria-label={isDefaultJourney ? "The SURGE journey rises through three phases across six months" : "Programme phases"}>
           {cohort.logoUrl && <img className="rcpl-program-mark" src={cohort.logoUrl} alt={`${cohort.name} logo`} />}
-          <svg viewBox="0 0 440 262" role="img" aria-hidden="true">
-            <defs>
-              <filter id="rcpl-white-dot-glow" x="-200%" y="-200%" width="500%" height="500%">
-                <feGaussianBlur stdDeviation="4.5" result="blur" />
-                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-              </filter>
-            </defs>
-            <path className="rcpl-arrow-track" d="M22 228 C 100 228, 100 172, 178 172 S 256 116, 334 116 L 390 78" />
-            <path className="rcpl-arrow-live" d="M22 228 C 100 228, 100 172, 178 172 S 256 116, 334 116 L 390 78" />
-            <path d="M386 66 L 416 62 L 401 92 Z" fill="#D03A2C" />
-            <circle className="rcpl-journey-spark" r="4.5" fill="#fff" filter="url(#rcpl-white-dot-glow)">
-              <animateMotion dur="5.5s" begin="1.9s" repeatCount="indefinite" path="M22 228 C 100 228, 100 172, 178 172 S 256 116, 334 116 L 390 78" />
-              <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.85;1" dur="5.5s" begin="1.9s" repeatCount="indefinite" />
-            </circle>
-            <g><circle cx="22" cy="228" r="9" /><text x="4" y="202">Leading Business</text><text x="4" y="216">&amp;   Leading Future</text><text className="month" x="4" y="252">MONTH 1</text></g>
-            <g><circle cx="178" cy="172" r="9" /><text x="152" y="148">Leading Self</text><text className="month" x="152" y="161">MONTH 3</text></g>
-            <g><circle cx="334" cy="116" r="9" /><text x="300" y="146">Leading Others</text><text className="month" x="300" y="133">MONTH 5</text></g>
-          </svg>
+          {isDefaultJourney ? (
+            <svg viewBox="0 0 440 262" role="img" aria-hidden="true">
+              <defs>
+                <filter id="rcpl-white-dot-glow" x="-200%" y="-200%" width="500%" height="500%">
+                  <feGaussianBlur stdDeviation="4.5" result="blur" />
+                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+              </defs>
+              <path className="rcpl-arrow-track" d="M22 228 C 100 228, 100 172, 178 172 S 256 116, 334 116 L 390 78" />
+              <path className="rcpl-arrow-live" d="M22 228 C 100 228, 100 172, 178 172 S 256 116, 334 116 L 390 78" />
+              <path d="M386 66 L 416 62 L 401 92 Z" fill="#D03A2C" />
+              <circle className="rcpl-journey-spark" r="4.5" fill="#fff" filter="url(#rcpl-white-dot-glow)">
+                <animateMotion dur="5.5s" begin="1.9s" repeatCount="indefinite" path="M22 228 C 100 228, 100 172, 178 172 S 256 116, 334 116 L 390 78" />
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.85;1" dur="5.5s" begin="1.9s" repeatCount="indefinite" />
+              </circle>
+              <g><circle cx="22" cy="228" r="9" /><text x="4" y="202">Leading Business</text><text x="4" y="216">&amp;   Leading Future</text><text className="month" x="4" y="252">MONTH 1</text></g>
+              <g><circle cx="178" cy="172" r="9" /><text x="152" y="148">Leading Self</text><text className="month" x="152" y="161">MONTH 3</text></g>
+              <g><circle cx="334" cy="116" r="9" /><text x="300" y="146">Leading Others</text><text className="month" x="300" y="133">MONTH 5</text></g>
+            </svg>
+          ) : hasPhases ? (
+            <PhaseJourneyGraphic phases={phases} activePhaseId={phase?.id} />
+          ) : null}
         </div>
       </section>
 
@@ -333,20 +369,25 @@ export default function RcplWorkspace({
             {nextHref ? <Link href={nextHref}>Continue</Link> : <button type="button" disabled={!nextIncompleteItem} onClick={() => nextIncompleteItem && onOpenResource(nextIncompleteItem)}>Open</button>}
           </section> */}
 
-          <section className="rcpl-card rcpl-agenda" id="rcpl-agenda">
-            <header>
-              <div><h3>{phase.title}</h3><p>{phase.subtitle}</p></div>
-            </header>
-            <div className="rcpl-agenda-focus"><div><strong>{phase.focus}</strong><p>{phase.summary}</p></div></div>
-            <div className="rcpl-agenda-days">
-              {phase.days.map((day) => (
-                <div className="rcpl-agenda-day" key={day.name}>
-                  <small>{day.date}</small><h4>{day.name}</h4>
-                  <ol>{day.blocks.map((block) => <li key={`${day.name}-${block.time}`}><span>{block.time}</span><strong>{block.name}</strong></li>)}</ol>
-                </div>
-              ))}
-            </div>
-          </section>
+          {phase && (
+            <section className="rcpl-card rcpl-agenda" id="rcpl-agenda">
+              <header>
+                <div><h3>{phase.title}</h3>{phase.subtitle && <p>{phase.subtitle}</p>}</div>
+                {!isDefaultJourney && phase.window && <strong className="rcpl-agenda-window">{phase.window}</strong>}
+              </header>
+              {(phase.focus || phase.summary) && (
+                <div className="rcpl-agenda-focus"><div>{phase.focus && <strong>{phase.focus}</strong>}{phase.summary && <p>{phase.summary}</p>}</div></div>
+              )}
+              <div className="rcpl-agenda-days">
+                {phase.days.map((day) => (
+                  <div className="rcpl-agenda-day" key={day.name}>
+                    <small>{day.date}</small><h4>{day.name}</h4>
+                    <ol>{day.blocks.map((block) => <li key={`${day.name}-${block.time}`}><span>{block.time}</span><strong>{block.name}</strong></li>)}</ol>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
 
 

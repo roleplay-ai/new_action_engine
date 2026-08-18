@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import Link from "next/link";
-import { ArrowRight, CalendarDays, Check, CircleUserRound, FileText, Leaf, Lightbulb, NotebookPen, Play, Sparkles, Target, TrendingUp, Users, X } from "lucide-react";
+import { CircleUserRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getJourneyData } from "@/app/actions/journey";
 import { markContentViewed } from "@/app/actions/prepare-progress";
@@ -11,85 +10,24 @@ import VideoCard from "@/components/prepare/VideoCard";
 import PrereadCard from "@/components/prepare/PrereadCard";
 import PdfReader from "@/components/prepare/PdfReader";
 import QuizCard from "@/components/prepare/QuizCard";
-import CohortChat from "@/components/journey/CohortChat";
-import NoticeBoardCard from "@/components/journey/NoticeBoardCard";
-import FacilitatorsCard from "@/components/journey/FacilitatorsCard";
 import RcplWorkspace from "@/components/journey/RcplWorkspace";
 import { usePageLoading } from "@/components/PageLoadingProvider";
 import type { JourneyData, PrepareContentItem, UserPrepareProgress } from "@/lib/types";
-import { resolveVideoEmbed, resolveVideoThumbnail } from "@/lib/video-embed";
-import { nextUpcomingCohortDate } from "@/lib/cohort-dates";
-
-/** The date to show as "the" session date: the soonest upcoming one, or the
- * most recent past one once every date on the cohort has passed. */
-function displayCohortDate(dates: string[]): string | null {
-  return nextUpcomingCohortDate(dates) ?? dates[dates.length - 1] ?? null;
-}
-
-function formatSessionDate(value?: string | null, long = false) {
-  if (!value) return "Date to be announced";
-  const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-GB", long
-    ? { weekday: "long", day: "numeric", month: "long", year: "numeric" }
-    : { day: "numeric", month: "short" });
-}
-
-function initials(name: string | null) {
-  if (!name) return "P";
-  return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-}
 
 function isPdfResource(item: PrepareContentItem) {
   return item.type === "preread" && !!item.prereadUrl && /\.pdf(?:$|[?#])/i.test(item.prereadUrl);
 }
 
-function resourceKind(item: PrepareContentItem) {
-  if (item.type === "video") return "Video";
-  if (item.type === "quiz") return "Quiz";
-  return isPdfResource(item) ? "PDF" : "Resource";
-}
-
-function LibraryMediaPreview({ item }: { item: PrepareContentItem }) {
-  if (item.type === "video" && item.videoUrl) {
-    const thumb = resolveVideoThumbnail(item.videoUrl);
-    if (thumb) {
-      return (
-        <>
-          <img className="journey-v2-media-thumb" src={thumb} alt="" loading="lazy" />
-          <span className="journey-v2-media-play"><Play size={18} fill="currentColor" /></span>
-        </>
-      );
-    }
-    const embed = resolveVideoEmbed(item.videoUrl);
-    if (embed.kind === "file") {
-      return (
-        <>
-          <video className="journey-v2-media-thumb" src={embed.src} muted playsInline preload="metadata" />
-          <span className="journey-v2-media-play"><Play size={18} fill="currentColor" /></span>
-        </>
-      );
-    }
-  }
-
-  if (isPdfResource(item) && item.prereadUrl) {
-    return (
-      <iframe
-        className="journey-v2-media-thumb journey-v2-media-thumb--pdf"
-        src={`${item.prereadUrl}#page=1&view=FitH&toolbar=0&navpanes=0`}
-        title={`${item.title} preview`}
-        tabIndex={-1}
-        loading="lazy"
-      />
-    );
-  }
-
-  const Icon = item.type === "video" ? Play : FileText;
-  return <Icon size={item.type === "video" ? 30 : 27} fill={item.type === "video" ? "currentColor" : "none"} />;
-}
-
+/**
+ * Every company gets the same RcplWorkspace design (agenda, resource library,
+ * batch roster, commitment buddy, facilitators, chat). Surge renders it with
+ * no overrides — its hardcoded SURGE curriculum and copy stay byte-for-byte
+ * unchanged. Every other company passes its own DB-backed content instead:
+ * companies.program_phases for the agenda, and cohort name/description/company
+ * name for the hero copy. See components/journey/RcplWorkspace.tsx.
+ */
 export default function PrepareClient({ initialData }: { initialData: JourneyData }) {
-  const { cohort: selectedCohort, personalPlanState } = useEngine();
+  const { personalPlanState } = useEngine();
   const [error, setError] = useState<string | null>(initialData.error ?? null);
   const [cohort, setCohort] = useState(initialData.cohort);
   const [roster, setRoster] = useState(initialData.roster);
@@ -133,12 +71,9 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
     if (!result.error) await reloadQuietly();
   }
 
-  const completedCount = useMemo(() => items.filter((item) => progress[item.id]?.status === "completed").length, [items, progress]);
+  const completedCount = items.filter((item) => progress[item.id]?.status === "completed").length;
   const preparationComplete = items.length === 0 || completedCount === items.length;
-  const nextIncompleteItem = useMemo(
-    () => items.find((item) => progress[item.id]?.status !== "completed") ?? items[0] ?? null,
-    [items, progress]
-  );
+  const nextIncompleteItem = items.find((item) => progress[item.id]?.status !== "completed") ?? items[0] ?? null;
   const planStarted = personalPlanState !== "none";
   const planActive = personalPlanState === "active" || personalPlanState === "archived";
   const nextHref = !preparationComplete ? null : !planStarted ? "/plan#notes" : !planActive ? "/plan#action-plan" : "/actions";
@@ -154,9 +89,8 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
   if (error) return <div className="journey-empty"><strong>We couldn&apos;t load your journey.</strong><p>{error}</p></div>;
   if (!cohort) return <div className="journey-empty"><CircleUserRound size={32} /><strong>Your learning journey will appear here</strong><p>Ask your administrator to add you to a batch.</p></div>;
 
-  const visibleRoster = roster.slice(0, 4);
   const companyName = cohort.companyName?.trim().toLowerCase();
-  const isRcplWorkspace = companyName === "surge";
+  const isSurge = companyName === "surge";
 
   const quizModal = typeof document !== "undefined" && selectedItem?.type === "quiz" ? createPortal(<QuizCard
     item={selectedItem}
@@ -187,162 +121,29 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
     </div>
   </div>, document.body) : null;
 
-  if (isRcplWorkspace) {
-    return <>
-      <RcplWorkspace
-        cohort={cohort}
-        roster={roster}
-        items={items}
-        progress={progress}
-        completedCount={completedCount}
-        preparationComplete={preparationComplete}
-        nextTitle={nextTitle}
-        nextCopy={nextCopy}
-        nextHref={nextHref}
-        nextIncompleteItem={nextIncompleteItem}
-        onOpenResource={setSelectedItem}
-        notices={notices}
-        facilitators={facilitators}
-      />
-      {quizModal}
-      {resourceModal}
-    </>;
-  }
-
-  return (
-    <div className="reference-journey journey-v2 animate-in fade-in duration-700">
-      <div className="journey-v2-company-brand">
-        <span className="journey-v2-company-logo">
-          {cohort.companyLogoUrl ? <img src={cohort.companyLogoUrl} alt={`${cohort.companyName || "Company"} logo`} /> : <span>{initials(cohort.companyName || cohort.name)}</span>}
-        </span>
-        <div><small>Your workspace</small><strong>{cohort.companyName || "Your company"}</strong></div>
-      </div>
-
-      <section className="journey-v2-skill-hero">
-        <div className="journey-v2-cohort-mark">{cohort.logoUrl ? <img src={cohort.logoUrl} alt={`${cohort.name} logo`} /> : <span>{initials(cohort.name)}</span>}</div>
-        <div className="journey-v2-hero-copy">
-          <h1>{cohort.name}</h1>
-          <p>{cohort.description || "Turn what you learn into something useful in your work and career."}</p>
-        </div>
-        <div className="journey-v2-promise">
-          <div><TrendingUp size={22} /></div>
-          <strong>Choose what matters to you. Build a personal plan. Practise through small actions.</strong>
-        </div>
-        <div className="journey-v2-hero-meta">
-          <span><CalendarDays size={14} />{formatSessionDate(displayCohortDate(cohort.dates), true)}</span>
-          <span><Users size={14} />{cohort.memberCount} participants</span>
-          <span><Check size={14} />{completedCount} of {items.length} prep complete</span>
-        </div>
-      </section>
-
-      <section className="journey-v2-rail" aria-label="Your learning journey">
-        <div className={`journey-v2-step ${preparationComplete ? "done" : "current"}`}><b>{preparationComplete ? <Check size={20} /> : <Lightbulb size={20} />}</b><span><strong>Learn</strong><small>Session</small></span></div>
-        <div className={`journey-v2-step ${preparationComplete && !planStarted ? "current" : planStarted ? "done" : ""}`}><b>{planStarted ? <Check size={20} /> : <NotebookPen size={20} />}</b><span><strong>Reflect</strong><small>Your notes</small></span></div>
-        <div className={`journey-v2-step ${planStarted && !planActive ? "current" : planActive ? "done" : ""}`}><b>{planActive ? <Check size={20} /> : <Sparkles size={20} />}</b><span><strong>Plan</strong><small>Make it yours</small></span></div>
-        <div className={`journey-v2-step ${planActive ? "current" : ""}`}><b><Target size={20} /></b><span><strong>Practise</strong><small>Real work</small></span></div>
-        <div className="journey-v2-step"><b><Leaf size={20} /></b><span><strong>Grow</strong><small>Keep it</small></span></div>
-      </section>
-
-      <div className="journey-v2-workspace-grid">
-        <article className="journey-v2-next-card">
-          <div className="journey-v2-next-icon"><ArrowRight size={24} /></div>
-          <div><h2>{nextTitle}</h2><p>{nextCopy}</p></div>
-          {nextHref ? (
-            <Link className="journey-primary-button" href={nextHref}>Continue</Link>
-          ) : (
-            <button
-              type="button"
-              className="journey-primary-button"
-              disabled={!nextIncompleteItem}
-              onClick={() => nextIncompleteItem && setSelectedItem(nextIncompleteItem)}
-            >
-              Open
-            </button>
-          )}
-        </article>
-
-        <div className="journey-v2-session-cards">
-          <div><span><CalendarDays size={18} /></span><strong>{formatSessionDate(displayCohortDate(cohort.dates))}</strong><small>Session date</small></div>
-          <div><span><Sparkles size={18} /></span><strong>{cohort.name}</strong><small>Current skill</small></div>
-          <div><span><Users size={18} /></span><strong>{cohort.memberCount}</strong><small>Participants</small></div>
-        </div>
-
-        <section className="journey-v2-main-stack" aria-label="Workspace resources and conversation">
-          <article className="journey-module-card journey-v2-resource-library" id="preparation">
-            <div className="journey-v2-resource-heading">
-              <div><span>Base Camp library</span><h3>Videos, PDFs and session resources</h3></div>
-              <strong>{completedCount}/{items.length} complete</strong>
-            </div>
-            <div className="journey-v2-media-grid">
-              {items.length === 0 && <div className="journey-inline-empty">No preparation has been assigned yet.</div>}
-              {items.map((item) => {
-                const done = progress[item.id]?.status === "completed";
-                const kind = resourceKind(item);
-                const hasPreview =
-                  (item.type === "video" && !!item.videoUrl && (!!resolveVideoThumbnail(item.videoUrl) || resolveVideoEmbed(item.videoUrl).kind === "file"))
-                  || isPdfResource(item);
-                return (
-                  <article
-                    className={`journey-v2-media-card ${item.type} ${done ? "done" : ""}`}
-                    key={item.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelectedItem(item)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setSelectedItem(item);
-                      }
-                    }}
-                  >
-                    <span className={`journey-v2-media-preview${hasPreview ? " has-media" : ""}`}>
-                      <span className="journey-v2-media-type">{kind}</span>
-                      <LibraryMediaPreview item={item} />
-                      {done && <span className="journey-v2-media-done"><Check size={13} /> Done</span>}
-                    </span>
-                    <span className="journey-v2-media-copy">
-                      <strong>{item.title}</strong>
-                      <span className="journey-v2-media-view">View<ArrowRight size={13} /></span>
-                    </span>
-                  </article>
-                );
-              })}
-            </div>
-          </article>
-
-          <NoticeBoardCard notices={notices} trainer={cohort.trainer ?? null} />
-
-          <CohortChat cohortId={cohort.id} />
-        </section>
-
-        <aside className="journey-v2-side-stack" aria-label="Session context">
-          <article className="journey-module-card journey-v2-outcomes-card">
-            <span className="journey-v2-card-kicker">Session outcomes</span>
-            <h3>What you should get from this session</h3>
-            <div className="journey-outcomes">
-              <div><b>1</b><span><strong>Understand the idea</strong><small>Connect the session to your own role.</small></span></div>
-              <div><b>2</b><span><strong>Apply it to real work</strong><small>Identify a situation where you can practise.</small></span></div>
-              <div><b>3</b><span><strong>Leave with a plan</strong><small>Turn your notes into clear workplace actions.</small></span></div>
-            </div>
-          </article>
-
-          <article className="journey-module-card journey-v2-cohort-card">
-            <span className="journey-v2-card-kicker">Learning together</span>
-            <h3>Your batch</h3>
-            <p className="journey-card-subtitle">People attending this batch with you.</p>
-            <div className="journey-cohort-people">
-              {visibleRoster.map((member) => <div key={member.id}><b>{initials(member.fullName)}</b><span>{member.fullName?.split(" ")[0] || "Participant"}</span></div>)}
-              {roster.length > visibleRoster.length && <small>+{roster.length - visibleRoster.length} others</small>}
-            </div>
-          </article>
-
-          <FacilitatorsCard facilitators={facilitators} />
-        </aside>
-
-      </div>
-
-      {quizModal}
-      {resourceModal}
-    </div>
-  );
+  return <>
+    <RcplWorkspace
+      cohort={cohort}
+      roster={roster}
+      items={items}
+      progress={progress}
+      completedCount={completedCount}
+      preparationComplete={preparationComplete}
+      nextTitle={nextTitle}
+      nextCopy={nextCopy}
+      nextHref={nextHref}
+      nextIncompleteItem={nextIncompleteItem}
+      onOpenResource={setSelectedItem}
+      notices={notices}
+      facilitators={facilitators}
+      {...(!isSurge && {
+        phases: cohort.companyProgramPhases ?? [],
+        programEyebrow: cohort.companyName ? `${cohort.companyName} Workspace` : "Your Workspace",
+        heroTitle: cohort.name,
+        heroDescription: cohort.description || "Turn what you learn into something useful in your work and career.",
+      })}
+    />
+    {quizModal}
+    {resourceModal}
+  </>;
 }

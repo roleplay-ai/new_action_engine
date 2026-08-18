@@ -15886,6 +15886,12 @@ textarea.commitment-buddy-contact-selectable {
   font-size: 12px;
 }
 
+.actions-chill-next-reminder {
+  margin-top: 4px;
+  color: #5f5861;
+  font-size: 12px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .actions-chill-steam {
     animation: none;

@@ -616,11 +616,17 @@ export default function ActionsClient() {
                 {planIsArchived
                   ? "This archived batch plan will not release more reminders."
                   : planIsActive || planCanPerform
-                    ? "You have completed all your actions! It's time to log out"
+                    ? "No action is due right now."
                     : personalPlanState === "draft"
                       ? "Finish reviewing and finalise this batch's draft plan first."
                       : "Build a practice plan for your current batch to generate workplace actions."}
               </p>
+              {!planIsArchived && (planIsActive || planCanPerform) && settings?.nextDeliveryAt && (
+                <p className="actions-chill-next-reminder">
+                  Next action on {formatDate(settings.nextDeliveryAt)}
+                  {settings.reminderTime && ` at ${formatTime(settings.reminderTime)}`}
+                </p>
+              )}
             </div>
           </div>
         ) : (

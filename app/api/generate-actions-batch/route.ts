@@ -1,6 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { generateDraftActions, draftsToActionRows, assignScheduledBatch } from "@/lib/personal-action-generation";
+import { generateDraftActions, draftsToActionRows, assignScheduledBatch, getPinnedFirstActionTitle } from "@/lib/personal-action-generation";
 
 /**
  * Background worker for filling a user's full multi-week action plan.
@@ -79,6 +79,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "User has no company" });
   }
 
+  // Only the very first batch of a plan supplies the plan's first action, so
+  // only look up a pinned opener (and only bother with the extra query) then.
+  let pinnedFirstAction: string | null = null;
+  if (job.total_generated === 0) {
+    const { data: company } = await admin
+      .from("companies")
+      .select("name")
+      .eq("id", companyId)
+      .single();
+    pinnedFirstAction = getPinnedFirstActionTitle(company?.name);
+  }
+
   // Recent titles for this user, to steer Gemini away from repeats across many batches.
   const { data: recentActions } = await admin
     .from("actions")
@@ -88,6 +100,8 @@ export async function POST(request: Request) {
     .eq("cohort_id", job.cohort_id)
     .order("created_at", { ascending: false })
     .limit(30);
+  // Once the pinned opener is inserted (below), it shows up here naturally on
+  // every later batch's recentActions query — no need to add it separately.
   const avoidTitles = (recentActions ?? []).map((r) => r.title);
 
   const { data: cohortGenerationContext } = await admin
@@ -103,6 +117,7 @@ export async function POST(request: Request) {
     focusThemes: job.focus_themes ?? [],
     count,
     avoidTitles,
+    pinnedFirstAction: pinnedFirstAction ?? undefined,
   });
   if (generationResult.error || !generationResult.drafts?.length) {
     // A temporary provider/network failure should not discard the participant's
@@ -114,6 +129,7 @@ export async function POST(request: Request) {
       focusThemes: job.focus_themes ?? [],
       count,
       avoidTitles,
+      pinnedFirstAction: pinnedFirstAction ?? undefined,
     });
   }
   const { drafts, error } = generationResult;

@@ -17,6 +17,26 @@ export const THEMES: ActionTheme[] = ["Collaboration", "Feedback", "Accountabili
 /** DB still requires action_theme; store a fixed default and never surface it in UI. */
 export const DEFAULT_ACTION_THEME: ActionTheme = "Collaboration";
 
+/**
+ * Companies whose participants must lead their plan with a fixed opening
+ * action instead of an AI-invented one. Keyed by lowercased company name.
+ * Add more companies here as they get their own pinned opener.
+ */
+const PINNED_FIRST_ACTION_COMPANIES = new Set(["surge"]);
+
+/**
+ * Resolves the exact, non-negotiable first action title for companies in
+ * PINNED_FIRST_ACTION_COMPANIES. The company name is a variable substituted
+ * into the sentence (not hardcoded "Surge"), so the wording still matches if
+ * the company is ever renamed, and the same template covers future
+ * companies added to the set above.
+ */
+export function getPinnedFirstActionTitle(companyName: string | null | undefined): string | null {
+  const trimmed = companyName?.trim();
+  if (!trimmed || !PINNED_FIRST_ACTION_COMPANIES.has(trimmed.toLowerCase())) return null;
+  return `Conduct a Teach-Back meeting with my team about the learning from this ${trimmed} Module.`;
+}
+
 /** Default batch size for the interactive onboarding preview (before a plan duration is chosen). */
 export const DEFAULT_BATCH_SIZE = 3;
 /** @deprecated Use daily_action_count from subscription; kept for generation preview batches. */
@@ -81,10 +101,18 @@ function buildPrompt(
   businessContext: string,
   focusThemes: ActionTheme[],
   count: number,
-  avoidTitles?: string[]
+  avoidTitles?: string[],
+  pinnedFirstAction?: string
 ): string {
   const avoidBlock = avoidTitles?.length
     ? `\n\nACTIONS TO AVOID\nDo not repeat these actions or close variants:\n${avoidTitles.map((t) => `- ${t}`).join("\n")}`
+    : "";
+
+  // Fills slot 0 of the `count` actions already being requested — it is one
+  // of the participant's planned actions, not an extra one added on top, so
+  // their chosen total plan size (durationWeeks x actions/day, etc.) is unchanged.
+  const pinnedBlock = pinnedFirstAction
+    ? `\n\nREQUIRED FIRST ACTION\nThe action at index 0 of the "actions" array must use exactly this title, word for word, with no rewording: "${pinnedFirstAction}"\nWrite its "how", "why", and "timeEstimate" following the FORMAT AND QUALITY RULES below. This counts as one of the ${count} actions requested above, not an addition to them. Generate the remaining ${Math.max(count - 1, 0)} action(s) normally, distinct from it and from each other.`
     : "";
 
   const focusNote = focusThemes.length
@@ -120,7 +148,7 @@ BUSINESS_CONTEXT:
 ${businessContext.trim() || "No cohort business context was provided. Keep situations realistic for a typical workplace."}
 
 TASK
-Generate exactly ${count} new actions. Prefer combining available inputs: the skill from TRAINING_CONTENT when present, the participant's specific goal, struggle, or reflection in USER_NOTES, and a situation that is realistic in BUSINESS_CONTEXT when present. Do not create generic actions when USER_NOTES has usable detail. If USER_NOTES is vague, use the closest reasonable interpretation without inventing personal facts. Missing TRAINING_CONTENT or BUSINESS_CONTEXT is allowed — work with whatever inputs are present.
+Generate exactly ${count} new actions. Prefer combining available inputs: the skill from TRAINING_CONTENT when present, the participant's specific goal, struggle, or reflection in USER_NOTES, and a situation that is realistic in BUSINESS_CONTEXT when present. Do not create generic actions when USER_NOTES has usable detail. If USER_NOTES is vague, use the closest reasonable interpretation without inventing personal facts. Missing TRAINING_CONTENT or BUSINESS_CONTEXT is allowed — work with whatever inputs are present.${pinnedBlock}
 
 FORMAT AND QUALITY RULES
 - "title" is the What:  exactly one sentence, at most 15 words, in simple English for Indian audience, written in "you" voice. Give a clear situation, sequence, or trigger so a busy employee can act without asking a follow-up question.
@@ -142,6 +170,8 @@ export async function generateDraftActions(params: {
   focusThemes: ActionTheme[];
   count?: number;
   avoidTitles?: string[];
+  /** Exact title (see getPinnedFirstActionTitle) that must land at index 0 of this batch. */
+  pinnedFirstAction?: string;
 }): Promise<{ drafts?: DraftAction[]; error?: string }> {
   try {
     if (!isGeminiConfigured()) {
@@ -162,7 +192,8 @@ export async function generateDraftActions(params: {
           params.businessContext,
           params.focusThemes,
           count,
-          params.avoidTitles
+          params.avoidTitles,
+          params.pinnedFirstAction
         ),
         config: {
           responseMimeType: "application/json",
@@ -190,15 +221,22 @@ export async function generateDraftActions(params: {
       return { error: "AI did not return any actions" };
     }
 
-    return {
-      drafts: drafts.map((a) => ({
-        theme: DEFAULT_ACTION_THEME,
-        title: a.title!.trim(),
-        how: a.how!.trim(),
-        why: a.why!.trim(),
-        timeEstimate: a.timeEstimate?.trim() || "5 mins",
-      })),
-    };
+    const resolvedDrafts = drafts.map((a) => ({
+      theme: DEFAULT_ACTION_THEME,
+      title: a.title!.trim(),
+      how: a.how!.trim(),
+      why: a.why!.trim(),
+      timeEstimate: a.timeEstimate?.trim() || "5 mins",
+    }));
+
+    // The prompt instructs Gemini to use this title verbatim at index 0, but
+    // "exact" can't rely on model compliance alone — pin it here too so the
+    // wording never drifts even if the model paraphrases it.
+    if (params.pinnedFirstAction && resolvedDrafts[0]) {
+      resolvedDrafts[0].title = params.pinnedFirstAction;
+    }
+
+    return { drafts: resolvedDrafts };
   } catch (e) {
     if (isRateLimitError(e)) {
       return { error: "AI generation is rate-limited right now; please try again in a moment" };

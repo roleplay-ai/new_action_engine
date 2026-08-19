@@ -18343,3 +18343,129 @@ textarea.commitment-buddy-contact-selectable {
     justify-content: flex-end;
   }
 }
+
+/* Commitment buddy mapping (superadmin-only batch tab) */
+
+.cohort-admin-buddy-mapping .cohort-admin-panel {
+  height: auto;
+}
+
+.cohort-admin-buddy-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 13px;
+  border-bottom: 1px solid #eeeaec;
+}
+
+.cohort-admin-buddy-row:last-child {
+  border-bottom: 0;
+}
+
+.cohort-admin-buddy-row.is-selected {
+  background: #fffaf0;
+}
+
+.cohort-admin-buddy-row-select {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.cohort-admin-checkbox--order {
+  font-size: 9px;
+  font-weight: 800;
+  color: #775b13;
+}
+
+.cohort-admin-buddy-pills {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.cohort-admin-buddy-pill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  max-width: 150px;
+  padding: 4px 9px;
+  border: 1px solid #e4cc78;
+  border-radius: 999px;
+  background: #fff8dc;
+  color: #6f5206;
+  font-size: 9px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.cohort-admin-buddy-pill span,
+.cohort-admin-buddy-pill {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cohort-admin-buddy-pill--empty {
+  border-color: var(--cohort-border);
+  background: #f7f4f5;
+  color: var(--cohort-muted);
+}
+
+/* Reverse edge — who else has this member as their buddy (only shown when it
+ * differs from the mutual partner, i.e. inside a 3+ person cycle). Visually
+ * distinct (cool tone) from the amber "sees" pill above it so the two
+ * directions read as clearly different at a glance. */
+.cohort-admin-buddy-pill--incoming {
+  border-color: #b9d3e8;
+  background: #f0f6fb;
+  color: #2b5c82;
+}
+
+.cohort-admin-buddy-remove {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #8d858b;
+}
+
+.cohort-admin-buddy-remove:not(:disabled):hover {
+  border-color: #efc9cd;
+  background: #fff4f5;
+  color: #bd3d49;
+}
+
+.cohort-admin-buddy-tray {
+  flex-wrap: wrap;
+}
+
+.cohort-admin-buddy-tray>span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cohort-admin-buddy-tray-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}

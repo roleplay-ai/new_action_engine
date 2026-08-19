@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
+  ArrowLeft,
   ArrowRight,
   BookOpen,
   Building2,
@@ -10,6 +11,7 @@ import {
   Check,
   ChevronRight,
   FileText,
+  Handshake,
   Info,
   ImagePlus,
   Loader2,
@@ -41,6 +43,12 @@ import {
   setCohortLock,
   updateCohort,
 } from "@/app/actions/cohorts";
+import {
+  listCommitmentBuddyRoster,
+  removeCommitmentBuddyAssignment,
+  saveCommitmentBuddyCircle,
+  type BuddyMappingMember,
+} from "@/app/actions/commitment-buddies-admin";
 import { nextUpcomingCohortDate } from "@/lib/cohort-dates";
 import { uploadCohortLogo } from "@/lib/cohort-logo-upload";
 import {
@@ -92,6 +100,15 @@ function formatStartDate(date: string | null | undefined) {
 function initials(value: string | null | undefined) {
   const words = (value || "Unnamed user").trim().split(/\s+/).slice(0, 2);
   return words.map((word) => word[0]?.toUpperCase()).join("") || "U";
+}
+
+/** Preview text for a buddy selection in click order, e.g. ["Riya", "Aman"]
+ * -> "Riya → Aman → Riya" (mutual pair) and ["Riya", "Aman", "Priya"] ->
+ * "Riya → Aman → Priya → Riya" (cycle) — the loop always closes back to the
+ * first person, matching what saveCommitmentBuddyCircle will create. */
+function buddyCirclePreview(firstNames: string[]): string {
+  if (firstNames.length === 0) return "";
+  return [...firstNames, firstNames[0]].join(" → ");
 }
 
 function CohortListSkeleton() {
@@ -501,7 +518,7 @@ function CohortDetailPanel({
   role: string;
   onChange: () => Promise<void> | void;
 }) {
-  const [tab, setTab] = useState<"members" | "content" | "generation" | "trainer">("members");
+  const [tab, setTab] = useState<"members" | "content" | "generation" | "trainer" | "buddies">("members");
   const [editingNames, setEditingNames] = useState(false);
   const [editBatchName, setEditBatchName] = useState(cohort.batchName);
   const [editModuleName, setEditModuleName] = useState(cohort.moduleName ?? "");
@@ -533,6 +550,58 @@ function CohortDetailPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const canManageTags = role === "admin" || role === "superadmin";
+
+  // Manual commitment-buddy mapping — superadmin only, loaded lazily the
+  // first time the tab is opened (not part of the eager workspace bundle,
+  // since only a superadmin can ever see or use it).
+  const [buddyRoster, setBuddyRoster] = useState<BuddyMappingMember[]>([]);
+  const [buddyLoaded, setBuddyLoaded] = useState(false);
+  const [buddyLoading, setBuddyLoading] = useState(false);
+  const [buddyError, setBuddyError] = useState<string | null>(null);
+  const [buddySelection, setBuddySelection] = useState<string[]>([]);
+
+  const fetchBuddyRoster = useCallback(async () => {
+    setBuddyLoading(true);
+    setBuddyError(null);
+    try {
+      const result = await listCommitmentBuddyRoster(cohort.id);
+      if (result.error) { setBuddyError(result.error); return; }
+      setBuddyRoster(result.members ?? []);
+    } catch (caughtError) {
+      setBuddyError(caughtError instanceof Error ? caughtError.message : "Failed to load buddy mapping");
+    } finally {
+      setBuddyLoaded(true);
+      setBuddyLoading(false);
+    }
+  }, [cohort.id]);
+
+  useEffect(() => {
+    if (role !== "superadmin" || tab !== "buddies" || buddyLoaded || buddyLoading) return;
+    void fetchBuddyRoster();
+  }, [role, tab, buddyLoaded, buddyLoading, fetchBuddyRoster]);
+
+  function toggleBuddySelection(userId: string) {
+    setBuddySelection((current) =>
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+    );
+  }
+
+  async function handleSaveBuddyPairing() {
+    if (buddySelection.length < 2 || busyAction) return;
+    await runMutation(
+      "save-buddy-pairing",
+      () => saveCommitmentBuddyCircle(cohort.id, buddySelection),
+      { after: () => setBuddySelection([]), refetch: [fetchBuddyRoster] }
+    );
+  }
+
+  async function handleRemoveBuddyAssignment(userId: string) {
+    await runMutation(
+      `remove-buddy:${userId}`,
+      () => removeCommitmentBuddyAssignment(cohort.id, userId),
+      { refetch: [fetchBuddyRoster] }
+    );
+  }
 
   // Targeted, single-purpose refetchers. Each mutation below only calls the
   // one or two of these it actually invalidates, instead of reloading every
@@ -1004,6 +1073,11 @@ function CohortDetailPanel({
             <NotebookPen size={16} /> Action context
           </button>
         )}
+        {role === "superadmin" && (
+          <button type="button" role="tab" aria-selected={tab === "buddies"} onClick={() => setTab("buddies")} className={tab === "buddies" ? "is-active" : ""}>
+            <Handshake size={16} /> Buddy mapping <span>{buddyRoster.filter((m) => m.buddyId).length}</span>
+          </button>
+        )}
       </div>
 
       {error && (
@@ -1331,7 +1405,7 @@ function CohortDetailPanel({
             )}
           </section>
         </div>
-      ) : (
+      ) : tab === "generation" ? (
         <div className="cohort-admin-generation-context">
           <section className="cohort-admin-panel">
             <div className="cohort-admin-panel-head">
@@ -1360,6 +1434,133 @@ function CohortDetailPanel({
                 </button>
               </div>
             </div>
+          </section>
+        </div>
+      ) : (
+        <div className="cohort-admin-buddy-mapping">
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head">
+              <div>
+                <h3>Commitment buddy mapping</h3>
+                <p>Manually pair members so each sees the other&apos;s Commitment Score — nothing here is paired automatically.</p>
+              </div>
+              <span>{buddyRoster.filter((member) => member.buddyId).length}/{buddyRoster.length} paired</span>
+            </div>
+
+            <div className="cohort-admin-notice">
+              <Info size={17} />
+              <p>
+                <strong>Pairs and cycles</strong>
+                <span>Select people below in order. Two people makes a normal pair — each sees the other. Three or more makes a cycle: each person sees only the next one, wrapping back to the first (e.g. A → B → C → A), instead of everyone seeing everyone.</span>
+              </p>
+            </div>
+
+            {buddyError && (
+              <div className="cohort-admin-alert cohort-admin-alert--error cohort-admin-alert--inner" role="alert">
+                <AlertCircle size={17} /><div><strong>Unable to load buddy mapping</strong><span>{buddyError}</span></div>
+                <button type="button" onClick={() => void fetchBuddyRoster()}>Retry</button>
+              </div>
+            )}
+
+            {buddyLoading && buddyRoster.length === 0 ? (
+              <div className="cohort-admin-detail-loading" aria-busy="true">
+                <Loader2 size={18} className="cohort-admin-spin" /><span>Loading buddy mapping…</span>
+              </div>
+            ) : buddyRoster.length === 0 ? (
+              <div className="cohort-admin-mini-empty"><Handshake size={20} /><strong>No members yet</strong><span>Add participants to this batch before pairing buddies.</span></div>
+            ) : (
+              <>
+                <div className="cohort-admin-people-list">
+                  {buddyRoster.map((member) => {
+                    const orderIndex = buddySelection.indexOf(member.id);
+                    const selected = orderIndex !== -1;
+                    return (
+                      <div key={member.id} className={`cohort-admin-buddy-row${selected ? " is-selected" : ""}`}>
+                        <button
+                          type="button"
+                          className="cohort-admin-buddy-row-select"
+                          aria-pressed={selected}
+                          onClick={() => toggleBuddySelection(member.id)}
+                          disabled={Boolean(busyAction)}
+                        >
+                          <span className={`cohort-admin-checkbox cohort-admin-checkbox--order${selected ? " is-checked" : ""}`}>
+                            {selected ? orderIndex + 1 : ""}
+                          </span>
+                          <span className="cohort-admin-avatar">{initials(member.fullName)}</span>
+                          <span className="cohort-admin-select-row-copy">
+                            <strong>{member.fullName || "Unnamed user"}</strong>
+                            {member.email && <small>{member.email}</small>}
+                          </span>
+                        </button>
+                        <div className="cohort-admin-buddy-pills">
+                          {member.buddyId ? (
+                            <span className="cohort-admin-buddy-pill"><ArrowRight size={11} /> {member.buddyName || "Batch member"}</span>
+                          ) : (
+                            <span className="cohort-admin-buddy-pill cohort-admin-buddy-pill--empty">Unpaired</span>
+                          )}
+                          {member.seenBy.length > 0 && (
+                            <span
+                              className="cohort-admin-buddy-pill cohort-admin-buddy-pill--incoming"
+                              title={`Seen by ${member.seenBy.map((seer) => seer.name || "Batch member").join(", ")}`}
+                            >
+                              <ArrowLeft size={11} /> {member.seenBy.map((seer) => seer.name || "Batch member").join(", ")}
+                            </span>
+                          )}
+                        </div>
+                        {member.buddyId && (
+                          <button
+                            type="button"
+                            className="cohort-admin-buddy-remove"
+                            onClick={() => void handleRemoveBuddyAssignment(member.id)}
+                            disabled={Boolean(busyAction)}
+                            aria-label={`Unpair ${member.fullName || "member"}`}
+                            title="Unpair"
+                          >
+                            {busyAction === `remove-buddy:${member.id}` ? <Loader2 size={13} className="cohort-admin-spin" /> : <X size={13} />}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="cohort-admin-panel-action cohort-admin-buddy-tray">
+                  <span>
+                    {buddySelection.length === 0
+                      ? "Select people above, in order, to build a pairing"
+                      : buddySelection.length === 1
+                      ? "Select at least one more person"
+                      : buddyCirclePreview(
+                          buddySelection.map((id) => {
+                            const name = buddyRoster.find((member) => member.id === id)?.fullName;
+                            return name?.split(/\s+/)[0] || "Member";
+                          })
+                        )}
+                  </span>
+                  <div className="cohort-admin-buddy-tray-actions">
+                    {buddySelection.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setBuddySelection([])}
+                        disabled={Boolean(busyAction)}
+                        className="cohort-admin-button cohort-admin-button--secondary"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveBuddyPairing()}
+                      disabled={Boolean(busyAction) || buddySelection.length < 2}
+                      className="cohort-admin-button cohort-admin-button--primary"
+                    >
+                      {busyAction === "save-buddy-pairing" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Handshake size={15} />}
+                      {busyAction === "save-buddy-pairing" ? "Saving…" : buddySelection.length >= 3 ? "Save cycle" : "Save pairing"}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </section>
         </div>
       )}

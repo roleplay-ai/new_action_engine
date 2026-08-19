@@ -15,7 +15,6 @@ import {
   DAILY_DELIVERY_DAYS,
   draftsToActionRows,
   generateDraftActions,
-  getPinnedFirstActionTitle,
   type DeliveryTrack,
 } from "@/lib/personal-action-generation";
 import { getCurrentISTDate, istToUTCTime, utcToISTDate, utcToISTTime } from "@/lib/timezone-utils";
@@ -236,13 +235,6 @@ export async function saveGeneratedActions(params: {
       return { error: "You must be assigned to a company first" };
     }
 
-    const { data: company } = await supabase
-      .from("companies")
-      .select("name")
-      .eq("id", companyId)
-      .single();
-    const pinnedFirstAction = getPinnedFirstActionTitle(company?.name);
-
     const { data: existingPlan } = await supabase
       .from("personal_action_subscriptions")
       .select("is_active, archived_at")
@@ -278,16 +270,15 @@ export async function saveGeneratedActions(params: {
     // The free Vercel cron runs once daily at 11:30 AM IST. Enforce that
     // server-side so older or custom clients cannot submit an unsupported time.
     const timeOfDayUtc = istToUTCTime("11:30");
-    // A pinned opener (e.g. Surge's Teach-Back action) is extra, on top of the
-    // count the participant configured — it must never eat into the cadence
-    // or duration they chose, so add it to the pool instead of substituting
-    // one of their planned actions for it.
+    // A pinned opener (e.g. Surge's Teach-Back action) fills slot 0 of the
+    // plan the participant configured — it is one of their chosen actions,
+    // not an extra one on top, so the total stays exactly what they picked.
     const totalActionsNeeded = computeTotalActionsNeeded(
       params.durationWeeks,
       actionCount,
       params.track,
       uniqueDays
-    ) + (pinnedFirstAction ? 1 : 0);
+    );
 
     // Changing a draft replaces that cohort's unfinished generation rather
     // than mixing two different setup choices into one plan.

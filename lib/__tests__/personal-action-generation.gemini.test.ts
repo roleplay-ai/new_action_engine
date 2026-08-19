@@ -137,3 +137,111 @@ describe("generateDraftActions: Gemini concurrency + rate limiting", () => {
     expect(generateContent).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("getPinnedFirstActionTitle", () => {
+  it("returns the Surge opener with the company name substituted in, case-insensitively", async () => {
+    const { getPinnedFirstActionTitle } = await import("@/lib/personal-action-generation");
+    expect(getPinnedFirstActionTitle("Surge")).toBe(
+      "Conduct a Teach-Back meeting with my team about the learning from this Surge Module."
+    );
+    expect(getPinnedFirstActionTitle("SURGE")).toBe(
+      "Conduct a Teach-Back meeting with my team about the learning from this SURGE Module."
+    );
+  });
+
+  it("returns null for companies without a pinned opener", async () => {
+    const { getPinnedFirstActionTitle } = await import("@/lib/personal-action-generation");
+    expect(getPinnedFirstActionTitle("Acme Inc")).toBeNull();
+    expect(getPinnedFirstActionTitle(null)).toBeNull();
+    expect(getPinnedFirstActionTitle(undefined)).toBeNull();
+    expect(getPinnedFirstActionTitle("")).toBeNull();
+  });
+});
+
+describe("generateDraftActions: pinned first action", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    generateContent.mockReset();
+  });
+
+  it("forces the exact pinned title onto draft index 0 even if the model paraphrases it", async () => {
+    const { generateDraftActions, getPinnedFirstActionTitle } = await import("@/lib/personal-action-generation");
+    const pinned = getPinnedFirstActionTitle("Surge")!;
+
+    generateContent.mockResolvedValue({
+      text: JSON.stringify({
+        actions: [
+          { title: "Run a team debrief on the module", how: "How 0", why: "Why 0", timeEstimate: "10 mins" },
+          { title: "Title 1", how: "How 1", why: "Why 1", timeEstimate: "5 mins" },
+        ],
+      }),
+    });
+
+    const result = await generateDraftActions({
+      trainingContent: "",
+      userNotes: "",
+      businessContext: "",
+      focusThemes: [],
+      count: 2,
+      pinnedFirstAction: pinned,
+    });
+
+    expect(result.error).toBeUndefined();
+    // The pinned action takes slot 0 of the requested count — it is not
+    // appended on top, so the participant's chosen plan size is unaffected.
+    expect(result.drafts).toHaveLength(2);
+    expect(result.drafts?.[0]?.title).toBe(pinned);
+    expect(result.drafts?.[1]?.title).toBe("Title 1");
+
+    const promptText = generateContent.mock.calls[0][0].contents as string;
+    expect(promptText).toContain(pinned);
+    expect(promptText).toContain("REQUIRED FIRST ACTION");
+    expect(promptText).toContain("Generate the remaining 1 action(s) normally");
+  });
+
+  it("caps the batch at `count` even if the model returns count+1 (misreading the pinned action as an addition)", async () => {
+    const { generateDraftActions, getPinnedFirstActionTitle } = await import("@/lib/personal-action-generation");
+    const pinned = getPinnedFirstActionTitle("Surge")!;
+
+    // Reproduces the reported bug: user planned for 12, model returned 13
+    // (treating the pinned title as extra rather than one of the 12).
+    generateContent.mockResolvedValue({
+      text: JSON.stringify({
+        actions: Array.from({ length: 13 }, (_, i) => ({
+          title: `Title ${i}`,
+          how: `How ${i}`,
+          why: `Why ${i}`,
+          timeEstimate: "5 mins",
+        })),
+      }),
+    });
+
+    const result = await generateDraftActions({
+      trainingContent: "",
+      userNotes: "",
+      businessContext: "",
+      focusThemes: [],
+      count: 12,
+      pinnedFirstAction: pinned,
+    });
+
+    expect(result.drafts).toHaveLength(12);
+    expect(result.drafts?.[0]?.title).toBe(pinned);
+  });
+
+  it("leaves titles untouched when no pinned first action is given", async () => {
+    const { generateDraftActions } = await import("@/lib/personal-action-generation");
+
+    generateContent.mockResolvedValue(draftResponse(1));
+
+    const result = await generateDraftActions({
+      trainingContent: "",
+      userNotes: "",
+      businessContext: "",
+      focusThemes: [],
+      count: 1,
+    });
+
+    expect(result.drafts?.[0]?.title).toBe("Title 0");
+  });
+});

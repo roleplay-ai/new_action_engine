@@ -221,13 +221,22 @@ export async function generateDraftActions(params: {
       return { error: "AI did not return any actions" };
     }
 
-    const resolvedDrafts = drafts.map((a) => ({
+    let resolvedDrafts = drafts.map((a) => ({
       theme: DEFAULT_ACTION_THEME,
       title: a.title!.trim(),
       how: a.how!.trim(),
       why: a.why!.trim(),
       timeEstimate: a.timeEstimate?.trim() || "5 mins",
     }));
+
+    // The prompt asks for exactly `count` actions, but that's an instruction,
+    // not a guarantee — Gemini has been observed treating the pinned first
+    // action as an addition on top of `count` instead of one of the `count`
+    // slots, returning count+1. Cap it here so the participant's chosen plan
+    // size can never be exceeded regardless of how the model interprets it.
+    if (resolvedDrafts.length > count) {
+      resolvedDrafts = resolvedDrafts.slice(0, count);
+    }
 
     // The prompt instructs Gemini to use this title verbatim at index 0, but
     // "exact" can't rely on model compliance alone — pin it here too so the

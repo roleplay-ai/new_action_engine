@@ -790,6 +790,60 @@ export async function updatePersonalAction(
 }
 
 /**
+ * Edit the title/how/why of one action in the participant's "Next reminders"
+ * list — an already-activated plan's actions that have not yet been
+ * delivered into "My Actions" (no user_actions row exists for them yet).
+ * Unlike updatePersonalAction (draft-only), this deliberately allows edits
+ * after activation, but only for that one still-safe slice: nothing already
+ * released, calendar-synced, or in progress can be touched here.
+ */
+export async function updateUpcomingPersonalAction(
+  id: string,
+  params: { title: string; how: string; why: string }
+): Promise<{ error?: string }> {
+  try {
+    const title = params.title.trim();
+    const how = params.how.trim();
+    const why = params.why.trim();
+    if (!title || !how || !why) return { error: "Title, how, and why are all required" };
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Not authenticated" };
+
+    const { data: action } = await supabase
+      .from("actions")
+      .select("id")
+      .eq("id", id)
+      .eq("created_by", user.id)
+      .eq("is_personal", true)
+      .maybeSingle();
+    if (!action) return { error: "Action not found" };
+
+    const { data: delivered } = await supabase
+      .from("user_actions")
+      .select("id")
+      .eq("action_id", id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (delivered) return { error: "This action has already gone out in a reminder and can no longer be edited" };
+
+    const { error } = await supabase
+      .from("actions")
+      .update({ title, how, why })
+      .eq("id", id)
+      .eq("created_by", user.id)
+      .eq("is_personal", true);
+    if (error) return { error: error.message };
+
+    revalidatePath("/actions");
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update action" };
+  }
+}
+
+/**
  * Append one extra AI-generated action to a draft plan while the participant
  * is still reviewing/editing. Finalised and archived plans stay view-only.
  */

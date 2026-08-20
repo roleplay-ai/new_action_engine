@@ -19,6 +19,11 @@ import {
 } from "@/lib/personal-action-generation";
 import { getCurrentISTDate, istToUTCTime, utcToISTDate, utcToISTTime } from "@/lib/timezone-utils";
 import { getMyCohorts } from "@/app/actions/cohorts";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isResendConfigured, resend } from "@/lib/resend";
+import { renderEmailTemplate, formatPlanActionDate } from "@/lib/email-templates";
+import { buildFromHeader } from "@/lib/email-send";
+import { buildActionPlanPdf } from "@/lib/action-plan-pdf";
 
 export type MyPlanSettings = {
   track: DeliveryTrack;
@@ -397,6 +402,180 @@ export async function saveGeneratedActions(params: {
   }
 }
 
+/**
+ * Emails the participant a summary of their just-finalised plan: every
+ * action with its projected delivery date, their commitment buddy's name
+ * and email (pairing this triggers if it hasn't happened yet), and the
+ * reminder cadence they'll now receive. Never throws — a failure here must
+ * not undo a successful activation, so all errors are swallowed and logged.
+ */
+async function sendPlanActivatedSummaryEmail(params: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  userId: string;
+  userEmail: string;
+  cohortId: string;
+  sub: {
+    track: DeliveryTrack;
+    day_of_week: number | null;
+    days_of_week: number[] | null;
+    daily_action_count: number;
+    time_of_day_utc: string;
+  };
+  nextDeliveryAt: string;
+}): Promise<void> {
+  const { supabase, userId, userEmail, cohortId, sub, nextDeliveryAt } = params;
+  try {
+    const fromEmail = process.env.RESEND_FROM_EMAIL;
+    if (!fromEmail) return;
+
+    const [{ data: profile }, { data: actionRows }, { data: cohort }, { data: notesRow }] = await Promise.all([
+      supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
+      supabase
+        .from("actions")
+        .select("title, plan_order")
+        .eq("created_by", userId)
+        .eq("cohort_id", cohortId)
+        .eq("is_personal", true)
+        .order("plan_order", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: true }),
+      supabase.from("cohorts").select("company_id, trainer_id, batch_name, module_name").eq("id", cohortId).maybeSingle(),
+      supabase
+        .from("participant_session_notes")
+        .select("daily_work, skill_goal, practice_opportunities")
+        .eq("user_id", userId)
+        .eq("cohort_id", cohortId)
+        .maybeSingle(),
+    ]);
+
+    // Same combination notes-client.tsx uses for its read-only "My Plan" view
+    // (daily work + skill goal as one paragraph, practice opportunities as a
+    // second) — capped so one very long free-text answer can't blow up the
+    // email's Gmail-clipping budget or balloon the PDF into dozens of pages.
+    const PLAN_TEXT_LIMIT = 1500;
+    const workAndSkill = [notesRow?.daily_work, notesRow?.skill_goal]
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter(Boolean)
+      .join(" ");
+    const practiceOpportunities = typeof notesRow?.practice_opportunities === "string"
+      ? notesRow.practice_opportunities.trim()
+      : "";
+    let planText = [workAndSkill, practiceOpportunities].filter(Boolean).join("\n\n");
+    if (planText.length > PLAN_TEXT_LIMIT) {
+      planText = `${planText.slice(0, PLAN_TEXT_LIMIT).trimEnd()}…`;
+    }
+
+    const firstName =
+      (profile?.full_name ?? "").trim().split(/\s+/)[0] || userEmail.split("@")[0] || "there";
+
+    // Project each action's delivery date with the same cadence
+    // assignScheduledBatch() uses to release them for real: one action per
+    // weekday for daily plans, daily_action_count actions per cycle for
+    // weekly ones — so the dates shown here match what actually happens.
+    const daysOfWeek = sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null);
+    const batchSize = sub.track === "daily" ? 1 : Math.max(1, sub.daily_action_count ?? 1);
+    let cursor = nextDeliveryAt;
+    const actions = (actionRows ?? []).map((row, index) => {
+      if (index > 0 && index % batchSize === 0) {
+        cursor = advanceNextDeliveryAt(cursor, sub.track, daysOfWeek, sub.time_of_day_utc);
+      }
+      return { title: row.title as string, date: utcToISTDate(cursor) };
+    });
+
+    let companyName = "";
+    let companyLogo = "";
+    let senderName = "Nudgeable";
+    let trainerName = "";
+    if (cohort?.company_id) {
+      const { data: company } = await supabase
+        .from("companies")
+        .select("name, logo_url")
+        .eq("id", cohort.company_id)
+        .maybeSingle();
+      companyName = company?.name ?? "";
+      companyLogo = company?.logo_url ?? "";
+    }
+    if (cohort?.trainer_id) {
+      const { data: trainer } = await supabase
+        .from("trainers")
+        .select("name")
+        .eq("id", cohort.trainer_id)
+        .maybeSingle();
+      if (trainer?.name) {
+        senderName = trainer.name;
+        trainerName = trainer.name;
+      }
+    }
+    const batchName = (cohort as { batch_name?: string | null } | null)?.batch_name ?? "";
+    const moduleName = (cohort as { module_name?: string | null } | null)?.module_name ?? "";
+
+    // Reuses the same RPC the Actions page calls — it both creates this
+    // participant's stable buddy pair/trio if one isn't assigned yet (now
+    // possible since the plan is active) and returns the buddy's name.
+    // Email isn't exposed by the RPC (by design, see 041_commitment_buddies),
+    // so it's looked up separately with the admin client.
+    let buddyName = "";
+    let buddyEmail = "";
+    const { data: buddyGroup } = await supabase.rpc("get_my_commitment_buddies", { p_cohort_id: cohortId });
+    const firstBuddy = (buddyGroup as { buddies?: Array<{ id?: string; name?: string }> } | null)?.buddies?.[0];
+    if (firstBuddy?.id) {
+      buddyName = firstBuddy.name ?? "";
+      const admin = createAdminClient();
+      const { data: buddyProfile } = await admin
+        .from("profiles")
+        .select("email")
+        .eq("id", firstBuddy.id)
+        .maybeSingle();
+      buddyEmail = buddyProfile?.email ?? "";
+    }
+
+    const { subject, html } = renderEmailTemplate("plan_activated_summary", {
+      first_name: firstName,
+      company_name: companyName,
+      company_logo: companyLogo,
+      reminder_frequency: sub.track,
+      buddy_name: buddyName,
+      buddy_email: buddyEmail,
+      plan_text: planText,
+      actions,
+    });
+
+    // The email body shows only the top 6 actions and says so explicitly,
+    // pointing to the PDF for the rest; the PDF has no such constraint, so it
+    // always carries the complete ordered plan.
+    const pdfBuffer = await buildActionPlanPdf({
+      firstName,
+      companyName,
+      companyLogo,
+      batchName,
+      moduleName,
+      trainerName,
+      buddyName,
+      buddyEmail,
+      planText,
+      reminderFrequency: sub.track,
+      actions: actions.map((action) => ({ title: action.title, date: formatPlanActionDate(action.date) })),
+    });
+
+    const { error: sendError } = await resend.emails.send({
+      to: userEmail,
+      from: buildFromHeader(fromEmail, senderName),
+      subject,
+      html,
+      attachments: [
+        {
+          filename: "your-action-plan.pdf",
+          content: pdfBuffer,
+        },
+      ],
+    });
+    if (sendError) throw new Error(sendError.message);
+  } catch (e) {
+    console.error("[activatePersonalActionPlan] failed sending plan summary email", {
+      message: e instanceof Error ? e.message : String(e),
+    });
+  }
+}
+
 /** Finalise a reviewed draft and activate its future delivery cadence. */
 export async function activatePersonalActionPlan(): Promise<{ error?: string }> {
   try {
@@ -427,6 +606,30 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
     if (activationError) return { error: activationError.message };
 
     await supabase.from("profiles").update({ self_onboarding_completed_at: new Date().toISOString() }).eq("id", user.id);
+
+    // Deferred to after the response so the participant isn't kept waiting
+    // on buddy pairing, multiple lookups, and a Resend call before their
+    // "Activate My Plan" click redirects them to /actions.
+    if (isResendConfigured() && user.email) {
+      const userEmail = user.email;
+      after(() =>
+        sendPlanActivatedSummaryEmail({
+          supabase,
+          userId: user.id,
+          userEmail,
+          cohortId: cohortContext.cohortId!,
+          sub: {
+            track: sub.track as DeliveryTrack,
+            day_of_week: sub.day_of_week,
+            days_of_week: sub.days_of_week,
+            daily_action_count: sub.daily_action_count,
+            time_of_day_utc: sub.time_of_day_utc,
+          },
+          nextDeliveryAt,
+        })
+      );
+    }
+
     revalidatePath("/wallet");
     return {};
   } catch (e) {
@@ -580,6 +783,60 @@ export async function updatePersonalAction(
       .eq("is_personal", true);
 
     if (error) return { error: error.message };
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update action" };
+  }
+}
+
+/**
+ * Edit the title/how/why of one action in the participant's "Next reminders"
+ * list — an already-activated plan's actions that have not yet been
+ * delivered into "My Actions" (no user_actions row exists for them yet).
+ * Unlike updatePersonalAction (draft-only), this deliberately allows edits
+ * after activation, but only for that one still-safe slice: nothing already
+ * released, calendar-synced, or in progress can be touched here.
+ */
+export async function updateUpcomingPersonalAction(
+  id: string,
+  params: { title: string; how: string; why: string }
+): Promise<{ error?: string }> {
+  try {
+    const title = params.title.trim();
+    const how = params.how.trim();
+    const why = params.why.trim();
+    if (!title || !how || !why) return { error: "Title, how, and why are all required" };
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Not authenticated" };
+
+    const { data: action } = await supabase
+      .from("actions")
+      .select("id")
+      .eq("id", id)
+      .eq("created_by", user.id)
+      .eq("is_personal", true)
+      .maybeSingle();
+    if (!action) return { error: "Action not found" };
+
+    const { data: delivered } = await supabase
+      .from("user_actions")
+      .select("id")
+      .eq("action_id", id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (delivered) return { error: "This action has already gone out in a reminder and can no longer be edited" };
+
+    const { error } = await supabase
+      .from("actions")
+      .update({ title, how, why })
+      .eq("id", id)
+      .eq("created_by", user.id)
+      .eq("is_personal", true);
+    if (error) return { error: error.message };
+
+    revalidatePath("/actions");
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to update action" };

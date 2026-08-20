@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleCheckBig, CircleX, Clock3, Coffee, Hand, Handshake, HeartHandshake, Hourglass, ListChecks, Loader2, Mail, MessageCircle, MessageCircleHeart, Settings2, TrendingDown, TrendingUp, UsersRound, X } from "lucide-react";
+import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleCheckBig, CircleX, Clock3, Coffee, Hand, Handshake, HeartHandshake, Hourglass, ListChecks, Loader2, Mail, MessageCircle, MessageCircleHeart, Pencil, Settings2, TrendingDown, TrendingUp, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
-import { getMyPlanSettings, syncMyDuePersonalActions, type MyPlanSettings } from "@/app/actions/ai-actions";
+import { getMyPlanSettings, syncMyDuePersonalActions, updateUpcomingPersonalAction, type MyPlanSettings } from "@/app/actions/ai-actions";
+import type { ActionCard } from "@/lib/types";
 import {
   getMyCommitmentBuddies,
   markMyCommitmentBuddyRevealed,
@@ -377,6 +378,10 @@ export default function ActionsClient() {
   const [archivedActions, setArchivedActions] = useState<ArchivedActionEntry[]>([]);
   const [archiveReady, setArchiveReady] = useState(false);
   const [ready, setReady] = useState(false);
+  const [editingUpcomingAction, setEditingUpcomingAction] = useState<ActionCard | null>(null);
+  const [editUpcomingForm, setEditUpcomingForm] = useState<{ title: string; how: string; why: string } | null>(null);
+  const [savingUpcomingEdit, setSavingUpcomingEdit] = useState(false);
+  const [upcomingEditError, setUpcomingEditError] = useState<string | null>(null);
   const [commitmentScore, setCommitmentScore] = useState<{
     hasFinalisedPlan: boolean;
     score: number;
@@ -561,6 +566,27 @@ export default function ActionsClient() {
     }
   }
 
+  function openUpcomingEdit(action: ActionCard) {
+    setEditingUpcomingAction(action);
+    setEditUpcomingForm({ title: action.title, how: action.how, why: action.why });
+    setUpcomingEditError(null);
+  }
+
+  async function saveUpcomingEdit() {
+    if (!editingUpcomingAction || !editUpcomingForm) return;
+    setSavingUpcomingEdit(true);
+    setUpcomingEditError(null);
+    const result = await updateUpcomingPersonalAction(editingUpcomingAction.id, editUpcomingForm);
+    setSavingUpcomingEdit(false);
+    if (result.error) {
+      setUpcomingEditError(result.error);
+      return;
+    }
+    setEditingUpcomingAction(null);
+    setEditUpcomingForm(null);
+    await refetch();
+  }
+
   if (!ready) return null;
 
   return <div className="reference-actions animate-in fade-in duration-700">
@@ -673,7 +699,9 @@ export default function ActionsClient() {
                         <span className="plan-action-points">{points}<i className="plan-gold-coin" aria-hidden="true" /></span>
                       </div>
                     </div>
-                    {planIsArchived && <div className="plan-action-controls plan-action-controls--compact"><button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>Do this action</button></div>}
+                    {planIsArchived
+                      ? <div className="plan-action-controls plan-action-controls--compact"><button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>Do this action</button></div>
+                      : <button type="button" className="plan-action-edit-button" disabled={busy} onClick={() => openUpcomingEdit(action)} aria-label={`Edit ${action.title}`} title="Edit action"><Pencil size={13} /></button>}
                   </article>;
                 })}
               </div>
@@ -850,6 +878,8 @@ export default function ActionsClient() {
         </section>
       </div>;
     })(), document.body)}
+
+    {typeof document !== "undefined" && editingUpcomingAction && editUpcomingForm && createPortal(<div className="plan-edit-overlay"><div className="plan-edit-modal"><button className="plan-edit-close" onClick={() => { setEditingUpcomingAction(null); setEditUpcomingForm(null); }}><X size={18} /></button><span className="participant-eyebrow">Edit action</span><h3>Edit your action</h3><label>Action title<input value={editUpcomingForm.title} onChange={(event) => setEditUpcomingForm((current) => current ? { ...current, title: event.target.value } : current)} /></label><div className="plan-edit-how-why"><label><span>How to do it</span><textarea value={editUpcomingForm.how} onChange={(event) => setEditUpcomingForm((current) => current ? { ...current, how: event.target.value } : current)} /></label><label><span>Why it works</span><textarea value={editUpcomingForm.why} onChange={(event) => setEditUpcomingForm((current) => current ? { ...current, why: event.target.value } : current)} /></label></div>{upcomingEditError && <p className="plan-review-error">{upcomingEditError}</p>}<button className="journey-primary-button" disabled={savingUpcomingEdit || !editUpcomingForm.title.trim() || !editUpcomingForm.how.trim() || !editUpcomingForm.why.trim()} onClick={saveUpcomingEdit}>{savingUpcomingEdit ? "Saving…" : "Save"}</button></div></div>, document.body)}
 
     {typeof document !== "undefined" && completingId && createPortal(<div className="actions-checkin-overlay"><div className="actions-checkin-modal"><button onClick={() => { setCompletingId(null); setCompleteError(null); }}><X size={18} /></button><span className="participant-eyebrow">Action check-in</span><h3>How did this action go?</h3><p>Add a short reflection. It helps you notice what worked and what to adjust.</p><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="What happened when you tried it?" />{completeError && <p className="actions-checkin-error" role="alert" style={{ color: "var(--color-danger, #ed4551)", fontSize: "var(--text-sm)" }}>{completeError}</p>}<div><button className="journey-primary-button" disabled={busy} onClick={() => finish(true)}><CheckCircle2 size={16} strokeWidth={2.5} />{busy ? "Saving…" : "Complete action"}</button></div></div></div>, document.body)}
 

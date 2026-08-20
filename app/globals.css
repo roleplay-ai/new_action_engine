@@ -9099,10 +9099,34 @@ input[type="range"] {
 
 .plan-review-action--reminder {
   min-height: 76px;
-  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-columns: 38px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
+}
+
+.plan-action-edit-button {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--color-text-secondary);
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.plan-action-edit-button:hover:not(:disabled) {
+  border-color: var(--bright-amber);
+  background: var(--bright-amber);
+  color: var(--color-text-primary);
+}
+
+.plan-action-edit-button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
 }
 
 .actions-upcoming-list.plan-review-list {

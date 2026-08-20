@@ -326,6 +326,140 @@ function renderCredentialsHtml(data: EmailTemplateData): string {
 </html>`;
 }
 
+// ─── Plan activated summary ─────────────────────────────────────────────────
+
+type PlanSummaryAction = { title?: string; date?: string };
+
+function formatPlanActionDate(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) return "";
+  // Callers pass a plain "YYYY-MM-DD" IST calendar date (see utcToISTDate) —
+  // format it as UTC so the server's local timezone can never shift the
+  // weekday shown in the email by a day.
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00Z` : value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+function renderPlanActivatedSummaryHtml(data: EmailTemplateData): string {
+  const firstName = str(data, "first_name", "there");
+  const frequency = str(data, "reminder_frequency", "daily").toLowerCase() === "weekly" ? "weekly" : "daily";
+  const buddyName = str(data, "buddy_name");
+  const buddyEmail = str(data, "buddy_email");
+  const rawActions = Array.isArray(data.actions) ? (data.actions as PlanSummaryAction[]) : [];
+  const actions = rawActions.filter((a) => typeof a.title === "string" && a.title.trim());
+
+  const actionsHtml = actions.length
+    ? actions
+        .map(
+          (action, i) => `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFDF8;border:1px solid #E6DDC7;border-radius:13px;margin:0 0 9px;">
+      <tr>
+        <td width="46" valign="top" style="width:46px;padding:14px 0 14px 13px;"><div style="width:28px;height:28px;border-radius:9px;background:#FFCE00;color:#221D23;text-align:center;font-size:13px;line-height:28px;font-weight:900;">${i + 1}</div></td>
+        <td valign="top" style="padding:13px 14px 13px 5px;">
+          <div style="font-size:13px;line-height:18px;font-weight:650;color:#221D23;">${esc(action.title)}</div>
+          ${formatPlanActionDate(action.date) ? `<div style="margin-top:3px;font-size:11px;line-height:15px;color:#8A818B;">${esc(formatPlanActionDate(action.date))}</div>` : ""}
+        </td>
+      </tr>
+    </table>`
+        )
+        .join("")
+    : `<p style="margin:0;padding:18px;border-radius:13px;background:#FFFDF8;border:1px solid #E6DDC7;color:#5f5860;font-size:13px;line-height:1.5;">No actions were found on this plan.</p>`;
+
+  const buddyHtml = buddyName
+    ? `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F1ECFF;border:1px solid #DDD2FF;border-radius:13px;margin:0 0 9px;">
+      <tr>
+        <td width="46" valign="top" style="width:46px;padding:14px 0 14px 13px;"><div style="width:28px;height:28px;border-radius:14px;background:#F68A29;color:#221D23;text-align:center;font-size:13px;line-height:28px;font-weight:900;">&#8596;</div></td>
+        <td valign="top" style="padding:13px 14px 13px 5px;">
+          <div style="font-size:9px;line-height:12px;font-weight:800;letter-spacing:1px;color:#6F6871;text-transform:uppercase;">Your commitment buddy</div>
+          <div style="margin-top:4px;font-size:13px;line-height:18px;font-weight:700;color:#221D23;">${esc(buddyName)}</div>
+          ${buddyEmail ? `<div style="margin-top:2px;font-size:12px;line-height:16px;color:#4F484D;">${esc(buddyEmail)}</div>` : ""}
+        </td>
+      </tr>
+    </table>`
+    : `<p style="margin:0;padding:14px 16px;border-radius:13px;background:#F1ECFF;border:1px solid #DDD2FF;color:#5f5860;font-size:12px;line-height:1.5;">No commitment buddy paired yet.</p>`;
+
+  const preheader = "Your plan is finalised and active.";
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Your plan is finalised</title>
+    <style>
+      body { margin: 0; padding: 0; background: #F6F2E6; }
+      table { border-spacing: 0; }
+      td { padding: 0; }
+      a { color: inherit; }
+
+      @media only screen and (max-width: 620px) {
+        .shell { width: 100% !important; }
+        .pad { padding-left: 20px !important; padding-right: 20px !important; }
+        .headline { font-size: 29px !important; line-height: 31px !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(preheader)}</div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#F6F2E6;">
+      <tr>
+        <td align="center" style="padding:18px 8px 30px;">
+          <table role="presentation" class="shell" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#FFFFFF;border-top:3px solid #FFCE00;border-left:1px solid #E8DFC6;border-right:1px solid #E8DFC6;border-bottom:1px solid #E8DFC6;">
+
+            <tr>
+              <td class="pad" style="padding:30px 34px 28px;background:#221D23;color:#FFFFFF;font-family:Inter,Arial,sans-serif;">
+                ${heroTopRowHtml(`<div style="display:inline-block;padding:6px 10px;border:1px solid #23895C;border-radius:18px;color:#23CE68;font-size:9px;line-height:10px;font-weight:800;letter-spacing:1.15px;text-transform:uppercase;">Plan finalised</div>`, data)}
+                <div class="headline" style="margin-top:16px;font-size:34px;line-height:36px;font-weight:800;letter-spacing:-1.25px;">Your plan is<br /><span style="color:#FFCE00;">locked in.</span></div>
+                <div style="margin-top:12px;color:#E2DEE1;font-size:13px;line-height:19px;">Hey ${esc(firstName)}, this is your plan and actions you have finalised.</div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" style="padding:22px 34px 9px;font-family:Inter,Arial,sans-serif;">
+                <div style="font-size:17px;line-height:21px;font-weight:800;color:#221D23;">Your actions</div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" style="padding:0 34px 9px;font-family:Inter,Arial,sans-serif;">
+                ${actionsHtml}
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" style="padding:8px 34px 9px;font-family:Inter,Arial,sans-serif;">
+                <div style="font-size:17px;line-height:21px;font-weight:800;color:#221D23;">Your buddy</div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" style="padding:0 34px 2px;font-family:Inter,Arial,sans-serif;">
+                ${buddyHtml}
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" style="padding:16px 34px 20px;font-family:Inter,Arial,sans-serif;">
+                <div style="padding:11px 13px;background:#FFF8D9;border-radius:11px;color:#4F484D;font-size:11px;line-height:16px;">You will get a <strong style="color:#221D23;">${frequency}</strong> reminder on email for your actions, based on your plan. Just one click needed on the app to verify it.</div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" style="padding:0 34px 22px;font-family:Inter,Arial,sans-serif;text-align:center;">
+                <div style="padding-top:15px;border-top:1px solid #ECE7E0;color:#8B8489;font-size:10px;line-height:15px;">Powered by <a href="https://www.nudgeable.ai" style="color:#623CEA;text-decoration:none;font-weight:700;">Nudgeable.ai</a></div>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
 // ─── Calendar invite ────────────────────────────────────────────────────────
 
 function renderCalendarInviteHtml(data: EmailTemplateData): string {
@@ -668,6 +802,11 @@ export const EMAIL_TEMPLATES = {
     subject: (data: EmailTemplateData) =>
       `Hi ${str(data, "first_name", "there")} - Welcome to ${str(data, "company_name", "Nudgeable")}, your access is ready`,
     render: renderCredentialsHtml,
+  },
+  plan_activated_summary: {
+    label: "Plan Finalised Summary",
+    subject: () => `Your plan is finalised and active`,
+    render: renderPlanActivatedSummaryHtml,
   },
   calendar_invite: {
     label: "Calendar Invite",

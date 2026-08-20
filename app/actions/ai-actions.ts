@@ -19,6 +19,10 @@ import {
 } from "@/lib/personal-action-generation";
 import { getCurrentISTDate, istToUTCTime, utcToISTDate, utcToISTTime } from "@/lib/timezone-utils";
 import { getMyCohorts } from "@/app/actions/cohorts";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isResendConfigured, resend } from "@/lib/resend";
+import { renderEmailTemplate } from "@/lib/email-templates";
+import { buildFromHeader } from "@/lib/email-send";
 
 export type MyPlanSettings = {
   track: DeliveryTrack;
@@ -397,6 +401,127 @@ export async function saveGeneratedActions(params: {
   }
 }
 
+/**
+ * Emails the participant a summary of their just-finalised plan: every
+ * action with its projected delivery date, their commitment buddy's name
+ * and email (pairing this triggers if it hasn't happened yet), and the
+ * reminder cadence they'll now receive. Never throws — a failure here must
+ * not undo a successful activation, so all errors are swallowed and logged.
+ */
+async function sendPlanActivatedSummaryEmail(params: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  userId: string;
+  userEmail: string;
+  cohortId: string;
+  sub: {
+    track: DeliveryTrack;
+    day_of_week: number | null;
+    days_of_week: number[] | null;
+    daily_action_count: number;
+    time_of_day_utc: string;
+  };
+  nextDeliveryAt: string;
+}): Promise<void> {
+  const { supabase, userId, userEmail, cohortId, sub, nextDeliveryAt } = params;
+  try {
+    const fromEmail = process.env.RESEND_FROM_EMAIL;
+    if (!fromEmail) return;
+
+    const [{ data: profile }, { data: actionRows }, { data: cohort }] = await Promise.all([
+      supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
+      supabase
+        .from("actions")
+        .select("title, plan_order")
+        .eq("created_by", userId)
+        .eq("cohort_id", cohortId)
+        .eq("is_personal", true)
+        .order("plan_order", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: true }),
+      supabase.from("cohorts").select("company_id, trainer_id").eq("id", cohortId).maybeSingle(),
+    ]);
+
+    const firstName =
+      (profile?.full_name ?? "").trim().split(/\s+/)[0] || userEmail.split("@")[0] || "there";
+
+    // Project each action's delivery date with the same cadence
+    // assignScheduledBatch() uses to release them for real: one action per
+    // weekday for daily plans, daily_action_count actions per cycle for
+    // weekly ones — so the dates shown here match what actually happens.
+    const daysOfWeek = sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null);
+    const batchSize = sub.track === "daily" ? 1 : Math.max(1, sub.daily_action_count ?? 1);
+    let cursor = nextDeliveryAt;
+    const actions = (actionRows ?? []).map((row, index) => {
+      if (index > 0 && index % batchSize === 0) {
+        cursor = advanceNextDeliveryAt(cursor, sub.track, daysOfWeek, sub.time_of_day_utc);
+      }
+      return { title: row.title as string, date: utcToISTDate(cursor) };
+    });
+
+    let companyName = "";
+    let companyLogo = "";
+    let senderName = "Nudgeable";
+    if (cohort?.company_id) {
+      const { data: company } = await supabase
+        .from("companies")
+        .select("name, logo_url")
+        .eq("id", cohort.company_id)
+        .maybeSingle();
+      companyName = company?.name ?? "";
+      companyLogo = company?.logo_url ?? "";
+    }
+    if (cohort?.trainer_id) {
+      const { data: trainer } = await supabase
+        .from("trainers")
+        .select("name")
+        .eq("id", cohort.trainer_id)
+        .maybeSingle();
+      if (trainer?.name) senderName = trainer.name;
+    }
+
+    // Reuses the same RPC the Actions page calls — it both creates this
+    // participant's stable buddy pair/trio if one isn't assigned yet (now
+    // possible since the plan is active) and returns the buddy's name.
+    // Email isn't exposed by the RPC (by design, see 041_commitment_buddies),
+    // so it's looked up separately with the admin client.
+    let buddyName = "";
+    let buddyEmail = "";
+    const { data: buddyGroup } = await supabase.rpc("get_my_commitment_buddies", { p_cohort_id: cohortId });
+    const firstBuddy = (buddyGroup as { buddies?: Array<{ id?: string; name?: string }> } | null)?.buddies?.[0];
+    if (firstBuddy?.id) {
+      buddyName = firstBuddy.name ?? "";
+      const admin = createAdminClient();
+      const { data: buddyProfile } = await admin
+        .from("profiles")
+        .select("email")
+        .eq("id", firstBuddy.id)
+        .maybeSingle();
+      buddyEmail = buddyProfile?.email ?? "";
+    }
+
+    const { subject, html } = renderEmailTemplate("plan_activated_summary", {
+      first_name: firstName,
+      company_name: companyName,
+      company_logo: companyLogo,
+      reminder_frequency: sub.track,
+      buddy_name: buddyName,
+      buddy_email: buddyEmail,
+      actions,
+    });
+
+    const { error: sendError } = await resend.emails.send({
+      to: userEmail,
+      from: buildFromHeader(fromEmail, senderName),
+      subject,
+      html,
+    });
+    if (sendError) throw new Error(sendError.message);
+  } catch (e) {
+    console.error("[activatePersonalActionPlan] failed sending plan summary email", {
+      message: e instanceof Error ? e.message : String(e),
+    });
+  }
+}
+
 /** Finalise a reviewed draft and activate its future delivery cadence. */
 export async function activatePersonalActionPlan(): Promise<{ error?: string }> {
   try {
@@ -427,6 +552,30 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
     if (activationError) return { error: activationError.message };
 
     await supabase.from("profiles").update({ self_onboarding_completed_at: new Date().toISOString() }).eq("id", user.id);
+
+    // Deferred to after the response so the participant isn't kept waiting
+    // on buddy pairing, multiple lookups, and a Resend call before their
+    // "Activate My Plan" click redirects them to /actions.
+    if (isResendConfigured() && user.email) {
+      const userEmail = user.email;
+      after(() =>
+        sendPlanActivatedSummaryEmail({
+          supabase,
+          userId: user.id,
+          userEmail,
+          cohortId: cohortContext.cohortId!,
+          sub: {
+            track: sub.track as DeliveryTrack,
+            day_of_week: sub.day_of_week,
+            days_of_week: sub.days_of_week,
+            daily_action_count: sub.daily_action_count,
+            time_of_day_utc: sub.time_of_day_utc,
+          },
+          nextDeliveryAt,
+        })
+      );
+    }
+
     revalidatePath("/wallet");
     return {};
   } catch (e) {

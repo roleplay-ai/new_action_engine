@@ -107,67 +107,6 @@ function drawPageChrome(page: PDFPage, fontBold: PDFFont, heading: string): numb
   return PAGE_HEIGHT - TOP_MARGIN - 30;
 }
 
-type MetaRow = { label: string; value: string };
-
-/** A bordered label/value panel (company, batch, trainer, buddy). Wraps long values and reports the y it ends at. */
-function drawMetaPanel(
-  page: PDFPage,
-  font: PDFFont,
-  fontBold: PDFFont,
-  x: number,
-  topY: number,
-  width: number,
-  rows: MetaRow[]
-): number {
-  if (!rows.length) return topY;
-
-  const paddingX = 14;
-  const paddingY = 10;
-  const lineHeight = 13;
-  const labelSize = 8;
-  const valueSize = 10;
-  const gapAfterLabel = 8;
-  const rowGap = 4;
-
-  const prepared = rows.map((row) => {
-    const labelUpper = row.label.toUpperCase();
-    const labelWidth = fontBold.widthOfTextAtSize(labelUpper, labelSize);
-    const valueMaxWidth = Math.max(width - paddingX * 2 - labelWidth - gapAfterLabel, 80);
-    const lines = wrapText(row.value, font, valueSize, valueMaxWidth);
-    return { labelUpper, labelWidth, lines, height: Math.max(lineHeight, lines.length * lineHeight) };
-  });
-
-  const panelHeight =
-    paddingY * 2 + prepared.reduce((sum, row) => sum + row.height, 0) + rowGap * (prepared.length - 1);
-
-  page.drawRectangle({
-    x,
-    y: topY - panelHeight,
-    width,
-    height: panelHeight,
-    color: ROW_FILL,
-    borderColor: ROW_BORDER,
-    borderWidth: 1,
-  });
-
-  let rowY = topY - paddingY - 9;
-  for (const row of prepared) {
-    page.drawText(row.labelUpper, { x: x + paddingX, y: rowY, size: labelSize, font: fontBold, color: INK_FAINT });
-    row.lines.forEach((line, lineIndex) => {
-      page.drawText(line, {
-        x: x + paddingX + row.labelWidth + gapAfterLabel,
-        y: rowY - lineIndex * lineHeight,
-        size: valueSize,
-        font,
-        color: INK,
-      });
-    });
-    rowY -= row.height + rowGap;
-  }
-
-  return topY - panelHeight;
-}
-
 /** Wrapped line count + box height for a "Your plan" text block, computed before drawing so the caller can decide whether it needs a fresh page first. */
 function measurePlanTextBox(
   font: PDFFont,
@@ -237,19 +176,11 @@ export async function buildActionPlanPdf(params: {
   reminderFrequency: "daily" | "weekly";
   actions: ActionPlanPdfAction[];
 }): Promise<Buffer> {
-  const {
-    firstName,
-    companyName,
-    companyLogo,
-    batchName,
-    moduleName,
-    trainerName,
-    buddyName,
-    buddyEmail,
-    planText,
-    reminderFrequency,
-    actions,
-  } = params;
+  // batchName/moduleName/trainerName/buddyName/buddyEmail stay in the params
+  // type for API stability (callers already pass them) but are intentionally
+  // not rendered — the PDF sticks to two sections, "Your plan" and "Your
+  // actions", without the extra roster/context details.
+  const { firstName, companyName, companyLogo, planText, reminderFrequency, actions } = params;
 
   const doc = await PDFDocument.create();
   doc.setTitle("Your Action Plan");
@@ -274,19 +205,6 @@ export async function buildActionPlanPdf(params: {
   y -= 20;
 
   const contentWidth = PAGE_WIDTH - MARGIN_X * 2;
-  const metaRows: MetaRow[] = [];
-  if (companyName?.trim()) metaRows.push({ label: "Company", value: companyName.trim() });
-  if (batchName?.trim()) metaRows.push({ label: "Batch", value: batchName.trim() });
-  if (moduleName?.trim()) metaRows.push({ label: "Module", value: moduleName.trim() });
-  if (trainerName?.trim()) metaRows.push({ label: "Trainer", value: trainerName.trim() });
-  if (buddyName?.trim()) {
-    metaRows.push({
-      label: "Commitment buddy",
-      value: buddyEmail?.trim() ? `${buddyName.trim()} (${buddyEmail.trim()})` : buddyName.trim(),
-    });
-  }
-  y = drawMetaPanel(page, font, fontBold, MARGIN_X, y, contentWidth, metaRows);
-  y -= 22;
 
   const trimmedPlanText = planText?.trim();
   if (trimmedPlanText) {
@@ -307,6 +225,15 @@ export async function buildActionPlanPdf(params: {
   const rowPaddingY = 8;
   const lineHeight = 13;
   const rowGap = 8;
+
+  const headingHeight = 20;
+  if (y - headingHeight < BOTTOM_MARGIN) {
+    page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    if (logo) drawWatermark(page, logo);
+    y = drawPageChrome(page, fontBold, "Your Action Plan (continued)");
+  }
+  page.drawText("Your actions", { x: MARGIN_X, y, size: 13, font: fontBold, color: INK });
+  y -= headingHeight;
 
   if (!actions.length) {
     page.drawText("No actions were found on this plan.", { x: MARGIN_X, y, size: 11, font, color: INK_SOFT });

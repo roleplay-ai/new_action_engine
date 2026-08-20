@@ -10,22 +10,11 @@ const STORY_STAGES = [
   { title: "Schedule your nudges", icon: BellRing },
 ];
 
-export default function ActionGenerationStory({
-  job,
-  generatingOne = false,
-}: {
-  job: GenerationJobStatus | null;
-  generatingOne?: boolean;
-}) {
+export default function ActionGenerationStory({ job }: { job: GenerationJobStatus | null }) {
   const total = job?.totalNeeded ?? 0;
   const ready = job?.totalGenerated ?? 0;
   const percentage = total > 0 ? Math.min(100, Math.round((ready / total) * 100)) : 0;
   const hasMeasuredProgress = total > 0 && percentage > 0;
-  const status = generatingOne
-    ? "Creating one more option for my plan…"
-    : ready > 0
-      ? `${ready} of ${total} actions are ready…`
-      : "Building a plan around your chosen pace…";
 
   return <div className="action-generation-story-overlay">
     <section
@@ -54,7 +43,7 @@ export default function ActionGenerationStory({
       </div>
 
       <div className="action-generation-story-progress" aria-live="polite">
-        <div><strong>{status}</strong>{hasMeasuredProgress && <span>{percentage}%</span>}</div>
+        <div><strong className="action-generation-story-hold">Don&apos;t touch anywhere — hold on</strong>{hasMeasuredProgress && <span>{percentage}%</span>}</div>
         <div
           className={`action-generation-story-track${hasMeasuredProgress ? " measured" : ""}`}
           role="progressbar"

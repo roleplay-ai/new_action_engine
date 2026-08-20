@@ -290,7 +290,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
 
     {canBuildPlan && hasArchivedPlans && <div className="journey-card plan-history-notice"><strong>Your earlier batch plans are safely archived.</strong><p>Use the batch switcher above whenever you want to revisit earlier actions and complete any that remain.</p></div>}
 
-    {generationJob && <div className="journey-card plan-generation-status" role="status"><GenerationStatus job={generationJob} /><p>Keep this page open or come back later. New actions will appear here automatically as each batch is ready.</p></div>}
+    {generationJob && <div className="journey-card plan-generation-status" role="status"><GenerationStatus job={generationJob} /></div>}
     {hasDraft && generationError && !generationJob && <div className="journey-card plan-generation-error" role="alert"><div><X size={18} /><span><strong>Generation paused</strong><small>{generationError}</small></span></div><button type="button" onClick={openPlanSetup}>Try again</button></div>}
 
     {hasDraft && !editingSetup && <section className="plan-review-shell">
@@ -441,7 +441,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
     )}
 
     {typeof document !== "undefined" && (setupGenerationPending || generationJob || generatingMore) && createPortal(
-      <ActionGenerationStory job={generationJob} generatingOne={generatingMore} />,
+      <ActionGenerationStory job={generationJob} />,
       document.body,
     )}
   </section>;

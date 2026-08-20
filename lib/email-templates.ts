@@ -330,7 +330,8 @@ function renderCredentialsHtml(data: EmailTemplateData): string {
 
 type PlanSummaryAction = { title?: string; date?: string };
 
-function formatPlanActionDate(value: unknown): string {
+/** Shared with lib/action-plan-pdf.ts so the email body and PDF attachment always agree on formatting. */
+export function formatPlanActionDate(value: unknown): string {
   if (typeof value !== "string" || !value.trim()) return "";
   // Callers pass a plain "YYYY-MM-DD" IST calendar date (see utcToISTDate) —
   // format it as UTC so the server's local timezone can never shift the
@@ -345,8 +346,37 @@ function renderPlanActivatedSummaryHtml(data: EmailTemplateData): string {
   const frequency = str(data, "reminder_frequency", "daily").toLowerCase() === "weekly" ? "weekly" : "daily";
   const buddyName = str(data, "buddy_name");
   const buddyEmail = str(data, "buddy_email");
+  const planText = str(data, "plan_text");
   const rawActions = Array.isArray(data.actions) ? (data.actions as PlanSummaryAction[]) : [];
-  const actions = rawActions.filter((a) => typeof a.title === "string" && a.title.trim());
+  const allActions = rawActions.filter((a) => typeof a.title === "string" && a.title.trim());
+  // The email only ever shows the top actions — the participant's chosen
+  // order — and points to the attached PDF for the rest, so the message
+  // stays short and scannable regardless of how long the full plan is.
+  const ACTIONS_SHOWN_LIMIT = 6;
+  const actions = allActions.slice(0, ACTIONS_SHOWN_LIMIT);
+  const hiddenCount = allActions.length - actions.length;
+  const actionsHeading = hiddenCount > 0
+    ? `Your top ${actions.length} action${actions.length === 1 ? "" : "s"}`
+    : `Your action${actions.length === 1 ? "" : "s"}`;
+  const actionsNote = hiddenCount > 0
+    ? `These are your top ${actions.length} actions. All ${allActions.length} actions in your plan are attached as a PDF.`
+    : allActions.length > 0
+      ? `All ${allActions.length} action${allActions.length === 1 ? "" : "s"} in your plan ${allActions.length === 1 ? "is" : "are"} also attached as a PDF.`
+      : "";
+
+  const planTextHtml = planText
+    ? `
+    <tr>
+      <td class="pad" style="padding:22px 34px 9px;font-family:Inter,Arial,sans-serif;">
+        <div style="font-size:17px;line-height:21px;font-weight:800;color:#221D23;">Your plan</div>
+      </td>
+    </tr>
+    <tr>
+      <td class="pad" style="padding:0 34px 9px;font-family:Inter,Arial,sans-serif;">
+        <div style="padding:14px 16px;background:#FFFDF8;border:1px solid #E6DDC7;border-radius:13px;color:#3D3740;font-size:13px;line-height:20px;white-space:pre-wrap;">${esc(planText)}</div>
+      </td>
+    </tr>`
+    : "";
 
   const actionsHtml = actions.length
     ? actions
@@ -362,7 +392,9 @@ function renderPlanActivatedSummaryHtml(data: EmailTemplateData): string {
       </tr>
     </table>`
         )
-        .join("")
+        .join("") + (actionsNote
+          ? `<div style="margin:6px 0 0;padding:12px 14px;background:#FFF8D9;border:1px solid #F0DF9A;border-radius:11px;color:#221D23;font-size:13px;line-height:19px;font-weight:800;">${esc(actionsNote)}</div>`
+          : "")
     : `<p style="margin:0;padding:18px;border-radius:13px;background:#FFFDF8;border:1px solid #E6DDC7;color:#5f5860;font-size:13px;line-height:1.5;">No actions were found on this plan.</p>`;
 
   const buddyHtml = buddyName
@@ -415,10 +447,10 @@ function renderPlanActivatedSummaryHtml(data: EmailTemplateData): string {
                 <div style="margin-top:12px;color:#E2DEE1;font-size:13px;line-height:19px;">Hey ${esc(firstName)}, this is your plan and actions you have finalised.</div>
               </td>
             </tr>
-
+            ${planTextHtml}
             <tr>
               <td class="pad" style="padding:22px 34px 9px;font-family:Inter,Arial,sans-serif;">
-                <div style="font-size:17px;line-height:21px;font-weight:800;color:#221D23;">Your actions</div>
+                <div style="font-size:17px;line-height:21px;font-weight:800;color:#221D23;">${esc(actionsHeading)}</div>
               </td>
             </tr>
 
@@ -805,7 +837,7 @@ export const EMAIL_TEMPLATES = {
   },
   plan_activated_summary: {
     label: "Plan Finalised Summary",
-    subject: () => `Your plan is finalised and active`,
+    subject: (data: EmailTemplateData) => `Hi ${str(data, "first_name", "there")}, your plan is finalised and active`,
     render: renderPlanActivatedSummaryHtml,
   },
   calendar_invite: {

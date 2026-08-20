@@ -21,8 +21,9 @@ import { getCurrentISTDate, istToUTCTime, utcToISTDate, utcToISTTime } from "@/l
 import { getMyCohorts } from "@/app/actions/cohorts";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isResendConfigured, resend } from "@/lib/resend";
-import { renderEmailTemplate } from "@/lib/email-templates";
+import { renderEmailTemplate, formatPlanActionDate } from "@/lib/email-templates";
 import { buildFromHeader } from "@/lib/email-send";
+import { buildActionPlanPdf } from "@/lib/action-plan-pdf";
 
 export type MyPlanSettings = {
   track: DeliveryTrack;
@@ -427,7 +428,7 @@ async function sendPlanActivatedSummaryEmail(params: {
     const fromEmail = process.env.RESEND_FROM_EMAIL;
     if (!fromEmail) return;
 
-    const [{ data: profile }, { data: actionRows }, { data: cohort }] = await Promise.all([
+    const [{ data: profile }, { data: actionRows }, { data: cohort }, { data: notesRow }] = await Promise.all([
       supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
       supabase
         .from("actions")
@@ -437,8 +438,31 @@ async function sendPlanActivatedSummaryEmail(params: {
         .eq("is_personal", true)
         .order("plan_order", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true }),
-      supabase.from("cohorts").select("company_id, trainer_id").eq("id", cohortId).maybeSingle(),
+      supabase.from("cohorts").select("company_id, trainer_id, batch_name, module_name").eq("id", cohortId).maybeSingle(),
+      supabase
+        .from("participant_session_notes")
+        .select("daily_work, skill_goal, practice_opportunities")
+        .eq("user_id", userId)
+        .eq("cohort_id", cohortId)
+        .maybeSingle(),
     ]);
+
+    // Same combination notes-client.tsx uses for its read-only "My Plan" view
+    // (daily work + skill goal as one paragraph, practice opportunities as a
+    // second) — capped so one very long free-text answer can't blow up the
+    // email's Gmail-clipping budget or balloon the PDF into dozens of pages.
+    const PLAN_TEXT_LIMIT = 1500;
+    const workAndSkill = [notesRow?.daily_work, notesRow?.skill_goal]
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter(Boolean)
+      .join(" ");
+    const practiceOpportunities = typeof notesRow?.practice_opportunities === "string"
+      ? notesRow.practice_opportunities.trim()
+      : "";
+    let planText = [workAndSkill, practiceOpportunities].filter(Boolean).join("\n\n");
+    if (planText.length > PLAN_TEXT_LIMIT) {
+      planText = `${planText.slice(0, PLAN_TEXT_LIMIT).trimEnd()}…`;
+    }
 
     const firstName =
       (profile?.full_name ?? "").trim().split(/\s+/)[0] || userEmail.split("@")[0] || "there";
@@ -460,6 +484,7 @@ async function sendPlanActivatedSummaryEmail(params: {
     let companyName = "";
     let companyLogo = "";
     let senderName = "Nudgeable";
+    let trainerName = "";
     if (cohort?.company_id) {
       const { data: company } = await supabase
         .from("companies")
@@ -475,8 +500,13 @@ async function sendPlanActivatedSummaryEmail(params: {
         .select("name")
         .eq("id", cohort.trainer_id)
         .maybeSingle();
-      if (trainer?.name) senderName = trainer.name;
+      if (trainer?.name) {
+        senderName = trainer.name;
+        trainerName = trainer.name;
+      }
     }
+    const batchName = (cohort as { batch_name?: string | null } | null)?.batch_name ?? "";
+    const moduleName = (cohort as { module_name?: string | null } | null)?.module_name ?? "";
 
     // Reuses the same RPC the Actions page calls — it both creates this
     // participant's stable buddy pair/trio if one isn't assigned yet (now
@@ -505,7 +535,25 @@ async function sendPlanActivatedSummaryEmail(params: {
       reminder_frequency: sub.track,
       buddy_name: buddyName,
       buddy_email: buddyEmail,
+      plan_text: planText,
       actions,
+    });
+
+    // The email body shows only the top 6 actions and says so explicitly,
+    // pointing to the PDF for the rest; the PDF has no such constraint, so it
+    // always carries the complete ordered plan.
+    const pdfBuffer = await buildActionPlanPdf({
+      firstName,
+      companyName,
+      companyLogo,
+      batchName,
+      moduleName,
+      trainerName,
+      buddyName,
+      buddyEmail,
+      planText,
+      reminderFrequency: sub.track,
+      actions: actions.map((action) => ({ title: action.title, date: formatPlanActionDate(action.date) })),
     });
 
     const { error: sendError } = await resend.emails.send({
@@ -513,6 +561,12 @@ async function sendPlanActivatedSummaryEmail(params: {
       from: buildFromHeader(fromEmail, senderName),
       subject,
       html,
+      attachments: [
+        {
+          filename: "your-action-plan.pdf",
+          content: pdfBuffer,
+        },
+      ],
     });
     if (sendError) throw new Error(sendError.message);
   } catch (e) {

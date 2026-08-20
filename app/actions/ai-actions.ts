@@ -539,7 +539,7 @@ async function sendPlanActivatedSummaryEmail(params: {
       actions,
     });
 
-    // The email body shows only the top 6 actions and says so explicitly,
+    // The email body shows only the first 6 actions and says so explicitly,
     // pointing to the PDF for the rest; the PDF has no such constraint, so it
     // always carries the complete ordered plan.
     const pdfBuffer = await buildActionPlanPdf({

@@ -356,10 +356,10 @@ function renderPlanActivatedSummaryHtml(data: EmailTemplateData): string {
   const actions = allActions.slice(0, ACTIONS_SHOWN_LIMIT);
   const hiddenCount = allActions.length - actions.length;
   const actionsHeading = hiddenCount > 0
-    ? `Your top ${actions.length} action${actions.length === 1 ? "" : "s"}`
+    ? `Your first ${actions.length} action${actions.length === 1 ? "" : "s"}`
     : `Your action${actions.length === 1 ? "" : "s"}`;
   const actionsNote = hiddenCount > 0
-    ? `These are your top ${actions.length} actions. All ${allActions.length} actions in your plan are attached as a PDF.`
+    ? `These are your first ${actions.length} actions. All ${allActions.length} actions in your plan are attached as a PDF.`
     : allActions.length > 0
       ? `All ${allActions.length} action${allActions.length === 1 ? "" : "s"} in your plan ${allActions.length === 1 ? "is" : "are"} also attached as a PDF.`
       : "";

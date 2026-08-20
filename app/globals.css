@@ -16627,7 +16627,11 @@ textarea.commitment-buddy-contact-selectable {
 
 .action-generation-story-progress>div:first-child strong {
   color: #4a4047;
-  font-size: 9px;
+}
+
+.action-generation-story-hold {
+  font-size: 17px;
+  font-weight: 800;
 }
 
 .action-generation-story-progress>div:first-child span {

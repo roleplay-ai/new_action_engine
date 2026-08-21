@@ -2,9 +2,10 @@
 
 /**
  * Server actions for the admin Dashboard's batch/module drill-down section:
- * action-completion buckets, commitment-score buckets, a commitment-score
- * leaderboard, a batch's weekly commitment-score trend (+ week-over-week
- * delta), and email open rates (welcome vs. reminder, category-wise).
+ * a weekly due-vs-completed action trend, commitment-score buckets, a
+ * commitment-score leaderboard, a batch's weekly commitment-score trend
+ * (+ week-over-week delta), and email open rates (welcome vs. reminder,
+ * category-wise).
  *
  * Reuses getAdminContext/loadCommitmentWalletByCohort from admin-analytics.ts
  * rather than duplicating the company/role resolution or the Commitment
@@ -119,93 +120,69 @@ export async function getBatchOptions(companyId?: string): Promise<{ options: Ba
   }
 }
 
-export interface ActionCompletionBuckets {
-  moreThan50: number;
-  between25And50: number;
-  lessThan25: number;
-  inactive: number;
-  totalUsers: number;
+export interface ActionWeeklyTrendEntry {
+  weekNumber: number;
+  /** Actions scheduled/due for delivery in this batch-relative week (user_actions.scheduled_at). */
+  due: number;
+  /** Of those, how many have since been validated (status = 'success'), regardless of when. */
+  completed: number;
 }
 
-const EMPTY_COMPLETION_BUCKETS: ActionCompletionBuckets = {
-  moreThan50: 0,
-  between25And50: 0,
-  lessThan25: 0,
-  inactive: 0,
-  totalUsers: 0,
-};
-
-/** Buckets end-users by % of delivered actions they've validated (completed): >50%, 25-50%,
- * <25% (but >0%), and Inactive (0%, including anyone with no deliveries at all). */
-export async function getActionCompletionBuckets(
+/** Weekly "due vs. completed" action counts for the batch/module drill-down: for each
+ * batch-relative week, how many actions were scheduled to go out that week
+ * (user_actions.scheduled_at), and how many of those have since been completed —
+ * whenever the completion actually happened, not just if it landed in the same week. */
+export async function getActionCompletionWeeklyTrend(
   companyId?: string,
   cohortId?: string | null
-): Promise<{ buckets?: ActionCompletionBuckets; error?: string }> {
+): Promise<{ entries: ActionWeeklyTrendEntry[]; error?: string }> {
   try {
     const { companyId: myCompanyId, role } = await getAdminContext();
     const resolvedCompanyId = role === "admin" ? myCompanyId : companyId;
-    if (!resolvedCompanyId) return { error: "Company required" };
+    if (!resolvedCompanyId) return { entries: [], error: "Company required" };
 
     const admin = createAdminClient();
     const userIds = await resolveScopedUserIds(admin, resolvedCompanyId, cohortId ?? null);
-    if (!userIds.length) return { buckets: EMPTY_COMPLETION_BUCKETS };
+    if (!userIds.length) return { entries: [] };
 
-    const { data: packages } = await admin.from("packages").select("id").eq("company_id", resolvedCompanyId);
-    const packageIds = (packages ?? []).map((p: { id: string }) => p.id);
+    const cohortIds = await resolveCohortIds(admin, resolvedCompanyId, cohortId ?? null);
+    if (!cohortIds.length) return { entries: [] };
+    const anchors = await resolveCohortStartAnchors(admin, cohortIds);
 
-    let packageActions: { package_id: string; action_id: string }[] = [];
-    let assignments: { package_id: string; user_id: string }[] = [];
-    if (packageIds.length > 0) {
-      const [{ data: paRows }, { data: assignRows }] = await Promise.all([
-        admin.from("package_actions").select("package_id, action_id").in("package_id", packageIds),
-        admin.from("package_assignments").select("package_id, user_id").in("package_id", packageIds).in("user_id", userIds),
-      ]);
-      packageActions = paRows ?? [];
-      assignments = assignRows ?? [];
+    const { data: uaRows } = await admin
+      .from("user_actions")
+      .select("cohort_id, status, scheduled_at")
+      .in("cohort_id", cohortIds)
+      .in("user_id", userIds)
+      .not("scheduled_at", "is", null);
+
+    const now = new Date();
+    let maxWeek = 1;
+    for (const id of cohortIds) {
+      const anchor = anchors.get(id);
+      if (anchor) maxWeek = Math.max(maxWeek, weekNumberFor(now, anchor));
     }
 
-    const actionsByPackage = new Map<string, string[]>();
-    for (const pa of packageActions) {
-      const list = actionsByPackage.get(pa.package_id) ?? [];
-      list.push(pa.action_id);
-      actionsByPackage.set(pa.package_id, list);
-    }
-    // Deliveries are a set of distinct action ids per user across all their packages.
-    const deliveredSetsByUser = new Map<string, Set<string>>();
-    for (const a of assignments) {
-      const actionIds = actionsByPackage.get(a.package_id) ?? [];
-      if (!actionIds.length) continue;
-      const set = deliveredSetsByUser.get(a.user_id) ?? new Set<string>();
-      actionIds.forEach((id) => set.add(id));
-      deliveredSetsByUser.set(a.user_id, set);
-    }
-    const deliveredCountByUser = new Map<string, number>();
-    for (const [userId, set] of deliveredSetsByUser) {
-      deliveredCountByUser.set(userId, set.size);
+    const weeklyMap = new Map<number, { due: number; completed: number }>();
+    for (const row of (uaRows ?? []) as { cohort_id: string | null; status: string; scheduled_at: string }[]) {
+      const anchor = row.cohort_id ? anchors.get(row.cohort_id) : undefined;
+      if (!anchor) continue;
+      const week = weekNumberFor(new Date(row.scheduled_at), anchor);
+      const bucket = weeklyMap.get(week) ?? { due: 0, completed: 0 };
+      bucket.due += 1;
+      if (row.status === "success") bucket.completed += 1;
+      weeklyMap.set(week, bucket);
     }
 
-    const { data: uaRows } = await admin.from("user_actions").select("user_id, status").in("user_id", userIds);
-    const validatedByUser = new Map<string, number>();
-    for (const row of (uaRows ?? []) as { user_id: string; status: string }[]) {
-      if (row.status === "success") {
-        validatedByUser.set(row.user_id, (validatedByUser.get(row.user_id) ?? 0) + 1);
-      }
+    const entries: ActionWeeklyTrendEntry[] = [];
+    for (let week = 1; week <= maxWeek; week++) {
+      const b = weeklyMap.get(week) ?? { due: 0, completed: 0 };
+      entries.push({ weekNumber: week, due: b.due, completed: b.completed });
     }
 
-    const buckets: ActionCompletionBuckets = { ...EMPTY_COMPLETION_BUCKETS, totalUsers: userIds.length };
-    for (const userId of userIds) {
-      const delivered = deliveredCountByUser.get(userId) ?? 0;
-      const validated = validatedByUser.get(userId) ?? 0;
-      const pct = delivered > 0 ? (validated / delivered) * 100 : 0;
-      if (pct > 50) buckets.moreThan50 += 1;
-      else if (pct >= 25) buckets.between25And50 += 1;
-      else if (pct > 0) buckets.lessThan25 += 1;
-      else buckets.inactive += 1;
-    }
-
-    return { buckets };
+    return { entries };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Failed" };
+    return { entries: [], error: e instanceof Error ? e.message : "Failed" };
   }
 }
 

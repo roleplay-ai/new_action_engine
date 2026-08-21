@@ -5,8 +5,6 @@ import {
   BarChart as ReBarChart,
   Bar,
   Cell,
-  PieChart,
-  Pie,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -16,12 +14,12 @@ import {
 } from "recharts";
 import { useAdminContext } from "@/components/admin/AdminContext";
 import {
-  getActionCompletionBuckets,
+  getActionCompletionWeeklyTrend,
   getCommitmentScoreBuckets,
   getDashboardLeaderboard,
   getBatchCommitmentWeeklyTrend,
   getEmailOpenRates,
-  type ActionCompletionBuckets,
+  type ActionWeeklyTrendEntry,
   type CommitmentScoreBuckets,
   type DashboardLeaderboardEntry,
   type CommitmentWeeklyTrendEntry,
@@ -36,8 +34,8 @@ interface DashboardViewProps {
 export function DashboardView({ companyId }: DashboardViewProps) {
   const { selectedCohortId } = useAdminContext();
   // ── Batch/module drill-down (selector + buckets, leaderboard, weekly trend, email opens) ──
-  const [completionBuckets, setCompletionBuckets] = useState<ActionCompletionBuckets | null>(null);
-  const [completionLoading, setCompletionLoading] = useState(false);
+  const [actionWeeklyTrend, setActionWeeklyTrend] = useState<ActionWeeklyTrendEntry[]>([]);
+  const [actionWeeklyLoading, setActionWeeklyLoading] = useState(false);
   const [scoreBuckets, setScoreBuckets] = useState<CommitmentScoreBuckets | null>(null);
   const [scoreBucketsLoading, setScoreBucketsLoading] = useState(false);
   const [leaderboard, setLeaderboard] = useState<DashboardLeaderboardEntry[]>([]);
@@ -52,13 +50,13 @@ export function DashboardView({ companyId }: DashboardViewProps) {
 
   useEffect(() => {
     if (!companyId) {
-      setCompletionBuckets(null);
+      setActionWeeklyTrend([]);
       return;
     }
-    setCompletionLoading(true);
-    getActionCompletionBuckets(companyId, selectedCohortId)
-      .then(({ buckets, error }) => setCompletionBuckets(!error ? buckets ?? null : null))
-      .finally(() => setCompletionLoading(false));
+    setActionWeeklyLoading(true);
+    getActionCompletionWeeklyTrend(companyId, selectedCohortId)
+      .then(({ entries, error }) => setActionWeeklyTrend(!error ? entries ?? [] : []))
+      .finally(() => setActionWeeklyLoading(false));
   }, [companyId, selectedCohortId]);
 
   useEffect(() => {
@@ -130,14 +128,11 @@ export function DashboardView({ companyId }: DashboardViewProps) {
     </div>
   );
 
-  const completionTiles = completionBuckets
-    ? [
-      { label: "Inactive (0%)", value: completionBuckets.inactive, color: "#ED4551" },
-      { label: "Less than 25%", value: completionBuckets.lessThan25, color: "#F97316" },
-      { label: "25% – 50%", value: completionBuckets.between25And50, color: "#FFCE00" },
-      { label: "More than 50%", value: completionBuckets.moreThan50, color: "#23CE6B" },
-    ]
-    : [];
+  const actionWeeklyChartData = actionWeeklyTrend.map((e) => ({
+    name: `Week ${e.weekNumber}`,
+    "Actions due": e.due,
+    "Actions completed": e.completed,
+  }));
 
   const scoreBucketChartData = scoreBuckets
     ? [
@@ -197,74 +192,33 @@ export function DashboardView({ companyId }: DashboardViewProps) {
           </div>
         </div>
 
-        {/* Action Completion (pie, left) + Commitment Score Distribution (bar, right) */}
+        {/* Weekly Action Completion (due vs. completed, left) + Commitment Score Distribution (bar, right) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Action Completion */}
+          {/* Weekly Action Completion */}
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <h4 className="text-sm font-semibold" style={{ color: "var(--color-text-secondary)" }}>
-                Action Completion
+                Weekly Action Completion
               </h4>
-              <span className="tag tag--yellow">% of delivered actions validated</span>
+              <span className="tag tag--yellow">Actions due vs. completed, per week</span>
             </div>
-            <div className="bg-white rounded-2xl p-4 flex flex-col" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 320 }}>
-              {completionLoading ? (
+            <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 320 }}>
+              {actionWeeklyLoading ? (
                 emptyState("Loading…")
-              ) : !completionBuckets || completionBuckets.totalUsers === 0 ? (
-                emptyState("No members in scope yet")
+              ) : actionWeeklyChartData.length === 0 ? (
+                emptyState("No scheduled actions in scope yet")
               ) : (
-                <>
-                  <div className="flex-1 min-h-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-                        <Pie
-                          data={completionTiles}
-                          dataKey="value"
-                          nameKey="label"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius="62%"
-                          minAngle={2}
-                          labelLine={false}
-                          label={(entry) => {
-                            const { cx, cy, midAngle, outerRadius, fill, name, value } = entry;
-                            if (!value || cx == null || cy == null || midAngle == null || outerRadius == null) return null;
-                            const RADIAN = Math.PI / 180;
-                            const radius = outerRadius + 20;
-                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                            return (
-                              <text
-                                x={x}
-                                y={y}
-                                fill={fill}
-                                textAnchor={x > cx ? "start" : "end"}
-                                dominantBaseline="central"
-                                fontSize={11}
-                                fontWeight={600}
-                              >
-                                {`${name}: ${value}`}
-                              </text>
-                            );
-                          }}
-                        >
-                          {completionTiles.map((tile) => (
-                            <Cell key={tile.label} fill={tile.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip contentStyle={tooltipStyle} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 pt-2 pb-0.5 shrink-0">
-                    {completionTiles.map((tile) => (
-                      <li key={tile.label} className="flex items-center gap-1.5 text-[11px] font-semibold leading-none" style={{ color: tile.color }}>
-                        <span className="w-2.5 h-2.5 rounded-[2px] shrink-0" style={{ background: tile.color }} />
-                        {tile.label}
-                      </li>
-                    ))}
-                  </ul>
-                </>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ReBarChart data={actionWeeklyChartData} margin={{ top: 24, right: 12, left: 8, bottom: 28 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -16, fontSize: 11 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={48} label={{ value: "Actions", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 8 }} />
+                    <Bar dataKey="Actions due" fill="#3699FC" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="Actions completed" fill="#23CE6B" radius={[6, 6, 0, 0]} />
+                  </ReBarChart>
+                </ResponsiveContainer>
               )}
             </div>
           </div>

@@ -182,6 +182,19 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               Use the batch selector above to focus on one batch, or leave on &quot;All batches&quot; for the consolidated view.
             </p>
           </div>
+          {/* Users who've finalised an action plan — same "made a plan" signal as the
+              Leaderboard's "No plan" tag (commitmentMaximum > 0), so the two numbers agree. */}
+          <div
+            className="bg-white rounded-xl px-5 py-3 flex items-baseline gap-2.5 shrink-0"
+            style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}
+          >
+            <span className="text-5xl font-bold leading-none" style={{ color: "var(--color-text-primary)" }}>
+              {scoreBucketsLoading ? "…" : scoreBuckets ? scoreBuckets.totalUsers - scoreBuckets.notStarted : 0}
+            </span>
+            <span className="text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
+              of {scoreBucketsLoading ? "…" : scoreBuckets?.totalUsers ?? 0} have activated action plan
+            </span>
+          </div>
         </div>
 
         {/* Action Completion (pie, left) + Commitment Score Distribution (bar, right) */}

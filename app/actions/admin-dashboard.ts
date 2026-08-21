@@ -15,8 +15,12 @@ import { getAdminContext, loadCommitmentWalletByCohort } from "./admin-analytics
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-function commitmentPct(points: number, maximum: number) {
-  return maximum > 0 ? Math.round((points / maximum) * 100) : 0;
+/** The real Commitment Score, matching get_my_commitment_wallet()'s formula (see
+ * supabase/migrations/046_commitment_wallet_plan_bonus.sql) and what participants see on
+ * /wallet: starts at 100% when a plan is finalised and drops as actions are missed —
+ * NOT the points-banked/maximum-points ratio (which only climbs and never reflects misses). */
+function walletScorePct(plannedActions: number, missedActions: number) {
+  return plannedActions > 0 ? Math.round((Math.max(0, plannedActions - missedActions) * 100) / plannedActions) : 0;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -224,8 +228,8 @@ const EMPTY_SCORE_BUCKETS: CommitmentScoreBuckets = {
   totalUsers: 0,
 };
 
-/** Buckets end-users by Commitment Wallet % (points banked / max points): 90-100, 75-89, 50-74,
- * below 50 — plus a "not started" count for anyone without a finalised plan. */
+/** Buckets end-users by Commitment Score (same 100%-minus-missed-actions formula as /wallet):
+ * 90-100, 75-89, 50-74, below 50 — plus a "not started" count for anyone without a finalised plan. */
 export async function getCommitmentScoreBuckets(
   companyId?: string,
   cohortId?: string | null
@@ -243,16 +247,17 @@ export async function getCommitmentScoreBuckets(
     const cohortIds = await resolveCohortIds(admin, resolvedCompanyId, cohortId ?? null);
     const commitmentByCohort = await loadCommitmentWalletByCohort(admin, cohortIds);
 
-    const commitmentByUser = new Map<string, { points: number; maximum: number }>();
+    const commitmentByUser = new Map<string, { maximum: number; plannedActions: number; missedActions: number }>();
     for (const { perUser } of commitmentByCohort.values()) {
       for (const [userId, uc] of perUser) {
         if (!userIdSet.has(userId)) continue;
         const existing = commitmentByUser.get(userId);
         if (existing) {
-          existing.points += uc.points;
           existing.maximum += uc.maximum;
+          existing.plannedActions += uc.plannedActions;
+          existing.missedActions += uc.missedActions;
         } else {
-          commitmentByUser.set(userId, { points: uc.points, maximum: uc.maximum });
+          commitmentByUser.set(userId, { maximum: uc.maximum, plannedActions: uc.plannedActions, missedActions: uc.missedActions });
         }
       }
     }
@@ -264,7 +269,7 @@ export async function getCommitmentScoreBuckets(
         buckets.notStarted += 1;
         continue;
       }
-      const pct = commitmentPct(c.points, c.maximum);
+      const pct = walletScorePct(c.plannedActions, c.missedActions);
       if (pct >= 90) buckets.band90to100 += 1;
       else if (pct >= 75) buckets.band75to89 += 1;
       else if (pct >= 50) buckets.band50to74 += 1;
@@ -309,7 +314,7 @@ export async function getDashboardLeaderboard(
     const cohortIds = await resolveCohortIds(admin, resolvedCompanyId, cohortId ?? null);
     const commitmentByCohort = await loadCommitmentWalletByCohort(admin, cohortIds);
 
-    const commitmentByUser = new Map<string, { points: number; maximum: number }>();
+    const commitmentByUser = new Map<string, { points: number; maximum: number; plannedActions: number; missedActions: number }>();
     for (const { perUser } of commitmentByCohort.values()) {
       for (const [userId, uc] of perUser) {
         if (!userIdSet.has(userId)) continue;
@@ -317,8 +322,10 @@ export async function getDashboardLeaderboard(
         if (existing) {
           existing.points += uc.points;
           existing.maximum += uc.maximum;
+          existing.plannedActions += uc.plannedActions;
+          existing.missedActions += uc.missedActions;
         } else {
-          commitmentByUser.set(userId, { points: uc.points, maximum: uc.maximum });
+          commitmentByUser.set(userId, { points: uc.points, maximum: uc.maximum, plannedActions: uc.plannedActions, missedActions: uc.missedActions });
         }
       }
     }
@@ -330,7 +337,7 @@ export async function getDashboardLeaderboard(
         name: nameById.get(id) ?? "User",
         commitmentPoints: c?.points ?? 0,
         commitmentMaximum: c?.maximum ?? 0,
-        commitmentPct: commitmentPct(c?.points ?? 0, c?.maximum ?? 0),
+        commitmentPct: walletScorePct(c?.plannedActions ?? 0, c?.missedActions ?? 0),
       };
     });
     entries.sort((a, b) => b.commitmentPct - a.commitmentPct || b.commitmentPoints - a.commitmentPoints);
@@ -386,13 +393,13 @@ export async function getBatchCommitmentWeeklyTrend(
 
     const { data: events } = await admin
       .from("commitment_wallet_events")
-      .select("plan_id, points_awarded, settled_at")
+      .select("plan_id, event_type, settled_at")
       .in("plan_id", planIds)
       .order("settled_at", { ascending: true });
-    const eventsByPlan = new Map<string, { points: number; settledAt: string }[]>();
-    for (const e of (events ?? []) as { plan_id: string; points_awarded: number; settled_at: string }[]) {
+    const eventsByPlan = new Map<string, { missed: boolean; settledAt: string }[]>();
+    for (const e of (events ?? []) as { plan_id: string; event_type: string; settled_at: string }[]) {
       const list = eventsByPlan.get(e.plan_id) ?? [];
-      list.push({ points: e.points_awarded, settledAt: e.settled_at });
+      list.push({ missed: e.event_type === "missed" || e.event_type === "completed_late", settledAt: e.settled_at });
       eventsByPlan.set(e.plan_id, list);
     }
 
@@ -403,29 +410,32 @@ export async function getBatchCommitmentWeeklyTrend(
       if (anchor) maxWeek = Math.max(maxWeek, weekNumberFor(now, anchor));
     }
 
+    // Same 100%-minus-missed-actions formula as get_my_commitment_wallet() / the /wallet page
+    // (see walletScorePct) — tracked cumulatively per week instead of the points-banked ratio,
+    // which only climbs and never reflects a miss.
     const weeklySums = new Map<number, { sum: number; count: number }>();
     for (const plan of planRows) {
       const anchor = anchors.get(plan.cohort_id);
       if (!anchor) continue;
-      const maximum = plan.maximum_points + plan.plan_bonus_points;
-      if (maximum <= 0) continue;
+      const plannedActions = plan.maximum_points > 0 ? Math.round(plan.maximum_points / 50) : 0;
+      if (plannedActions <= 0) continue;
 
       const finalisedWeek = weekNumberFor(new Date(plan.finalised_at), anchor);
       const events = (eventsByPlan.get(plan.id) ?? []).map((e) => ({
-        points: e.points,
+        missed: e.missed,
         week: weekNumberFor(new Date(e.settledAt), anchor),
       }));
 
-      let cumPoints = plan.plan_bonus_points;
+      let cumMissed = 0;
       let eventIdx = 0;
       for (let week = 1; week <= maxWeek; week++) {
         while (eventIdx < events.length && events[eventIdx].week <= week) {
-          cumPoints += events[eventIdx].points;
+          if (events[eventIdx].missed) cumMissed += 1;
           eventIdx += 1;
         }
         if (week < finalisedWeek) continue; // plan didn't exist yet at this point in the batch
 
-        const pct = commitmentPct(cumPoints, maximum);
+        const pct = walletScorePct(plannedActions, cumMissed);
         const entry = weeklySums.get(week) ?? { sum: 0, count: 0 };
         entry.sum += pct;
         entry.count += 1;

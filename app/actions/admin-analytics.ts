@@ -133,6 +133,15 @@ function commitmentPct(points: number, maximum: number) {
   return maximum > 0 ? Math.round((points / maximum) * 100) : 0;
 }
 
+/** The real Commitment Score, matching get_my_commitment_wallet()'s formula (see
+ * supabase/migrations/046_commitment_wallet_plan_bonus.sql) and what participants see on
+ * /wallet: starts at 100% when a plan is finalised and drops as actions are missed —
+ * NOT the points-banked/maximum-points ratio above (which only climbs and never reflects
+ * misses). Mirrors the identical helper in app/actions/admin-dashboard.ts. */
+function walletScorePct(plannedActions: number, missedActions: number) {
+  return plannedActions > 0 ? Math.round((Math.max(0, plannedActions - missedActions) * 100) / plannedActions) : 0;
+}
+
 /** Get company-scoped analytics. Superadmin must pass companyId. */
 export async function getCompanyAnalytics(companyId?: string): Promise<{
   error?: string;
@@ -431,10 +440,12 @@ export interface EngagementLeaderboardEntry {
   validatedCount: number;
 }
 
-/** Per-user engagement leaderboard for admin User Engagement tab (company-scoped, end-users
- * only). Ranked by Commitment Wallet points banked — the app's real points system — summed
- * across every batch the person has finalised a plan in within this company. */
-export async function getEngagementLeaderboard(companyId?: string): Promise<{
+/** Per-user engagement leaderboard for admin User Engagement tab. Scoped to one batch when
+ * cohortId is given (matching the batch selector shared with the Dashboard tab), or the whole
+ * company when it's null/omitted ("All batches"). Ranked by Commitment Wallet points banked —
+ * the app's real points system — summed across every batch the person has a plan in, within
+ * scope. */
+export async function getEngagementLeaderboard(companyId?: string, cohortId?: string | null): Promise<{
   entries: EngagementLeaderboardEntry[];
   error?: string;
 }> {
@@ -447,13 +458,22 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
 
     const admin = createAdminClient();
 
-    const { data: profiles } = await admin
-      .from("profiles")
-      .select("id, full_name, role")
-      .eq("company_id", resolvedCompanyId);
-
-    const userProfiles = (profiles ?? []).filter((p: { role: string }) => p.role === "user") ?? [];
-    const userIds = userProfiles.map((p: { id: string }) => p.id);
+    let userProfiles: { id: string; full_name: string | null; role: string }[];
+    if (cohortId) {
+      const { data: memberRows } = await admin.from("cohort_members").select("user_id").eq("cohort_id", cohortId);
+      const memberIds = [...new Set((memberRows ?? []).map((m: { user_id: string }) => m.user_id))];
+      const { data: profiles } = memberIds.length
+        ? await admin.from("profiles").select("id, full_name, role").in("id", memberIds)
+        : { data: [] };
+      userProfiles = (profiles ?? []).filter((p: { role: string }) => p.role === "user");
+    } else {
+      const { data: profiles } = await admin
+        .from("profiles")
+        .select("id, full_name, role")
+        .eq("company_id", resolvedCompanyId);
+      userProfiles = (profiles ?? []).filter((p: { role: string }) => p.role === "user");
+    }
+    const userIds = userProfiles.map((p) => p.id);
 
     type Counters = {
       acceptedCount: number;
@@ -461,15 +481,14 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
     };
 
     const countersByUser = new Map<string, Counters>();
-    for (const p of userProfiles as { id: string }[]) {
+    for (const p of userProfiles) {
       countersByUser.set(p.id, { acceptedCount: 0, validatedCount: 0 });
     }
 
     if (userIds.length > 0) {
-      const { data: uaRows } = await admin
-        .from("user_actions")
-        .select("user_id, status")
-        .in("user_id", userIds);
+      let uaQuery = admin.from("user_actions").select("user_id, status").in("user_id", userIds);
+      if (cohortId) uaQuery = uaQuery.eq("cohort_id", cohortId);
+      const { data: uaRows } = await uaQuery;
 
       for (const row of (uaRows ?? []) as { user_id: string; status: string }[]) {
         const counters = countersByUser.get(row.user_id) ?? { acceptedCount: 0, validatedCount: 0 };
@@ -484,12 +503,17 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
       }
     }
 
-    const { data: companyCohorts } = await admin
-      .from("cohorts")
-      .select("id")
-      .eq("company_id", resolvedCompanyId);
-    const companyCohortIds = (companyCohorts ?? []).map((c: { id: string }) => c.id);
-    const commitmentByCohort = await loadCommitmentWalletByCohort(admin, companyCohortIds);
+    let scopedCohortIds: string[];
+    if (cohortId) {
+      scopedCohortIds = [cohortId];
+    } else {
+      const { data: companyCohorts } = await admin
+        .from("cohorts")
+        .select("id")
+        .eq("company_id", resolvedCompanyId);
+      scopedCohortIds = (companyCohorts ?? []).map((c: { id: string }) => c.id);
+    }
+    const commitmentByCohort = await loadCommitmentWalletByCohort(admin, scopedCohortIds);
 
     const commitmentByUser = new Map<string, UserCommitment>();
     for (const cohortCommitment of commitmentByCohort.values()) {
@@ -507,7 +531,7 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
       }
     }
 
-    const entries: EngagementLeaderboardEntry[] = (userProfiles as { id: string; full_name: string | null }[]).map(
+    const entries: EngagementLeaderboardEntry[] = userProfiles.map(
       (p) => {
         const counters = countersByUser.get(p.id) ?? ({ acceptedCount: 0, validatedCount: 0 } as Counters);
         const commitment = commitmentByUser.get(p.id);
@@ -517,7 +541,7 @@ export async function getEngagementLeaderboard(companyId?: string): Promise<{
           name: p.full_name?.trim() || "User",
           commitmentPoints: commitment?.points ?? 0,
           commitmentMaximum: commitment?.maximum ?? 0,
-          commitmentPct: commitmentPct(commitment?.points ?? 0, commitment?.maximum ?? 0),
+          commitmentPct: walletScorePct(commitment?.plannedActions ?? 0, commitment?.missedActions ?? 0),
           plannedActions: commitment?.plannedActions ?? 0,
           completedOnTimeActions: commitment?.completedOnTimeActions ?? 0,
           missedActions: commitment?.missedActions ?? 0,

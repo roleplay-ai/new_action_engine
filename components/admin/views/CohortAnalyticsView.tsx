@@ -187,7 +187,7 @@ export function CohortAnalyticsView({ companyId }: CohortAnalyticsViewProps) {
                         <td className="px-2 py-2.5 text-center text-xs font-semibold text-blue-600">{entry.actionReadersPct}%</td>
                         <td className="px-2 py-2.5 text-center text-xs font-semibold text-green-600">{entry.actionTakersPct}%</td>
                         <td className="px-2 py-2.5 text-center text-xs font-semibold">{entry.consistentlyActivePct}%</td>
-                        <td className="px-2 py-2.5 text-center text-xs font-semibold" title={`${entry.commitmentPoints}/${entry.commitmentMaximum} points banked`}>
+                        <td className="px-2 py-2.5 text-center text-xs font-semibold">
                           {entry.commitmentMaximum > 0 ? `${entry.commitmentPct}%` : "—"}
                         </td>
                         <td className="px-2 py-2.5 text-center text-xs font-semibold">{entry.totalActionsDelivered.toLocaleString()}</td>
@@ -245,9 +245,9 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
           { label: "Action takers", value: `${detail.actionTakersPct}%`, sub: `${detail.actionTakersCount} people` },
           { label: "Consistently active", value: `${detail.consistentlyActivePct}%` },
           {
-            label: "Commitment points",
+            label: "Commitment score",
             value: detail.commitmentMaximum > 0 ? `${detail.commitmentPct}%` : "—",
-            sub: detail.commitmentMaximum > 0 ? `${detail.commitmentPoints}/${detail.commitmentMaximum} pts banked` : "No finalised plans yet",
+            sub: detail.commitmentMaximum > 0 ? undefined : "No finalised plans yet",
           },
         ].map((card) => (
           <div key={card.label} className="bg-white rounded-xl p-3.5" style={{ border: "1px solid var(--color-border)" }}>
@@ -306,12 +306,9 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
                       <td className="px-2 py-2 text-center text-green-600 font-semibold">{member.validatedCount}</td>
                       <td className="px-2 py-2 text-center text-red-500 font-semibold">{member.missedActions}</td>
                       <td className="px-2 py-2 text-center">
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${commitmentBadgeColor(member.commitmentPct, hasPlan)}`}>
-                            {hasPlan ? `${member.commitmentPct}%` : "No plan"}
-                          </span>
-                          {hasPlan && <span className="text-[10px] font-semibold">{member.commitmentPoints}/{member.commitmentMaximum} pts</span>}
-                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${commitmentBadgeColor(member.commitmentPct, hasPlan)}`}>
+                          {hasPlan ? `${member.commitmentPct}%` : "No plan"}
+                        </span>
                       </td>
                     </tr>
                   );

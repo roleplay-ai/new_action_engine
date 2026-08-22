@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { Search } from "lucide-react";
+import { useAdminContext } from "@/components/admin/AdminContext";
 import {
   getEngagementLeaderboard,
   type EngagementLeaderboardEntry,
@@ -22,6 +23,7 @@ interface EngagementViewProps {
 }
 
 export function EngagementView({ companyId }: EngagementViewProps) {
+  const { selectedCohortId } = useAdminContext();
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<UserEngagementRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +42,7 @@ export function EngagementView({ companyId }: EngagementViewProps) {
     setLoading(true);
     setError(null);
 
-    getEngagementLeaderboard(companyId)
+    getEngagementLeaderboard(companyId, selectedCohortId)
       .then(({ entries, error }) => {
         if (cancelled) return;
         if (error) {
@@ -68,7 +70,7 @@ export function EngagementView({ companyId }: EngagementViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [companyId]);
+  }, [companyId, selectedCohortId]);
 
   const filteredUsers = useMemo(() => {
     const sorted = [...rows].sort((a, b) => b.commitmentPoints - a.commitmentPoints);
@@ -176,13 +178,8 @@ export function EngagementView({ companyId }: EngagementViewProps) {
                       <span className="text-xs font-semibold text-green-600">{user.validatedCount}</span>
                     </td>
                     <td className="px-2 py-2.5 text-center">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <div className={`px-2 py-0.5 rounded-full text-xs font-semibold ${commitmentBadgeColor(user.commitmentPct)}`}>
-                          {user.commitmentMaximum > 0 ? `${user.commitmentPct}%` : "No plan"}
-                        </div>
-                        {user.commitmentMaximum > 0 && (
-                          <span className="text-xs font-semibold">{user.commitmentPoints}/{user.commitmentMaximum} pts</span>
-                        )}
+                      <div className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${commitmentBadgeColor(user.commitmentPct)}`}>
+                        {user.commitmentMaximum > 0 ? `${user.commitmentPct}%` : "No plan"}
                       </div>
                     </td>
                   </tr>

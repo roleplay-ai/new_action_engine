@@ -44,7 +44,15 @@ export interface UserCommitment {
 }
 
 interface CohortCommitment {
-  team: { points: number; maximum: number; planPoints: number; actionPoints: number; memberCount: number };
+  team: {
+    points: number;
+    maximum: number;
+    planPoints: number;
+    actionPoints: number;
+    memberCount: number;
+    plannedActions: number;
+    missedActions: number;
+  };
   perUser: Map<string, UserCommitment>;
 }
 
@@ -103,7 +111,7 @@ export async function loadCommitmentWalletByCohort(
     const completedOnTimeActions = completedOnTimeByPlan.get(plan.id) ?? 0;
 
     const cohortEntry = result.get(plan.cohort_id) ?? {
-      team: { points: 0, maximum: 0, planPoints: 0, actionPoints: 0, memberCount: 0 },
+      team: { points: 0, maximum: 0, planPoints: 0, actionPoints: 0, memberCount: 0, plannedActions: 0, missedActions: 0 },
       perUser: new Map<string, UserCommitment>(),
     };
     cohortEntry.team.points += points;
@@ -111,6 +119,8 @@ export async function loadCommitmentWalletByCohort(
     cohortEntry.team.planPoints += plan.plan_bonus_points;
     cohortEntry.team.actionPoints += actionPoints;
     cohortEntry.team.memberCount += 1;
+    cohortEntry.team.plannedActions += plannedActions;
+    cohortEntry.team.missedActions += missedActions;
 
     const existingUser = cohortEntry.perUser.get(plan.user_id);
     if (existingUser) {
@@ -129,14 +139,10 @@ export async function loadCommitmentWalletByCohort(
   return result;
 }
 
-function commitmentPct(points: number, maximum: number) {
-  return maximum > 0 ? Math.round((points / maximum) * 100) : 0;
-}
-
 /** The real Commitment Score, matching get_my_commitment_wallet()'s formula (see
  * supabase/migrations/046_commitment_wallet_plan_bonus.sql) and what participants see on
  * /wallet: starts at 100% when a plan is finalised and drops as actions are missed —
- * NOT the points-banked/maximum-points ratio above (which only climbs and never reflects
+ * NOT the points-banked/maximum-points ratio (which only climbs and never reflects
  * misses). Mirrors the identical helper in app/actions/admin-dashboard.ts. */
 function walletScorePct(plannedActions: number, missedActions: number) {
   return plannedActions > 0 ? Math.round((Math.max(0, plannedActions - missedActions) * 100) / plannedActions) : 0;
@@ -866,7 +872,7 @@ export async function getCohortAnalyticsOverview(companyId?: string): Promise<{
         ...summary,
         commitmentPoints: team?.points ?? 0,
         commitmentMaximum: team?.maximum ?? 0,
-        commitmentPct: commitmentPct(team?.points ?? 0, team?.maximum ?? 0),
+        commitmentPct: walletScorePct(team?.plannedActions ?? 0, team?.missedActions ?? 0),
       };
     });
 
@@ -1035,7 +1041,7 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
           name: p.full_name?.trim() || "User",
           commitmentPoints: commitment?.points ?? 0,
           commitmentMaximum: commitment?.maximum ?? 0,
-          commitmentPct: commitmentPct(commitment?.points ?? 0, commitment?.maximum ?? 0),
+          commitmentPct: walletScorePct(commitment?.plannedActions ?? 0, commitment?.missedActions ?? 0),
           plannedActions: commitment?.plannedActions ?? 0,
           completedOnTimeActions: commitment?.completedOnTimeActions ?? 0,
           missedActions: commitment?.missedActions ?? 0,
@@ -1053,7 +1059,7 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
         ...summary,
         commitmentPoints: team?.points ?? 0,
         commitmentMaximum: team?.maximum ?? 0,
-        commitmentPct: commitmentPct(team?.points ?? 0, team?.maximum ?? 0),
+        commitmentPct: walletScorePct(team?.plannedActions ?? 0, team?.missedActions ?? 0),
         weeklyChart,
         members,
       },
@@ -1104,6 +1110,8 @@ export async function getCompanyCommitmentSummary(companyId?: string): Promise<{
     let actionPoints = 0;
     let memberCount = 0;
     let batchCount = 0;
+    let plannedActions = 0;
+    let missedActions = 0;
     for (const { team } of commitmentByCohort.values()) {
       points += team.points;
       maximum += team.maximum;
@@ -1111,13 +1119,15 @@ export async function getCompanyCommitmentSummary(companyId?: string): Promise<{
       actionPoints += team.actionPoints;
       memberCount += team.memberCount;
       batchCount += 1;
+      plannedActions += team.plannedActions;
+      missedActions += team.missedActions;
     }
 
     return {
       summary: {
         commitmentPoints: points,
         commitmentMaximum: maximum,
-        commitmentPct: commitmentPct(points, maximum),
+        commitmentPct: walletScorePct(plannedActions, missedActions),
         planPoints,
         actionPoints,
         memberCount,

@@ -2,9 +2,10 @@
 
 /**
  * Server actions for the admin Dashboard's batch/module drill-down section:
- * action-completion buckets, commitment-score buckets, a commitment-score
- * leaderboard, a batch's weekly commitment-score trend (+ week-over-week
- * delta), and email open rates (welcome vs. reminder, category-wise).
+ * a weekly due-vs-completed action trend, commitment-score buckets, a
+ * commitment-score leaderboard, a batch's weekly commitment-score trend
+ * (+ week-over-week delta), and email open rates (welcome vs. reminder,
+ * category-wise).
  *
  * Reuses getAdminContext/loadCommitmentWalletByCohort from admin-analytics.ts
  * rather than duplicating the company/role resolution or the Commitment
@@ -15,8 +16,12 @@ import { getAdminContext, loadCommitmentWalletByCohort } from "./admin-analytics
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-function commitmentPct(points: number, maximum: number) {
-  return maximum > 0 ? Math.round((points / maximum) * 100) : 0;
+/** The real Commitment Score, matching get_my_commitment_wallet()'s formula (see
+ * supabase/migrations/046_commitment_wallet_plan_bonus.sql) and what participants see on
+ * /wallet: starts at 100% when a plan is finalised and drops as actions are missed —
+ * NOT the points-banked/maximum-points ratio (which only climbs and never reflects misses). */
+function walletScorePct(plannedActions: number, missedActions: number) {
+  return plannedActions > 0 ? Math.round((Math.max(0, plannedActions - missedActions) * 100) / plannedActions) : 0;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -115,93 +120,69 @@ export async function getBatchOptions(companyId?: string): Promise<{ options: Ba
   }
 }
 
-export interface ActionCompletionBuckets {
-  moreThan50: number;
-  between25And50: number;
-  lessThan25: number;
-  inactive: number;
-  totalUsers: number;
+export interface ActionWeeklyTrendEntry {
+  weekNumber: number;
+  /** Actions scheduled/due for delivery in this batch-relative week (user_actions.scheduled_at). */
+  due: number;
+  /** Of those, how many have since been validated (status = 'success'), regardless of when. */
+  completed: number;
 }
 
-const EMPTY_COMPLETION_BUCKETS: ActionCompletionBuckets = {
-  moreThan50: 0,
-  between25And50: 0,
-  lessThan25: 0,
-  inactive: 0,
-  totalUsers: 0,
-};
-
-/** Buckets end-users by % of delivered actions they've validated (completed): >50%, 25-50%,
- * <25% (but >0%), and Inactive (0%, including anyone with no deliveries at all). */
-export async function getActionCompletionBuckets(
+/** Weekly "due vs. completed" action counts for the batch/module drill-down: for each
+ * batch-relative week, how many actions were scheduled to go out that week
+ * (user_actions.scheduled_at), and how many of those have since been completed —
+ * whenever the completion actually happened, not just if it landed in the same week. */
+export async function getActionCompletionWeeklyTrend(
   companyId?: string,
   cohortId?: string | null
-): Promise<{ buckets?: ActionCompletionBuckets; error?: string }> {
+): Promise<{ entries: ActionWeeklyTrendEntry[]; error?: string }> {
   try {
     const { companyId: myCompanyId, role } = await getAdminContext();
     const resolvedCompanyId = role === "admin" ? myCompanyId : companyId;
-    if (!resolvedCompanyId) return { error: "Company required" };
+    if (!resolvedCompanyId) return { entries: [], error: "Company required" };
 
     const admin = createAdminClient();
     const userIds = await resolveScopedUserIds(admin, resolvedCompanyId, cohortId ?? null);
-    if (!userIds.length) return { buckets: EMPTY_COMPLETION_BUCKETS };
+    if (!userIds.length) return { entries: [] };
 
-    const { data: packages } = await admin.from("packages").select("id").eq("company_id", resolvedCompanyId);
-    const packageIds = (packages ?? []).map((p: { id: string }) => p.id);
+    const cohortIds = await resolveCohortIds(admin, resolvedCompanyId, cohortId ?? null);
+    if (!cohortIds.length) return { entries: [] };
+    const anchors = await resolveCohortStartAnchors(admin, cohortIds);
 
-    let packageActions: { package_id: string; action_id: string }[] = [];
-    let assignments: { package_id: string; user_id: string }[] = [];
-    if (packageIds.length > 0) {
-      const [{ data: paRows }, { data: assignRows }] = await Promise.all([
-        admin.from("package_actions").select("package_id, action_id").in("package_id", packageIds),
-        admin.from("package_assignments").select("package_id, user_id").in("package_id", packageIds).in("user_id", userIds),
-      ]);
-      packageActions = paRows ?? [];
-      assignments = assignRows ?? [];
+    const { data: uaRows } = await admin
+      .from("user_actions")
+      .select("cohort_id, status, scheduled_at")
+      .in("cohort_id", cohortIds)
+      .in("user_id", userIds)
+      .not("scheduled_at", "is", null);
+
+    const now = new Date();
+    let maxWeek = 1;
+    for (const id of cohortIds) {
+      const anchor = anchors.get(id);
+      if (anchor) maxWeek = Math.max(maxWeek, weekNumberFor(now, anchor));
     }
 
-    const actionsByPackage = new Map<string, string[]>();
-    for (const pa of packageActions) {
-      const list = actionsByPackage.get(pa.package_id) ?? [];
-      list.push(pa.action_id);
-      actionsByPackage.set(pa.package_id, list);
-    }
-    // Deliveries are a set of distinct action ids per user across all their packages.
-    const deliveredSetsByUser = new Map<string, Set<string>>();
-    for (const a of assignments) {
-      const actionIds = actionsByPackage.get(a.package_id) ?? [];
-      if (!actionIds.length) continue;
-      const set = deliveredSetsByUser.get(a.user_id) ?? new Set<string>();
-      actionIds.forEach((id) => set.add(id));
-      deliveredSetsByUser.set(a.user_id, set);
-    }
-    const deliveredCountByUser = new Map<string, number>();
-    for (const [userId, set] of deliveredSetsByUser) {
-      deliveredCountByUser.set(userId, set.size);
+    const weeklyMap = new Map<number, { due: number; completed: number }>();
+    for (const row of (uaRows ?? []) as { cohort_id: string | null; status: string; scheduled_at: string }[]) {
+      const anchor = row.cohort_id ? anchors.get(row.cohort_id) : undefined;
+      if (!anchor) continue;
+      const week = weekNumberFor(new Date(row.scheduled_at), anchor);
+      const bucket = weeklyMap.get(week) ?? { due: 0, completed: 0 };
+      bucket.due += 1;
+      if (row.status === "success") bucket.completed += 1;
+      weeklyMap.set(week, bucket);
     }
 
-    const { data: uaRows } = await admin.from("user_actions").select("user_id, status").in("user_id", userIds);
-    const validatedByUser = new Map<string, number>();
-    for (const row of (uaRows ?? []) as { user_id: string; status: string }[]) {
-      if (row.status === "success") {
-        validatedByUser.set(row.user_id, (validatedByUser.get(row.user_id) ?? 0) + 1);
-      }
+    const entries: ActionWeeklyTrendEntry[] = [];
+    for (let week = 1; week <= maxWeek; week++) {
+      const b = weeklyMap.get(week) ?? { due: 0, completed: 0 };
+      entries.push({ weekNumber: week, due: b.due, completed: b.completed });
     }
 
-    const buckets: ActionCompletionBuckets = { ...EMPTY_COMPLETION_BUCKETS, totalUsers: userIds.length };
-    for (const userId of userIds) {
-      const delivered = deliveredCountByUser.get(userId) ?? 0;
-      const validated = validatedByUser.get(userId) ?? 0;
-      const pct = delivered > 0 ? (validated / delivered) * 100 : 0;
-      if (pct > 50) buckets.moreThan50 += 1;
-      else if (pct >= 25) buckets.between25And50 += 1;
-      else if (pct > 0) buckets.lessThan25 += 1;
-      else buckets.inactive += 1;
-    }
-
-    return { buckets };
+    return { entries };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Failed" };
+    return { entries: [], error: e instanceof Error ? e.message : "Failed" };
   }
 }
 
@@ -224,8 +205,8 @@ const EMPTY_SCORE_BUCKETS: CommitmentScoreBuckets = {
   totalUsers: 0,
 };
 
-/** Buckets end-users by Commitment Wallet % (points banked / max points): 90-100, 75-89, 50-74,
- * below 50 — plus a "not started" count for anyone without a finalised plan. */
+/** Buckets end-users by Commitment Score (same 100%-minus-missed-actions formula as /wallet):
+ * 90-100, 75-89, 50-74, below 50 — plus a "not started" count for anyone without a finalised plan. */
 export async function getCommitmentScoreBuckets(
   companyId?: string,
   cohortId?: string | null
@@ -243,16 +224,17 @@ export async function getCommitmentScoreBuckets(
     const cohortIds = await resolveCohortIds(admin, resolvedCompanyId, cohortId ?? null);
     const commitmentByCohort = await loadCommitmentWalletByCohort(admin, cohortIds);
 
-    const commitmentByUser = new Map<string, { points: number; maximum: number }>();
+    const commitmentByUser = new Map<string, { maximum: number; plannedActions: number; missedActions: number }>();
     for (const { perUser } of commitmentByCohort.values()) {
       for (const [userId, uc] of perUser) {
         if (!userIdSet.has(userId)) continue;
         const existing = commitmentByUser.get(userId);
         if (existing) {
-          existing.points += uc.points;
           existing.maximum += uc.maximum;
+          existing.plannedActions += uc.plannedActions;
+          existing.missedActions += uc.missedActions;
         } else {
-          commitmentByUser.set(userId, { points: uc.points, maximum: uc.maximum });
+          commitmentByUser.set(userId, { maximum: uc.maximum, plannedActions: uc.plannedActions, missedActions: uc.missedActions });
         }
       }
     }
@@ -264,7 +246,7 @@ export async function getCommitmentScoreBuckets(
         buckets.notStarted += 1;
         continue;
       }
-      const pct = commitmentPct(c.points, c.maximum);
+      const pct = walletScorePct(c.plannedActions, c.missedActions);
       if (pct >= 90) buckets.band90to100 += 1;
       else if (pct >= 75) buckets.band75to89 += 1;
       else if (pct >= 50) buckets.band50to74 += 1;
@@ -309,7 +291,7 @@ export async function getDashboardLeaderboard(
     const cohortIds = await resolveCohortIds(admin, resolvedCompanyId, cohortId ?? null);
     const commitmentByCohort = await loadCommitmentWalletByCohort(admin, cohortIds);
 
-    const commitmentByUser = new Map<string, { points: number; maximum: number }>();
+    const commitmentByUser = new Map<string, { points: number; maximum: number; plannedActions: number; missedActions: number }>();
     for (const { perUser } of commitmentByCohort.values()) {
       for (const [userId, uc] of perUser) {
         if (!userIdSet.has(userId)) continue;
@@ -317,8 +299,10 @@ export async function getDashboardLeaderboard(
         if (existing) {
           existing.points += uc.points;
           existing.maximum += uc.maximum;
+          existing.plannedActions += uc.plannedActions;
+          existing.missedActions += uc.missedActions;
         } else {
-          commitmentByUser.set(userId, { points: uc.points, maximum: uc.maximum });
+          commitmentByUser.set(userId, { points: uc.points, maximum: uc.maximum, plannedActions: uc.plannedActions, missedActions: uc.missedActions });
         }
       }
     }
@@ -330,7 +314,7 @@ export async function getDashboardLeaderboard(
         name: nameById.get(id) ?? "User",
         commitmentPoints: c?.points ?? 0,
         commitmentMaximum: c?.maximum ?? 0,
-        commitmentPct: commitmentPct(c?.points ?? 0, c?.maximum ?? 0),
+        commitmentPct: walletScorePct(c?.plannedActions ?? 0, c?.missedActions ?? 0),
       };
     });
     entries.sort((a, b) => b.commitmentPct - a.commitmentPct || b.commitmentPoints - a.commitmentPoints);
@@ -386,13 +370,13 @@ export async function getBatchCommitmentWeeklyTrend(
 
     const { data: events } = await admin
       .from("commitment_wallet_events")
-      .select("plan_id, points_awarded, settled_at")
+      .select("plan_id, event_type, settled_at")
       .in("plan_id", planIds)
       .order("settled_at", { ascending: true });
-    const eventsByPlan = new Map<string, { points: number; settledAt: string }[]>();
-    for (const e of (events ?? []) as { plan_id: string; points_awarded: number; settled_at: string }[]) {
+    const eventsByPlan = new Map<string, { missed: boolean; settledAt: string }[]>();
+    for (const e of (events ?? []) as { plan_id: string; event_type: string; settled_at: string }[]) {
       const list = eventsByPlan.get(e.plan_id) ?? [];
-      list.push({ points: e.points_awarded, settledAt: e.settled_at });
+      list.push({ missed: e.event_type === "missed" || e.event_type === "completed_late", settledAt: e.settled_at });
       eventsByPlan.set(e.plan_id, list);
     }
 
@@ -403,29 +387,32 @@ export async function getBatchCommitmentWeeklyTrend(
       if (anchor) maxWeek = Math.max(maxWeek, weekNumberFor(now, anchor));
     }
 
+    // Same 100%-minus-missed-actions formula as get_my_commitment_wallet() / the /wallet page
+    // (see walletScorePct) — tracked cumulatively per week instead of the points-banked ratio,
+    // which only climbs and never reflects a miss.
     const weeklySums = new Map<number, { sum: number; count: number }>();
     for (const plan of planRows) {
       const anchor = anchors.get(plan.cohort_id);
       if (!anchor) continue;
-      const maximum = plan.maximum_points + plan.plan_bonus_points;
-      if (maximum <= 0) continue;
+      const plannedActions = plan.maximum_points > 0 ? Math.round(plan.maximum_points / 50) : 0;
+      if (plannedActions <= 0) continue;
 
       const finalisedWeek = weekNumberFor(new Date(plan.finalised_at), anchor);
       const events = (eventsByPlan.get(plan.id) ?? []).map((e) => ({
-        points: e.points,
+        missed: e.missed,
         week: weekNumberFor(new Date(e.settledAt), anchor),
       }));
 
-      let cumPoints = plan.plan_bonus_points;
+      let cumMissed = 0;
       let eventIdx = 0;
       for (let week = 1; week <= maxWeek; week++) {
         while (eventIdx < events.length && events[eventIdx].week <= week) {
-          cumPoints += events[eventIdx].points;
+          if (events[eventIdx].missed) cumMissed += 1;
           eventIdx += 1;
         }
         if (week < finalisedWeek) continue; // plan didn't exist yet at this point in the batch
 
-        const pct = commitmentPct(cumPoints, maximum);
+        const pct = walletScorePct(plannedActions, cumMissed);
         const entry = weeklySums.get(week) ?? { sum: 0, count: 0 };
         entry.sum += pct;
         entry.count += 1;

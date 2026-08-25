@@ -183,17 +183,46 @@ export function DashboardView({ companyId }: DashboardViewProps) {
             </p>
           </div>
           {/* Users who've finalised an action plan — same "made a plan" signal as the
-              Leaderboard's "No plan" tag (commitmentMaximum > 0), so the two numbers agree. */}
-          <div
-            className="bg-white rounded-xl px-5 py-3 flex items-baseline gap-2.5 shrink-0"
-            style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}
-          >
-            <span className="text-5xl font-bold leading-none" style={{ color: "var(--color-text-primary)" }}>
-              {scoreBucketsLoading ? "…" : scoreBuckets ? scoreBuckets.totalUsers - scoreBuckets.notStarted : 0}
-            </span>
-            <span className="text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
-              of {scoreBucketsLoading ? "…" : scoreBuckets?.totalUsers ?? 0} have activated action plan
-            </span>
+              Leaderboard's "No plan" tag (commitmentMaximum > 0), so the two numbers agree.
+              Batch avg sits beside it (mean among activated users only). */}
+          <div className="flex flex-wrap items-stretch gap-2.5 shrink-0">
+            <div
+              className="bg-white rounded-xl px-4 py-2.5 flex flex-col justify-center gap-0.5 min-w-[148px]"
+              style={{
+                border: "1px solid rgba(54, 153, 252, 0.45)",
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+                Activated action plan
+              </span>
+              <span className="flex items-baseline gap-1.5">
+                <span className="text-3xl font-bold leading-none" style={{ color: "#3699FC" }}>
+                  {scoreBucketsLoading ? "…" : scoreBuckets ? scoreBuckets.totalUsers - scoreBuckets.notStarted : 0}
+                </span>
+                <span className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+                  of {scoreBucketsLoading ? "…" : scoreBuckets?.totalUsers ?? 0}
+                </span>
+              </span>
+            </div>
+            <div
+              className="bg-white rounded-xl px-4 py-2.5 flex flex-col justify-center gap-0.5 min-w-[148px]"
+              style={{
+                border: "1px solid rgba(35, 206, 107, 0.45)",
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+                Batch avg commitment
+              </span>
+              <span className="text-3xl font-bold leading-none" style={{ color: "#16A34A" }}>
+                {scoreBucketsLoading
+                  ? "…"
+                  : scoreBuckets?.avgCommitmentPct != null
+                    ? `${scoreBuckets.avgCommitmentPct}%`
+                    : "—"}
+              </span>
+            </div>
           </div>
         </div>
 

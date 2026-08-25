@@ -198,6 +198,8 @@ export interface CommitmentScoreBuckets {
   /** Users with no finalised plan yet — kept separate so they don't skew "below 50" downward. */
   notStarted: number;
   totalUsers: number;
+  /** Mean Commitment Score % among users with a finalised plan; null when none have activated. */
+  avgCommitmentPct: number | null;
 }
 
 const EMPTY_SCORE_BUCKETS: CommitmentScoreBuckets = {
@@ -207,6 +209,7 @@ const EMPTY_SCORE_BUCKETS: CommitmentScoreBuckets = {
   belowBand50: 0,
   notStarted: 0,
   totalUsers: 0,
+  avgCommitmentPct: null,
 };
 
 /** Buckets end-users by Commitment Score (same 100%-minus-missed-actions formula as /wallet):
@@ -244,6 +247,8 @@ export async function getCommitmentScoreBuckets(
     }
 
     const buckets: CommitmentScoreBuckets = { ...EMPTY_SCORE_BUCKETS, totalUsers: userIds.length };
+    let scoreSum = 0;
+    let scoreCount = 0;
     for (const userId of userIds) {
       const c = commitmentByUser.get(userId);
       if (!c || c.maximum === 0) {
@@ -251,11 +256,14 @@ export async function getCommitmentScoreBuckets(
         continue;
       }
       const pct = walletScorePct(c.plannedActions, c.missedActions);
+      scoreSum += pct;
+      scoreCount += 1;
       if (pct >= 90) buckets.band90to100 += 1;
       else if (pct >= 75) buckets.band75to89 += 1;
       else if (pct >= 50) buckets.band50to74 += 1;
       else buckets.belowBand50 += 1;
     }
+    buckets.avgCommitmentPct = scoreCount > 0 ? Math.round(scoreSum / scoreCount) : null;
 
     return { buckets };
   } catch (e) {

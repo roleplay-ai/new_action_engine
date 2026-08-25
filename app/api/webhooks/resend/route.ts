@@ -91,14 +91,19 @@ export async function POST(request: Request) {
           })
           .eq("id", row.id);
       } else {
-        await admin
-          .from("email_campaign_logs")
-          .update({
-            clicked_at: row.clicked_at ?? now,
-            last_clicked_at: now,
-            click_count: (row.click_count ?? 0) + 1,
-          })
-          .eq("id", row.id);
+        // Click implies open — set opened_at if Resend never sent email.opened
+        // (common when the client blocks tracking pixels).
+        const clickUpdate: Record<string, string | number> = {
+          clicked_at: row.clicked_at ?? now,
+          last_clicked_at: now,
+          click_count: (row.click_count ?? 0) + 1,
+        };
+        if (!row.opened_at) {
+          clickUpdate.opened_at = now;
+          clickUpdate.last_opened_at = now;
+          clickUpdate.open_count = (row.open_count ?? 0) + 1;
+        }
+        await admin.from("email_campaign_logs").update(clickUpdate).eq("id", row.id);
       }
     }
   }

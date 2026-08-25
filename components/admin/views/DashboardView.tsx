@@ -11,6 +11,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  LabelList,
 } from "recharts";
 import { useAdminContext } from "@/components/admin/AdminContext";
 import {
@@ -120,6 +121,12 @@ export function DashboardView({ companyId }: DashboardViewProps) {
     color: "var(--color-text-primary)",
   };
 
+  const barLabelStyle = { fontSize: 11, fontWeight: 700, fill: "var(--color-text-primary)" };
+  const barLabel = (value: unknown) => {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? String(value) : "";
+  };
+
   const emptyState = (msg: string) => (
     <div className="h-full flex items-center justify-center text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
       {msg}
@@ -134,10 +141,10 @@ export function DashboardView({ companyId }: DashboardViewProps) {
 
   const scoreBucketChartData = scoreBuckets
     ? [
-      { name: "90–100", Users: scoreBuckets.band90to100, color: "#8B5CF6" },
-      { name: "75–89", Users: scoreBuckets.band75to89, color: "#3699FC" },
-      { name: "50–74", Users: scoreBuckets.band50to74, color: "#FFCE00" },
-      { name: "Below 50", Users: scoreBuckets.belowBand50, color: "#ED4551" },
+      { name: "Below 50%", Users: scoreBuckets.belowBand50, color: "#ED4551" },
+      { name: "50–74%", Users: scoreBuckets.band50to74, color: "#FFCE00" },
+      { name: "75–89%", Users: scoreBuckets.band75to89, color: "#3699FC" },
+      { name: "90–100%", Users: scoreBuckets.band90to100, color: "#8B5CF6" },
     ]
     : [];
 
@@ -172,21 +179,50 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               Batch &amp; Module Drill-down
             </h3>
             <p className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
-              Use the batch selector above to focus on one batch, or leave on &quot;All batches&quot; for the consolidated view.
+              Defaults to the current batch. Switch above to another batch, or &quot;All batches&quot; for the consolidated view.
             </p>
           </div>
           {/* Users who've finalised an action plan — same "made a plan" signal as the
-              Leaderboard's "No plan" tag (commitmentMaximum > 0), so the two numbers agree. */}
-          <div
-            className="bg-white rounded-xl px-5 py-3 flex items-baseline gap-2.5 shrink-0"
-            style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}
-          >
-            <span className="text-5xl font-bold leading-none" style={{ color: "var(--color-text-primary)" }}>
-              {scoreBucketsLoading ? "…" : scoreBuckets ? scoreBuckets.totalUsers - scoreBuckets.notStarted : 0}
-            </span>
-            <span className="text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
-              of {scoreBucketsLoading ? "…" : scoreBuckets?.totalUsers ?? 0} have activated action plan
-            </span>
+              Leaderboard's "No plan" tag (commitmentMaximum > 0), so the two numbers agree.
+              Batch avg sits beside it (mean among activated users only). */}
+          <div className="flex flex-wrap items-stretch gap-2.5 shrink-0">
+            <div
+              className="bg-white rounded-xl px-4 py-2.5 flex flex-col justify-center gap-0.5 min-w-[148px]"
+              style={{
+                border: "1px solid rgba(54, 153, 252, 0.45)",
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+                Activated action plan
+              </span>
+              <span className="flex items-baseline gap-1.5">
+                <span className="text-3xl font-bold leading-none" style={{ color: "#3699FC" }}>
+                  {scoreBucketsLoading ? "…" : scoreBuckets ? scoreBuckets.totalUsers - scoreBuckets.notStarted : 0}
+                </span>
+                <span className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+                  of {scoreBucketsLoading ? "…" : scoreBuckets?.totalUsers ?? 0}
+                </span>
+              </span>
+            </div>
+            <div
+              className="bg-white rounded-xl px-4 py-2.5 flex flex-col justify-center gap-0.5 min-w-[148px]"
+              style={{
+                border: "1px solid rgba(35, 206, 107, 0.45)",
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+                Batch avg commitment
+              </span>
+              <span className="text-3xl font-bold leading-none" style={{ color: "#16A34A" }}>
+                {scoreBucketsLoading
+                  ? "…"
+                  : scoreBuckets?.avgCommitmentPct != null
+                    ? `${scoreBuckets.avgCommitmentPct}%`
+                    : "—"}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -207,14 +243,18 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                 emptyState("No scheduled actions in scope yet")
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <ReBarChart data={actionWeeklyChartData} margin={{ top: 24, right: 12, left: 8, bottom: 28 }}>
+                  <ReBarChart data={actionWeeklyChartData} margin={{ top: 32, right: 12, left: 8, bottom: 28 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                     <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -16, fontSize: 11 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={48} label={{ value: "Actions", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
                     <Tooltip contentStyle={tooltipStyle} />
                     <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 8 }} />
-                    <Bar dataKey="Actions due" fill="#3699FC" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="Actions completed" fill="#23CE6B" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="Actions due" fill="#3699FC" radius={[6, 6, 0, 0]}>
+                      <LabelList dataKey="Actions due" position="top" style={barLabelStyle} formatter={barLabel} />
+                    </Bar>
+                    <Bar dataKey="Actions completed" fill="#23CE6B" radius={[6, 6, 0, 0]}>
+                      <LabelList dataKey="Actions completed" position="top" style={barLabelStyle} formatter={barLabel} />
+                    </Bar>
                   </ReBarChart>
                 </ResponsiveContainer>
               )}
@@ -238,7 +278,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                 emptyState("No commitment data yet")
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <ReBarChart data={scoreBucketChartData} margin={{ top: 8, right: 12, left: 8, bottom: 28 }}>
+                  <ReBarChart data={scoreBucketChartData} margin={{ top: 32, right: 12, left: 8, bottom: 28 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                     <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Commitment score band", position: "insideBottom", offset: -16, fontSize: 11 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={48} label={{ value: "Users", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
@@ -247,6 +287,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                       {scoreBucketChartData.map((entry) => (
                         <Cell key={entry.name} fill={entry.color} />
                       ))}
+                      <LabelList dataKey="Users" position="top" style={barLabelStyle} formatter={barLabel} />
                     </Bar>
                   </ReBarChart>
                 </ResponsiveContainer>
@@ -270,11 +311,16 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               <div className="p-6 text-center text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>No members in scope yet</div>
             ) : (
               <div className="overflow-x-auto no-scrollbar max-h-96 overflow-y-auto">
-                <table className="w-full text-left border-collapse table-fixed min-w-[520px] text-xs">
+                <table className="w-full text-left border-collapse table-fixed min-w-[880px] text-xs">
                   <thead>
                     <tr style={{ background: "var(--color-bg-dark)", color: "var(--white)" }}>
-                      <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)" }}>Rank / Name</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center">Commitment score</th>
+                      <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "38%" }}>Rank / Name</th>
+                      {/* <th className="px-2 py-3 text-xs font-semibold text-center">Actions read</th> */}
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Planned actions</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Validated actions</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Pending validation</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Didn&apos;t complete</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12%" }}>Commitment score</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -288,6 +334,17 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                             </div>
                             <span className="text-xs font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>{user.name}</span>
                           </div>
+                        </td>
+                        {/* <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.actionsReadCount > 0 ? "#3699FC" : "var(--color-text-muted)" }}>
+                          {user.actionsReadCount}
+                        </td> */}
+                        <td className="px-2 py-2.5 text-center text-blue-600 font-semibold">{user.plannedActions}</td>
+                        <td className="px-2 py-2.5 text-center text-green-600 font-semibold">{user.validatedCount}</td>
+                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.pendingValidationCount > 0 ? "#D97706" : "var(--color-text-muted)" }}>
+                          {user.pendingValidationCount}
+                        </td>
+                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.notCompletedCount > 0 ? "#EF4444" : "var(--color-text-muted)" }}>
+                          {user.notCompletedCount}
                         </td>
                         <td className="px-2 py-2.5 text-center">
                           <span className="text-xs font-semibold">{user.commitmentMaximum > 0 ? `${user.commitmentPct}%` : "No plan"}</span>
@@ -326,12 +383,14 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               emptyState("No finalised plans yet")
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <ReBarChart data={weeklyTrendChartData} margin={{ top: 8, right: 12, left: 8, bottom: 28 }}>
+                <ReBarChart data={weeklyTrendChartData} margin={{ top: 32, right: 12, left: 8, bottom: 28 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                   <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -16, fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Avg. commitment %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
+                  <YAxis domain={[0, 110]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Avg. commitment %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="Avg. commitment %" fill="#3699FC" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="Avg. commitment %" fill="#3699FC" radius={[6, 6, 0, 0]}>
+                    <LabelList dataKey="Avg. commitment %" position="top" style={barLabelStyle} formatter={barLabel} />
+                  </Bar>
                 </ReBarChart>
               </ResponsiveContainer>
             )}
@@ -369,14 +428,18 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               emptyState("No week-attributed sends yet")
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <ReBarChart data={emailOpenChartData} margin={{ top: 24, right: 12, left: 8, bottom: 28 }}>
+                <ReBarChart data={emailOpenChartData} margin={{ top: 32, right: 12, left: 8, bottom: 28 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                   <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -16, fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Rate %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
+                  <YAxis domain={[0, 110]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Rate %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
                   <Tooltip contentStyle={tooltipStyle} />
                   <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 8 }} />
-                  <Bar dataKey="Reminder open %" fill="#23CE6B" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="Reminder click %" fill="#F97316" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="Reminder open %" fill="#23CE6B" radius={[6, 6, 0, 0]}>
+                    <LabelList dataKey="Reminder open %" position="top" style={barLabelStyle} formatter={barLabel} />
+                  </Bar>
+                  <Bar dataKey="Reminder click %" fill="#F97316" radius={[6, 6, 0, 0]}>
+                    <LabelList dataKey="Reminder click %" position="top" style={barLabelStyle} formatter={barLabel} />
+                  </Bar>
                 </ReBarChart>
               </ResponsiveContainer>
             )}

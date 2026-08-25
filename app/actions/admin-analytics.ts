@@ -149,6 +149,59 @@ function walletScorePct(plannedActions: number, missedActions: number) {
   return plannedActions > 0 ? Math.round((Math.max(0, plannedActions - missedActions) * 100) / plannedActions) : 0;
 }
 
+/** Per-user count of action-reminder emails that were opened or clicked
+ * (Resend webhook → email_campaign_logs.opened_at / clicked_at). Same open
+ * rule as getEmailOpenRates: a click counts as an open if opened_at was never set.
+ * Includes cohort-attributed sends plus older null-cohort rows for members in scope. */
+export async function loadActionsReadByEmail(
+  admin: ReturnType<typeof createAdminClient>,
+  userIds: string[],
+  cohortIds: string[]
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (!userIds.length || !cohortIds.length) return result;
+
+  const cohortIdSet = new Set(cohortIds);
+  const userIdSet = new Set(userIds);
+
+  const { data: attributedRows } = await admin
+    .from("email_campaign_logs")
+    .select("user_id, cohort_id, created_at, opened_at, clicked_at")
+    .in("cohort_id", cohortIds)
+    .in("user_id", userIds)
+    .eq("template_id", "daily_reminder")
+    .eq("status", "sent");
+
+  const { data: unattributedRows } = await admin
+    .from("email_campaign_logs")
+    .select("user_id, cohort_id, created_at, opened_at, clicked_at")
+    .is("cohort_id", null)
+    .in("user_id", userIds)
+    .eq("template_id", "daily_reminder")
+    .eq("status", "sent");
+
+  const seen = new Set<string>();
+  for (const row of [...(attributedRows ?? []), ...(unattributedRows ?? [])] as {
+    user_id: string | null;
+    cohort_id: string | null;
+    created_at: string;
+    opened_at: string | null;
+    clicked_at: string | null;
+  }[]) {
+    if (!row.user_id || !userIdSet.has(row.user_id)) continue;
+    if (row.cohort_id && !cohortIdSet.has(row.cohort_id)) continue;
+    const key = `${row.user_id}|${row.created_at}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const openedOrClicked = !!row.opened_at || !!row.clicked_at;
+    if (!openedOrClicked) continue;
+    result.set(row.user_id, (result.get(row.user_id) ?? 0) + 1);
+  }
+
+  return result;
+}
+
 /** Get company-scoped analytics. Superadmin must pass companyId. */
 export async function getCompanyAnalytics(companyId?: string): Promise<{
   error?: string;
@@ -572,22 +625,69 @@ export async function getEngagementLeaderboard(companyId?: string, cohortId?: st
 
 const ACTION_ACCEPTED_STATUSES = ["scheduled", "success", "failed"];
 
-/** Statuses for weekly action chart: accepted = engaged (did not skip). */
-const WEEKLY_ACCEPTED_STATUSES = ["scheduled", "success", "failed"];
-/** Statuses for weekly action chart: successful = validated/completed. */
-const WEEKLY_SUCCESSFUL_STATUSES = ["success"];
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_DAYS = 7;
+
+/** Batch-relative week number (1-indexed) for a date given the batch's start anchor. */
+function weekNumberFor(date: Date, anchor: Date): number {
+  const diffDays = Math.floor((date.getTime() - anchor.getTime()) / DAY_MS);
+  return Math.max(1, Math.floor(diffDays / WEEK_DAYS) + 1);
+}
+
+/** Cohort start for week bucketing: earliest cohort_dates.event_date, else created_at. */
+async function resolveCohortStartAnchor(
+  admin: ReturnType<typeof createAdminClient>,
+  cohortId: string,
+  fallbackCreatedAt: string | null | undefined
+): Promise<Date> {
+  const { data: dateRows } = await admin
+    .from("cohort_dates")
+    .select("event_date")
+    .eq("cohort_id", cohortId)
+    .order("event_date", { ascending: true })
+    .limit(1);
+  const first = (dateRows ?? [])[0] as { event_date: string } | undefined;
+  if (first?.event_date) return new Date(first.event_date);
+  return new Date(fallbackCreatedAt ?? Date.now());
+}
 
 export interface WeeklyActionChartEntry {
   weekNumber: number;
   name: string;
-  accepted: number;
-  skipped: number;
-  successful: number;
+  /** Actions on the plan for this week (any status). */
+  planned: number;
+  /** Validated / completed successfully. */
+  validated: number;
+  /** Auto-expired fails awaiting validation — same as Actions "Pending validation". */
+  pending: number;
+  /** Confirmed fails/skips — same as Actions "Didn't complete". */
+  didntComplete: number;
 }
 
-/** Per-week action stats for Analytics tab. Each delivery = a week. Counts (accepted, skipped, successful) 
- * for actions in that delivery × users assigned to that package. E.g. 4 actions × 8 users = 32 slots; 
- * we count actual user_actions in each status bucket. */
+/** Empty weekly bucket — shared by company-wide and per-batch chart builders. */
+function emptyWeeklyBucket() {
+  return { planned: 0, validated: 0, pending: 0, didntComplete: 0 };
+}
+
+/** Classify a user_action into the same planned / validated / pending / didn't-complete
+ * buckets as the batch members table and participant Actions tabs. */
+function bumpWeeklyBucket(
+  bucket: { planned: number; validated: number; pending: number; didntComplete: number },
+  status: string,
+  autoExpired: boolean | null
+) {
+  bucket.planned += 1;
+  if (status === "success") {
+    bucket.validated += 1;
+  } else if (status === "failed" && autoExpired) {
+    bucket.pending += 1;
+  } else if ((status === "failed" || status === "skipped") && !autoExpired) {
+    bucket.didntComplete += 1;
+  }
+}
+
+/** Per-week action stats for the legacy Analytics tab. Buckets match the Batches
+ * drill-down: planned, validated, pending validation, didn't complete. */
 export async function getWeeklyActionChartData(companyId?: string): Promise<{
   entries: WeeklyActionChartEntry[];
   error?: string;
@@ -601,15 +701,6 @@ export async function getWeeklyActionChartData(companyId?: string): Promise<{
 
     const admin = createAdminClient();
 
-    const { data: packages } = await admin
-      .from("packages")
-      .select("id")
-      .eq("company_id", resolvedCompanyId);
-    const packageIds = (packages ?? []).map((p) => p.id);
-    if (packageIds.length === 0) {
-      return { entries: [] };
-    }
-
     const { data: companyProfiles } = await admin
       .from("profiles")
       .select("id, role")
@@ -617,74 +708,70 @@ export async function getWeeklyActionChartData(companyId?: string): Promise<{
     const endUserIds = (companyProfiles ?? [])
       .filter((p: { role: string }) => p.role === "user")
       .map((p: { id: string }) => p.id);
+    if (!endUserIds.length) return { entries: [] };
 
-    const { data: packageActions } = await admin
-      .from("package_actions")
-      .select("package_id, action_id, week_number")
-      .in("package_id", packageIds);
-    const { data: assignments } = await admin
-      .from("package_assignments")
-      .select("package_id, user_id")
-      .in("package_id", packageIds);
+    const { data: cohorts } = await admin
+      .from("cohorts")
+      .select("id, created_at")
+      .eq("company_id", resolvedCompanyId)
+      .is("archived_at", null);
+    const cohortRows = (cohorts ?? []) as { id: string; created_at: string }[];
+    if (!cohortRows.length) return { entries: [] };
 
-    const filteredAssignments = (assignments ?? []).filter((a: { user_id: string }) =>
-      endUserIds.includes(a.user_id)
-    );
-
-    if (endUserIds.length === 0 || !packageActions?.length) {
-      return { entries: [] };
-    }
-
-    const slotsByWeek = new Map<number, Array<{ actionId: string; userId: string }>>();
-    for (const pa of packageActions as { package_id: string; action_id: string; week_number: number | null }[]) {
-      const week = pa.week_number ?? 1;
-      const users = (filteredAssignments as { package_id: string; user_id: string }[])
-        .filter((a) => a.package_id === pa.package_id)
-        .map((a) => a.user_id);
-      for (const uid of users) {
-        const slots = slotsByWeek.get(week) ?? [];
-        slots.push({ actionId: pa.action_id, userId: uid });
-        slotsByWeek.set(week, slots);
-      }
+    const anchors = new Map<string, Date>();
+    for (const c of cohortRows) {
+      anchors.set(c.id, await resolveCohortStartAnchor(admin, c.id, c.created_at));
     }
 
     const { data: uaRows } = await admin
       .from("user_actions")
-      .select("user_id, action_id, status")
-      .in("user_id", endUserIds);
+      .select("cohort_id, status, auto_expired, scheduled_at, accepted_at, created_at")
+      .in("user_id", endUserIds)
+      .in(
+        "cohort_id",
+        cohortRows.map((c) => c.id)
+      );
 
-    const uaMap = new Map<string, string>();
-    for (const ua of uaRows ?? []) {
-      uaMap.set(`${ua.user_id}|${ua.action_id}`, ua.status);
+    const now = new Date();
+    let maxWeek = 1;
+    for (const anchor of anchors.values()) {
+      maxWeek = Math.max(maxWeek, weekNumberFor(now, anchor));
     }
 
+    const weeklyBuckets = new Map<number, ReturnType<typeof emptyWeeklyBucket>>();
+    for (const row of (uaRows ?? []) as {
+      cohort_id: string | null;
+      status: string;
+      auto_expired: boolean | null;
+      scheduled_at: string | null;
+      accepted_at: string | null;
+      created_at: string;
+    }[]) {
+      const anchor = row.cohort_id ? anchors.get(row.cohort_id) : undefined;
+      if (!anchor) continue;
+      const whenIso = row.scheduled_at ?? row.accepted_at ?? row.created_at;
+      if (!whenIso) continue;
+      const week = weekNumberFor(new Date(whenIso), anchor);
+      maxWeek = Math.max(maxWeek, week);
+      const bucket = weeklyBuckets.get(week) ?? emptyWeeklyBucket();
+      bumpWeeklyBucket(bucket, row.status, row.auto_expired);
+      weeklyBuckets.set(week, bucket);
+    }
+
+    if (!weeklyBuckets.size) return { entries: [] };
+
     const entries: WeeklyActionChartEntry[] = [];
-    for (const [weekNum, slots] of slotsByWeek) {
-      let accepted = 0;
-      let skipped = 0;
-      let successful = 0;
-      for (const slot of slots) {
-        const key = `${slot.userId}|${slot.actionId}`;
-        const status = uaMap.get(key);
-        if (!status) continue;
-        if (status === "skipped") {
-          skipped += 1;
-        } else if (WEEKLY_ACCEPTED_STATUSES.includes(status)) {
-          accepted += 1;
-          if (WEEKLY_SUCCESSFUL_STATUSES.includes(status)) {
-            successful += 1;
-          }
-        }
-      }
+    for (let weekNum = 1; weekNum <= maxWeek; weekNum++) {
+      const b = weeklyBuckets.get(weekNum) ?? emptyWeeklyBucket();
       entries.push({
         weekNumber: weekNum,
         name: `Week ${weekNum}`,
-        accepted,
-        skipped,
-        successful,
+        planned: b.planned,
+        validated: b.validated,
+        pending: b.pending,
+        didntComplete: b.didntComplete,
       });
     }
-    entries.sort((a, b) => a.weekNumber - b.weekNumber);
 
     return { entries };
   } catch (e) {
@@ -891,7 +978,12 @@ export interface CohortMemberEngagement {
   commitmentPct: number;
   plannedActions: number;
   completedOnTimeActions: number;
-  missedActions: number;
+  /** Reminder emails opened or clicked (Resend webhook on email_campaign_logs). */
+  actionsReadCount: number;
+  /** Auto-expired failures still awaiting participant confirm — matches Actions "Pending validation". */
+  pendingValidationCount: number;
+  /** Confirmed fails/skips — matches Actions "Didn't complete". */
+  notCompletedCount: number;
   acceptedCount: number;
   validatedCount: number;
 }
@@ -913,7 +1005,7 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
 
     const { data: cohort } = await admin
       .from("cohorts")
-      .select("id, batch_name, module_name, company_id")
+      .select("id, batch_name, module_name, company_id, created_at")
       .eq("id", cohortId)
       .maybeSingle();
     if (!cohort) return { error: "Batch not found" };
@@ -953,8 +1045,23 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
     }
 
     const { data: uaRows } = userIds.length
-      ? await admin.from("user_actions").select("user_id, action_id, status").in("user_id", userIds)
-      : { data: [] as { user_id: string; action_id: string; status: string }[] };
+      ? await admin
+          .from("user_actions")
+          .select("user_id, action_id, status, auto_expired, cohort_id, scheduled_at, accepted_at, created_at")
+          .in("user_id", userIds)
+          .eq("cohort_id", cohortId)
+      : {
+          data: [] as {
+            user_id: string;
+            action_id: string;
+            status: string;
+            auto_expired: boolean | null;
+            cohort_id: string | null;
+            scheduled_at: string | null;
+            accepted_at: string | null;
+            created_at: string;
+          }[],
+        };
 
     const actionsByPackage = new Map<string, string[]>();
     for (const pa of packageActions) {
@@ -976,13 +1083,18 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
     const usersWithSuccess = new Set<string>();
     const acceptedByUser = new Map<string, number>();
     const validatedByUser = new Map<string, number>();
-    const uaMap = new Map<string, string>();
-    for (const row of (uaRows ?? []) as { user_id: string; action_id: string; status: string }[]) {
+    const pendingValidationByUser = new Map<string, number>();
+    const notCompletedByUser = new Map<string, number>();
+    for (const row of (uaRows ?? []) as {
+      user_id: string;
+      action_id: string;
+      status: string;
+      auto_expired: boolean | null;
+    }[]) {
       usersWithAnyAction.add(row.user_id);
       const set = userActionIdsByUser.get(row.user_id) ?? new Set<string>();
       set.add(row.action_id);
       userActionIdsByUser.set(row.user_id, set);
-      uaMap.set(`${row.user_id}|${row.action_id}`, row.status);
       if (ACTION_ACCEPTED_STATUSES.includes(row.status)) {
         acceptedByUser.set(row.user_id, (acceptedByUser.get(row.user_id) ?? 0) + 1);
       }
@@ -990,7 +1102,15 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
         usersWithSuccess.add(row.user_id);
         validatedByUser.set(row.user_id, (validatedByUser.get(row.user_id) ?? 0) + 1);
       }
+      // Same split as participant Actions tabs (actions-client.tsx).
+      if (row.status === "failed" && row.auto_expired) {
+        pendingValidationByUser.set(row.user_id, (pendingValidationByUser.get(row.user_id) ?? 0) + 1);
+      } else if ((row.status === "failed" || row.status === "skipped") && !row.auto_expired) {
+        notCompletedByUser.set(row.user_id, (notCompletedByUser.get(row.user_id) ?? 0) + 1);
+      }
     }
+
+    const actionsReadByUser = await loadActionsReadByEmail(admin, userIds, [cohortId]);
 
     const summary = summarizeCohortFunnel(
       userIds,
@@ -1003,34 +1123,41 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
     const cohortCommitment = commitmentByCohort.get(cohortId);
     const team = cohortCommitment?.team;
 
-    const slotsByWeek = new Map<number, Array<{ actionId: string; userId: string }>>();
-    for (const pa of packageActions) {
-      const week = pa.week_number ?? 1;
-      const users = assignments.filter((a) => a.package_id === pa.package_id).map((a) => a.user_id);
-      for (const uid of users) {
-        const slots = slotsByWeek.get(week) ?? [];
-        slots.push({ actionId: pa.action_id, userId: uid });
-        slotsByWeek.set(week, slots);
-      }
+    // Weekly chart from real user_actions (AI action plans), not package_actions —
+    // packages are no longer how most batches deliver work, so package-based weeks were empty.
+    const cohortAnchor = await resolveCohortStartAnchor(admin, cohortId, cohort.created_at);
+    const now = new Date();
+    let maxWeek = weekNumberFor(now, cohortAnchor);
+    const weeklyBuckets = new Map<number, ReturnType<typeof emptyWeeklyBucket>>();
+    for (const row of (uaRows ?? []) as {
+      status: string;
+      auto_expired: boolean | null;
+      scheduled_at: string | null;
+      accepted_at: string | null;
+      created_at: string;
+    }[]) {
+      const whenIso = row.scheduled_at ?? row.accepted_at ?? row.created_at;
+      if (!whenIso) continue;
+      const week = weekNumberFor(new Date(whenIso), cohortAnchor);
+      maxWeek = Math.max(maxWeek, week);
+      const bucket = weeklyBuckets.get(week) ?? emptyWeeklyBucket();
+      bumpWeeklyBucket(bucket, row.status, row.auto_expired);
+      weeklyBuckets.set(week, bucket);
     }
     const weeklyChart: WeeklyActionChartEntry[] = [];
-    for (const [weekNum, slots] of slotsByWeek) {
-      let accepted = 0;
-      let skipped = 0;
-      let successful = 0;
-      for (const slot of slots) {
-        const status = uaMap.get(`${slot.userId}|${slot.actionId}`);
-        if (!status) continue;
-        if (status === "skipped") {
-          skipped += 1;
-        } else if (WEEKLY_ACCEPTED_STATUSES.includes(status)) {
-          accepted += 1;
-          if (WEEKLY_SUCCESSFUL_STATUSES.includes(status)) successful += 1;
-        }
+    if (weeklyBuckets.size > 0) {
+      for (let weekNum = 1; weekNum <= maxWeek; weekNum++) {
+        const b = weeklyBuckets.get(weekNum) ?? emptyWeeklyBucket();
+        weeklyChart.push({
+          weekNumber: weekNum,
+          name: `Week ${weekNum}`,
+          planned: b.planned,
+          validated: b.validated,
+          pending: b.pending,
+          didntComplete: b.didntComplete,
+        });
       }
-      weeklyChart.push({ weekNumber: weekNum, name: `Week ${weekNum}`, accepted, skipped, successful });
     }
-    weeklyChart.sort((a, b) => a.weekNumber - b.weekNumber);
 
     const members: CohortMemberEngagement[] = (
       userProfiles as { id: string; full_name: string | null }[]
@@ -1045,7 +1172,9 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
           commitmentPct: walletScorePct(commitment?.plannedActions ?? 0, commitment?.missedActions ?? 0),
           plannedActions: commitment?.plannedActions ?? 0,
           completedOnTimeActions: commitment?.completedOnTimeActions ?? 0,
-          missedActions: commitment?.missedActions ?? 0,
+          actionsReadCount: actionsReadByUser.get(p.id) ?? 0,
+          pendingValidationCount: pendingValidationByUser.get(p.id) ?? 0,
+          notCompletedCount: notCompletedByUser.get(p.id) ?? 0,
           acceptedCount: acceptedByUser.get(p.id) ?? 0,
           validatedCount: validatedByUser.get(p.id) ?? 0,
         };

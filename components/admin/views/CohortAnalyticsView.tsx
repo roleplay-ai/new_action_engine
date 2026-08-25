@@ -11,6 +11,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  LabelList,
 } from "recharts";
 import {
   getCohortAnalyticsOverview,
@@ -234,7 +235,19 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
     </div>
   );
 
-  const chartData = detail.weeklyChart.map((w) => ({ name: w.name, Accepted: w.accepted, Skipped: w.skipped, Successful: w.successful }));
+  const chartData = detail.weeklyChart.map((w) => ({
+    name: w.name,
+    Planned: w.planned,
+    Validated: w.validated,
+    Pending: w.pending,
+    "Didn't complete": w.didntComplete,
+  }));
+
+  const barLabelStyle = { fontSize: 10, fontWeight: 700, fill: "var(--color-text-primary)" };
+  const barLabel = (value: unknown) => {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? String(value) : "";
+  };
 
   return (
     <div className="space-y-4">
@@ -260,18 +273,27 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
 
       <div className="bg-white rounded-xl p-4" style={{ border: "1px solid var(--color-border)" }}>
         <h4 className="text-sm font-semibold mb-3" style={{ color: "var(--color-text-primary)" }}>Weekly actions</h4>
-        <div className="h-[220px] w-full">
+        <div className="h-[260px] w-full">
           {chartData.length === 0 ? emptyState("No delivery data yet") : (
             <ResponsiveContainer width="100%" height="100%">
-              <ReBarChart data={chartData} barGap={3} barCategoryGap="30%">
+              <ReBarChart data={chartData} barGap={3} barCategoryGap="22%" margin={{ top: 28, right: 8, left: 0, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="var(--color-border)" />
                 <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 500, fill: "#8A8090" }} axisLine={{ stroke: "var(--color-border)", strokeWidth: 1 }} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 500, fill: "#8A8090" }} />
+                <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 500, fill: "#8A8090" }} />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: "12px", fontSize: "12px", fontWeight: 600 }} />
-                <Bar dataKey="Accepted" fill="#23CE6B" barSize={10} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Skipped" fill="#FFCE00" barSize={10} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Successful" fill="#3699FC" barSize={10} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Planned" fill="#3699FC" barSize={12} radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="Planned" position="top" style={barLabelStyle} formatter={barLabel} />
+                </Bar>
+                <Bar dataKey="Validated" fill="#23CE6B" barSize={12} radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="Validated" position="top" style={barLabelStyle} formatter={barLabel} />
+                </Bar>
+                <Bar dataKey="Pending" fill="#D97706" barSize={12} radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="Pending" position="top" style={barLabelStyle} formatter={barLabel} />
+                </Bar>
+                <Bar dataKey="Didn't complete" fill="#EF4444" barSize={12} radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="Didn't complete" position="top" style={barLabelStyle} formatter={barLabel} />
+                </Bar>
               </ReBarChart>
             </ResponsiveContainer>
           )}
@@ -290,9 +312,11 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
               <thead>
                 <tr style={{ background: "var(--color-bg-muted)" }}>
                   <th className="px-3 py-2 font-semibold" style={{ color: "var(--color-text-muted)" }}>Name</th>
+                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Emails opened</th>
                   <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Planned actions</th>
                   <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Validated actions</th>
-                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Missed</th>
+                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Pending validation</th>
+                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Didn&apos;t complete</th>
                   <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Commitment</th>
                 </tr>
               </thead>
@@ -302,9 +326,17 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
                   return (
                     <tr key={member.id} style={{ borderTop: "1px solid var(--color-border)" }}>
                       <td className="px-3 py-2 font-semibold" style={{ color: "var(--color-text-primary)" }}>{member.name}</td>
+                      <td className="px-2 py-2 text-center font-semibold" style={{ color: member.actionsReadCount > 0 ? "#3699FC" : "var(--color-text-muted)" }}>
+                        {member.actionsReadCount}
+                      </td>
                       <td className="px-2 py-2 text-center text-blue-600 font-semibold">{member.plannedActions}</td>
                       <td className="px-2 py-2 text-center text-green-600 font-semibold">{member.validatedCount}</td>
-                      <td className="px-2 py-2 text-center text-red-500 font-semibold">{member.missedActions}</td>
+                      <td className="px-2 py-2 text-center font-semibold" style={{ color: member.pendingValidationCount > 0 ? "#D97706" : "var(--color-text-muted)" }}>
+                        {member.pendingValidationCount}
+                      </td>
+                      <td className="px-2 py-2 text-center font-semibold" style={{ color: member.notCompletedCount > 0 ? "#EF4444" : "var(--color-text-muted)" }}>
+                        {member.notCompletedCount}
+                      </td>
                       <td className="px-2 py-2 text-center">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${commitmentBadgeColor(member.commitmentPct, hasPlan)}`}>
                           {hasPlan ? `${member.commitmentPct}%` : "No plan"}

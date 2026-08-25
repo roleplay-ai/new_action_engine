@@ -12,7 +12,11 @@
  * Wallet rollup math.
  */
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAdminContext, loadCommitmentWalletByCohort } from "./admin-analytics";
+import {
+  getAdminContext,
+  loadCommitmentWalletByCohort,
+  loadActionsReadByEmail,
+} from "./admin-analytics";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -194,6 +198,8 @@ export interface CommitmentScoreBuckets {
   /** Users with no finalised plan yet — kept separate so they don't skew "below 50" downward. */
   notStarted: number;
   totalUsers: number;
+  /** Mean Commitment Score % among users with a finalised plan; null when none have activated. */
+  avgCommitmentPct: number | null;
 }
 
 const EMPTY_SCORE_BUCKETS: CommitmentScoreBuckets = {
@@ -203,6 +209,7 @@ const EMPTY_SCORE_BUCKETS: CommitmentScoreBuckets = {
   belowBand50: 0,
   notStarted: 0,
   totalUsers: 0,
+  avgCommitmentPct: null,
 };
 
 /** Buckets end-users by Commitment Score (same 100%-minus-missed-actions formula as /wallet):
@@ -240,6 +247,8 @@ export async function getCommitmentScoreBuckets(
     }
 
     const buckets: CommitmentScoreBuckets = { ...EMPTY_SCORE_BUCKETS, totalUsers: userIds.length };
+    let scoreSum = 0;
+    let scoreCount = 0;
     for (const userId of userIds) {
       const c = commitmentByUser.get(userId);
       if (!c || c.maximum === 0) {
@@ -247,11 +256,14 @@ export async function getCommitmentScoreBuckets(
         continue;
       }
       const pct = walletScorePct(c.plannedActions, c.missedActions);
+      scoreSum += pct;
+      scoreCount += 1;
       if (pct >= 90) buckets.band90to100 += 1;
       else if (pct >= 75) buckets.band75to89 += 1;
       else if (pct >= 50) buckets.band50to74 += 1;
       else buckets.belowBand50 += 1;
     }
+    buckets.avgCommitmentPct = scoreCount > 0 ? Math.round(scoreSum / scoreCount) : null;
 
     return { buckets };
   } catch (e) {
@@ -265,6 +277,14 @@ export interface DashboardLeaderboardEntry {
   commitmentPoints: number;
   commitmentMaximum: number;
   commitmentPct: number;
+  plannedActions: number;
+  validatedCount: number;
+  /** Reminder emails opened or clicked (Resend webhook on email_campaign_logs). */
+  actionsReadCount: number;
+  /** Auto-expired failures still awaiting confirm — matches Actions "Pending validation". */
+  pendingValidationCount: number;
+  /** Confirmed fails/skips — matches Actions "Didn't complete". */
+  notCompletedCount: number;
 }
 
 /** Leaderboard ranked by commitment score % (not raw points, unlike getEngagementLeaderboard,
@@ -307,6 +327,34 @@ export async function getDashboardLeaderboard(
       }
     }
 
+    // Same Action reader / Pending validation / Didn't complete split as cohort analytics members.
+    let uaQuery = admin
+      .from("user_actions")
+      .select("user_id, status, auto_expired")
+      .in("user_id", userIds);
+    if (cohortId) uaQuery = uaQuery.eq("cohort_id", cohortId);
+    else if (cohortIds.length) uaQuery = uaQuery.in("cohort_id", cohortIds);
+    const { data: uaRows } = await uaQuery;
+
+    const actionsReadByUser = await loadActionsReadByEmail(admin, userIds, cohortIds);
+    const validatedByUser = new Map<string, number>();
+    const pendingByUser = new Map<string, number>();
+    const notCompletedByUser = new Map<string, number>();
+    for (const row of (uaRows ?? []) as {
+      user_id: string;
+      status: string;
+      auto_expired: boolean | null;
+    }[]) {
+      if (row.status === "success") {
+        validatedByUser.set(row.user_id, (validatedByUser.get(row.user_id) ?? 0) + 1);
+      }
+      if (row.status === "failed" && row.auto_expired) {
+        pendingByUser.set(row.user_id, (pendingByUser.get(row.user_id) ?? 0) + 1);
+      } else if ((row.status === "failed" || row.status === "skipped") && !row.auto_expired) {
+        notCompletedByUser.set(row.user_id, (notCompletedByUser.get(row.user_id) ?? 0) + 1);
+      }
+    }
+
     const entries: DashboardLeaderboardEntry[] = userIds.map((id) => {
       const c = commitmentByUser.get(id);
       return {
@@ -315,6 +363,11 @@ export async function getDashboardLeaderboard(
         commitmentPoints: c?.points ?? 0,
         commitmentMaximum: c?.maximum ?? 0,
         commitmentPct: walletScorePct(c?.plannedActions ?? 0, c?.missedActions ?? 0),
+        plannedActions: c?.plannedActions ?? 0,
+        validatedCount: validatedByUser.get(id) ?? 0,
+        actionsReadCount: actionsReadByUser.get(id) ?? 0,
+        pendingValidationCount: pendingByUser.get(id) ?? 0,
+        notCompletedCount: notCompletedByUser.get(id) ?? 0,
       };
     });
     entries.sort((a, b) => b.commitmentPct - a.commitmentPct || b.commitmentPoints - a.commitmentPoints);
@@ -568,8 +621,9 @@ export async function getEmailOpenRates(
     >();
 
     for (const row of emailRows) {
-      const opened = !!row.opened_at;
+      // Click implies open (clients that block pixels often only fire click events).
       const clicked = !!row.clicked_at;
+      const opened = !!row.opened_at || clicked;
       if (row.template_id === "credentials") {
         welcomeSentTotal += 1;
         if (opened) welcomeOpenedTotal += 1;

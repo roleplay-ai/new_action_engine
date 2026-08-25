@@ -45,7 +45,6 @@ export function DashboardView({ companyId }: DashboardViewProps) {
   const [weeklyTrendLoading, setWeeklyTrendLoading] = useState(false);
   const [emailWeekly, setEmailWeekly] = useState<EmailOpenWeeklyEntry[]>([]);
   const [emailReminderTotals, setEmailReminderTotals] = useState<EmailEngagementTotals | null>(null);
-  const [emailWebhookConfigured, setEmailWebhookConfigured] = useState(true);
   const [emailLoading, setEmailLoading] = useState(false);
 
   useEffect(() => {
@@ -104,10 +103,9 @@ export function DashboardView({ companyId }: DashboardViewProps) {
     }
     setEmailLoading(true);
     getEmailOpenRates(companyId, selectedCohortId)
-      .then(({ weekly, reminderTotals, webhookConfigured, error }) => {
+      .then(({ weekly, reminderTotals, error }) => {
         setEmailWeekly(!error ? weekly ?? [] : []);
         setEmailReminderTotals(!error ? reminderTotals ?? null : null);
-        setEmailWebhookConfigured(webhookConfigured ?? true);
       })
       .finally(() => setEmailLoading(false));
   }, [companyId, selectedCohortId]);
@@ -348,15 +346,6 @@ export function DashboardView({ companyId }: DashboardViewProps) {
             </h4>
             <span className="tag tag--yellow">Reminder Emails · Opens &amp; Clicks</span>
           </div>
-
-          {!emailWebhookConfigured && !emailLoading && (
-            <div className="card__inset flex items-start gap-3" style={{ borderColor: "var(--color-warning, #f0bc00)", background: "rgba(255,206,0,0.08)" }}>
-              <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: "#f0bc00" }} />
-              <p className="text-xs font-medium" style={{ color: "var(--color-text-secondary)" }}>
-                Open &amp; click tracking isn&apos;t configured for this environment yet (missing <code>RESEND_WEBHOOK_SECRET</code>) — the numbers below only reflect emails actually sent, not who opened or clicked them.
-              </p>
-            </div>
-          )}
 
           <div className="grid grid-cols-2 gap-3">
             {[

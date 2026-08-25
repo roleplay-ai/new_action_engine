@@ -32,7 +32,7 @@ export interface UserAction {
   completedAt?: string;
   completedLate?: boolean;
   missedAt?: string;
-  /** True only while this failure is an unresolved auto-expiry (date passed, no check-in) — routes to "Pending validation" instead of "Didn't complete". */
+  /** True only while this failure is an unresolved auto-retire (next batch arrived before check-in) — routes to "Pending validation" instead of "Didn't complete". */
   autoExpired?: boolean;
   isCalendarSynced?: boolean;
   reflection?: string;

@@ -11,6 +11,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  LabelList,
 } from "recharts";
 import { useAdminContext } from "@/components/admin/AdminContext";
 import {
@@ -120,6 +121,12 @@ export function DashboardView({ companyId }: DashboardViewProps) {
     color: "var(--color-text-primary)",
   };
 
+  const barLabelStyle = { fontSize: 11, fontWeight: 700, fill: "var(--color-text-primary)" };
+  const barLabel = (value: unknown) => {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? String(value) : "";
+  };
+
   const emptyState = (msg: string) => (
     <div className="h-full flex items-center justify-center text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
       {msg}
@@ -207,14 +214,18 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                 emptyState("No scheduled actions in scope yet")
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <ReBarChart data={actionWeeklyChartData} margin={{ top: 24, right: 12, left: 8, bottom: 28 }}>
+                  <ReBarChart data={actionWeeklyChartData} margin={{ top: 32, right: 12, left: 8, bottom: 28 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                     <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -16, fontSize: 11 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={48} label={{ value: "Actions", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
                     <Tooltip contentStyle={tooltipStyle} />
                     <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 8 }} />
-                    <Bar dataKey="Actions due" fill="#3699FC" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="Actions completed" fill="#23CE6B" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="Actions due" fill="#3699FC" radius={[6, 6, 0, 0]}>
+                      <LabelList dataKey="Actions due" position="top" style={barLabelStyle} formatter={barLabel} />
+                    </Bar>
+                    <Bar dataKey="Actions completed" fill="#23CE6B" radius={[6, 6, 0, 0]}>
+                      <LabelList dataKey="Actions completed" position="top" style={barLabelStyle} formatter={barLabel} />
+                    </Bar>
                   </ReBarChart>
                 </ResponsiveContainer>
               )}
@@ -238,7 +249,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                 emptyState("No commitment data yet")
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <ReBarChart data={scoreBucketChartData} margin={{ top: 8, right: 12, left: 8, bottom: 28 }}>
+                  <ReBarChart data={scoreBucketChartData} margin={{ top: 32, right: 12, left: 8, bottom: 28 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                     <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Commitment score band", position: "insideBottom", offset: -16, fontSize: 11 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={48} label={{ value: "Users", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
@@ -247,6 +258,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                       {scoreBucketChartData.map((entry) => (
                         <Cell key={entry.name} fill={entry.color} />
                       ))}
+                      <LabelList dataKey="Users" position="top" style={barLabelStyle} formatter={barLabel} />
                     </Bar>
                   </ReBarChart>
                 </ResponsiveContainer>
@@ -342,12 +354,14 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               emptyState("No finalised plans yet")
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <ReBarChart data={weeklyTrendChartData} margin={{ top: 8, right: 12, left: 8, bottom: 28 }}>
+                <ReBarChart data={weeklyTrendChartData} margin={{ top: 32, right: 12, left: 8, bottom: 28 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                   <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -16, fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Avg. commitment %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
+                  <YAxis domain={[0, 110]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Avg. commitment %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="Avg. commitment %" fill="#3699FC" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="Avg. commitment %" fill="#3699FC" radius={[6, 6, 0, 0]}>
+                    <LabelList dataKey="Avg. commitment %" position="top" style={barLabelStyle} formatter={barLabel} />
+                  </Bar>
                 </ReBarChart>
               </ResponsiveContainer>
             )}
@@ -385,14 +399,18 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               emptyState("No week-attributed sends yet")
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <ReBarChart data={emailOpenChartData} margin={{ top: 24, right: 12, left: 8, bottom: 28 }}>
+                <ReBarChart data={emailOpenChartData} margin={{ top: 32, right: 12, left: 8, bottom: 28 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                   <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -16, fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Rate %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
+                  <YAxis domain={[0, 110]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Rate %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
                   <Tooltip contentStyle={tooltipStyle} />
                   <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 8 }} />
-                  <Bar dataKey="Reminder open %" fill="#23CE6B" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="Reminder click %" fill="#F97316" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="Reminder open %" fill="#23CE6B" radius={[6, 6, 0, 0]}>
+                    <LabelList dataKey="Reminder open %" position="top" style={barLabelStyle} formatter={barLabel} />
+                  </Bar>
+                  <Bar dataKey="Reminder click %" fill="#F97316" radius={[6, 6, 0, 0]}>
+                    <LabelList dataKey="Reminder click %" position="top" style={barLabelStyle} formatter={barLabel} />
+                  </Bar>
                 </ReBarChart>
               </ResponsiveContainer>
             )}

@@ -1333,7 +1333,7 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
   const [driversError, setDriversError] = useState<string | null>(null);
   const [adoptionIndexMetrics, setAdoptionIndexMetrics] = useState<ActionMetricEntry[]>([]);
   const [adoptionIndexLoading, setAdoptionIndexLoading] = useState(false);
-  const [weeklyChartData, setWeeklyChartData] = useState<{ name: string; Accepted: number; Skipped: number; Successful: number }[]>([]);
+  const [weeklyChartData, setWeeklyChartData] = useState<{ name: string; Planned: number; Validated: number; Pending: number; "Didn't complete": number }[]>([]);
   const [weeklyChartLoading, setWeeklyChartLoading] = useState(false);
 
   const engagementSegments = funnel
@@ -1447,9 +1447,10 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
         }
         const chart = (entries ?? []).map((e) => ({
           name: e.name,
-          Accepted: e.accepted,
-          Skipped: e.skipped,
-          Successful: e.successful,
+          Planned: e.planned,
+          Validated: e.validated,
+          Pending: e.pending,
+          "Didn't complete": e.didntComplete,
         }));
         setWeeklyChartData(chart);
       })
@@ -1650,9 +1651,10 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
                   <YAxis axisLine={{ stroke: '#000', strokeWidth: 3 }} tick={{ fontSize: 9, fontWeight: 900 }} />
                   <Tooltip contentStyle={{ borderRadius: '16px', border: '3px solid black', fontWeight: 900 }} />
                   <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '30px', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase' }} />
-                  <Bar dataKey="Accepted" fill="#2ecc71" barSize={8} radius={[2, 2, 0, 0]} stroke="black" strokeWidth={1} />
-                  <Bar dataKey="Skipped" fill="#FFCE00" barSize={8} radius={[2, 2, 0, 0]} stroke="black" strokeWidth={1} />
-                  <Bar dataKey="Successful" fill="#3699FC" barSize={8} radius={[2, 2, 0, 0]} stroke="black" strokeWidth={1} />
+                  <Bar dataKey="Planned" fill="#3699FC" barSize={8} radius={[2, 2, 0, 0]} stroke="black" strokeWidth={1} />
+                  <Bar dataKey="Validated" fill="#23CE6B" barSize={8} radius={[2, 2, 0, 0]} stroke="black" strokeWidth={1} />
+                  <Bar dataKey="Pending" fill="#D97706" barSize={8} radius={[2, 2, 0, 0]} stroke="black" strokeWidth={1} />
+                  <Bar dataKey="Didn't complete" fill="#EF4444" barSize={8} radius={[2, 2, 0, 0]} stroke="black" strokeWidth={1} />
                 </ReBarChart>
               </ResponsiveContainer>
             )}

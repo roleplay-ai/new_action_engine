@@ -172,7 +172,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               Batch &amp; Module Drill-down
             </h3>
             <p className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
-              Use the batch selector above to focus on one batch, or leave on &quot;All batches&quot; for the consolidated view.
+              Defaults to the current batch. Switch above to another batch, or &quot;All batches&quot; for the consolidated view.
             </p>
           </div>
           {/* Users who've finalised an action plan — same "made a plan" signal as the
@@ -270,10 +270,13 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               <div className="p-6 text-center text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>No members in scope yet</div>
             ) : (
               <div className="overflow-x-auto no-scrollbar max-h-96 overflow-y-auto">
-                <table className="w-full text-left border-collapse table-fixed min-w-[520px] text-xs">
+                <table className="w-full text-left border-collapse table-fixed min-w-[720px] text-xs">
                   <thead>
                     <tr style={{ background: "var(--color-bg-dark)", color: "var(--white)" }}>
                       <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)" }}>Rank / Name</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center">Action reader</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center">Pending validation</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center">Didn&apos;t complete</th>
                       <th className="px-2 py-3 text-xs font-semibold text-center">Commitment score</th>
                     </tr>
                   </thead>
@@ -288,6 +291,15 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                             </div>
                             <span className="text-xs font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>{user.name}</span>
                           </div>
+                        </td>
+                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.isActionReader ? "#3699FC" : "var(--color-text-muted)" }}>
+                          {user.isActionReader ? "Yes" : "No"}
+                        </td>
+                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.pendingValidationCount > 0 ? "#D97706" : "var(--color-text-muted)" }}>
+                          {user.pendingValidationCount}
+                        </td>
+                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.notCompletedCount > 0 ? "#EF4444" : "var(--color-text-muted)" }}>
+                          {user.notCompletedCount}
                         </td>
                         <td className="px-2 py-2.5 text-center">
                           <span className="text-xs font-semibold">{user.commitmentMaximum > 0 ? `${user.commitmentPct}%` : "No plan"}</span>

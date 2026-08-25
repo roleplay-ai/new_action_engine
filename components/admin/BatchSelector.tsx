@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Layers } from "lucide-react";
 import { fetchAdminJson, isAbortError } from "@/lib/admin-fetch";
 
@@ -14,10 +14,17 @@ interface BatchSelectorProps {
 type BatchOption = { cohortId: string; label: string };
 
 /** Shared admin batch dropdown. Each option is labeled
- * "{batchName} — {moduleName}", with a default "All batches" option. */
+ * "{batchName} — {moduleName}". Defaults to the newest batch; "All batches"
+ * remains available for a consolidated view. */
 export function BatchSelector({ companyId, value, onChange }: BatchSelectorProps) {
   const [options, setOptions] = useState<BatchOption[]>([]);
   const [loading, setLoading] = useState(true);
+  /** True only after the user explicitly picks "All batches" for this company. */
+  const allowAllRef = useRef(false);
+
+  useEffect(() => {
+    allowAllRef.current = false;
+  }, [companyId]);
 
   useEffect(() => {
     if (!companyId) {
@@ -45,8 +52,12 @@ export function BatchSelector({ companyId, value, onChange }: BatchSelectorProps
   }, [companyId]);
 
   useEffect(() => {
-    if (!value || options.length === 0) return;
-    if (!options.some((opt) => opt.cohortId === value)) onChange(null);
+    if (options.length === 0) return;
+    if (value && options.some((opt) => opt.cohortId === value)) return;
+    // Keep an intentional "All batches" choice; otherwise default to the
+    // newest batch (API returns created_at desc — same as Batch Management).
+    if (value === null && allowAllRef.current) return;
+    onChange(options[0].cohortId);
   }, [options, value, onChange]);
 
   return (
@@ -55,7 +66,11 @@ export function BatchSelector({ companyId, value, onChange }: BatchSelectorProps
       <select
         value={value ?? ""}
         disabled={loading || !companyId}
-        onChange={(e) => onChange(e.target.value || null)}
+        onChange={(e) => {
+          const next = e.target.value || null;
+          allowAllRef.current = next === null;
+          onChange(next);
+        }}
         className="text-sm font-semibold bg-transparent outline-none cursor-pointer"
         style={{ color: "var(--color-text-primary)" }}
         aria-label="Batch"

@@ -891,7 +891,12 @@ export interface CohortMemberEngagement {
   commitmentPct: number;
   plannedActions: number;
   completedOnTimeActions: number;
-  missedActions: number;
+  /** True when the member has ≥1 user_action (same definition as batch "Action readers"). */
+  isActionReader: boolean;
+  /** Auto-expired failures still awaiting participant confirm — matches Actions "Pending validation". */
+  pendingValidationCount: number;
+  /** Confirmed fails/skips — matches Actions "Didn't complete". */
+  notCompletedCount: number;
   acceptedCount: number;
   validatedCount: number;
 }
@@ -953,8 +958,20 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
     }
 
     const { data: uaRows } = userIds.length
-      ? await admin.from("user_actions").select("user_id, action_id, status").in("user_id", userIds)
-      : { data: [] as { user_id: string; action_id: string; status: string }[] };
+      ? await admin
+          .from("user_actions")
+          .select("user_id, action_id, status, auto_expired, cohort_id")
+          .in("user_id", userIds)
+          .eq("cohort_id", cohortId)
+      : {
+          data: [] as {
+            user_id: string;
+            action_id: string;
+            status: string;
+            auto_expired: boolean | null;
+            cohort_id: string | null;
+          }[],
+        };
 
     const actionsByPackage = new Map<string, string[]>();
     for (const pa of packageActions) {
@@ -976,8 +993,15 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
     const usersWithSuccess = new Set<string>();
     const acceptedByUser = new Map<string, number>();
     const validatedByUser = new Map<string, number>();
+    const pendingValidationByUser = new Map<string, number>();
+    const notCompletedByUser = new Map<string, number>();
     const uaMap = new Map<string, string>();
-    for (const row of (uaRows ?? []) as { user_id: string; action_id: string; status: string }[]) {
+    for (const row of (uaRows ?? []) as {
+      user_id: string;
+      action_id: string;
+      status: string;
+      auto_expired: boolean | null;
+    }[]) {
       usersWithAnyAction.add(row.user_id);
       const set = userActionIdsByUser.get(row.user_id) ?? new Set<string>();
       set.add(row.action_id);
@@ -989,6 +1013,12 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
       if (row.status === "success") {
         usersWithSuccess.add(row.user_id);
         validatedByUser.set(row.user_id, (validatedByUser.get(row.user_id) ?? 0) + 1);
+      }
+      // Same split as participant Actions tabs (actions-client.tsx).
+      if (row.status === "failed" && row.auto_expired) {
+        pendingValidationByUser.set(row.user_id, (pendingValidationByUser.get(row.user_id) ?? 0) + 1);
+      } else if ((row.status === "failed" || row.status === "skipped") && !row.auto_expired) {
+        notCompletedByUser.set(row.user_id, (notCompletedByUser.get(row.user_id) ?? 0) + 1);
       }
     }
 
@@ -1045,7 +1075,9 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
           commitmentPct: walletScorePct(commitment?.plannedActions ?? 0, commitment?.missedActions ?? 0),
           plannedActions: commitment?.plannedActions ?? 0,
           completedOnTimeActions: commitment?.completedOnTimeActions ?? 0,
-          missedActions: commitment?.missedActions ?? 0,
+          isActionReader: usersWithAnyAction.has(p.id),
+          pendingValidationCount: pendingValidationByUser.get(p.id) ?? 0,
+          notCompletedCount: notCompletedByUser.get(p.id) ?? 0,
           acceptedCount: acceptedByUser.get(p.id) ?? 0,
           validatedCount: validatedByUser.get(p.id) ?? 0,
         };

@@ -265,6 +265,12 @@ export interface DashboardLeaderboardEntry {
   commitmentPoints: number;
   commitmentMaximum: number;
   commitmentPct: number;
+  /** True when the member has ≥1 user_action in scope (same as batch "Action readers"). */
+  isActionReader: boolean;
+  /** Auto-expired failures still awaiting confirm — matches Actions "Pending validation". */
+  pendingValidationCount: number;
+  /** Confirmed fails/skips — matches Actions "Didn't complete". */
+  notCompletedCount: number;
 }
 
 /** Leaderboard ranked by commitment score % (not raw points, unlike getEngagementLeaderboard,
@@ -307,6 +313,31 @@ export async function getDashboardLeaderboard(
       }
     }
 
+    // Same Action reader / Pending validation / Didn't complete split as cohort analytics members.
+    let uaQuery = admin
+      .from("user_actions")
+      .select("user_id, status, auto_expired")
+      .in("user_id", userIds);
+    if (cohortId) uaQuery = uaQuery.eq("cohort_id", cohortId);
+    else if (cohortIds.length) uaQuery = uaQuery.in("cohort_id", cohortIds);
+    const { data: uaRows } = await uaQuery;
+
+    const readers = new Set<string>();
+    const pendingByUser = new Map<string, number>();
+    const notCompletedByUser = new Map<string, number>();
+    for (const row of (uaRows ?? []) as {
+      user_id: string;
+      status: string;
+      auto_expired: boolean | null;
+    }[]) {
+      readers.add(row.user_id);
+      if (row.status === "failed" && row.auto_expired) {
+        pendingByUser.set(row.user_id, (pendingByUser.get(row.user_id) ?? 0) + 1);
+      } else if ((row.status === "failed" || row.status === "skipped") && !row.auto_expired) {
+        notCompletedByUser.set(row.user_id, (notCompletedByUser.get(row.user_id) ?? 0) + 1);
+      }
+    }
+
     const entries: DashboardLeaderboardEntry[] = userIds.map((id) => {
       const c = commitmentByUser.get(id);
       return {
@@ -315,6 +346,9 @@ export async function getDashboardLeaderboard(
         commitmentPoints: c?.points ?? 0,
         commitmentMaximum: c?.maximum ?? 0,
         commitmentPct: walletScorePct(c?.plannedActions ?? 0, c?.missedActions ?? 0),
+        isActionReader: readers.has(id),
+        pendingValidationCount: pendingByUser.get(id) ?? 0,
+        notCompletedCount: notCompletedByUser.get(id) ?? 0,
       };
     });
     entries.sort((a, b) => b.commitmentPct - a.commitmentPct || b.commitmentPoints - a.commitmentPoints);

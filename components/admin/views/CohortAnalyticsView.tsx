@@ -290,9 +290,11 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
               <thead>
                 <tr style={{ background: "var(--color-bg-muted)" }}>
                   <th className="px-3 py-2 font-semibold" style={{ color: "var(--color-text-muted)" }}>Name</th>
+                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Action reader</th>
                   <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Planned actions</th>
                   <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Validated actions</th>
-                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Missed</th>
+                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Pending validation</th>
+                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Didn&apos;t complete</th>
                   <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Commitment</th>
                 </tr>
               </thead>
@@ -302,9 +304,17 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
                   return (
                     <tr key={member.id} style={{ borderTop: "1px solid var(--color-border)" }}>
                       <td className="px-3 py-2 font-semibold" style={{ color: "var(--color-text-primary)" }}>{member.name}</td>
+                      <td className="px-2 py-2 text-center font-semibold" style={{ color: member.isActionReader ? "#3699FC" : "var(--color-text-muted)" }}>
+                        {member.isActionReader ? "Yes" : "No"}
+                      </td>
                       <td className="px-2 py-2 text-center text-blue-600 font-semibold">{member.plannedActions}</td>
                       <td className="px-2 py-2 text-center text-green-600 font-semibold">{member.validatedCount}</td>
-                      <td className="px-2 py-2 text-center text-red-500 font-semibold">{member.missedActions}</td>
+                      <td className="px-2 py-2 text-center font-semibold" style={{ color: member.pendingValidationCount > 0 ? "#D97706" : "var(--color-text-muted)" }}>
+                        {member.pendingValidationCount}
+                      </td>
+                      <td className="px-2 py-2 text-center font-semibold" style={{ color: member.notCompletedCount > 0 ? "#EF4444" : "var(--color-text-muted)" }}>
+                        {member.notCompletedCount}
+                      </td>
                       <td className="px-2 py-2 text-center">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${commitmentBadgeColor(member.commitmentPct, hasPlan)}`}>
                           {hasPlan ? `${member.commitmentPct}%` : "No plan"}

@@ -134,10 +134,10 @@ export function DashboardView({ companyId }: DashboardViewProps) {
 
   const scoreBucketChartData = scoreBuckets
     ? [
-      { name: "90–100", Users: scoreBuckets.band90to100, color: "#8B5CF6" },
-      { name: "75–89", Users: scoreBuckets.band75to89, color: "#3699FC" },
-      { name: "50–74", Users: scoreBuckets.band50to74, color: "#FFCE00" },
-      { name: "Below 50", Users: scoreBuckets.belowBand50, color: "#ED4551" },
+      { name: "Below 50%", Users: scoreBuckets.belowBand50, color: "#ED4551" },
+      { name: "50–74%", Users: scoreBuckets.band50to74, color: "#FFCE00" },
+      { name: "75–89%", Users: scoreBuckets.band75to89, color: "#3699FC" },
+      { name: "90–100%", Users: scoreBuckets.band90to100, color: "#8B5CF6" },
     ]
     : [];
 

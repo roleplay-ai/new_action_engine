@@ -71,7 +71,7 @@ export async function loadCommitmentWalletByCohort(
 
   const { data: plans } = await admin
     .from("commitment_wallet_plans")
-    .select("id, user_id, cohort_id, maximum_points, plan_bonus_points")
+    .select("id, user_id, cohort_id, maximum_points, plan_bonus_points, planned_actions")
     .in("cohort_id", cohortIds);
   const planRows = (plans ?? []) as {
     id: string;
@@ -79,6 +79,7 @@ export async function loadCommitmentWalletByCohort(
     cohort_id: string;
     maximum_points: number;
     plan_bonus_points: number;
+    planned_actions: number;
   }[];
   if (!planRows.length) return result;
 
@@ -106,7 +107,7 @@ export async function loadCommitmentWalletByCohort(
     const actionPoints = actionPointsByPlan.get(plan.id) ?? 0;
     const points = plan.plan_bonus_points + actionPoints;
     const maximum = plan.maximum_points + plan.plan_bonus_points;
-    const plannedActions = plan.maximum_points > 0 ? Math.round(plan.maximum_points / 50) : 0;
+    const plannedActions = plan.planned_actions;
     const missedActions = missedByPlan.get(plan.id) ?? 0;
     const completedOnTimeActions = completedOnTimeByPlan.get(plan.id) ?? 0;
 

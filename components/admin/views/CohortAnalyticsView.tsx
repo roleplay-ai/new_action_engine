@@ -290,8 +290,8 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
               <thead>
                 <tr style={{ background: "var(--color-bg-muted)" }}>
                   <th className="px-3 py-2 font-semibold" style={{ color: "var(--color-text-muted)" }}>Name</th>
-                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Accepted</th>
-                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Validated</th>
+                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Planned actions</th>
+                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Validated actions</th>
                   <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Missed</th>
                   <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Commitment</th>
                 </tr>
@@ -302,7 +302,7 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
                   return (
                     <tr key={member.id} style={{ borderTop: "1px solid var(--color-border)" }}>
                       <td className="px-3 py-2 font-semibold" style={{ color: "var(--color-text-primary)" }}>{member.name}</td>
-                      <td className="px-2 py-2 text-center text-blue-600 font-semibold">{member.acceptedCount}</td>
+                      <td className="px-2 py-2 text-center text-blue-600 font-semibold">{member.plannedActions}</td>
                       <td className="px-2 py-2 text-center text-green-600 font-semibold">{member.validatedCount}</td>
                       <td className="px-2 py-2 text-center text-red-500 font-semibold">{member.missedActions}</td>
                       <td className="px-2 py-2 text-center">

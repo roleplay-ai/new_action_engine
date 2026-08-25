@@ -14,7 +14,7 @@ interface UserEngagementRow {
   commitmentPoints: number;
   commitmentMaximum: number;
   commitmentPct: number;
-  acceptedCount: number;
+  plannedActions: number;
   validatedCount: number;
 }
 
@@ -57,7 +57,7 @@ export function EngagementView({ companyId }: EngagementViewProps) {
             commitmentPoints: e.commitmentPoints,
             commitmentMaximum: e.commitmentMaximum,
             commitmentPct: e.commitmentPct,
-            acceptedCount: e.acceptedCount,
+            plannedActions: e.plannedActions,
             validatedCount: e.validatedCount,
           })
         );
@@ -141,8 +141,8 @@ export function EngagementView({ companyId }: EngagementViewProps) {
                   <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)" }}>
                     Rank / Name
                   </th>
-                  <th className="px-2 py-3 text-xs font-semibold text-center">Accepted</th>
-                  <th className="px-2 py-3 text-xs font-semibold text-center">Validated</th>
+                  <th className="px-2 py-3 text-xs font-semibold text-center">Planned actions</th>
+                  <th className="px-2 py-3 text-xs font-semibold text-center">Validated actions</th>
                   <th className="px-2 py-3 text-xs font-semibold text-center">Commitment</th>
                 </tr>
               </thead>
@@ -172,7 +172,7 @@ export function EngagementView({ companyId }: EngagementViewProps) {
                       </div>
                     </td>
                     <td className="px-2 py-2.5 text-center">
-                      <span className="text-xs font-semibold text-blue-600">{user.acceptedCount}</span>
+                      <span className="text-xs font-semibold text-blue-600">{user.plannedActions}</span>
                     </td>
                     <td className="px-2 py-2.5 text-center">
                       <span className="text-xs font-semibold text-green-600">{user.validatedCount}</span>

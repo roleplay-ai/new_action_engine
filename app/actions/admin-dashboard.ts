@@ -356,13 +356,12 @@ export async function getBatchCommitmentWeeklyTrend(
 
     const { data: plans } = await admin
       .from("commitment_wallet_plans")
-      .select("id, cohort_id, maximum_points, plan_bonus_points, finalised_at")
+      .select("id, cohort_id, planned_actions, finalised_at")
       .in("cohort_id", cohortIds);
     const planRows = (plans ?? []) as {
       id: string;
       cohort_id: string;
-      maximum_points: number;
-      plan_bonus_points: number;
+      planned_actions: number;
       finalised_at: string;
     }[];
     if (!planRows.length) return empty;
@@ -394,7 +393,7 @@ export async function getBatchCommitmentWeeklyTrend(
     for (const plan of planRows) {
       const anchor = anchors.get(plan.cohort_id);
       if (!anchor) continue;
-      const plannedActions = plan.maximum_points > 0 ? Math.round(plan.maximum_points / 50) : 0;
+      const plannedActions = plan.planned_actions;
       if (plannedActions <= 0) continue;
 
       const finalisedWeek = weekNumberFor(new Date(plan.finalised_at), anchor);

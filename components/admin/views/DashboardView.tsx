@@ -277,7 +277,6 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                     <tr style={{ background: "var(--color-bg-dark)", color: "var(--white)" }}>
                       <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)" }}>Rank / Name</th>
                       <th className="px-2 py-3 text-xs font-semibold text-center">Commitment score</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center">Points</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -294,9 +293,6 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                         </td>
                         <td className="px-2 py-2.5 text-center">
                           <span className="text-xs font-semibold">{user.commitmentMaximum > 0 ? `${user.commitmentPct}%` : "No plan"}</span>
-                        </td>
-                        <td className="px-2 py-2.5 text-center">
-                          <span className="text-xs font-semibold">{user.commitmentPoints}/{user.commitmentMaximum} pts</span>
                         </td>
                       </tr>
                     ))}
@@ -356,7 +352,9 @@ export function DashboardView({ companyId }: DashboardViewProps) {
           {!emailWebhookConfigured && !emailLoading && (
             <div className="card__inset flex items-start gap-3" style={{ borderColor: "var(--color-warning, #f0bc00)", background: "rgba(255,206,0,0.08)" }}>
               <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: "#f0bc00" }} />
-
+              <p className="text-xs font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                Open &amp; click tracking isn&apos;t configured for this environment yet (missing <code>RESEND_WEBHOOK_SECRET</code>) — the numbers below only reflect emails actually sent, not who opened or clicked them.
+              </p>
             </div>
           )}
 

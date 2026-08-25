@@ -568,8 +568,9 @@ export async function getEmailOpenRates(
     >();
 
     for (const row of emailRows) {
-      const opened = !!row.opened_at;
+      // Click implies open (clients that block pixels often only fire click events).
       const clicked = !!row.clicked_at;
+      const opened = !!row.opened_at || clicked;
       if (row.template_id === "credentials") {
         welcomeSentTotal += 1;
         if (opened) welcomeOpenedTotal += 1;

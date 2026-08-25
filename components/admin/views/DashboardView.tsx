@@ -313,13 +313,13 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                 <table className="w-full text-left border-collapse table-fixed min-w-[880px] text-xs">
                   <thead>
                     <tr style={{ background: "var(--color-bg-dark)", color: "var(--white)" }}>
-                      <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "38%" }}>Rank / Name</th>
-                      {/* <th className="px-2 py-3 text-xs font-semibold text-center">Actions read</th> */}
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Planned actions</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Validated actions</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Pending validation</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Didn&apos;t complete</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12%" }}>Commitment score</th>
+                      <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "34%" }}>Rank / Name</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "11%" }}>Planned actions</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "11%" }}>Actions sent</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "11%" }}>Validated actions</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "11%" }}>Didn&apos;t complete</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "11%" }}>Archived</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "11%" }}>Commitment score</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -334,16 +334,16 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                             <span className="text-xs font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>{user.name}</span>
                           </div>
                         </td>
-                        {/* <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.actionsReadCount > 0 ? "#3699FC" : "var(--color-text-muted)" }}>
-                          {user.actionsReadCount}
-                        </td> */}
                         <td className="px-2 py-2.5 text-center text-blue-600 font-semibold">{user.plannedActions}</td>
-                        <td className="px-2 py-2.5 text-center text-green-600 font-semibold">{user.validatedCount}</td>
-                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.pendingValidationCount > 0 ? "#D97706" : "var(--color-text-muted)" }}>
-                          {user.pendingValidationCount}
+                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.actionsSentCount > 0 ? "var(--color-text-primary)" : "var(--color-text-muted)" }}>
+                          {user.actionsSentCount}
                         </td>
+                        <td className="px-2 py-2.5 text-center text-green-600 font-semibold">{user.validatedCount}</td>
                         <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.notCompletedCount > 0 ? "#EF4444" : "var(--color-text-muted)" }}>
                           {user.notCompletedCount}
+                        </td>
+                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.pendingValidationCount > 0 ? "#D97706" : "var(--color-text-muted)" }}>
+                          {user.pendingValidationCount}
                         </td>
                         <td className="px-2 py-2.5 text-center">
                           <span className="text-xs font-semibold">{user.commitmentMaximum > 0 ? `${user.commitmentPct}%` : "No plan"}</span>

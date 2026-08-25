@@ -490,6 +490,38 @@ export default function ActionsClient() {
   };
   const reminderFirstName = profile.name.trim().split(/\s+/)[0] || "there";
 
+  // One-click "Mark done" links from reminder emails land here already
+  // signed in (via /api/auto-login) with ?completeAction=<actionId>. Settle
+  // it the same way the in-app "I did it" flow does, then show the same
+  // celebration + redirect, so the click needs no further taps.
+  useEffect(() => {
+    if (!ready || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const targetActionId = params.get("completeAction");
+    if (!targetActionId) return;
+    // Strip immediately so a refresh or back-navigation can't replay it.
+    window.history.replaceState({}, "", window.location.pathname);
+    const actionTitle = actionMap.get(targetActionId)?.title ?? "Action completed";
+    void (async () => {
+      const result = await completeAction(targetActionId, true, "");
+      if (!result.error) {
+        try {
+          setArchivedActions(await fetchArchivedActions());
+        } catch {
+          // Non-fatal — the celebration below doesn't depend on this list.
+        }
+        setCelebration({
+          title: actionTitle,
+          pointsDelta: result.pointsDelta,
+          completedLate: result.completedLate,
+        });
+      } else {
+        console.error("Auto-complete from email link failed:", result.error);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
   async function finish(success: boolean) {
     if (!completingId) return;
     const actionTitle =

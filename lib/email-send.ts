@@ -266,6 +266,23 @@ export async function sendTemplateToUsers({
         dynamicTemplateData.app_login_url = appLoginUrl;
       }
 
+      // Give the action reminder a per-action "Mark done" link: it reuses
+      // the same auto-login key as the main CTA, but sends the participant
+      // straight to /actions with ?completeAction=<id> so the app settles
+      // that specific action and shows the usual celebration on arrival —
+      // no extra tap needed once the email link is opened.
+      if (templateKey === "daily_reminder" && key && Array.isArray(dynamicTemplateData.actions)) {
+        dynamicTemplateData.actions = (dynamicTemplateData.actions as Record<string, unknown>[]).map((action) => {
+          const actionId = typeof action.id === "string" ? action.id : undefined;
+          if (!actionId) return action;
+          const completeNext = `/actions?completeAction=${encodeURIComponent(actionId)}`;
+          return {
+            ...action,
+            complete_url: `${normalizedBase}/api/auto-login?key=${encodeURIComponent(key)}&next=${encodeURIComponent(completeNext)}`,
+          };
+        });
+      }
+
       if (isEmailDebugEnabled()) {
         console.log("[email-send] sending template email", {
           userId,

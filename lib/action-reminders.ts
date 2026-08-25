@@ -318,6 +318,7 @@ export async function sendDailyActionReminders(
           ? reminderScheduleLabel(item.sub)
           : undefined,
         actions: (item?.actions ?? []).map((action) => ({
+          id: action.id,
           theme: action.theme,
           title: action.title,
           how: action.how,

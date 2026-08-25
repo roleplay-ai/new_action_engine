@@ -528,10 +528,12 @@ function renderCalendarInviteHtml(data: EmailTemplateData): string {
 // ─── Daily/weekly action reminder ──────────────────────────────────────────
 
 type ReminderAction = {
+  id?: string;
   theme?: string;
   title?: string;
   how?: string;
   timeEstimate?: string;
+  complete_url?: string;
 };
 
 function reminderMetricCellHtml(params: {
@@ -583,6 +585,11 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
         <td valign="top" style="padding:14px 14px 14px 5px;">
           <div style="font-size:13px;line-height:18px;font-weight:650;color:#221D23;">${esc(action.title)}</div>
         </td>
+        ${action.complete_url
+          ? `<td width="98" valign="middle" align="right" style="width:98px;padding:14px 13px 14px 0;">
+          <a href="${esc(action.complete_url)}" target="_blank" style="display:inline-block;padding:9px 13px;background:#23CE68;border-radius:8px;color:#FFFFFF;font-size:11px;line-height:13px;font-weight:800;text-decoration:none;white-space:nowrap;">Mark done</a>
+        </td>`
+          : ""}
       </tr>
     </table>`
         )
@@ -690,7 +697,7 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
 
             <tr>
               <td class="pad" style="padding:8px 34px 2px;font-family:Inter,Arial,sans-serif;">
-                <div style="padding:11px 13px;background:#FFF8D9;border-radius:11px;color:#4F484D;font-size:11px;line-height:16px;"><strong style="color:#221D23;">Done an action?</strong> Open My Actions and mark it complete in one click to update your Commitment Score and add points to your team.</div>
+                <div style="padding:11px 13px;background:#FFF8D9;border-radius:11px;color:#4F484D;font-size:11px;line-height:16px;"><strong style="color:#221D23;">Done an action?</strong> Tap "Mark done" next to it above — one click updates your Commitment Score and adds points to your team.</div>
               </td>
             </tr>
 

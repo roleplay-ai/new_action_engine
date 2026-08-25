@@ -436,6 +436,7 @@ export async function bulkSendUpcomingActionReminders(
               company_logo: reminder.companyLogo ?? undefined,
               reminder_schedule: reminder.scheduleLabel,
               actions: reminder.actions.map((action) => ({
+                id: action.id,
                 theme: action.theme,
                 title: action.title,
                 how: action.how,

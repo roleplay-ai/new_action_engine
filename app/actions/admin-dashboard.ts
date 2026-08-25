@@ -12,7 +12,11 @@
  * Wallet rollup math.
  */
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAdminContext, loadCommitmentWalletByCohort } from "./admin-analytics";
+import {
+  getAdminContext,
+  loadCommitmentWalletByCohort,
+  loadActionsReadByEmail,
+} from "./admin-analytics";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -265,8 +269,10 @@ export interface DashboardLeaderboardEntry {
   commitmentPoints: number;
   commitmentMaximum: number;
   commitmentPct: number;
-  /** True when the member has ≥1 user_action in scope (same as batch "Action readers"). */
-  isActionReader: boolean;
+  plannedActions: number;
+  validatedCount: number;
+  /** Reminder emails opened or clicked (Resend webhook on email_campaign_logs). */
+  actionsReadCount: number;
   /** Auto-expired failures still awaiting confirm — matches Actions "Pending validation". */
   pendingValidationCount: number;
   /** Confirmed fails/skips — matches Actions "Didn't complete". */
@@ -322,7 +328,8 @@ export async function getDashboardLeaderboard(
     else if (cohortIds.length) uaQuery = uaQuery.in("cohort_id", cohortIds);
     const { data: uaRows } = await uaQuery;
 
-    const readers = new Set<string>();
+    const actionsReadByUser = await loadActionsReadByEmail(admin, userIds, cohortIds);
+    const validatedByUser = new Map<string, number>();
     const pendingByUser = new Map<string, number>();
     const notCompletedByUser = new Map<string, number>();
     for (const row of (uaRows ?? []) as {
@@ -330,7 +337,9 @@ export async function getDashboardLeaderboard(
       status: string;
       auto_expired: boolean | null;
     }[]) {
-      readers.add(row.user_id);
+      if (row.status === "success") {
+        validatedByUser.set(row.user_id, (validatedByUser.get(row.user_id) ?? 0) + 1);
+      }
       if (row.status === "failed" && row.auto_expired) {
         pendingByUser.set(row.user_id, (pendingByUser.get(row.user_id) ?? 0) + 1);
       } else if ((row.status === "failed" || row.status === "skipped") && !row.auto_expired) {
@@ -346,7 +355,9 @@ export async function getDashboardLeaderboard(
         commitmentPoints: c?.points ?? 0,
         commitmentMaximum: c?.maximum ?? 0,
         commitmentPct: walletScorePct(c?.plannedActions ?? 0, c?.missedActions ?? 0),
-        isActionReader: readers.has(id),
+        plannedActions: c?.plannedActions ?? 0,
+        validatedCount: validatedByUser.get(id) ?? 0,
+        actionsReadCount: actionsReadByUser.get(id) ?? 0,
         pendingValidationCount: pendingByUser.get(id) ?? 0,
         notCompletedCount: notCompletedByUser.get(id) ?? 0,
       };

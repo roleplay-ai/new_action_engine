@@ -149,6 +149,59 @@ function walletScorePct(plannedActions: number, missedActions: number) {
   return plannedActions > 0 ? Math.round((Math.max(0, plannedActions - missedActions) * 100) / plannedActions) : 0;
 }
 
+/** Per-user count of action-reminder emails that were opened or clicked
+ * (Resend webhook → email_campaign_logs.opened_at / clicked_at). Same open
+ * rule as getEmailOpenRates: a click counts as an open if opened_at was never set.
+ * Includes cohort-attributed sends plus older null-cohort rows for members in scope. */
+export async function loadActionsReadByEmail(
+  admin: ReturnType<typeof createAdminClient>,
+  userIds: string[],
+  cohortIds: string[]
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (!userIds.length || !cohortIds.length) return result;
+
+  const cohortIdSet = new Set(cohortIds);
+  const userIdSet = new Set(userIds);
+
+  const { data: attributedRows } = await admin
+    .from("email_campaign_logs")
+    .select("user_id, cohort_id, created_at, opened_at, clicked_at")
+    .in("cohort_id", cohortIds)
+    .in("user_id", userIds)
+    .eq("template_id", "daily_reminder")
+    .eq("status", "sent");
+
+  const { data: unattributedRows } = await admin
+    .from("email_campaign_logs")
+    .select("user_id, cohort_id, created_at, opened_at, clicked_at")
+    .is("cohort_id", null)
+    .in("user_id", userIds)
+    .eq("template_id", "daily_reminder")
+    .eq("status", "sent");
+
+  const seen = new Set<string>();
+  for (const row of [...(attributedRows ?? []), ...(unattributedRows ?? [])] as {
+    user_id: string | null;
+    cohort_id: string | null;
+    created_at: string;
+    opened_at: string | null;
+    clicked_at: string | null;
+  }[]) {
+    if (!row.user_id || !userIdSet.has(row.user_id)) continue;
+    if (row.cohort_id && !cohortIdSet.has(row.cohort_id)) continue;
+    const key = `${row.user_id}|${row.created_at}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const openedOrClicked = !!row.opened_at || !!row.clicked_at;
+    if (!openedOrClicked) continue;
+    result.set(row.user_id, (result.get(row.user_id) ?? 0) + 1);
+  }
+
+  return result;
+}
+
 /** Get company-scoped analytics. Superadmin must pass companyId. */
 export async function getCompanyAnalytics(companyId?: string): Promise<{
   error?: string;
@@ -891,8 +944,8 @@ export interface CohortMemberEngagement {
   commitmentPct: number;
   plannedActions: number;
   completedOnTimeActions: number;
-  /** True when the member has ≥1 user_action (same definition as batch "Action readers"). */
-  isActionReader: boolean;
+  /** Reminder emails opened or clicked (Resend webhook on email_campaign_logs). */
+  actionsReadCount: number;
   /** Auto-expired failures still awaiting participant confirm — matches Actions "Pending validation". */
   pendingValidationCount: number;
   /** Confirmed fails/skips — matches Actions "Didn't complete". */
@@ -1022,6 +1075,8 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
       }
     }
 
+    const actionsReadByUser = await loadActionsReadByEmail(admin, userIds, [cohortId]);
+
     const summary = summarizeCohortFunnel(
       userIds,
       deliveriesByUser,
@@ -1075,7 +1130,7 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
           commitmentPct: walletScorePct(commitment?.plannedActions ?? 0, commitment?.missedActions ?? 0),
           plannedActions: commitment?.plannedActions ?? 0,
           completedOnTimeActions: commitment?.completedOnTimeActions ?? 0,
-          isActionReader: usersWithAnyAction.has(p.id),
+          actionsReadCount: actionsReadByUser.get(p.id) ?? 0,
           pendingValidationCount: pendingValidationByUser.get(p.id) ?? 0,
           notCompletedCount: notCompletedByUser.get(p.id) ?? 0,
           acceptedCount: acceptedByUser.get(p.id) ?? 0,

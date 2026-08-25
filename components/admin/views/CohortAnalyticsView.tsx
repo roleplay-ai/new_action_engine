@@ -290,7 +290,7 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
               <thead>
                 <tr style={{ background: "var(--color-bg-muted)" }}>
                   <th className="px-3 py-2 font-semibold" style={{ color: "var(--color-text-muted)" }}>Name</th>
-                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Action reader</th>
+                  <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Actions read</th>
                   <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Planned actions</th>
                   <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Validated actions</th>
                   <th className="px-2 py-2 font-semibold text-center" style={{ color: "var(--color-text-muted)" }}>Pending validation</th>
@@ -304,8 +304,8 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
                   return (
                     <tr key={member.id} style={{ borderTop: "1px solid var(--color-border)" }}>
                       <td className="px-3 py-2 font-semibold" style={{ color: "var(--color-text-primary)" }}>{member.name}</td>
-                      <td className="px-2 py-2 text-center font-semibold" style={{ color: member.isActionReader ? "#3699FC" : "var(--color-text-muted)" }}>
-                        {member.isActionReader ? "Yes" : "No"}
+                      <td className="px-2 py-2 text-center font-semibold" style={{ color: member.actionsReadCount > 0 ? "#3699FC" : "var(--color-text-muted)" }}>
+                        {member.actionsReadCount}
                       </td>
                       <td className="px-2 py-2 text-center text-blue-600 font-semibold">{member.plannedActions}</td>
                       <td className="px-2 py-2 text-center text-green-600 font-semibold">{member.validatedCount}</td>

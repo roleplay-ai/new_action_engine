@@ -273,13 +273,13 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                 <table className="w-full text-left border-collapse table-fixed min-w-[880px] text-xs">
                   <thead>
                     <tr style={{ background: "var(--color-bg-dark)", color: "var(--white)" }}>
-                      <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)" }}>Rank / Name</th>
+                      <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "38%" }}>Rank / Name</th>
                       {/* <th className="px-2 py-3 text-xs font-semibold text-center">Actions read</th> */}
-                      <th className="px-2 py-3 text-xs font-semibold text-center">Planned actions</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center">Validated actions</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center">Pending validation</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center">Didn&apos;t complete</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center">Commitment score</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Planned actions</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Validated actions</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Pending validation</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Didn&apos;t complete</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12%" }}>Commitment score</th>
                     </tr>
                   </thead>
                   <tbody>

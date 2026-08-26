@@ -8,7 +8,7 @@ import {
   MailPlus,
 } from "lucide-react";
 
-type EmailTab = "reminders" | "welcome" | "campaigns" | "history";
+type EmailTab = "reminders" | "welcome" | "recap" | "history";
 
 const TABS = [
   {
@@ -24,9 +24,9 @@ const TABS = [
     icon: MailPlus,
   },
   {
-    id: "campaigns" as const,
-    label: "Campaigns",
-    description: "Reusable schedules",
+    id: "recap" as const,
+    label: "Friday recap",
+    description: "Week-end catch-up emails",
     icon: CalendarClock,
   },
   {
@@ -40,12 +40,12 @@ const TABS = [
 export default function EmailManagementTabs({
   reminders,
   welcome,
-  campaigns,
+  recap,
   history,
 }: {
   reminders: ReactNode;
   welcome: ReactNode;
-  campaigns: ReactNode;
+  recap: ReactNode;
   history: ReactNode;
 }) {
   const [activeTab, setActiveTab] = useState<EmailTab>("reminders");
@@ -55,7 +55,7 @@ export default function EmailManagementTabs({
   const panels: Record<EmailTab, ReactNode> = {
     reminders,
     welcome,
-    campaigns,
+    recap,
     history,
   };
 

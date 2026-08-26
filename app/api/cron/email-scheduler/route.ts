@@ -19,6 +19,9 @@ import { sendDailyActionReminders } from "@/lib/action-reminders";
  * action-reminder emails on each participant's chosen day at the fixed cron time
  * (see lib/action-reminders.ts) — a separate concept from email_schedules,
  * which is admin-configured broadcasts to explicitly chosen recipients.
+ * The Friday week-recap email (all still-unvalidated actions + a bulk
+ * "I completed all" link) runs on its own cron path and schedule — see
+ * app/api/cron/weekly-recap/route.ts and vercel.json.
  *
  * Auth: checks Authorization: Bearer <CRON_SECRET> header (set by Vercel
  * automatically when CRON_SECRET env var is present) or ?secret= query param

@@ -39,6 +39,15 @@ function LogRow({ log }: { log: ActionReminderLog }) {
           )}
           <span
             className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+              log.kind === "recap"
+                ? "bg-violet-100 text-violet-800"
+                : "bg-sky-100 text-sky-800"
+            }`}
+          >
+            {log.kind === "recap" ? "Friday recap" : "Daily/weekly"}
+          </span>
+          <span
+            className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
               log.status === "sent"
                 ? "bg-emerald-100 text-emerald-800"
                 : "bg-red-100 text-red-800"
@@ -124,6 +133,8 @@ export default function ActionReminderLogsPanel({
 
   const sentCount = logs.filter((l) => l.status === "sent").length;
   const failedCount = logs.filter((l) => l.status === "failed").length;
+  const reminderCount = logs.filter((l) => l.kind !== "recap").length;
+  const recapCount = logs.filter((l) => l.kind === "recap").length;
 
   return (
     <div className="border-4 border-black rounded-2xl overflow-hidden bg-amber-50 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
@@ -153,7 +164,8 @@ export default function ActionReminderLogsPanel({
         <div className="border-t-2 border-black">
           <div className="px-4 py-2 bg-amber-100 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2">
             <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">
-              Runs daily at 11:30 AM IST · daily plans send Monday–Friday; weekly plans send on the selected day
+              Daily/weekly reminders at 11:30 AM IST + Friday recap at 4:00 PM IST · showing all {logs.length} logged send{logs.length === 1 ? "" : "s"}
+              {logs.length > 0 ? ` (${reminderCount} reminder${reminderCount === 1 ? "" : "s"}, ${recapCount} recap${recapCount === 1 ? "" : "s"})` : ""}
             </p>
             <button
               type="button"

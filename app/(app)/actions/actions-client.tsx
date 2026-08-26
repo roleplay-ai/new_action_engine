@@ -490,6 +490,77 @@ export default function ActionsClient() {
   };
   const reminderFirstName = profile.name.trim().split(/\s+/)[0] || "there";
 
+  // One-click "Mark done" links from reminder emails land here already
+  // signed in (via /api/auto-login) with ?completeAction=<actionId>. Settle
+  // it the same way the in-app "I did it" flow does, then show the same
+  // celebration + redirect, so the click needs no further taps.
+  //
+  // The Friday recap's "I completed all" button instead lands with
+  // ?completeActions=<id1,id2,...> — every action still open for the week in
+  // one link — so this settles each one in turn and shows a single combined
+  // celebration for the batch.
+  useEffect(() => {
+    if (!ready || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const targetActionId = params.get("completeAction");
+    const targetActionIds = params.get("completeActions");
+    if (!targetActionId && !targetActionIds) return;
+    // Strip immediately so a refresh or back-navigation can't replay it.
+    window.history.replaceState({}, "", window.location.pathname);
+
+    if (targetActionIds) {
+      const ids = [...new Set(targetActionIds.split(",").map((id) => id.trim()).filter(Boolean))];
+      if (!ids.length) return;
+      void (async () => {
+        let completedCount = 0;
+        let pointsTotal = 0;
+        let anyLate = false;
+        for (const id of ids) {
+          const result = await completeAction(id, true, "");
+          if (!result.error) {
+            completedCount += 1;
+            pointsTotal += result.pointsDelta ?? 0;
+            if (result.completedLate) anyLate = true;
+          } else {
+            console.error("Bulk auto-complete from email link failed:", id, result.error);
+          }
+        }
+        if (completedCount === 0) return;
+        try {
+          setArchivedActions(await fetchArchivedActions());
+        } catch {
+          // Non-fatal — the celebration below doesn't depend on this list.
+        }
+        setCelebration({
+          title: completedCount === 1 ? "Action completed" : `${completedCount} actions completed!`,
+          pointsDelta: pointsTotal,
+          completedLate: anyLate,
+        });
+      })();
+      return;
+    }
+
+    const actionTitle = actionMap.get(targetActionId!)?.title ?? "Action completed";
+    void (async () => {
+      const result = await completeAction(targetActionId!, true, "");
+      if (!result.error) {
+        try {
+          setArchivedActions(await fetchArchivedActions());
+        } catch {
+          // Non-fatal — the celebration below doesn't depend on this list.
+        }
+        setCelebration({
+          title: actionTitle,
+          pointsDelta: result.pointsDelta,
+          completedLate: result.completedLate,
+        });
+      } else {
+        console.error("Auto-complete from email link failed:", result.error);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
   async function finish(success: boolean) {
     if (!completingId) return;
     const actionTitle =

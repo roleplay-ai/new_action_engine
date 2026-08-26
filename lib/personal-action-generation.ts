@@ -396,9 +396,10 @@ export async function getDueSubscriptions(nowIso: string): Promise<PersonalActio
  * the background (see app/api/generate-actions-batch/route.ts); this just
  * paces how many of those already-generated actions are active at once, so
  * completing one doesn't pull in a replacement until the next delivery.
- * Only advances next_delivery_at when something was actually assigned, so a
- * pool that's temporarily empty (background generation still catching up)
- * retries next cycle instead of silently skipping ahead.
+ *
+ * Before releasing the new batch, any still-scheduled Current actions are
+ * retired to Pending validation — they stay current until this delivery, not
+ * merely until their assigned IST date passes.
  */
 export async function assignScheduledBatch(
   sub: Pick<PersonalActionSubscriptionRow, "id" | "user_id" | "cohort_id" | "track" | "day_of_week" | "days_of_week" | "daily_action_count" | "time_of_day_utc" | "next_delivery_at">,
@@ -412,7 +413,8 @@ export async function assignScheduledBatch(
   const batchSize = sub.track === "daily" ? 1 : sub.daily_action_count ?? DEFAULT_BATCH_SIZE;
 
   // Older daily subscriptions can still contain the previous seven-day
-  // cadence. Never release an action batch on Saturday or Sunday.
+  // cadence. Never release an action batch on Saturday or Sunday — keep the
+  // current actions in place until the next weekday delivery.
   if (
     sub.track === "daily"
     && !DAILY_DELIVERY_DAYS.includes(
@@ -432,6 +434,14 @@ export async function assignScheduledBatch(
       .eq("id", sub.id);
     return { assigned: 0 };
   }
+
+  // Retire unfinished Current actions → Pending validation, then free the
+  // slots for this cycle's batch. No-op on the first delivery.
+  const { data: expiredCount } = await admin.rpc("expire_scheduled_actions_for_delivery", {
+    p_user_id: sub.user_id,
+    p_cohort_id: sub.cohort_id,
+  });
+  const retiredCurrent = typeof expiredCount === "number" ? expiredCount : 0;
 
   const [{ data: candidateActions }, { data: existingUA }] = await Promise.all([
     admin
@@ -455,52 +465,48 @@ export async function assignScheduledBatch(
   const unassigned = (candidateActions ?? []).filter((a) => !assignedIds.has(a.id));
   const batch = unassigned.slice(0, slotsAvailable);
 
-  // An unfinished batch remains current; do not stack another full batch on
-  // top of it. Advance the cadence and keep all remaining actions in backlog.
-  if (slotsAvailable === 0) {
-    await admin
-      .from("personal_action_subscriptions")
-      .update({
-        next_delivery_at: options?.advanceCadence === false
-          ? sub.next_delivery_at
-          : advanceNextDeliveryAt(
-            sub.next_delivery_at,
-            sub.track,
-            sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
-            sub.time_of_day_utc
-          ),
-        updated_at: nowIso,
-      })
-      .eq("id", sub.id);
+  const nextDeliveryAt = options?.advanceCadence === false
+    ? sub.next_delivery_at
+    : advanceNextDeliveryAt(
+      sub.next_delivery_at,
+      sub.track,
+      sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
+      sub.time_of_day_utc
+    );
+
+  // Empty backlog (generation still catching up, or plan fully released).
+  // Only advance when we actually retired Current actions — otherwise leave
+  // next_delivery_at due so the next cron/sync retries.
+  if (batch.length === 0) {
+    if (retiredCurrent > 0 && options?.advanceCadence !== false) {
+      await admin
+        .from("personal_action_subscriptions")
+        .update({
+          next_delivery_at: nextDeliveryAt,
+          updated_at: nowIso,
+        })
+        .eq("id", sub.id);
+    }
     return { assigned: 0 };
   }
 
-  if (batch.length) {
-    const rows = batch.map((a) => ({
-      user_id: sub.user_id,
-      action_id: a.id,
-      cohort_id: sub.cohort_id,
-      status: "scheduled",
-      scheduled_at: nowIso,
-    }));
-    await admin.from("user_actions").insert(rows);
+  const rows = batch.map((a) => ({
+    user_id: sub.user_id,
+    action_id: a.id,
+    cohort_id: sub.cohort_id,
+    status: "scheduled",
+    scheduled_at: nowIso,
+  }));
+  await admin.from("user_actions").insert(rows);
 
-    await admin
-      .from("personal_action_subscriptions")
-      .update({
-        last_delivered_at: nowIso,
-        next_delivery_at: options?.advanceCadence === false
-          ? sub.next_delivery_at
-          : advanceNextDeliveryAt(
-            sub.next_delivery_at,
-            sub.track,
-            sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null),
-            sub.time_of_day_utc
-          ),
-        updated_at: nowIso,
-      })
-      .eq("id", sub.id);
-  }
+  await admin
+    .from("personal_action_subscriptions")
+    .update({
+      last_delivered_at: nowIso,
+      next_delivery_at: nextDeliveryAt,
+      updated_at: nowIso,
+    })
+    .eq("id", sub.id);
 
   return { assigned: batch.length };
 }

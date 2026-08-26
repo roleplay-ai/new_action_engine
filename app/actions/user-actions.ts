@@ -454,8 +454,8 @@ export async function completeAction(params: {
     .eq("action_id", actionId)
     .maybeSingle();
 
-  // An action the daily scheduler auto-failed (date passed, no check-in) is
-  // "pending validation", not a real miss the participant chose. Marking it
+  // An action retired when the next batch arrived (unfinished Current →
+  // "pending validation"), not a real miss the participant chose. Marking it
   // done there validates it: unlike an ordinary late completion, this
   // restores the commitment share and awards its points to the Team Action
   // Bank, so it needs the dedicated RPC instead of the normal settlement one.

@@ -42,47 +42,25 @@ export async function GET(request: Request) {
   const nowIso = now.toISOString();
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
 
-  // Settle yesterday's still-open Wallet actions before releasing a new batch.
-  const { data: expiredWalletActions, error: walletExpiryError } = await admin.rpc(
-    "expire_overdue_commitment_wallet_actions"
-  );
-  if (walletExpiryError) {
-    return NextResponse.json(
-      { error: `Commitment Wallet expiry failed: ${walletExpiryError.message}` },
-      { status: 500 }
-    );
-  }
-
-  // Record yesterday's now-final Commitment Score for every finalised Wallet
-  // plan, so the buddy card can compare it against today's live score. Must
-  // run after the expiry sweep above (so yesterday's actions are settled)
-  // and is non-fatal — a snapshot failure shouldn't block today's delivery.
-  const { error: scoreSnapshotError } = await admin.rpc("snapshot_commitment_wallet_scores");
-  if (scoreSnapshotError) {
-    console.error("[email-scheduler] failed to snapshot commitment wallet scores", {
-      error: scoreSnapshotError.message,
-    });
-  }
-
   // ── Personal action delivery (in-app, no email required) ───────────────────
-  // Close yesterday's unsettled actions before releasing today's action. The
-  // completion RPC also checks the IST date, so scoring stays correct between
-  // midnight and this daily cron run.
-  const { data: expiredResult, error: expireError } = await admin.rpc(
-    "expire_overdue_personal_actions"
-  );
-  if (expireError) {
-    console.error("[email-scheduler] failed to expire overdue personal actions", {
-      error: expireError.message,
-    });
-  }
-  const actionsExpired = typeof expiredResult === "number" ? expiredResult : 0;
-
+  // assignScheduledBatch retires still-scheduled Current actions into Pending
+  // validation, then releases the next batch. Actions stay in Current until
+  // that replacement happens — not merely until their assigned IST date passes.
   const dueSubscriptions = await getDueSubscriptions(nowIso);
   let subscriptionsDelivered = 0;
   for (const sub of dueSubscriptions) {
     const { assigned } = await assignScheduledBatch(sub);
     if (assigned > 0) subscriptionsDelivered += 1;
+  }
+
+  // Record the post-delivery Commitment Score so the buddy card can compare
+  // it against tomorrow's live score. Non-fatal — a snapshot failure shouldn't
+  // block reminders / email schedules below.
+  const { error: scoreSnapshotError } = await admin.rpc("snapshot_commitment_wallet_scores");
+  if (scoreSnapshotError) {
+    console.error("[email-scheduler] failed to snapshot commitment wallet scores", {
+      error: scoreSnapshotError.message,
+    });
   }
 
   // ── Email schedules (require Resend) ────────────────────────────────────────
@@ -93,7 +71,6 @@ export async function GET(request: Request) {
       processed: 0,
       results: [],
       subscriptionsDelivered,
-      actionsExpired,
       reminders: {
         sent: 0,
         failed: 0,
@@ -102,7 +79,6 @@ export async function GET(request: Request) {
         skippedDisabled: 0,
         skippedClaimed: 0,
       },
-      expiredWalletActions: expiredWalletActions ?? 0,
     });
   }
   const fromEmail = process.env.RESEND_FROM_EMAIL!;
@@ -228,8 +204,6 @@ export async function GET(request: Request) {
     processed: (schedules ?? []).length,
     results: summary,
     subscriptionsDelivered,
-    actionsExpired,
     reminders: reminderSummary,
-    expiredWalletActions: expiredWalletActions ?? 0,
   });
 }

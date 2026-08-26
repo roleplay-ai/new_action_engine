@@ -153,7 +153,6 @@ export function DashboardView({ companyId }: DashboardViewProps) {
   const emailOpenChartData = emailWeekly.map((e) => ({
     name: `Week ${e.weekNumber}`,
     "Reminder open %": e.reminderOpenRate,
-    "Reminder click %": e.reminderClickRate,
   }));
 
   return (
@@ -314,13 +313,13 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                 <table className="w-full text-left border-collapse table-fixed min-w-[880px] text-xs">
                   <thead>
                     <tr style={{ background: "var(--color-bg-dark)", color: "var(--white)" }}>
-                      <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "38%" }}>Rank / Name</th>
-                      {/* <th className="px-2 py-3 text-xs font-semibold text-center">Actions read</th> */}
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Planned actions</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Validated actions</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Pending validation</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12.5%" }}>Didn&apos;t complete</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "12%" }}>Commitment score</th>
+                      <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "34%" }}>Rank / Name</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "11%" }}>Planned actions</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "11%" }}>Actions sent</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "11%" }}>Validated actions</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "11%" }}>Didn&apos;t complete</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "11%" }}>Archived</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "11%" }}>Commitment score</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -335,16 +334,16 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                             <span className="text-xs font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>{user.name}</span>
                           </div>
                         </td>
-                        {/* <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.actionsReadCount > 0 ? "#3699FC" : "var(--color-text-muted)" }}>
-                          {user.actionsReadCount}
-                        </td> */}
                         <td className="px-2 py-2.5 text-center text-blue-600 font-semibold">{user.plannedActions}</td>
-                        <td className="px-2 py-2.5 text-center text-green-600 font-semibold">{user.validatedCount}</td>
-                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.pendingValidationCount > 0 ? "#D97706" : "var(--color-text-muted)" }}>
-                          {user.pendingValidationCount}
+                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.actionsSentCount > 0 ? "var(--color-text-primary)" : "var(--color-text-muted)" }}>
+                          {user.actionsSentCount}
                         </td>
+                        <td className="px-2 py-2.5 text-center text-green-600 font-semibold">{user.validatedCount}</td>
                         <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.notCompletedCount > 0 ? "#EF4444" : "var(--color-text-muted)" }}>
                           {user.notCompletedCount}
+                        </td>
+                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.pendingValidationCount > 0 ? "#D97706" : "var(--color-text-muted)" }}>
+                          {user.pendingValidationCount}
                         </td>
                         <td className="px-2 py-2.5 text-center">
                           <span className="text-xs font-semibold">{user.commitmentMaximum > 0 ? `${user.commitmentPct}%` : "No plan"}</span>
@@ -397,28 +396,25 @@ export function DashboardView({ companyId }: DashboardViewProps) {
           </div>
         </div>
 
-        {/* Email Engagement: opens + clicks */}
+        {/* Email Engagement: open rate */}
         <div className="space-y-3">
           <div className="flex justify-between items-center">
             <h4 className="text-sm font-semibold" style={{ color: "var(--color-text-secondary)" }}>
               Email Engagement
             </h4>
-            <span className="tag tag--yellow">Reminder Emails · Opens &amp; Clicks</span>
+            <span className="tag tag--yellow">Reminder Emails · Open Rate</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: "Reminder — open rate", value: emailReminderTotals?.openRate, sub: emailReminderTotals ? `${emailReminderTotals.opened} opened of ${emailReminderTotals.sent} sent` : "No sends yet", color: "#23CE6B" },
-              { label: "Reminder — click rate", value: emailReminderTotals?.clickRate, sub: emailReminderTotals ? `${emailReminderTotals.clicked} clicked of ${emailReminderTotals.sent} sent` : "No sends yet", color: "#F97316" },
-            ].map((card) => (
-              <div key={card.label} className="bg-white rounded-xl p-4 flex flex-col gap-2" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
-                <span className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>{card.label}</span>
-                <span className="text-2xl font-bold leading-none" style={{ color: card.color }}>
-                  {emailLoading ? "…" : `${card.value ?? 0}%`}
-                </span>
-                <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>{card.sub}</span>
-              </div>
-            ))}
+          <div className="bg-white rounded-xl p-4 flex flex-col gap-2 max-w-sm" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
+            <span className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Reminder — open rate</span>
+            <span className="text-2xl font-bold leading-none" style={{ color: "#23CE6B" }}>
+              {emailLoading ? "…" : `${emailReminderTotals?.openRate ?? 0}%`}
+            </span>
+            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+              {emailReminderTotals
+                ? `${emailReminderTotals.opened} opened of ${emailReminderTotals.sent} sent`
+                : "No sends yet"}
+            </span>
           </div>
 
           <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 320 }}>
@@ -431,14 +427,11 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                 <ReBarChart data={emailOpenChartData} margin={{ top: 32, right: 12, left: 8, bottom: 28 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                   <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -16, fontSize: 11 }} />
-                  <YAxis domain={[0, 110]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Rate %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
+                  <YAxis domain={[0, 110]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Open rate %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
                   <Tooltip contentStyle={tooltipStyle} />
                   <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 8 }} />
                   <Bar dataKey="Reminder open %" fill="#23CE6B" radius={[6, 6, 0, 0]}>
                     <LabelList dataKey="Reminder open %" position="top" style={barLabelStyle} formatter={barLabel} />
-                  </Bar>
-                  <Bar dataKey="Reminder click %" fill="#F97316" radius={[6, 6, 0, 0]}>
-                    <LabelList dataKey="Reminder click %" position="top" style={barLabelStyle} formatter={barLabel} />
                   </Bar>
                 </ReBarChart>
               </ResponsiveContainer>

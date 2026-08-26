@@ -283,6 +283,20 @@ export async function sendTemplateToUsers({
         });
       }
 
+      // The Friday week recap has no per-action links — instead it gets one
+      // "I completed all" button that bulk-completes every listed action in
+      // a single click, via the same auto-login mechanism as the daily
+      // reminder's per-action Mark done link.
+      if (templateKey === "weekly_recap" && key && Array.isArray(dynamicTemplateData.actions)) {
+        const actionIds = (dynamicTemplateData.actions as Record<string, unknown>[])
+          .map((action) => (typeof action.id === "string" ? action.id : undefined))
+          .filter((id): id is string => Boolean(id));
+        if (actionIds.length) {
+          const completeAllNext = `/actions?completeActions=${encodeURIComponent(actionIds.join(","))}`;
+          dynamicTemplateData.complete_all_url = `${normalizedBase}/api/auto-login?key=${encodeURIComponent(key)}&next=${encodeURIComponent(completeAllNext)}`;
+        }
+      }
+
       if (isEmailDebugEnabled()) {
         console.log("[email-send] sending template email", {
           userId,

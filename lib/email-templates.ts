@@ -738,6 +738,158 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
 </html>`;
 }
 
+// ─── Friday week recap (bulk "I completed all") ────────────────────────────
+
+function renderWeeklyRecapHtml(data: EmailTemplateData): string {
+  const firstName = str(data, "first_name", "there");
+  const loginUrl = str(data, "login_url", "#");
+  const completeAllUrl = str(data, "complete_all_url");
+  const actions = Array.isArray(data.actions) ? (data.actions as ReminderAction[]) : [];
+  const count = actions.length;
+
+  const hasFinalisedPlan = data.has_finalised_plan === true;
+  const commitmentScore = typeof data.commitment_score === "number" ? data.commitment_score : null;
+  const buddyName = typeof data.buddy_name === "string" && data.buddy_name.trim() ? data.buddy_name.trim() : null;
+  const buddyScore = typeof data.buddy_score === "number" ? data.buddy_score : null;
+  const teamRank = typeof data.team_rank === "number" ? data.team_rank : null;
+  const teamSize = typeof data.team_size === "number" ? data.team_size : null;
+
+  const actionsHtml = actions.length
+    ? actions
+        .map(
+          (action) => `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFDF8;border:1px solid #E6DDC7;border-radius:13px;margin:0 0 9px;">
+      <tr>
+        <td width="54" valign="top" style="width:54px;padding:15px 0 15px 13px;"><div style="width:31px;height:31px;border-radius:10px;background:#FFCE00;color:#221D23;text-align:center;font-size:16px;line-height:31px;font-weight:900;">&#8594;</div></td>
+        <td valign="top" style="padding:14px 14px 14px 5px;">
+          <div style="font-size:13px;line-height:18px;font-weight:650;color:#221D23;">${esc(action.title)}</div>
+        </td>
+      </tr>
+    </table>`
+        )
+        .join("")
+    : `<p style="margin:0;padding:18px;border-radius:13px;background:#FFFDF8;border:1px solid #E6DDC7;color:#5f5860;font-size:13px;line-height:1.5;">Nothing pending right now — nice work staying on top of it.</p>`;
+
+  const preheader = `${count} action${count === 1 ? "" : "s"} still open from this week.`;
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Your Friday recap</title>
+    <style>
+      body { margin: 0; padding: 0; background: #F6F2E6; }
+      table { border-spacing: 0; }
+      td { padding: 0; }
+      a { color: inherit; }
+
+      @media only screen and (max-width: 620px) {
+        .shell { width: 100% !important; }
+        .pad { padding-left: 20px !important; padding-right: 20px !important; }
+        .headline { font-size: 29px !important; line-height: 31px !important; }
+        .metric-cell { display: block !important; width: 100% !important; padding: 0 0 8px !important; }
+        .metric-inner { min-height: 0 !important; }
+        .cta { width: 100% !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(preheader)}</div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#F6F2E6;">
+      <tr>
+        <td align="center" style="padding:18px 8px 30px;">
+          <table role="presentation" class="shell" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#FFFFFF;border-top:3px solid #FFCE00;border-left:1px solid #E8DFC6;border-right:1px solid #E8DFC6;border-bottom:1px solid #E8DFC6;">
+
+            <tr>
+              <td class="pad" style="padding:30px 34px 28px;background:#221D23;color:#FFFFFF;font-family:Inter,Arial,sans-serif;">
+                ${heroTopRowHtml(`<div style="display:inline-block;padding:6px 10px;border:1px solid #756510;border-radius:18px;color:#FFCE00;font-size:9px;line-height:10px;font-weight:800;letter-spacing:1.15px;text-transform:uppercase;">Your Friday recap</div>`, data)}
+                <div class="headline" style="margin-top:16px;font-size:34px;line-height:36px;font-weight:800;letter-spacing:-1.25px;">${count} action${count === 1 ? "" : "s"} still<br /><span style="color:#FFCE00;">open this week.</span></div>
+                <div style="margin-top:12px;color:#E2DEE1;font-size:13px;line-height:19px;">Hey ${esc(firstName)}, here's everything from this week you haven't marked done yet.</div>
+              </td>
+            </tr>
+
+            ${completeAllUrl && count > 0
+              ? `<tr>
+              <td class="pad" align="center" style="padding:22px 34px 4px;font-family:Inter,Arial,sans-serif;">
+                <table role="presentation" class="cta" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr><td align="center" style="background:#23CE68;border:2px solid #221D23;border-radius:10px;box-shadow:3px 3px 0 #221D23;"><a href="${esc(completeAllUrl)}" target="_blank" style="display:block;padding:15px 34px;color:#FFFFFF;text-decoration:none;font-size:13px;line-height:16px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;">I completed all</a></td></tr>
+                </table>
+                <div style="margin-top:9px;color:#8B8489;font-size:10px;line-height:14px;">One click marks every action below as done.</div>
+              </td>
+            </tr>`
+              : ""}
+
+            <tr>
+              <td class="pad" style="padding:22px 34px 4px;font-family:Inter,Arial,sans-serif;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    ${reminderMetricCellHtml({
+                      bg: "#FFF8D9", border: "#F0DF9A", iconBg: "#FFCE00", iconColor: "#221D23", icon: "&#10003;",
+                      value: hasFinalisedPlan && commitmentScore !== null ? `${Math.round(commitmentScore)}%` : "&mdash;",
+                      label: "Your Commitment Score",
+                      padStyle: "padding-right:5px;",
+                    })}
+                    ${reminderMetricCellHtml({
+                      bg: "#F1ECFF", border: "#DDD2FF", iconBg: "#F68A29", iconColor: "#221D23", icon: "&#8596;",
+                      value: buddyName && buddyScore !== null ? `${Math.round(buddyScore)}%` : "&mdash;",
+                      label: buddyName ? `${esc(buddyName)} &middot; Your Buddy` : "No buddy yet",
+                      padStyle: "padding-left:3px;padding-right:3px;",
+                    })}
+                    ${reminderMetricCellHtml({
+                      bg: "#EAF5FF", border: "#CDE7FF", iconBg: "#3696FC", iconColor: "#FFFFFF", icon: "&#9733;",
+                      value: teamRank !== null && teamSize !== null
+                        ? `${teamRank}<span style="font-size:12px;font-weight:700;color:#716A70;letter-spacing:0;"> / ${teamSize}</span>`
+                        : "&mdash;",
+                      label: "Team Contribution Rank",
+                      padStyle: "padding-left:5px;",
+                    })}
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" style="padding:22px 34px 9px;font-family:Inter,Arial,sans-serif;">
+                <div style="font-size:17px;line-height:21px;font-weight:800;color:#221D23;">Still open</div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" style="padding:0 34px 9px;font-family:Inter,Arial,sans-serif;">
+                ${actionsHtml}
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" style="padding:8px 34px 2px;font-family:Inter,Arial,sans-serif;">
+                <div style="padding:11px 13px;background:#FFF8D9;border-radius:11px;color:#4F484D;font-size:11px;line-height:16px;"><strong style="color:#221D23;">Only did some of these?</strong> Open My Actions and mark each one individually instead of using the button above.</div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" align="center" style="padding:14px 34px 24px;font-family:Inter,Arial,sans-serif;">
+                <table role="presentation" class="cta" cellpadding="0" cellspacing="0" border="0">
+                  <tr><td align="center" style="background:#FFCE00;border:2px solid #221D23;border-radius:10px;box-shadow:3px 3px 0 #221D23;"><a href="${esc(loginUrl)}" target="_blank" style="display:block;padding:13px 34px;color:#221D23;text-decoration:none;font-size:12px;line-height:16px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;">Open My Actions</a></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="pad" style="padding:0 34px 22px;font-family:Inter,Arial,sans-serif;text-align:center;">
+                <div style="padding-top:15px;border-top:1px solid #ECE7E0;color:#8B8489;font-size:10px;line-height:15px;">Powered by <a href="https://www.nudgeable.ai" style="color:#623CEA;text-decoration:none;font-weight:700;">Nudgeable.ai</a></div>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
 // ─── Cohort announcement ────────────────────────────────────────────────────
 
 function renderAnnouncementHtml(data: EmailTemplateData): string {
@@ -859,6 +1011,14 @@ export const EMAIL_TEMPLATES = {
       return `Your actions are ready${parts.length ? ` — ${parts.join(" — ")}` : ""}`;
     },
     render: renderDailyReminderHtml,
+  },
+  weekly_recap: {
+    label: "Friday Week Recap",
+    subject: (data: EmailTemplateData) => {
+      const count = Array.isArray(data.actions) ? data.actions.length : 0;
+      return `${count} action${count === 1 ? "" : "s"} still open this week`;
+    },
+    render: renderWeeklyRecapHtml,
   },
   announcement: {
     label: "Batch Announcement",

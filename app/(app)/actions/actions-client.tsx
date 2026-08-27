@@ -327,9 +327,9 @@ function ReminderEmailPreview({
             <strong>{action.title}</strong>
           </article>
 
-          <div className="actions-reminder-email-tip"><strong>Done an action?</strong> Open My Actions and mark it complete in one click to update your Commitment Score and add points to your team.</div>
+          <div className="actions-reminder-email-tip"><strong>Done an action?</strong> Tap &quot;Mark done&quot; next to it above — one click updates your Commitment Score and adds points to your team.</div>
 
-          <span className="actions-reminder-email-button">Open My Actions</span>
+          <p className="actions-reminder-email-login">Prefer to review them in the app? <span>Log in to update each action individually.</span></p>
 
           <div className="actions-reminder-email-reward">
             <i aria-hidden="true">{nextMilestone ? nextMilestone.icon : teamMaximumPoints === 0 ? "⏳" : "🎉"}</i>

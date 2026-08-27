@@ -4623,6 +4623,15 @@ input[type="range"] {
   text-transform: uppercase;
 }
 
+.page-loader__sublabel {
+  margin: -8px 0 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
 @media (max-width: 940px) {
   .page-loader--main {
     left: 0;
@@ -16369,21 +16378,17 @@ textarea.commitment-buddy-contact-selectable {
   color: var(--journey-ink);
 }
 
-.actions-reminder-email-button {
-  min-height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 8px;
-  border: 1.5px solid var(--journey-ink);
-  border-radius: 7px;
-  color: var(--journey-ink);
-  background: var(--journey-yellow);
-  font-size: 7px;
-  font-weight: 950;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  box-shadow: 2px 2px 0 var(--journey-ink);
+.actions-reminder-email-login {
+  margin: 0 0 10px;
+  color: #4b474c;
+  font-size: 8px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.actions-reminder-email-login span {
+  color: #2563eb;
+  text-decoration: underline;
 }
 
 .actions-reminder-email-reward {

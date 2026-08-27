@@ -3,6 +3,8 @@ import React from "react";
 type PageLoaderProps = {
   /** Optional status text under the scan row */
   label?: string;
+  /** Optional second line under the label — lighter weight, for a short explanatory note (e.g. an expected wait time) */
+  sublabel?: string;
   /**
    * Where the overlay sits:
    * - main: participant content area (keeps sidebar clear)
@@ -172,7 +174,7 @@ function WalletBucketLoader() {
  * the visible area so tab switches don't push the centerpiece into the
  * wrong place.
  */
-export default function PageLoader({ label, variant = "fullscreen", theme = "default" }: PageLoaderProps) {
+export default function PageLoader({ label, sublabel, variant = "fullscreen", theme = "default" }: PageLoaderProps) {
   const resolvedLabel = label ?? (theme === "wallet" ? "Transferring to your Commitment Points" : undefined);
   return (
     <div
@@ -184,7 +186,8 @@ export default function PageLoader({ label, variant = "fullscreen", theme = "def
       <div className="page-loader__content">
         {theme === "wallet" ? <WalletBucketLoader /> : <SearchScanLoader />}
         {resolvedLabel ? <p className="page-loader__label">{resolvedLabel}</p> : null}
-        <span className="sr-only">{resolvedLabel || "Loading"}</span>
+        {sublabel ? <p className="page-loader__sublabel">{sublabel}</p> : null}
+        <span className="sr-only">{[resolvedLabel, sublabel].filter(Boolean).join(" — ") || "Loading"}</span>
       </div>
     </div>
   );

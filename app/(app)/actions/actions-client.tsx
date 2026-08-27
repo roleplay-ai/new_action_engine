@@ -19,6 +19,7 @@ import { getMyCommitmentWallet } from "@/app/actions/commitment-wallet";
 import { nextMilestoneFor, milestonePoints } from "@/lib/commitment-wallet-milestones";
 import { usePageLoading, usePageLoadingControls } from "@/components/PageLoadingProvider";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
+import PageLoader from "@/components/PageLoader";
 
 type Tab = "upcoming" | "completed" | "pending-validation" | "not-completed" | "archived" | "settings";
 type ArchivedActionEntry = {
@@ -293,7 +294,7 @@ function ReminderEmailPreview({
     {expanded && <>
       <div className="actions-reminder-subject">
         <span>Subject</span>
-        <strong>Hi {firstName} — Your next action is ready</strong>
+        <strong>Hi {firstName} — Your actions are ready</strong>
       </div>
 
       <div className="actions-reminder-email">
@@ -327,9 +328,9 @@ function ReminderEmailPreview({
             <strong>{action.title}</strong>
           </article>
 
-          <div className="actions-reminder-email-tip"><strong>Done an action?</strong> Open My Actions and mark it complete in one click to update your Commitment Score and add points to your team.</div>
+          <div className="actions-reminder-email-tip"><strong>Done an action?</strong> Tap &quot;Mark done&quot; next to it above — one click updates your Commitment Score and adds points to your team.</div>
 
-          <span className="actions-reminder-email-button">Open My Actions</span>
+          <p className="actions-reminder-email-login">Prefer to review them in the app? <span>Log in to update each action individually.</span></p>
 
           <div className="actions-reminder-email-reward">
             <i aria-hidden="true">{nextMilestone ? nextMilestone.icon : teamMaximumPoints === 0 ? "⏳" : "🎉"}</i>
@@ -378,6 +379,12 @@ export default function ActionsClient() {
   const [archivedActions, setArchivedActions] = useState<ArchivedActionEntry[]>([]);
   const [archiveReady, setArchiveReady] = useState(false);
   const [ready, setReady] = useState(false);
+  // True while the Friday recap's "I completed all" link is settling every
+  // listed action in sequence (see the completeActions effect below) — that
+  // loop makes one request per action, so it can take several seconds.
+  // Shown as a full-pane overlay so the click doesn't look like it silently
+  // stalled while it works.
+  const [bulkCompleting, setBulkCompleting] = useState(false);
   const [editingUpcomingAction, setEditingUpcomingAction] = useState<ActionCard | null>(null);
   const [editUpcomingForm, setEditUpcomingForm] = useState<{ title: string; how: string; why: string } | null>(null);
   const [savingUpcomingEdit, setSavingUpcomingEdit] = useState(false);
@@ -512,30 +519,35 @@ export default function ActionsClient() {
       const ids = [...new Set(targetActionIds.split(",").map((id) => id.trim()).filter(Boolean))];
       if (!ids.length) return;
       void (async () => {
-        let completedCount = 0;
-        let pointsTotal = 0;
-        let anyLate = false;
-        for (const id of ids) {
-          const result = await completeAction(id, true, "");
-          if (!result.error) {
-            completedCount += 1;
-            pointsTotal += result.pointsDelta ?? 0;
-            if (result.completedLate) anyLate = true;
-          } else {
-            console.error("Bulk auto-complete from email link failed:", id, result.error);
-          }
-        }
-        if (completedCount === 0) return;
+        setBulkCompleting(true);
         try {
-          setArchivedActions(await fetchArchivedActions());
-        } catch {
-          // Non-fatal — the celebration below doesn't depend on this list.
+          let completedCount = 0;
+          let pointsTotal = 0;
+          let anyLate = false;
+          for (const id of ids) {
+            const result = await completeAction(id, true, "");
+            if (!result.error) {
+              completedCount += 1;
+              pointsTotal += result.pointsDelta ?? 0;
+              if (result.completedLate) anyLate = true;
+            } else {
+              console.error("Bulk auto-complete from email link failed:", id, result.error);
+            }
+          }
+          if (completedCount === 0) return;
+          try {
+            setArchivedActions(await fetchArchivedActions());
+          } catch {
+            // Non-fatal — the celebration below doesn't depend on this list.
+          }
+          setCelebration({
+            title: completedCount === 1 ? "Action completed" : `${completedCount} actions completed!`,
+            pointsDelta: pointsTotal,
+            completedLate: anyLate,
+          });
+        } finally {
+          setBulkCompleting(false);
         }
-        setCelebration({
-          title: completedCount === 1 ? "Action completed" : `${completedCount} actions completed!`,
-          pointsDelta: pointsTotal,
-          completedLate: anyLate,
-        });
       })();
       return;
     }
@@ -953,6 +965,14 @@ export default function ActionsClient() {
     {typeof document !== "undefined" && editingUpcomingAction && editUpcomingForm && createPortal(<div className="plan-edit-overlay"><div className="plan-edit-modal"><button className="plan-edit-close" onClick={() => { setEditingUpcomingAction(null); setEditUpcomingForm(null); }}><X size={18} /></button><span className="participant-eyebrow">Edit action</span><h3>Edit your action</h3><label>Action title<input value={editUpcomingForm.title} onChange={(event) => setEditUpcomingForm((current) => current ? { ...current, title: event.target.value } : current)} /></label><div className="plan-edit-how-why"><label><span>How to do it</span><textarea value={editUpcomingForm.how} onChange={(event) => setEditUpcomingForm((current) => current ? { ...current, how: event.target.value } : current)} /></label><label><span>Why it works</span><textarea value={editUpcomingForm.why} onChange={(event) => setEditUpcomingForm((current) => current ? { ...current, why: event.target.value } : current)} /></label></div>{upcomingEditError && <p className="plan-review-error">{upcomingEditError}</p>}<button className="journey-primary-button" disabled={savingUpcomingEdit || !editUpcomingForm.title.trim() || !editUpcomingForm.how.trim() || !editUpcomingForm.why.trim()} onClick={saveUpcomingEdit}>{savingUpcomingEdit ? "Saving…" : "Save"}</button></div></div>, document.body)}
 
     {typeof document !== "undefined" && completingId && createPortal(<div className="actions-checkin-overlay"><div className="actions-checkin-modal"><button onClick={() => { setCompletingId(null); setCompleteError(null); }}><X size={18} /></button><span className="participant-eyebrow">Action check-in</span><h3>How did this action go?</h3><p>Add a short reflection. It helps you notice what worked and what to adjust.</p><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="What happened when you tried it?" />{completeError && <p className="actions-checkin-error" role="alert" style={{ color: "var(--color-danger, #ed4551)", fontSize: "var(--text-sm)" }}>{completeError}</p>}<div><button className="journey-primary-button" disabled={busy} onClick={() => finish(true)}><CheckCircle2 size={16} strokeWidth={2.5} />{busy ? "Saving…" : "Complete action"}</button></div></div></div>, document.body)}
+
+    {bulkCompleting && (
+      <PageLoader
+        variant="main"
+        label="Marking your actions as done"
+        sublabel="This can take 10–15 seconds — please hold on."
+      />
+    )}
 
     {typeof document !== "undefined" && celebration && createPortal(
       <ConfettiCelebration

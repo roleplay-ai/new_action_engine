@@ -4623,6 +4623,15 @@ input[type="range"] {
   text-transform: uppercase;
 }
 
+.page-loader__sublabel {
+  margin: -8px 0 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
 @media (max-width: 940px) {
   .page-loader--main {
     left: 0;

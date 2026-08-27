@@ -1011,17 +1011,19 @@ export const EMAIL_TEMPLATES = {
   daily_reminder: {
     label: "Action Reminder",
     subject: (data: EmailTemplateData) => {
+      const name = str(data, "first_name", "there");
       const parts = [str(data, "company_name"), str(data, "batch_name"), str(data, "module_name")].filter(Boolean);
-      return `Your actions are ready${parts.length ? ` — ${parts.join(" — ")}` : ""}`;
+      return `Hi ${name} — Your actions are ready${parts.length ? ` — ${parts.join(" — ")}` : ""}`;
     },
     render: renderDailyReminderHtml,
   },
   weekly_recap: {
     label: "Friday Week Recap",
     subject: (data: EmailTemplateData) => {
+      const name = str(data, "first_name", "there");
       const count = Array.isArray(data.actions) ? data.actions.length : 0;
-      if (count === 0) return "You're all caught up this week";
-      return `${count} action${count === 1 ? " is" : "s are"} still waiting for your confirmation`;
+      if (count === 0) return `Hi ${name} — You're all caught up this week`;
+      return `Hi ${name} — ${count} action${count === 1 ? " is" : "s are"} still waiting for your confirmation`;
     },
     render: renderWeeklyRecapHtml,
   },

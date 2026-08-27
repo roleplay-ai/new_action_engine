@@ -379,12 +379,14 @@ export default function ActionsClient() {
   const [archivedActions, setArchivedActions] = useState<ArchivedActionEntry[]>([]);
   const [archiveReady, setArchiveReady] = useState(false);
   const [ready, setReady] = useState(false);
-  // True while the Friday recap's "I completed all" link is settling every
-  // listed action in sequence (see the completeActions effect below) — that
-  // loop makes one request per action, so it can take several seconds.
-  // Shown as a full-pane overlay so the click doesn't look like it silently
+  // True while a reminder email's "Mark done" link (single action) or the
+  // Friday recap's "I completed all" link (every listed action, one request
+  // each) is settling in the background — see the completeAction(s) effect
+  // below. Holds the count so the overlay can say "action" vs "actions".
+  // Shown as a full-pane overlay (portaled to <body>, like every other
+  // overlay in this file) so the click doesn't look like it silently
   // stalled while it works.
-  const [bulkCompleting, setBulkCompleting] = useState(false);
+  const [autoCompleting, setAutoCompleting] = useState<{ count: number } | null>(null);
   const [editingUpcomingAction, setEditingUpcomingAction] = useState<ActionCard | null>(null);
   const [editUpcomingForm, setEditUpcomingForm] = useState<{ title: string; how: string; why: string } | null>(null);
   const [savingUpcomingEdit, setSavingUpcomingEdit] = useState(false);
@@ -519,7 +521,7 @@ export default function ActionsClient() {
       const ids = [...new Set(targetActionIds.split(",").map((id) => id.trim()).filter(Boolean))];
       if (!ids.length) return;
       void (async () => {
-        setBulkCompleting(true);
+        setAutoCompleting({ count: ids.length });
         try {
           let completedCount = 0;
           let pointsTotal = 0;
@@ -546,7 +548,7 @@ export default function ActionsClient() {
             completedLate: anyLate,
           });
         } finally {
-          setBulkCompleting(false);
+          setAutoCompleting(null);
         }
       })();
       return;
@@ -554,20 +556,25 @@ export default function ActionsClient() {
 
     const actionTitle = actionMap.get(targetActionId!)?.title ?? "Action completed";
     void (async () => {
-      const result = await completeAction(targetActionId!, true, "");
-      if (!result.error) {
-        try {
-          setArchivedActions(await fetchArchivedActions());
-        } catch {
-          // Non-fatal — the celebration below doesn't depend on this list.
+      setAutoCompleting({ count: 1 });
+      try {
+        const result = await completeAction(targetActionId!, true, "");
+        if (!result.error) {
+          try {
+            setArchivedActions(await fetchArchivedActions());
+          } catch {
+            // Non-fatal — the celebration below doesn't depend on this list.
+          }
+          setCelebration({
+            title: actionTitle,
+            pointsDelta: result.pointsDelta,
+            completedLate: result.completedLate,
+          });
+        } else {
+          console.error("Auto-complete from email link failed:", result.error);
         }
-        setCelebration({
-          title: actionTitle,
-          pointsDelta: result.pointsDelta,
-          completedLate: result.completedLate,
-        });
-      } else {
-        console.error("Auto-complete from email link failed:", result.error);
+      } finally {
+        setAutoCompleting(null);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -966,12 +973,13 @@ export default function ActionsClient() {
 
     {typeof document !== "undefined" && completingId && createPortal(<div className="actions-checkin-overlay"><div className="actions-checkin-modal"><button onClick={() => { setCompletingId(null); setCompleteError(null); }}><X size={18} /></button><span className="participant-eyebrow">Action check-in</span><h3>How did this action go?</h3><p>Add a short reflection. It helps you notice what worked and what to adjust.</p><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="What happened when you tried it?" />{completeError && <p className="actions-checkin-error" role="alert" style={{ color: "var(--color-danger, #ed4551)", fontSize: "var(--text-sm)" }}>{completeError}</p>}<div><button className="journey-primary-button" disabled={busy} onClick={() => finish(true)}><CheckCircle2 size={16} strokeWidth={2.5} />{busy ? "Saving…" : "Complete action"}</button></div></div></div>, document.body)}
 
-    {bulkCompleting && (
+    {typeof document !== "undefined" && autoCompleting && createPortal(
       <PageLoader
         variant="main"
-        label="Marking your actions as done"
+        label={autoCompleting.count === 1 ? "Marking your action as done" : "Marking your actions as done"}
         sublabel="This can take 10–15 seconds — please hold on."
-      />
+      />,
+      document.body,
     )}
 
     {typeof document !== "undefined" && celebration && createPortal(

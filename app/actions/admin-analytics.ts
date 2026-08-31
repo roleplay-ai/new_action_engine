@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveCohortWeekAnchors, weekAnchorFromTimestamp, weekNumberFor } from "@/lib/cohort-week";
+import { elapsedWeekCount, resolveCohortWeekAnchors, sharedWeekAnchor, weekAnchorFromTimestamp, weekNumberFor, weekRangeFields } from "@/lib/cohort-week";
 
 /** Exported so app/actions/admin-dashboard.ts can reuse the same role/company
  * resolution instead of duplicating it — "use server" files may only export
@@ -96,7 +96,9 @@ export async function loadCommitmentWalletByCohort(
   const completedOnTimeByPlan = new Map<string, number>();
   for (const event of eventRows) {
     actionPointsByPlan.set(event.plan_id, (actionPointsByPlan.get(event.plan_id) ?? 0) + (event.points_awarded ?? 0));
-    if (event.event_type === "missed" || event.event_type === "completed_late") {
+    // Score drops only for outstanding misses (Pending validation / Didn't
+    // complete). Late check-ins keep or restore the score.
+    if (event.event_type === "missed") {
       missedByPlan.set(event.plan_id, (missedByPlan.get(event.plan_id) ?? 0) + 1);
     }
     if (event.event_type === "completed_on_time") {
@@ -142,10 +144,11 @@ export async function loadCommitmentWalletByCohort(
 }
 
 /** The real Commitment Score, matching get_my_commitment_wallet()'s formula (see
- * supabase/migrations/046_commitment_wallet_plan_bonus.sql) and what participants see on
- * /wallet: starts at 100% when a plan is finalised and drops as actions are missed —
- * NOT the points-banked/maximum-points ratio (which only climbs and never reflects
- * misses). Mirrors the identical helper in app/actions/admin-dashboard.ts. */
+ * supabase/migrations/073_late_completion_keeps_commitment_score.sql) and what
+ * participants see on /wallet: starts at 100% when a plan is finalised and drops
+ * only for outstanding misses (Pending validation / Didn't complete). Completing
+ * late keeps or restores the score. NOT the points-banked/maximum-points ratio.
+ * Mirrors the identical helper in app/actions/admin-dashboard.ts. */
 function walletScorePct(plannedActions: number, missedActions: number) {
   return plannedActions > 0 ? Math.round((Math.max(0, plannedActions - missedActions) * 100) / plannedActions) : 0;
 }
@@ -637,6 +640,9 @@ export interface WeeklyActionChartEntry {
   pending: number;
   /** Confirmed fails/skips — same as Actions "Didn't complete". */
   didntComplete: number;
+  /** Inclusive IST dates of this week from the first delivery; null when batches differ. */
+  weekStartIst: string | null;
+  weekEndIst: string | null;
 }
 
 /** Empty weekly bucket — shared by company-wide and per-batch chart builders. */
@@ -707,11 +713,7 @@ export async function getWeeklyActionChartData(companyId?: string): Promise<{
         cohortRows.map((c) => c.id)
       );
 
-    const now = new Date();
-    let maxWeek = 1;
-    for (const anchor of anchors.values()) {
-      maxWeek = Math.max(maxWeek, weekNumberFor(now, anchor));
-    }
+    let maxWeek = elapsedWeekCount(anchors.values());
 
     const weeklyBuckets = new Map<number, ReturnType<typeof emptyWeeklyBucket>>();
     for (const row of (uaRows ?? []) as {
@@ -735,6 +737,7 @@ export async function getWeeklyActionChartData(companyId?: string): Promise<{
 
     if (!weeklyBuckets.size) return { entries: [] };
 
+    const displayAnchor = sharedWeekAnchor(anchors.values());
     const entries: WeeklyActionChartEntry[] = [];
     for (let weekNum = 1; weekNum <= maxWeek; weekNum++) {
       const b = weeklyBuckets.get(weekNum) ?? emptyWeeklyBucket();
@@ -745,6 +748,7 @@ export async function getWeeklyActionChartData(companyId?: string): Promise<{
         validated: b.validated,
         pending: b.pending,
         didntComplete: b.didntComplete,
+        ...weekRangeFields(weekNum, displayAnchor),
       });
     }
 
@@ -1103,8 +1107,7 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
     const cohortAnchors = await resolveCohortWeekAnchors(admin, [cohortId]);
     const cohortAnchor =
       cohortAnchors.get(cohortId) ?? weekAnchorFromTimestamp(cohort.created_at);
-    const now = new Date();
-    let maxWeek = weekNumberFor(now, cohortAnchor);
+    let maxWeek = weekNumberFor(new Date(), cohortAnchor);
     const weeklyBuckets = new Map<number, ReturnType<typeof emptyWeeklyBucket>>();
     for (const row of (uaRows ?? []) as {
       status: string;
@@ -1132,6 +1135,7 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
           validated: b.validated,
           pending: b.pending,
           didntComplete: b.didntComplete,
+          ...weekRangeFields(weekNum, cohortAnchor),
         });
       }
     }

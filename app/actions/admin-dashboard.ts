@@ -12,7 +12,7 @@
  * Wallet rollup math.
  */
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveCohortWeekAnchors, weekNumberFor } from "@/lib/cohort-week";
+import { elapsedWeekCount, resolveCohortWeekAnchors, sharedWeekAnchor, weekNumberFor, weekRangeFields } from "@/lib/cohort-week";
 import {
   getAdminContext,
   loadCommitmentWalletByCohort,
@@ -22,9 +22,10 @@ import {
 type Admin = ReturnType<typeof createAdminClient>;
 
 /** The real Commitment Score, matching get_my_commitment_wallet()'s formula (see
- * supabase/migrations/046_commitment_wallet_plan_bonus.sql) and what participants see on
- * /wallet: starts at 100% when a plan is finalised and drops as actions are missed —
- * NOT the points-banked/maximum-points ratio (which only climbs and never reflects misses). */
+ * supabase/migrations/073_late_completion_keeps_commitment_score.sql) and what
+ * participants see on /wallet: starts at 100% when a plan is finalised and drops
+ * only for outstanding misses (Pending validation / Didn't complete). Completing
+ * late keeps or restores the score — NOT the points-banked/maximum-points ratio. */
 function walletScorePct(plannedActions: number, missedActions: number) {
   return plannedActions > 0 ? Math.round((Math.max(0, plannedActions - missedActions) * 100) / plannedActions) : 0;
 }
@@ -97,6 +98,9 @@ export interface ActionWeeklyTrendEntry {
   due: number;
   /** Of those, how many have since been validated (status = 'success'), regardless of when. */
   completed: number;
+  /** Inclusive IST dates of this week from the first delivery; null when batches differ. */
+  weekStartIst: string | null;
+  weekEndIst: string | null;
 }
 
 /** Weekly "due vs. completed" action counts for the batch/module drill-down: for each
@@ -127,12 +131,7 @@ export async function getActionCompletionWeeklyTrend(
       .in("user_id", userIds)
       .not("scheduled_at", "is", null);
 
-    const now = new Date();
-    let maxWeek = 1;
-    for (const id of cohortIds) {
-      const anchor = anchors.get(id);
-      if (anchor) maxWeek = Math.max(maxWeek, weekNumberFor(now, anchor));
-    }
+    const maxWeek = elapsedWeekCount(anchors.values());
 
     const weeklyMap = new Map<number, { due: number; completed: number }>();
     for (const row of (uaRows ?? []) as { cohort_id: string | null; status: string; scheduled_at: string }[]) {
@@ -145,10 +144,16 @@ export async function getActionCompletionWeeklyTrend(
       weeklyMap.set(week, bucket);
     }
 
+    const displayAnchor = sharedWeekAnchor(anchors.values());
     const entries: ActionWeeklyTrendEntry[] = [];
     for (let week = 1; week <= maxWeek; week++) {
       const b = weeklyMap.get(week) ?? { due: 0, completed: 0 };
-      entries.push({ weekNumber: week, due: b.due, completed: b.completed });
+      entries.push({
+        weekNumber: week,
+        due: b.due,
+        completed: b.completed,
+        ...weekRangeFields(week, displayAnchor),
+      });
     }
 
     return { entries };
@@ -179,8 +184,9 @@ const EMPTY_SCORE_BUCKETS: CommitmentScoreBuckets = {
   avgCommitmentPct: null,
 };
 
-/** Buckets end-users by Commitment Score (same 100%-minus-missed-actions formula as /wallet):
- * 90-100, 75-89, 50-74, below 50 — plus a "not started" count for anyone without a finalised plan. */
+/** Buckets end-users by Commitment Score (same formula as /wallet: 100% minus
+ * outstanding misses only): 90-100, 75-89, 50-74, below 50 — plus a "not started"
+ * count for anyone without a finalised plan. */
 export async function getCommitmentScoreBuckets(
   companyId?: string,
   cohortId?: string | null
@@ -353,6 +359,8 @@ export async function getDashboardLeaderboard(
 export interface CommitmentWeeklyTrendEntry {
   weekNumber: number;
   avgCommitmentPct: number;
+  weekStartIst: string | null;
+  weekEndIst: string | null;
 }
 
 /** Average commitment score per week since the first action delivery (cumulative, as of the end of each week),
@@ -400,20 +408,14 @@ export async function getBatchCommitmentWeeklyTrend(
     const eventsByPlan = new Map<string, { missed: boolean; settledAt: string }[]>();
     for (const e of (events ?? []) as { plan_id: string; event_type: string; settled_at: string }[]) {
       const list = eventsByPlan.get(e.plan_id) ?? [];
-      list.push({ missed: e.event_type === "missed" || e.event_type === "completed_late", settledAt: e.settled_at });
+      list.push({ missed: e.event_type === "missed", settledAt: e.settled_at });
       eventsByPlan.set(e.plan_id, list);
     }
 
-    const now = new Date();
-    let maxWeek = 1;
-    for (const id of cohortIds) {
-      const anchor = anchors.get(id);
-      if (anchor) maxWeek = Math.max(maxWeek, weekNumberFor(now, anchor));
-    }
+    const maxWeek = elapsedWeekCount(anchors.values());
 
-    // Same 100%-minus-missed-actions formula as get_my_commitment_wallet() / the /wallet page
-    // (see walletScorePct) — tracked cumulatively per week instead of the points-banked ratio,
-    // which only climbs and never reflects a miss.
+    // Same formula as get_my_commitment_wallet() / the /wallet page (see walletScorePct) —
+    // outstanding misses only, tracked cumulatively per week.
     const weeklySums = new Map<number, { sum: number; count: number }>();
     for (const plan of planRows) {
       const anchor = anchors.get(plan.cohort_id);
@@ -444,10 +446,15 @@ export async function getBatchCommitmentWeeklyTrend(
       }
     }
 
+    const displayAnchor = sharedWeekAnchor(anchors.values());
     const entries: CommitmentWeeklyTrendEntry[] = [];
     for (let week = 1; week <= maxWeek; week++) {
       const s = weeklySums.get(week);
-      entries.push({ weekNumber: week, avgCommitmentPct: s && s.count > 0 ? Math.round(s.sum / s.count) : 0 });
+      entries.push({
+        weekNumber: week,
+        avgCommitmentPct: s && s.count > 0 ? Math.round(s.sum / s.count) : 0,
+        ...weekRangeFields(week, displayAnchor),
+      });
     }
 
     const currentWeekAvg = entries.length ? entries[entries.length - 1].avgCommitmentPct : null;
@@ -472,6 +479,8 @@ export interface EmailOpenWeeklyEntry {
   reminderOpenRate: number;
   reminderClicked: number;
   reminderClickRate: number;
+  weekStartIst: string | null;
+  weekEndIst: string | null;
 }
 
 export interface EmailEngagementTotals {
@@ -636,24 +645,38 @@ export async function getEmailOpenRates(
 
     const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
 
-    const weekly: EmailOpenWeeklyEntry[] = [...weeklyMap.keys()]
-      .sort((a, b) => a - b)
-      .map((week) => {
-        const b = weeklyMap.get(week)!;
-        return {
-          weekNumber: week,
-          welcomeSent: b.welcomeSent,
-          welcomeOpened: b.welcomeOpened,
-          welcomeOpenRate: pct(b.welcomeOpened, b.welcomeSent),
-          welcomeClicked: b.welcomeClicked,
-          welcomeClickRate: pct(b.welcomeClicked, b.welcomeSent),
-          reminderSent: b.reminderSent,
-          reminderOpened: b.reminderOpened,
-          reminderOpenRate: pct(b.reminderOpened, b.reminderSent),
-          reminderClicked: b.reminderClicked,
-          reminderClickRate: pct(b.reminderClicked, b.reminderSent),
-        };
-      });
+    const emptyWeek = () => ({
+      welcomeSent: 0,
+      welcomeOpened: 0,
+      welcomeClicked: 0,
+      reminderSent: 0,
+      reminderOpened: 0,
+      reminderClicked: 0,
+    });
+    const displayAnchor = sharedWeekAnchor(anchors.values());
+    // Same 1..elapsed-week axis as the other dashboard charts, so a new week
+    // is visible even before any reminder has gone out that week.
+    const maxWeek = Math.max(elapsedWeekCount(anchors.values()), ...weeklyMap.keys(), 1);
+    const weekly: EmailOpenWeeklyEntry[] = weeklyMap.size
+      ? Array.from({ length: maxWeek }, (_, i) => {
+          const week = i + 1;
+          const b = weeklyMap.get(week) ?? emptyWeek();
+          return {
+            weekNumber: week,
+            welcomeSent: b.welcomeSent,
+            welcomeOpened: b.welcomeOpened,
+            welcomeOpenRate: pct(b.welcomeOpened, b.welcomeSent),
+            welcomeClicked: b.welcomeClicked,
+            welcomeClickRate: pct(b.welcomeClicked, b.welcomeSent),
+            reminderSent: b.reminderSent,
+            reminderOpened: b.reminderOpened,
+            reminderOpenRate: pct(b.reminderOpened, b.reminderSent),
+            reminderClicked: b.reminderClicked,
+            reminderClickRate: pct(b.reminderClicked, b.reminderSent),
+            ...weekRangeFields(week, displayAnchor),
+          };
+        })
+      : [];
 
     return {
       weekly,

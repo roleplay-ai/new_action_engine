@@ -14,6 +14,7 @@ import {
   LabelList,
 } from "recharts";
 import { useAdminContext } from "@/components/admin/AdminContext";
+import { makeWeekChartTick, weekChartLabelFormatter, weekChartRange } from "@/components/admin/WeekChartTick";
 import {
   getActionCompletionWeeklyTrend,
   getCommitmentScoreBuckets,
@@ -135,6 +136,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
 
   const actionWeeklyChartData = actionWeeklyTrend.map((e) => ({
     name: `Week ${e.weekNumber}`,
+    weekRange: weekChartRange(e.weekStartIst, e.weekEndIst),
     "Actions due": e.due,
     "Actions completed": e.completed,
   }));
@@ -148,10 +150,15 @@ export function DashboardView({ companyId }: DashboardViewProps) {
     ]
     : [];
 
-  const weeklyTrendChartData = weeklyTrend.map((e) => ({ name: `Week ${e.weekNumber}`, "Avg. commitment %": e.avgCommitmentPct }));
+  const weeklyTrendChartData = weeklyTrend.map((e) => ({
+    name: `Week ${e.weekNumber}`,
+    weekRange: weekChartRange(e.weekStartIst, e.weekEndIst),
+    "Avg. commitment %": e.avgCommitmentPct,
+  }));
 
   const emailOpenChartData = emailWeekly.map((e) => ({
     name: `Week ${e.weekNumber}`,
+    weekRange: weekChartRange(e.weekStartIst, e.weekEndIst),
     "Reminder open %": e.reminderOpenRate,
   }));
 
@@ -235,18 +242,24 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               </h4>
               <span className="tag tag--yellow">Actions due vs. completed, per week</span>
             </div>
-            <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 320 }}>
+            <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 336 }}>
               {actionWeeklyLoading ? (
                 emptyState("Loading…")
               ) : actionWeeklyChartData.length === 0 ? (
                 emptyState("No scheduled actions in scope yet")
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <ReBarChart data={actionWeeklyChartData} margin={{ top: 32, right: 12, left: 8, bottom: 28 }}>
+                  <ReBarChart data={actionWeeklyChartData} margin={{ top: 32, right: 12, left: 8, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -16, fontSize: 11 }} />
+                    <XAxis
+                      dataKey="name"
+                      interval={0}
+                      tick={makeWeekChartTick(actionWeeklyChartData)}
+                      tickMargin={4}
+                      height={56}
+                    />
                     <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={48} label={{ value: "Actions", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
-                    <Tooltip contentStyle={tooltipStyle} />
+                    <Tooltip contentStyle={tooltipStyle} labelFormatter={weekChartLabelFormatter(actionWeeklyChartData)} />
                     <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 8 }} />
                     <Bar dataKey="Actions due" fill="#3699FC" radius={[6, 6, 0, 0]}>
                       <LabelList dataKey="Actions due" position="top" style={barLabelStyle} formatter={barLabel} />
@@ -375,18 +388,24 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               </span>
             )}
           </div>
-          <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 300 }}>
+          <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 316 }}>
             {weeklyTrendLoading ? (
               emptyState("Loading…")
             ) : weeklyTrend.length === 0 ? (
               emptyState("No finalised plans yet")
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <ReBarChart data={weeklyTrendChartData} margin={{ top: 32, right: 12, left: 8, bottom: 28 }}>
+                <ReBarChart data={weeklyTrendChartData} margin={{ top: 32, right: 12, left: 8, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -16, fontSize: 11 }} />
+                  <XAxis
+                    dataKey="name"
+                    interval={0}
+                    tick={makeWeekChartTick(weeklyTrendChartData)}
+                    tickMargin={4}
+                    height={56}
+                  />
                   <YAxis domain={[0, 110]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Avg. commitment %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
-                  <Tooltip contentStyle={tooltipStyle} />
+                  <Tooltip contentStyle={tooltipStyle} labelFormatter={weekChartLabelFormatter(weeklyTrendChartData)} />
                   <Bar dataKey="Avg. commitment %" fill="#3699FC" radius={[6, 6, 0, 0]}>
                     <LabelList dataKey="Avg. commitment %" position="top" style={barLabelStyle} formatter={barLabel} />
                   </Bar>
@@ -417,18 +436,24 @@ export function DashboardView({ companyId }: DashboardViewProps) {
             </span>
           </div>
 
-          <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 320 }}>
+          <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 336 }}>
             {emailLoading ? (
               emptyState("Loading…")
             ) : emailOpenChartData.length === 0 ? (
               emptyState("No week-attributed sends yet")
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <ReBarChart data={emailOpenChartData} margin={{ top: 32, right: 12, left: 8, bottom: 28 }}>
+                <ReBarChart data={emailOpenChartData} margin={{ top: 32, right: 12, left: 8, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Week (from batch start)", position: "insideBottom", offset: -16, fontSize: 11 }} />
+                  <XAxis
+                    dataKey="name"
+                    interval={0}
+                    tick={makeWeekChartTick(emailOpenChartData)}
+                    tickMargin={4}
+                    height={56}
+                  />
                   <YAxis domain={[0, 110]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Open rate %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
-                  <Tooltip contentStyle={tooltipStyle} />
+                  <Tooltip contentStyle={tooltipStyle} labelFormatter={weekChartLabelFormatter(emailOpenChartData)} />
                   <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 8 }} />
                   <Bar dataKey="Reminder open %" fill="#23CE6B" radius={[6, 6, 0, 0]}>
                     <LabelList dataKey="Reminder open %" position="top" style={barLabelStyle} formatter={barLabel} />

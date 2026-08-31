@@ -160,7 +160,23 @@ export function DashboardView({ companyId }: DashboardViewProps) {
     name: `Week ${e.weekNumber}`,
     weekRange: weekChartRange(e.weekStartIst, e.weekEndIst),
     "Reminder open %": e.reminderOpenRate,
+    reminderSent: e.reminderSent,
+    reminderOpened: e.reminderOpened,
   }));
+
+  const emailOpenTooltipFormatter = (
+    value: unknown,
+    name: unknown,
+    item: { payload?: (typeof emailOpenChartData)[number] }
+  ): [string, string] => {
+    const label = String(name ?? "Reminder open %");
+    const row = item?.payload;
+    if (!row) return [`${value}%`, label];
+    return [
+      `${row["Reminder open %"]}% (${row.reminderOpened} opened of ${row.reminderSent} sent)`,
+      label,
+    ];
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
@@ -470,7 +486,11 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                     height={56}
                   />
                   <YAxis domain={[0, 110]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Open rate %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
-                  <Tooltip contentStyle={tooltipStyle} labelFormatter={weekChartLabelFormatter(emailOpenChartData)} />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    labelFormatter={weekChartLabelFormatter(emailOpenChartData)}
+                    formatter={emailOpenTooltipFormatter}
+                  />
                   <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 8 }} />
                   <Bar dataKey="Reminder open %" fill="#23CE6B" radius={[6, 6, 0, 0]}>
                     <LabelList dataKey="Reminder open %" position="top" style={barLabelStyle} formatter={barLabel} />

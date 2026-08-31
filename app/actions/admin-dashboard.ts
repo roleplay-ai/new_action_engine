@@ -247,6 +247,8 @@ export async function getCommitmentScoreBuckets(
 export interface DashboardLeaderboardEntry {
   id: string;
   name: string;
+  /** Commitment buddy display name in scope (null when unpaired). */
+  buddyName: string | null;
   commitmentPoints: number;
   commitmentMaximum: number;
   commitmentPct: number;
@@ -260,6 +262,52 @@ export interface DashboardLeaderboardEntry {
   pendingValidationCount: number;
   /** Confirmed fails/skips — matches Actions "Didn't complete". */
   notCompletedCount: number;
+}
+
+/** Map user_id → buddy display name for the given cohorts (joins unique names when a
+ * person has different buddies across batches in company-wide scope). */
+async function loadBuddyNamesByUser(
+  admin: Admin,
+  cohortIds: string[],
+  userIds: string[]
+): Promise<Map<string, string>> {
+  const buddyByUser = new Map<string, string>();
+  if (!cohortIds.length || !userIds.length) return buddyByUser;
+
+  const { data: assignments } = await admin
+    .from("commitment_buddy_assignments")
+    .select("user_id, buddy_user_id")
+    .in("cohort_id", cohortIds)
+    .in("user_id", userIds);
+
+  const buddyIds = [
+    ...new Set(
+      ((assignments ?? []) as { buddy_user_id: string }[]).map((a) => a.buddy_user_id)
+    ),
+  ];
+  if (!buddyIds.length) return buddyByUser;
+
+  const { data: buddyProfiles } = await admin
+    .from("profiles")
+    .select("id, full_name")
+    .in("id", buddyIds);
+  const nameById = new Map(
+    ((buddyProfiles ?? []) as { id: string; full_name: string | null }[]).map((p) => [
+      p.id,
+      p.full_name?.trim() || "User",
+    ])
+  );
+
+  for (const row of (assignments ?? []) as { user_id: string; buddy_user_id: string }[]) {
+    const name = nameById.get(row.buddy_user_id);
+    if (!name) continue;
+    const existing = buddyByUser.get(row.user_id);
+    if (!existing) buddyByUser.set(row.user_id, name);
+    else if (existing !== name && !existing.split(" / ").includes(name)) {
+      buddyByUser.set(row.user_id, `${existing} / ${name}`);
+    }
+  }
+  return buddyByUser;
 }
 
 /** Leaderboard ranked by commitment score % (not raw points, unlike getEngagementLeaderboard,
@@ -284,7 +332,11 @@ export async function getDashboardLeaderboard(
     );
 
     const cohortIds = await resolveCohortIds(admin, resolvedCompanyId, cohortId ?? null);
-    const commitmentByCohort = await loadCommitmentWalletByCohort(admin, cohortIds);
+    const [commitmentByCohort, buddyByUser, actionsReadByUser] = await Promise.all([
+      loadCommitmentWalletByCohort(admin, cohortIds),
+      loadBuddyNamesByUser(admin, cohortIds, userIds),
+      loadActionsReadByEmail(admin, userIds, cohortIds),
+    ]);
 
     const commitmentByUser = new Map<string, { points: number; maximum: number; plannedActions: number; missedActions: number }>();
     for (const { perUser } of commitmentByCohort.values()) {
@@ -311,7 +363,6 @@ export async function getDashboardLeaderboard(
     else if (cohortIds.length) uaQuery = uaQuery.in("cohort_id", cohortIds);
     const { data: uaRows } = await uaQuery;
 
-    const actionsReadByUser = await loadActionsReadByEmail(admin, userIds, cohortIds);
     const actionsSentByUser = new Map<string, number>();
     const validatedByUser = new Map<string, number>();
     const pendingByUser = new Map<string, number>();
@@ -337,6 +388,7 @@ export async function getDashboardLeaderboard(
       return {
         id,
         name: nameById.get(id) ?? "User",
+        buddyName: buddyByUser.get(id) ?? null,
         commitmentPoints: c?.points ?? 0,
         commitmentMaximum: c?.maximum ?? 0,
         commitmentPct: walletScorePct(c?.plannedActions ?? 0, c?.missedActions ?? 0),

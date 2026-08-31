@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveCohortWeekAnchors, weekAnchorFromTimestamp, weekNumberFor } from "@/lib/cohort-week";
 
 /** Exported so app/actions/admin-dashboard.ts can reuse the same role/company
  * resolution instead of duplicating it — "use server" files may only export
@@ -625,32 +626,6 @@ export async function getEngagementLeaderboard(companyId?: string, cohortId?: st
 
 const ACTION_ACCEPTED_STATUSES = ["scheduled", "success", "failed"];
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-const WEEK_DAYS = 7;
-
-/** Batch-relative week number (1-indexed) for a date given the batch's start anchor. */
-function weekNumberFor(date: Date, anchor: Date): number {
-  const diffDays = Math.floor((date.getTime() - anchor.getTime()) / DAY_MS);
-  return Math.max(1, Math.floor(diffDays / WEEK_DAYS) + 1);
-}
-
-/** Cohort start for week bucketing: earliest cohort_dates.event_date, else created_at. */
-async function resolveCohortStartAnchor(
-  admin: ReturnType<typeof createAdminClient>,
-  cohortId: string,
-  fallbackCreatedAt: string | null | undefined
-): Promise<Date> {
-  const { data: dateRows } = await admin
-    .from("cohort_dates")
-    .select("event_date")
-    .eq("cohort_id", cohortId)
-    .order("event_date", { ascending: true })
-    .limit(1);
-  const first = (dateRows ?? [])[0] as { event_date: string } | undefined;
-  if (first?.event_date) return new Date(first.event_date);
-  return new Date(fallbackCreatedAt ?? Date.now());
-}
-
 export interface WeeklyActionChartEntry {
   weekNumber: number;
   name: string;
@@ -718,10 +693,10 @@ export async function getWeeklyActionChartData(companyId?: string): Promise<{
     const cohortRows = (cohorts ?? []) as { id: string; created_at: string }[];
     if (!cohortRows.length) return { entries: [] };
 
-    const anchors = new Map<string, Date>();
-    for (const c of cohortRows) {
-      anchors.set(c.id, await resolveCohortStartAnchor(admin, c.id, c.created_at));
-    }
+    const anchors = await resolveCohortWeekAnchors(
+      admin,
+      cohortRows.map((c) => c.id)
+    );
 
     const { data: uaRows } = await admin
       .from("user_actions")
@@ -1125,7 +1100,9 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
 
     // Weekly chart from real user_actions (AI action plans), not package_actions —
     // packages are no longer how most batches deliver work, so package-based weeks were empty.
-    const cohortAnchor = await resolveCohortStartAnchor(admin, cohortId, cohort.created_at);
+    const cohortAnchors = await resolveCohortWeekAnchors(admin, [cohortId]);
+    const cohortAnchor =
+      cohortAnchors.get(cohortId) ?? weekAnchorFromTimestamp(cohort.created_at);
     const now = new Date();
     let maxWeek = weekNumberFor(now, cohortAnchor);
     const weeklyBuckets = new Map<number, ReturnType<typeof emptyWeeklyBucket>>();

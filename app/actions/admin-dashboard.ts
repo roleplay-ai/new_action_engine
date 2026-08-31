@@ -12,6 +12,7 @@
  * Wallet rollup math.
  */
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveCohortWeekAnchors, weekNumberFor } from "@/lib/cohort-week";
 import {
   getAdminContext,
   loadCommitmentWalletByCohort,
@@ -26,15 +27,6 @@ type Admin = ReturnType<typeof createAdminClient>;
  * NOT the points-banked/maximum-points ratio (which only climbs and never reflects misses). */
 function walletScorePct(plannedActions: number, missedActions: number) {
   return plannedActions > 0 ? Math.round((Math.max(0, plannedActions - missedActions) * 100) / plannedActions) : 0;
-}
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-const WEEK_DAYS = 7;
-
-/** Batch-relative week number (1-indexed) for a date given the batch's start anchor. */
-function weekNumberFor(date: Date, anchor: Date): number {
-  const diffDays = Math.floor((date.getTime() - anchor.getTime()) / DAY_MS);
-  return Math.max(1, Math.floor(diffDays / WEEK_DAYS) + 1);
 }
 
 /** All (non-archived) cohort ids for a company, or just [cohortId] when one is selected —
@@ -64,32 +56,6 @@ async function resolveScopedUserIds(admin: Admin, companyId: string, cohortId: s
   return (profiles ?? [])
     .filter((p: { role: string }) => p.role === "user")
     .map((p: { id: string }) => p.id);
-}
-
-/** Each cohort's start anchor for week-relative bucketing: earliest cohort_dates.event_date,
- * falling back to the cohort's created_at when it has no dates recorded yet. */
-async function resolveCohortStartAnchors(admin: Admin, cohortIds: string[]): Promise<Map<string, Date>> {
-  const anchors = new Map<string, Date>();
-  if (!cohortIds.length) return anchors;
-
-  const { data: cohortRows } = await admin.from("cohorts").select("id, created_at").in("id", cohortIds);
-  for (const c of (cohortRows ?? []) as { id: string; created_at: string }[]) {
-    anchors.set(c.id, new Date(c.created_at));
-  }
-
-  const { data: dateRows } = await admin
-    .from("cohort_dates")
-    .select("cohort_id, event_date")
-    .in("cohort_id", cohortIds)
-    .order("event_date", { ascending: true });
-  const seen = new Set<string>();
-  for (const d of (dateRows ?? []) as { cohort_id: string; event_date: string }[]) {
-    if (seen.has(d.cohort_id)) continue;
-    seen.add(d.cohort_id);
-    anchors.set(d.cohort_id, new Date(d.event_date)); // first row per cohort = earliest, since ordered ascending
-  }
-
-  return anchors;
 }
 
 export interface BatchOption {
@@ -126,14 +92,15 @@ export async function getBatchOptions(companyId?: string): Promise<{ options: Ba
 
 export interface ActionWeeklyTrendEntry {
   weekNumber: number;
-  /** Actions scheduled/due for delivery in this batch-relative week (user_actions.scheduled_at). */
+  /** Actions scheduled/due for delivery in this week (user_actions.scheduled_at).
+   * Weeks are counted from the batch's first action delivery date. */
   due: number;
   /** Of those, how many have since been validated (status = 'success'), regardless of when. */
   completed: number;
 }
 
 /** Weekly "due vs. completed" action counts for the batch/module drill-down: for each
- * batch-relative week, how many actions were scheduled to go out that week
+ * week since the first action delivery, how many actions were scheduled to go out
  * (user_actions.scheduled_at), and how many of those have since been completed —
  * whenever the completion actually happened, not just if it landed in the same week. */
 export async function getActionCompletionWeeklyTrend(
@@ -151,7 +118,7 @@ export async function getActionCompletionWeeklyTrend(
 
     const cohortIds = await resolveCohortIds(admin, resolvedCompanyId, cohortId ?? null);
     if (!cohortIds.length) return { entries: [] };
-    const anchors = await resolveCohortStartAnchors(admin, cohortIds);
+    const anchors = await resolveCohortWeekAnchors(admin, cohortIds);
 
     const { data: uaRows } = await admin
       .from("user_actions")
@@ -388,7 +355,7 @@ export interface CommitmentWeeklyTrendEntry {
   avgCommitmentPct: number;
 }
 
-/** Average commitment score per batch-relative week (cumulative, as of the end of each week),
+/** Average commitment score per week since the first action delivery (cumulative, as of the end of each week),
  * plus a ready-made week-over-week delta for the last two elapsed weeks. */
 export async function getBatchCommitmentWeeklyTrend(
   companyId?: string,
@@ -410,7 +377,7 @@ export async function getBatchCommitmentWeeklyTrend(
     const cohortIds = await resolveCohortIds(admin, resolvedCompanyId, cohortId ?? null);
     if (!cohortIds.length) return empty;
 
-    const anchors = await resolveCohortStartAnchors(admin, cohortIds);
+    const anchors = await resolveCohortWeekAnchors(admin, cohortIds);
 
     const { data: plans } = await admin
       .from("commitment_wallet_plans")
@@ -546,7 +513,7 @@ export async function getEmailOpenRates(
     const cohortIds = await resolveCohortIds(admin, resolvedCompanyId, cohortId ?? null);
     if (!cohortIds.length) return empty;
 
-    const anchors = await resolveCohortStartAnchors(admin, cohortIds);
+    const anchors = await resolveCohortWeekAnchors(admin, cohortIds);
     const scopedUserIds = await resolveScopedUserIds(admin, resolvedCompanyId, cohortId ?? null);
     const cohortIdSet = new Set(cohortIds);
     const scopedUserSet = new Set(scopedUserIds);

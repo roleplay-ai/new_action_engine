@@ -456,9 +456,9 @@ export async function completeAction(params: {
 
   // An action retired when the next batch arrived (unfinished Current →
   // "pending validation"), not a real miss the participant chose. Marking it
-  // done there validates it: unlike an ordinary late completion, this
-  // restores the commitment share and awards its points to the Team Action
-  // Bank, so it needs the dedicated RPC instead of the normal settlement one.
+  // done there validates it: the score is restored either way (late Current
+  // check-in also keeps the score), but only this path awards the 50 points
+  // to the Team Action Bank, so it needs the dedicated RPC.
   let walletValidation: { pointsAdded?: number; completedLate?: boolean } | undefined;
   if (actionRow.is_personal) {
     const isPendingValidation = existingUa?.status === "failed" && existingUa?.auto_expired === true;

@@ -22,9 +22,10 @@ import {
 type Admin = ReturnType<typeof createAdminClient>;
 
 /** The real Commitment Score, matching get_my_commitment_wallet()'s formula (see
- * supabase/migrations/046_commitment_wallet_plan_bonus.sql) and what participants see on
- * /wallet: starts at 100% when a plan is finalised and drops as actions are missed —
- * NOT the points-banked/maximum-points ratio (which only climbs and never reflects misses). */
+ * supabase/migrations/073_late_completion_keeps_commitment_score.sql) and what
+ * participants see on /wallet: starts at 100% when a plan is finalised and drops
+ * only for outstanding misses (Pending validation / Didn't complete). Completing
+ * late keeps or restores the score — NOT the points-banked/maximum-points ratio. */
 function walletScorePct(plannedActions: number, missedActions: number) {
   return plannedActions > 0 ? Math.round((Math.max(0, plannedActions - missedActions) * 100) / plannedActions) : 0;
 }
@@ -183,8 +184,9 @@ const EMPTY_SCORE_BUCKETS: CommitmentScoreBuckets = {
   avgCommitmentPct: null,
 };
 
-/** Buckets end-users by Commitment Score (same 100%-minus-missed-actions formula as /wallet):
- * 90-100, 75-89, 50-74, below 50 — plus a "not started" count for anyone without a finalised plan. */
+/** Buckets end-users by Commitment Score (same formula as /wallet: 100% minus
+ * outstanding misses only): 90-100, 75-89, 50-74, below 50 — plus a "not started"
+ * count for anyone without a finalised plan. */
 export async function getCommitmentScoreBuckets(
   companyId?: string,
   cohortId?: string | null
@@ -406,15 +408,14 @@ export async function getBatchCommitmentWeeklyTrend(
     const eventsByPlan = new Map<string, { missed: boolean; settledAt: string }[]>();
     for (const e of (events ?? []) as { plan_id: string; event_type: string; settled_at: string }[]) {
       const list = eventsByPlan.get(e.plan_id) ?? [];
-      list.push({ missed: e.event_type === "missed" || e.event_type === "completed_late", settledAt: e.settled_at });
+      list.push({ missed: e.event_type === "missed", settledAt: e.settled_at });
       eventsByPlan.set(e.plan_id, list);
     }
 
     const maxWeek = elapsedWeekCount(anchors.values());
 
-    // Same 100%-minus-missed-actions formula as get_my_commitment_wallet() / the /wallet page
-    // (see walletScorePct) — tracked cumulatively per week instead of the points-banked ratio,
-    // which only climbs and never reflects a miss.
+    // Same formula as get_my_commitment_wallet() / the /wallet page (see walletScorePct) —
+    // outstanding misses only, tracked cumulatively per week.
     const weeklySums = new Map<number, { sum: number; count: number }>();
     for (const plan of planRows) {
       const anchor = anchors.get(plan.cohort_id);

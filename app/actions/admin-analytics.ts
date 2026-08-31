@@ -96,7 +96,9 @@ export async function loadCommitmentWalletByCohort(
   const completedOnTimeByPlan = new Map<string, number>();
   for (const event of eventRows) {
     actionPointsByPlan.set(event.plan_id, (actionPointsByPlan.get(event.plan_id) ?? 0) + (event.points_awarded ?? 0));
-    if (event.event_type === "missed" || event.event_type === "completed_late") {
+    // Score drops only for outstanding misses (Pending validation / Didn't
+    // complete). Late check-ins keep or restore the score.
+    if (event.event_type === "missed") {
       missedByPlan.set(event.plan_id, (missedByPlan.get(event.plan_id) ?? 0) + 1);
     }
     if (event.event_type === "completed_on_time") {
@@ -142,10 +144,11 @@ export async function loadCommitmentWalletByCohort(
 }
 
 /** The real Commitment Score, matching get_my_commitment_wallet()'s formula (see
- * supabase/migrations/046_commitment_wallet_plan_bonus.sql) and what participants see on
- * /wallet: starts at 100% when a plan is finalised and drops as actions are missed —
- * NOT the points-banked/maximum-points ratio (which only climbs and never reflects
- * misses). Mirrors the identical helper in app/actions/admin-dashboard.ts. */
+ * supabase/migrations/073_late_completion_keeps_commitment_score.sql) and what
+ * participants see on /wallet: starts at 100% when a plan is finalised and drops
+ * only for outstanding misses (Pending validation / Didn't complete). Completing
+ * late keeps or restores the score. NOT the points-banked/maximum-points ratio.
+ * Mirrors the identical helper in app/actions/admin-dashboard.ts. */
 function walletScorePct(plannedActions: number, missedActions: number) {
   return plannedActions > 0 ? Math.round((Math.max(0, plannedActions - missedActions) * 100) / plannedActions) : 0;
 }

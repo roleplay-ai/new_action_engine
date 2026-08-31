@@ -28,6 +28,15 @@ export function weekNumberFor(date: Date, anchor: Date): number {
   return Math.max(1, Math.floor(diffDays / WEEK_DAYS) + 1);
 }
 
+/** Highest elapsed week number across batch origins (at least 1). */
+export function elapsedWeekCount(anchors: Iterable<Date>, now = new Date()): number {
+  let maxWeek = 1;
+  for (const anchor of anchors) {
+    maxWeek = Math.max(maxWeek, weekNumberFor(now, anchor));
+  }
+  return maxWeek;
+}
+
 const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function parseIstDate(istDate: string): { year: number; month: number; day: number } | null {

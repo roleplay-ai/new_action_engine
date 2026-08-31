@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  elapsedWeekCount,
   formatWeekRangeLabel,
   sharedWeekAnchor,
   weekAnchorFromIstDate,
@@ -37,6 +38,18 @@ describe("weekNumberFor from first delivery", () => {
 
   it("clamps dates before the first delivery to week 1", () => {
     expect(weekNumberFor(new Date("2026-08-20T00:00:00.000Z"), anchor)).toBe(1);
+  });
+});
+
+describe("elapsedWeekCount", () => {
+  const surgeAnchor = weekAnchorFromTimestamp("2026-08-24T06:05:07.560Z");
+
+  it("stays at week 1 through the 7th IST calendar day", () => {
+    expect(elapsedWeekCount([surgeAnchor], new Date("2026-08-30T18:29:59.000Z"))).toBe(1);
+  });
+
+  it("opens week 2 at IST midnight of the 8th calendar day", () => {
+    expect(elapsedWeekCount([surgeAnchor], new Date("2026-08-31T04:23:00.000Z"))).toBe(2);
   });
 });
 

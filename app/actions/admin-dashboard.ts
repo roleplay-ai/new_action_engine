@@ -531,6 +531,11 @@ export interface EmailOpenWeeklyEntry {
   reminderOpenRate: number;
   reminderClicked: number;
   reminderClickRate: number;
+  recapSent: number;
+  recapOpened: number;
+  recapOpenRate: number;
+  recapClicked: number;
+  recapClickRate: number;
   weekStartIst: string | null;
   weekEndIst: string | null;
 }
@@ -545,10 +550,11 @@ export interface EmailEngagementTotals {
 
 const ZERO_TOTALS: EmailEngagementTotals = { sent: 0, opened: 0, openRate: 0, clicked: 0, clickRate: 0 };
 
-/** Weekly + total-current open AND click rates for welcome ("credentials" template) and
- * reminder ("daily_reminder" template) emails, category-wise, from Resend via the webhook at
- * app/api/webhooks/resend/route.ts. `webhookConfigured` tells the UI whether to show a
- * "tracking not enabled yet" banner instead of trusting a flat 0% as real data. */
+/** Weekly + total-current open AND click rates for welcome ("credentials"),
+ * reminder ("daily_reminder"), and Friday weekly recap ("weekly_recap") emails,
+ * category-wise, from Resend via the webhook at app/api/webhooks/resend/route.ts.
+ * `webhookConfigured` tells the UI whether to show a "tracking not enabled yet"
+ * banner instead of trusting a flat 0% as real data. */
 export async function getEmailOpenRates(
   companyId?: string,
   cohortId?: string | null
@@ -556,6 +562,7 @@ export async function getEmailOpenRates(
   weekly: EmailOpenWeeklyEntry[];
   welcomeTotals: EmailEngagementTotals;
   reminderTotals: EmailEngagementTotals;
+  recapTotals: EmailEngagementTotals;
   webhookConfigured: boolean;
   error?: string;
 }> {
@@ -563,6 +570,7 @@ export async function getEmailOpenRates(
     weekly: [],
     welcomeTotals: ZERO_TOTALS,
     reminderTotals: ZERO_TOTALS,
+    recapTotals: ZERO_TOTALS,
     webhookConfigured: !!process.env.RESEND_WEBHOOK_SECRET,
   };
   try {
@@ -578,12 +586,13 @@ export async function getEmailOpenRates(
     const scopedUserIds = await resolveScopedUserIds(admin, resolvedCompanyId, cohortId ?? null);
     const cohortIdSet = new Set(cohortIds);
     const scopedUserSet = new Set(scopedUserIds);
+    const emailTemplates = ["credentials", "daily_reminder", "weekly_recap"] as const;
 
     const { data: attributedRows } = await admin
       .from("email_campaign_logs")
       .select("user_id, template_id, cohort_id, created_at, opened_at, clicked_at")
       .in("cohort_id", cohortIds)
-      .in("template_id", ["credentials", "daily_reminder"])
+      .in("template_id", [...emailTemplates])
       .eq("status", "sent");
 
     // Older sends logged cohort_id as null, so also pull those rows by recipient
@@ -594,7 +603,7 @@ export async function getEmailOpenRates(
           .select("user_id, template_id, cohort_id, created_at, opened_at, clicked_at")
           .is("cohort_id", null)
           .in("user_id", scopedUserIds)
-          .in("template_id", ["credentials", "daily_reminder"])
+          .in("template_id", [...emailTemplates])
           .eq("status", "sent")
       : { data: [] };
 
@@ -635,76 +644,95 @@ export async function getEmailOpenRates(
       }
     }
 
+    type WeekBucket = {
+      welcomeSent: number;
+      welcomeOpened: number;
+      welcomeClicked: number;
+      reminderSent: number;
+      reminderOpened: number;
+      reminderClicked: number;
+      recapSent: number;
+      recapOpened: number;
+      recapClicked: number;
+    };
+
     let welcomeSentTotal = 0;
     let welcomeOpenedTotal = 0;
     let welcomeClickedTotal = 0;
     let reminderSentTotal = 0;
     let reminderOpenedTotal = 0;
     let reminderClickedTotal = 0;
-    const weeklyMap = new Map<
-      number,
-      {
-        welcomeSent: number;
-        welcomeOpened: number;
-        welcomeClicked: number;
-        reminderSent: number;
-        reminderOpened: number;
-        reminderClicked: number;
-      }
-    >();
-
-    for (const row of emailRows) {
-      // Click implies open (clients that block pixels often only fire click events).
-      const clicked = !!row.clicked_at;
-      const opened = !!row.opened_at || clicked;
-      if (row.template_id === "credentials") {
-        welcomeSentTotal += 1;
-        if (opened) welcomeOpenedTotal += 1;
-        if (clicked) welcomeClickedTotal += 1;
-      } else if (row.template_id === "daily_reminder") {
-        reminderSentTotal += 1;
-        if (opened) reminderOpenedTotal += 1;
-        if (clicked) reminderClickedTotal += 1;
-      }
-
-      const attributedCohortId =
-        row.cohort_id
-        ?? (cohortId && cohortIdSet.has(cohortId) ? cohortId : null)
-        ?? (row.user_id ? profileCohortByUser.get(row.user_id) ?? null : null);
-      const anchor = attributedCohortId ? anchors.get(attributedCohortId) : undefined;
-      if (!anchor) continue; // no batch attribution (e.g. pre-migration send) — still in totals above
-
-      const week = weekNumberFor(new Date(row.created_at), anchor);
-      const bucket = weeklyMap.get(week) ?? {
-        welcomeSent: 0,
-        welcomeOpened: 0,
-        welcomeClicked: 0,
-        reminderSent: 0,
-        reminderOpened: 0,
-        reminderClicked: 0,
-      };
-      if (row.template_id === "credentials") {
-        bucket.welcomeSent += 1;
-        if (opened) bucket.welcomeOpened += 1;
-        if (clicked) bucket.welcomeClicked += 1;
-      } else {
-        bucket.reminderSent += 1;
-        if (opened) bucket.reminderOpened += 1;
-        if (clicked) bucket.reminderClicked += 1;
-      }
-      weeklyMap.set(week, bucket);
-    }
-
-    const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
-
-    const emptyWeek = () => ({
+    let recapSentTotal = 0;
+    let recapOpenedTotal = 0;
+    let recapClickedTotal = 0;
+    const weeklyMap = new Map<number, WeekBucket>();
+    const emptyWeek = (): WeekBucket => ({
       welcomeSent: 0,
       welcomeOpened: 0,
       welcomeClicked: 0,
       reminderSent: 0,
       reminderOpened: 0,
       reminderClicked: 0,
+      recapSent: 0,
+      recapOpened: 0,
+      recapClicked: 0,
     });
+
+    for (const row of emailRows) {
+      // Click implies open (clients that block pixels often only fire click events).
+      const clicked = !!row.clicked_at;
+      const opened = !!row.opened_at || clicked;
+
+      const attributedCohortId =
+        row.cohort_id
+        ?? (cohortId && cohortIdSet.has(cohortId) ? cohortId : null)
+        ?? (row.user_id ? profileCohortByUser.get(row.user_id) ?? null : null);
+      const anchor = attributedCohortId ? anchors.get(attributedCohortId) : undefined;
+      // Cards + weekly chart share this attribution gate so overall % matches the bars
+      // (legacy rows with no batch week would otherwise dilute the card to ~0%).
+      if (!anchor) continue;
+
+      const week = weekNumberFor(new Date(row.created_at), anchor);
+      const bucket = weeklyMap.get(week) ?? emptyWeek();
+      if (row.template_id === "credentials") {
+        welcomeSentTotal += 1;
+        bucket.welcomeSent += 1;
+        if (opened) {
+          welcomeOpenedTotal += 1;
+          bucket.welcomeOpened += 1;
+        }
+        if (clicked) {
+          welcomeClickedTotal += 1;
+          bucket.welcomeClicked += 1;
+        }
+      } else if (row.template_id === "daily_reminder") {
+        reminderSentTotal += 1;
+        bucket.reminderSent += 1;
+        if (opened) {
+          reminderOpenedTotal += 1;
+          bucket.reminderOpened += 1;
+        }
+        if (clicked) {
+          reminderClickedTotal += 1;
+          bucket.reminderClicked += 1;
+        }
+      } else if (row.template_id === "weekly_recap") {
+        recapSentTotal += 1;
+        bucket.recapSent += 1;
+        if (opened) {
+          recapOpenedTotal += 1;
+          bucket.recapOpened += 1;
+        }
+        if (clicked) {
+          recapClickedTotal += 1;
+          bucket.recapClicked += 1;
+        }
+      }
+      weeklyMap.set(week, bucket);
+    }
+
+    const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
+
     const displayAnchor = sharedWeekAnchor(anchors.values());
     // Same 1..elapsed-week axis as the other dashboard charts, so a new week
     // is visible even before any reminder has gone out that week.
@@ -725,6 +753,11 @@ export async function getEmailOpenRates(
             reminderOpenRate: pct(b.reminderOpened, b.reminderSent),
             reminderClicked: b.reminderClicked,
             reminderClickRate: pct(b.reminderClicked, b.reminderSent),
+            recapSent: b.recapSent,
+            recapOpened: b.recapOpened,
+            recapOpenRate: pct(b.recapOpened, b.recapSent),
+            recapClicked: b.recapClicked,
+            recapClickRate: pct(b.recapClicked, b.recapSent),
             ...weekRangeFields(week, displayAnchor),
           };
         })
@@ -745,6 +778,13 @@ export async function getEmailOpenRates(
         openRate: pct(reminderOpenedTotal, reminderSentTotal),
         clicked: reminderClickedTotal,
         clickRate: pct(reminderClickedTotal, reminderSentTotal),
+      },
+      recapTotals: {
+        sent: recapSentTotal,
+        opened: recapOpenedTotal,
+        openRate: pct(recapOpenedTotal, recapSentTotal),
+        clicked: recapClickedTotal,
+        clickRate: pct(recapClickedTotal, recapSentTotal),
       },
       webhookConfigured: !!process.env.RESEND_WEBHOOK_SECRET,
     };

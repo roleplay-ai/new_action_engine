@@ -72,6 +72,7 @@ import { createAction, updateAction, deleteAction } from '@/app/actions/actions'
 import { createPackage, configurePackageDeliveries, assignPackageToUsers, getCompanyUsers } from '@/app/actions/packages';
 import { getBehaviouralJourneyFunnel, getEngagementLeaderboard, getDriversEffectiveness, getActionMetrics, getWeeklyActionChartData, type EngagementLeaderboardEntry, type DriversEffectivenessEntry, type ActionMetricEntry } from '@/app/actions/admin-analytics';
 import { getCurrentISTDate, getCurrentISTTime, utcToISTDate, utcToISTTime, formatISTDate, formatISTTime } from '@/lib/timezone-utils';
+import { makeWeekChartTick, weekChartLabelFormatter, weekChartRange } from '@/components/admin/WeekChartTick';
 
 
 /** Chart colors for action themes (Drivers Effectiveness). */
@@ -1333,7 +1334,7 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
   const [driversError, setDriversError] = useState<string | null>(null);
   const [adoptionIndexMetrics, setAdoptionIndexMetrics] = useState<ActionMetricEntry[]>([]);
   const [adoptionIndexLoading, setAdoptionIndexLoading] = useState(false);
-  const [weeklyChartData, setWeeklyChartData] = useState<{ name: string; Planned: number; Validated: number; Pending: number; "Didn't complete": number }[]>([]);
+  const [weeklyChartData, setWeeklyChartData] = useState<{ name: string; weekRange?: string; Planned: number; Validated: number; Pending: number; "Didn't complete": number }[]>([]);
   const [weeklyChartLoading, setWeeklyChartLoading] = useState(false);
 
   const engagementSegments = funnel
@@ -1447,6 +1448,7 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
         }
         const chart = (entries ?? []).map((e) => ({
           name: e.name,
+          weekRange: weekChartRange(e.weekStartIst, e.weekEndIst),
           Planned: e.planned,
           Validated: e.validated,
           Pending: e.pending,
@@ -1638,18 +1640,24 @@ const AnalyzeChangeView: React.FC<{ companyId: string | null }> = ({ companyId }
         <section className="bg-white border-4 border-black rounded-2xl p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
           <h3 className="text-base font-black heading-font uppercase italic mb-4">WEEKLY ACTIONS</h3>
           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3">Per delivery (actions × users)</p>
-          <div className="h-[280px] w-full">
+          <div className="h-[300px] w-full">
             {weeklyChartLoading ? (
               <div className="h-full flex items-center justify-center text-slate-500 font-bold uppercase text-sm">Loading…</div>
             ) : weeklyChartData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-slate-500 font-bold uppercase text-sm">No delivery data yet</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <ReBarChart data={weeklyChartData} barGap={4}>
+                <ReBarChart data={weeklyChartData} barGap={4} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                  <XAxis dataKey="name" tick={{ fontSize: 9, fontWeight: 900 }} axisLine={{ stroke: '#000', strokeWidth: 3 }} />
+                  <XAxis
+                    dataKey="name"
+                    interval={0}
+                    tick={makeWeekChartTick(weeklyChartData, { fill: "#000", mutedFill: "#64748b", fontSize: 9 })}
+                    axisLine={{ stroke: '#000', strokeWidth: 3 }}
+                    height={52}
+                  />
                   <YAxis axisLine={{ stroke: '#000', strokeWidth: 3 }} tick={{ fontSize: 9, fontWeight: 900 }} />
-                  <Tooltip contentStyle={{ borderRadius: '16px', border: '3px solid black', fontWeight: 900 }} />
+                  <Tooltip contentStyle={{ borderRadius: '16px', border: '3px solid black', fontWeight: 900 }} labelFormatter={weekChartLabelFormatter(weeklyChartData)} />
                   <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '30px', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase' }} />
                   <Bar dataKey="Planned" fill="#3699FC" barSize={8} radius={[2, 2, 0, 0]} stroke="black" strokeWidth={1} />
                   <Bar dataKey="Validated" fill="#23CE6B" barSize={8} radius={[2, 2, 0, 0]} stroke="black" strokeWidth={1} />

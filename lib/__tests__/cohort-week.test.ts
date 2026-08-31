@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { weekAnchorFromIstDate, weekAnchorFromTimestamp, weekNumberFor } from "@/lib/cohort-week";
+import {
+  formatWeekRangeLabel,
+  sharedWeekAnchor,
+  weekAnchorFromIstDate,
+  weekAnchorFromTimestamp,
+  weekNumberFor,
+  weekRangeIst,
+} from "@/lib/cohort-week";
 
 describe("weekAnchorFromTimestamp", () => {
   it("uses IST midnight of the delivery's IST calendar day", () => {
@@ -30,5 +37,41 @@ describe("weekNumberFor from first delivery", () => {
 
   it("clamps dates before the first delivery to week 1", () => {
     expect(weekNumberFor(new Date("2026-08-20T00:00:00.000Z"), anchor)).toBe(1);
+  });
+});
+
+describe("weekRangeIst from first delivery", () => {
+  const anchor = weekAnchorFromTimestamp("2026-08-24T06:05:07.560Z");
+
+  it("covers the delivery day through the 7th IST calendar day", () => {
+    expect(weekRangeIst(1, anchor)).toEqual({ startIst: "2026-08-24", endIst: "2026-08-30" });
+  });
+
+  it("opens week 2 on the 8th IST calendar day", () => {
+    expect(weekRangeIst(2, anchor)).toEqual({ startIst: "2026-08-31", endIst: "2026-09-06" });
+  });
+});
+
+describe("formatWeekRangeLabel", () => {
+  it("collapses a same-month range", () => {
+    expect(formatWeekRangeLabel("2026-08-24", "2026-08-30")).toBe("24–30 Aug");
+  });
+
+  it("keeps both months when the week crosses a month boundary", () => {
+    expect(formatWeekRangeLabel("2026-08-31", "2026-09-06")).toBe("31 Aug – 6 Sep");
+  });
+});
+
+describe("sharedWeekAnchor", () => {
+  it("returns the origin when every batch starts on the same IST day", () => {
+    const a = weekAnchorFromIstDate("2026-08-24");
+    const b = weekAnchorFromTimestamp("2026-08-24T06:05:07.560Z");
+    expect(sharedWeekAnchor([a, b])?.toISOString()).toBe(a.toISOString());
+  });
+
+  it("returns null when batches start on different delivery days", () => {
+    expect(
+      sharedWeekAnchor([weekAnchorFromIstDate("2026-08-24"), weekAnchorFromIstDate("2026-09-01")])
+    ).toBeNull();
   });
 });

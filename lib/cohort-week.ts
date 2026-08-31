@@ -28,6 +28,73 @@ export function weekNumberFor(date: Date, anchor: Date): number {
   return Math.max(1, Math.floor(diffDays / WEEK_DAYS) + 1);
 }
 
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function parseIstDate(istDate: string): { year: number; month: number; day: number } | null {
+  const [year, month, day] = istDate.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return { year, month, day };
+}
+
+function formatIstDayMonth(istDate: string): string {
+  const parsed = parseIstDate(istDate);
+  if (!parsed) return istDate;
+  return `${parsed.day} ${MONTHS_SHORT[parsed.month - 1]}`;
+}
+
+/** Inclusive IST calendar range for a 1-indexed week from the delivery-date origin. */
+export function weekRangeIst(weekNumber: number, anchor: Date): { startIst: string; endIst: string } {
+  const n = Math.max(1, weekNumber);
+  const start = new Date(anchor.getTime() + (n - 1) * WEEK_DAYS * DAY_MS);
+  const end = new Date(start.getTime() + (WEEK_DAYS - 1) * DAY_MS);
+  return {
+    startIst: utcToISTDate(start.toISOString()),
+    endIst: utcToISTDate(end.toISOString()),
+  };
+}
+
+/** Chart DTO fields; null when batches do not share one delivery-date origin. */
+export function weekRangeFields(
+  weekNumber: number,
+  anchor: Date | null
+): { weekStartIst: string | null; weekEndIst: string | null } {
+  if (!anchor) return { weekStartIst: null, weekEndIst: null };
+  const { startIst, endIst } = weekRangeIst(weekNumber, anchor);
+  return { weekStartIst: startIst, weekEndIst: endIst };
+}
+
+/** Compact chart label, e.g. "24–30 Aug" or "31 Aug – 6 Sep". */
+export function formatWeekRangeLabel(startIst: string, endIst: string): string {
+  const start = parseIstDate(startIst);
+  const end = parseIstDate(endIst);
+  if (!start || !end) return `${startIst} – ${endIst}`;
+  if (start.month === end.month && start.year === end.year) {
+    return `${start.day}–${end.day} ${MONTHS_SHORT[start.month - 1]}`;
+  }
+  return `${formatIstDayMonth(startIst)} – ${formatIstDayMonth(endIst)}`;
+}
+
+/**
+ * A single week origin to label chart axes with. Returns the shared IST-midnight
+ * anchor when every batch starts on the same delivery day; otherwise null so
+ * "All batches" does not show a misleading date range.
+ */
+export function sharedWeekAnchor(anchors: Iterable<Date>): Date | null {
+  let sharedIst: string | null = null;
+  let shared: Date | null = null;
+  for (const anchor of anchors) {
+    const ist = utcToISTDate(anchor.toISOString());
+    if (!ist) continue;
+    if (sharedIst === null) {
+      sharedIst = ist;
+      shared = anchor;
+    } else if (ist !== sharedIst) {
+      return null;
+    }
+  }
+  return shared;
+}
+
 /**
  * Per-cohort week origin for admin charts. Prefers the IST date of the first
  * action delivery (`user_actions.scheduled_at`); falls back to the earliest

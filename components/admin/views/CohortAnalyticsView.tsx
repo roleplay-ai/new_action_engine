@@ -19,6 +19,7 @@ import {
   type CohortAnalyticsSummary,
   type CohortAnalyticsDetail,
 } from "@/app/actions/admin-analytics";
+import { makeWeekChartTick, weekChartLabelFormatter, weekChartRange } from "@/components/admin/WeekChartTick";
 
 interface CohortAnalyticsViewProps {
   companyId: string | null;
@@ -237,6 +238,7 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
 
   const chartData = detail.weeklyChart.map((w) => ({
     name: w.name,
+    weekRange: weekChartRange(w.weekStartIst, w.weekEndIst),
     Planned: w.planned,
     Validated: w.validated,
     Pending: w.pending,
@@ -273,14 +275,21 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
 
       <div className="bg-white rounded-xl p-4" style={{ border: "1px solid var(--color-border)" }}>
         <h4 className="text-sm font-semibold mb-3" style={{ color: "var(--color-text-primary)" }}>Weekly actions</h4>
-        <div className="h-[260px] w-full">
+        <div className="h-[280px] w-full">
           {chartData.length === 0 ? emptyState("No delivery data yet") : (
             <ResponsiveContainer width="100%" height="100%">
-              <ReBarChart data={chartData} barGap={3} barCategoryGap="22%" margin={{ top: 28, right: 8, left: 0, bottom: 4 }}>
+              <ReBarChart data={chartData} barGap={3} barCategoryGap="22%" margin={{ top: 28, right: 8, left: 0, bottom: 8 }}>
                 <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="var(--color-border)" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 500, fill: "#8A8090" }} axisLine={{ stroke: "var(--color-border)", strokeWidth: 1 }} tickLine={false} />
+                <XAxis
+                  dataKey="name"
+                  interval={0}
+                  tick={makeWeekChartTick(chartData, { fill: "#8A8090", mutedFill: "#8A8090", fontSize: 11 })}
+                  axisLine={{ stroke: "var(--color-border)", strokeWidth: 1 }}
+                  tickLine={false}
+                  height={52}
+                />
                 <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 500, fill: "#8A8090" }} />
-                <Tooltip contentStyle={tooltipStyle} />
+                <Tooltip contentStyle={tooltipStyle} labelFormatter={weekChartLabelFormatter(chartData)} />
                 <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: "12px", fontSize: "12px", fontWeight: 600 }} />
                 <Bar dataKey="Planned" fill="#3699FC" barSize={12} radius={[4, 4, 0, 0]}>
                   <LabelList dataKey="Planned" position="top" style={barLabelStyle} formatter={barLabel} />

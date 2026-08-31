@@ -12,7 +12,7 @@
  * Wallet rollup math.
  */
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveCohortWeekAnchors, weekNumberFor } from "@/lib/cohort-week";
+import { resolveCohortWeekAnchors, sharedWeekAnchor, weekNumberFor, weekRangeFields } from "@/lib/cohort-week";
 import {
   getAdminContext,
   loadCommitmentWalletByCohort,
@@ -97,6 +97,9 @@ export interface ActionWeeklyTrendEntry {
   due: number;
   /** Of those, how many have since been validated (status = 'success'), regardless of when. */
   completed: number;
+  /** Inclusive IST dates of this week from the first delivery; null when batches differ. */
+  weekStartIst: string | null;
+  weekEndIst: string | null;
 }
 
 /** Weekly "due vs. completed" action counts for the batch/module drill-down: for each
@@ -145,10 +148,16 @@ export async function getActionCompletionWeeklyTrend(
       weeklyMap.set(week, bucket);
     }
 
+    const displayAnchor = sharedWeekAnchor(anchors.values());
     const entries: ActionWeeklyTrendEntry[] = [];
     for (let week = 1; week <= maxWeek; week++) {
       const b = weeklyMap.get(week) ?? { due: 0, completed: 0 };
-      entries.push({ weekNumber: week, due: b.due, completed: b.completed });
+      entries.push({
+        weekNumber: week,
+        due: b.due,
+        completed: b.completed,
+        ...weekRangeFields(week, displayAnchor),
+      });
     }
 
     return { entries };
@@ -353,6 +362,8 @@ export async function getDashboardLeaderboard(
 export interface CommitmentWeeklyTrendEntry {
   weekNumber: number;
   avgCommitmentPct: number;
+  weekStartIst: string | null;
+  weekEndIst: string | null;
 }
 
 /** Average commitment score per week since the first action delivery (cumulative, as of the end of each week),
@@ -444,10 +455,15 @@ export async function getBatchCommitmentWeeklyTrend(
       }
     }
 
+    const displayAnchor = sharedWeekAnchor(anchors.values());
     const entries: CommitmentWeeklyTrendEntry[] = [];
     for (let week = 1; week <= maxWeek; week++) {
       const s = weeklySums.get(week);
-      entries.push({ weekNumber: week, avgCommitmentPct: s && s.count > 0 ? Math.round(s.sum / s.count) : 0 });
+      entries.push({
+        weekNumber: week,
+        avgCommitmentPct: s && s.count > 0 ? Math.round(s.sum / s.count) : 0,
+        ...weekRangeFields(week, displayAnchor),
+      });
     }
 
     const currentWeekAvg = entries.length ? entries[entries.length - 1].avgCommitmentPct : null;
@@ -472,6 +488,8 @@ export interface EmailOpenWeeklyEntry {
   reminderOpenRate: number;
   reminderClicked: number;
   reminderClickRate: number;
+  weekStartIst: string | null;
+  weekEndIst: string | null;
 }
 
 export interface EmailEngagementTotals {
@@ -636,6 +654,7 @@ export async function getEmailOpenRates(
 
     const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
 
+    const displayAnchor = sharedWeekAnchor(anchors.values());
     const weekly: EmailOpenWeeklyEntry[] = [...weeklyMap.keys()]
       .sort((a, b) => a - b)
       .map((week) => {
@@ -652,6 +671,7 @@ export async function getEmailOpenRates(
           reminderOpenRate: pct(b.reminderOpened, b.reminderSent),
           reminderClicked: b.reminderClicked,
           reminderClickRate: pct(b.reminderClicked, b.reminderSent),
+          ...weekRangeFields(week, displayAnchor),
         };
       });
 

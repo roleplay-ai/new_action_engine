@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveCohortWeekAnchors, weekAnchorFromTimestamp, weekNumberFor } from "@/lib/cohort-week";
+import { resolveCohortWeekAnchors, sharedWeekAnchor, weekAnchorFromTimestamp, weekNumberFor, weekRangeFields } from "@/lib/cohort-week";
 
 /** Exported so app/actions/admin-dashboard.ts can reuse the same role/company
  * resolution instead of duplicating it — "use server" files may only export
@@ -637,6 +637,9 @@ export interface WeeklyActionChartEntry {
   pending: number;
   /** Confirmed fails/skips — same as Actions "Didn't complete". */
   didntComplete: number;
+  /** Inclusive IST dates of this week from the first delivery; null when batches differ. */
+  weekStartIst: string | null;
+  weekEndIst: string | null;
 }
 
 /** Empty weekly bucket — shared by company-wide and per-batch chart builders. */
@@ -735,6 +738,7 @@ export async function getWeeklyActionChartData(companyId?: string): Promise<{
 
     if (!weeklyBuckets.size) return { entries: [] };
 
+    const displayAnchor = sharedWeekAnchor(anchors.values());
     const entries: WeeklyActionChartEntry[] = [];
     for (let weekNum = 1; weekNum <= maxWeek; weekNum++) {
       const b = weeklyBuckets.get(weekNum) ?? emptyWeeklyBucket();
@@ -745,6 +749,7 @@ export async function getWeeklyActionChartData(companyId?: string): Promise<{
         validated: b.validated,
         pending: b.pending,
         didntComplete: b.didntComplete,
+        ...weekRangeFields(weekNum, displayAnchor),
       });
     }
 
@@ -1132,6 +1137,7 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
           validated: b.validated,
           pending: b.pending,
           didntComplete: b.didntComplete,
+          ...weekRangeFields(weekNum, cohortAnchor),
         });
       }
     }

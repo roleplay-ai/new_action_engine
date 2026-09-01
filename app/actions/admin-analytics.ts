@@ -494,6 +494,8 @@ export async function getBehaviouralJourneyFunnel(companyId?: string): Promise<{
 export interface EngagementLeaderboardEntry {
   id: string;
   name: string;
+  /** Commitment buddy display name in scope (null when unpaired). */
+  buddyName: string | null;
   commitmentPoints: number;
   commitmentMaximum: number;
   commitmentPct: number;
@@ -577,7 +579,42 @@ export async function getEngagementLeaderboard(companyId?: string, cohortId?: st
         .eq("company_id", resolvedCompanyId);
       scopedCohortIds = (companyCohorts ?? []).map((c: { id: string }) => c.id);
     }
-    const commitmentByCohort = await loadCommitmentWalletByCohort(admin, scopedCohortIds);
+    const [commitmentByCohort, buddyAssignments] = await Promise.all([
+      loadCommitmentWalletByCohort(admin, scopedCohortIds),
+      scopedCohortIds.length && userIds.length
+        ? admin
+            .from("commitment_buddy_assignments")
+            .select("user_id, buddy_user_id")
+            .in("cohort_id", scopedCohortIds)
+            .in("user_id", userIds)
+        : Promise.resolve({ data: [] as { user_id: string; buddy_user_id: string }[] }),
+    ]);
+
+    const buddyIds = [
+      ...new Set(
+        ((buddyAssignments.data ?? []) as { buddy_user_id: string }[]).map((a) => a.buddy_user_id)
+      ),
+    ];
+    const buddyNameById = new Map<string, string>();
+    if (buddyIds.length) {
+      const { data: buddyProfiles } = await admin
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", buddyIds);
+      for (const p of (buddyProfiles ?? []) as { id: string; full_name: string | null }[]) {
+        buddyNameById.set(p.id, p.full_name?.trim() || "User");
+      }
+    }
+    const buddyByUser = new Map<string, string>();
+    for (const row of (buddyAssignments.data ?? []) as { user_id: string; buddy_user_id: string }[]) {
+      const name = buddyNameById.get(row.buddy_user_id);
+      if (!name) continue;
+      const existing = buddyByUser.get(row.user_id);
+      if (!existing) buddyByUser.set(row.user_id, name);
+      else if (existing !== name && !existing.split(" / ").includes(name)) {
+        buddyByUser.set(row.user_id, `${existing} / ${name}`);
+      }
+    }
 
     const commitmentByUser = new Map<string, UserCommitment>();
     for (const cohortCommitment of commitmentByCohort.values()) {
@@ -603,6 +640,7 @@ export async function getEngagementLeaderboard(companyId?: string, cohortId?: st
         return {
           id: p.id,
           name: p.full_name?.trim() || "User",
+          buddyName: buddyByUser.get(p.id) ?? null,
           commitmentPoints: commitment?.points ?? 0,
           commitmentMaximum: commitment?.maximum ?? 0,
           commitmentPct: walletScorePct(commitment?.plannedActions ?? 0, commitment?.missedActions ?? 0),

@@ -247,6 +247,8 @@ export async function getCommitmentScoreBuckets(
 export interface DashboardLeaderboardEntry {
   id: string;
   name: string;
+  /** Commitment buddy display name in scope (null when unpaired). */
+  buddyName: string | null;
   commitmentPoints: number;
   commitmentMaximum: number;
   commitmentPct: number;
@@ -260,6 +262,52 @@ export interface DashboardLeaderboardEntry {
   pendingValidationCount: number;
   /** Confirmed fails/skips — matches Actions "Didn't complete". */
   notCompletedCount: number;
+}
+
+/** Map user_id → buddy display name for the given cohorts (joins unique names when a
+ * person has different buddies across batches in company-wide scope). */
+async function loadBuddyNamesByUser(
+  admin: Admin,
+  cohortIds: string[],
+  userIds: string[]
+): Promise<Map<string, string>> {
+  const buddyByUser = new Map<string, string>();
+  if (!cohortIds.length || !userIds.length) return buddyByUser;
+
+  const { data: assignments } = await admin
+    .from("commitment_buddy_assignments")
+    .select("user_id, buddy_user_id")
+    .in("cohort_id", cohortIds)
+    .in("user_id", userIds);
+
+  const buddyIds = [
+    ...new Set(
+      ((assignments ?? []) as { buddy_user_id: string }[]).map((a) => a.buddy_user_id)
+    ),
+  ];
+  if (!buddyIds.length) return buddyByUser;
+
+  const { data: buddyProfiles } = await admin
+    .from("profiles")
+    .select("id, full_name")
+    .in("id", buddyIds);
+  const nameById = new Map(
+    ((buddyProfiles ?? []) as { id: string; full_name: string | null }[]).map((p) => [
+      p.id,
+      p.full_name?.trim() || "User",
+    ])
+  );
+
+  for (const row of (assignments ?? []) as { user_id: string; buddy_user_id: string }[]) {
+    const name = nameById.get(row.buddy_user_id);
+    if (!name) continue;
+    const existing = buddyByUser.get(row.user_id);
+    if (!existing) buddyByUser.set(row.user_id, name);
+    else if (existing !== name && !existing.split(" / ").includes(name)) {
+      buddyByUser.set(row.user_id, `${existing} / ${name}`);
+    }
+  }
+  return buddyByUser;
 }
 
 /** Leaderboard ranked by commitment score % (not raw points, unlike getEngagementLeaderboard,
@@ -284,7 +332,11 @@ export async function getDashboardLeaderboard(
     );
 
     const cohortIds = await resolveCohortIds(admin, resolvedCompanyId, cohortId ?? null);
-    const commitmentByCohort = await loadCommitmentWalletByCohort(admin, cohortIds);
+    const [commitmentByCohort, buddyByUser, actionsReadByUser] = await Promise.all([
+      loadCommitmentWalletByCohort(admin, cohortIds),
+      loadBuddyNamesByUser(admin, cohortIds, userIds),
+      loadActionsReadByEmail(admin, userIds, cohortIds),
+    ]);
 
     const commitmentByUser = new Map<string, { points: number; maximum: number; plannedActions: number; missedActions: number }>();
     for (const { perUser } of commitmentByCohort.values()) {
@@ -311,7 +363,6 @@ export async function getDashboardLeaderboard(
     else if (cohortIds.length) uaQuery = uaQuery.in("cohort_id", cohortIds);
     const { data: uaRows } = await uaQuery;
 
-    const actionsReadByUser = await loadActionsReadByEmail(admin, userIds, cohortIds);
     const actionsSentByUser = new Map<string, number>();
     const validatedByUser = new Map<string, number>();
     const pendingByUser = new Map<string, number>();
@@ -337,6 +388,7 @@ export async function getDashboardLeaderboard(
       return {
         id,
         name: nameById.get(id) ?? "User",
+        buddyName: buddyByUser.get(id) ?? null,
         commitmentPoints: c?.points ?? 0,
         commitmentMaximum: c?.maximum ?? 0,
         commitmentPct: walletScorePct(c?.plannedActions ?? 0, c?.missedActions ?? 0),
@@ -479,6 +531,11 @@ export interface EmailOpenWeeklyEntry {
   reminderOpenRate: number;
   reminderClicked: number;
   reminderClickRate: number;
+  recapSent: number;
+  recapOpened: number;
+  recapOpenRate: number;
+  recapClicked: number;
+  recapClickRate: number;
   weekStartIst: string | null;
   weekEndIst: string | null;
 }
@@ -493,10 +550,11 @@ export interface EmailEngagementTotals {
 
 const ZERO_TOTALS: EmailEngagementTotals = { sent: 0, opened: 0, openRate: 0, clicked: 0, clickRate: 0 };
 
-/** Weekly + total-current open AND click rates for welcome ("credentials" template) and
- * reminder ("daily_reminder" template) emails, category-wise, from Resend via the webhook at
- * app/api/webhooks/resend/route.ts. `webhookConfigured` tells the UI whether to show a
- * "tracking not enabled yet" banner instead of trusting a flat 0% as real data. */
+/** Weekly + total-current open AND click rates for welcome ("credentials"),
+ * reminder ("daily_reminder"), and Friday weekly recap ("weekly_recap") emails,
+ * category-wise, from Resend via the webhook at app/api/webhooks/resend/route.ts.
+ * `webhookConfigured` tells the UI whether to show a "tracking not enabled yet"
+ * banner instead of trusting a flat 0% as real data. */
 export async function getEmailOpenRates(
   companyId?: string,
   cohortId?: string | null
@@ -504,6 +562,7 @@ export async function getEmailOpenRates(
   weekly: EmailOpenWeeklyEntry[];
   welcomeTotals: EmailEngagementTotals;
   reminderTotals: EmailEngagementTotals;
+  recapTotals: EmailEngagementTotals;
   webhookConfigured: boolean;
   error?: string;
 }> {
@@ -511,6 +570,7 @@ export async function getEmailOpenRates(
     weekly: [],
     welcomeTotals: ZERO_TOTALS,
     reminderTotals: ZERO_TOTALS,
+    recapTotals: ZERO_TOTALS,
     webhookConfigured: !!process.env.RESEND_WEBHOOK_SECRET,
   };
   try {
@@ -526,12 +586,13 @@ export async function getEmailOpenRates(
     const scopedUserIds = await resolveScopedUserIds(admin, resolvedCompanyId, cohortId ?? null);
     const cohortIdSet = new Set(cohortIds);
     const scopedUserSet = new Set(scopedUserIds);
+    const emailTemplates = ["credentials", "daily_reminder", "weekly_recap"] as const;
 
     const { data: attributedRows } = await admin
       .from("email_campaign_logs")
       .select("user_id, template_id, cohort_id, created_at, opened_at, clicked_at")
       .in("cohort_id", cohortIds)
-      .in("template_id", ["credentials", "daily_reminder"])
+      .in("template_id", [...emailTemplates])
       .eq("status", "sent");
 
     // Older sends logged cohort_id as null, so also pull those rows by recipient
@@ -542,7 +603,7 @@ export async function getEmailOpenRates(
           .select("user_id, template_id, cohort_id, created_at, opened_at, clicked_at")
           .is("cohort_id", null)
           .in("user_id", scopedUserIds)
-          .in("template_id", ["credentials", "daily_reminder"])
+          .in("template_id", [...emailTemplates])
           .eq("status", "sent")
       : { data: [] };
 
@@ -583,76 +644,95 @@ export async function getEmailOpenRates(
       }
     }
 
+    type WeekBucket = {
+      welcomeSent: number;
+      welcomeOpened: number;
+      welcomeClicked: number;
+      reminderSent: number;
+      reminderOpened: number;
+      reminderClicked: number;
+      recapSent: number;
+      recapOpened: number;
+      recapClicked: number;
+    };
+
     let welcomeSentTotal = 0;
     let welcomeOpenedTotal = 0;
     let welcomeClickedTotal = 0;
     let reminderSentTotal = 0;
     let reminderOpenedTotal = 0;
     let reminderClickedTotal = 0;
-    const weeklyMap = new Map<
-      number,
-      {
-        welcomeSent: number;
-        welcomeOpened: number;
-        welcomeClicked: number;
-        reminderSent: number;
-        reminderOpened: number;
-        reminderClicked: number;
-      }
-    >();
-
-    for (const row of emailRows) {
-      // Click implies open (clients that block pixels often only fire click events).
-      const clicked = !!row.clicked_at;
-      const opened = !!row.opened_at || clicked;
-      if (row.template_id === "credentials") {
-        welcomeSentTotal += 1;
-        if (opened) welcomeOpenedTotal += 1;
-        if (clicked) welcomeClickedTotal += 1;
-      } else if (row.template_id === "daily_reminder") {
-        reminderSentTotal += 1;
-        if (opened) reminderOpenedTotal += 1;
-        if (clicked) reminderClickedTotal += 1;
-      }
-
-      const attributedCohortId =
-        row.cohort_id
-        ?? (cohortId && cohortIdSet.has(cohortId) ? cohortId : null)
-        ?? (row.user_id ? profileCohortByUser.get(row.user_id) ?? null : null);
-      const anchor = attributedCohortId ? anchors.get(attributedCohortId) : undefined;
-      if (!anchor) continue; // no batch attribution (e.g. pre-migration send) — still in totals above
-
-      const week = weekNumberFor(new Date(row.created_at), anchor);
-      const bucket = weeklyMap.get(week) ?? {
-        welcomeSent: 0,
-        welcomeOpened: 0,
-        welcomeClicked: 0,
-        reminderSent: 0,
-        reminderOpened: 0,
-        reminderClicked: 0,
-      };
-      if (row.template_id === "credentials") {
-        bucket.welcomeSent += 1;
-        if (opened) bucket.welcomeOpened += 1;
-        if (clicked) bucket.welcomeClicked += 1;
-      } else {
-        bucket.reminderSent += 1;
-        if (opened) bucket.reminderOpened += 1;
-        if (clicked) bucket.reminderClicked += 1;
-      }
-      weeklyMap.set(week, bucket);
-    }
-
-    const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
-
-    const emptyWeek = () => ({
+    let recapSentTotal = 0;
+    let recapOpenedTotal = 0;
+    let recapClickedTotal = 0;
+    const weeklyMap = new Map<number, WeekBucket>();
+    const emptyWeek = (): WeekBucket => ({
       welcomeSent: 0,
       welcomeOpened: 0,
       welcomeClicked: 0,
       reminderSent: 0,
       reminderOpened: 0,
       reminderClicked: 0,
+      recapSent: 0,
+      recapOpened: 0,
+      recapClicked: 0,
     });
+
+    for (const row of emailRows) {
+      // Click implies open (clients that block pixels often only fire click events).
+      const clicked = !!row.clicked_at;
+      const opened = !!row.opened_at || clicked;
+
+      const attributedCohortId =
+        row.cohort_id
+        ?? (cohortId && cohortIdSet.has(cohortId) ? cohortId : null)
+        ?? (row.user_id ? profileCohortByUser.get(row.user_id) ?? null : null);
+      const anchor = attributedCohortId ? anchors.get(attributedCohortId) : undefined;
+      // Cards + weekly chart share this attribution gate so overall % matches the bars
+      // (legacy rows with no batch week would otherwise dilute the card to ~0%).
+      if (!anchor) continue;
+
+      const week = weekNumberFor(new Date(row.created_at), anchor);
+      const bucket = weeklyMap.get(week) ?? emptyWeek();
+      if (row.template_id === "credentials") {
+        welcomeSentTotal += 1;
+        bucket.welcomeSent += 1;
+        if (opened) {
+          welcomeOpenedTotal += 1;
+          bucket.welcomeOpened += 1;
+        }
+        if (clicked) {
+          welcomeClickedTotal += 1;
+          bucket.welcomeClicked += 1;
+        }
+      } else if (row.template_id === "daily_reminder") {
+        reminderSentTotal += 1;
+        bucket.reminderSent += 1;
+        if (opened) {
+          reminderOpenedTotal += 1;
+          bucket.reminderOpened += 1;
+        }
+        if (clicked) {
+          reminderClickedTotal += 1;
+          bucket.reminderClicked += 1;
+        }
+      } else if (row.template_id === "weekly_recap") {
+        recapSentTotal += 1;
+        bucket.recapSent += 1;
+        if (opened) {
+          recapOpenedTotal += 1;
+          bucket.recapOpened += 1;
+        }
+        if (clicked) {
+          recapClickedTotal += 1;
+          bucket.recapClicked += 1;
+        }
+      }
+      weeklyMap.set(week, bucket);
+    }
+
+    const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
+
     const displayAnchor = sharedWeekAnchor(anchors.values());
     // Same 1..elapsed-week axis as the other dashboard charts, so a new week
     // is visible even before any reminder has gone out that week.
@@ -673,6 +753,11 @@ export async function getEmailOpenRates(
             reminderOpenRate: pct(b.reminderOpened, b.reminderSent),
             reminderClicked: b.reminderClicked,
             reminderClickRate: pct(b.reminderClicked, b.reminderSent),
+            recapSent: b.recapSent,
+            recapOpened: b.recapOpened,
+            recapOpenRate: pct(b.recapOpened, b.recapSent),
+            recapClicked: b.recapClicked,
+            recapClickRate: pct(b.recapClicked, b.recapSent),
             ...weekRangeFields(week, displayAnchor),
           };
         })
@@ -693,6 +778,13 @@ export async function getEmailOpenRates(
         openRate: pct(reminderOpenedTotal, reminderSentTotal),
         clicked: reminderClickedTotal,
         clickRate: pct(reminderClickedTotal, reminderSentTotal),
+      },
+      recapTotals: {
+        sent: recapSentTotal,
+        opened: recapOpenedTotal,
+        openRate: pct(recapOpenedTotal, recapSentTotal),
+        clicked: recapClickedTotal,
+        clickRate: pct(recapClickedTotal, recapSentTotal),
       },
       webhookConfigured: !!process.env.RESEND_WEBHOOK_SECRET,
     };

@@ -11,6 +11,7 @@ import {
 interface UserEngagementRow {
   id: string;
   name: string;
+  buddyName: string | null;
   commitmentPoints: number;
   commitmentMaximum: number;
   commitmentPct: number;
@@ -54,6 +55,7 @@ export function EngagementView({ companyId }: EngagementViewProps) {
           (e: EngagementLeaderboardEntry) => ({
             id: e.id,
             name: e.name,
+            buddyName: e.buddyName,
             commitmentPoints: e.commitmentPoints,
             commitmentMaximum: e.commitmentMaximum,
             commitmentPct: e.commitmentPct,
@@ -134,12 +136,15 @@ export function EngagementView({ companyId }: EngagementViewProps) {
             No users found for this company.
           </div>
         ) : (
-          <div className="overflow-x-auto no-scrollbar">
-            <table className="w-full text-left border-collapse table-fixed min-w-[760px] text-xs">
-              <thead>
+          <div className="overflow-x-auto max-h-[720px] overflow-y-auto">
+            <table className="w-full text-left border-collapse table-fixed min-w-[860px] text-xs">
+              <thead className="sticky top-0 z-10">
                 <tr style={{ background: "var(--color-bg-dark)", color: "var(--white)" }}>
                   <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)" }}>
                     Rank / Name
+                  </th>
+                  <th className="px-2 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+                    Buddy
                   </th>
                   <th className="px-2 py-3 text-xs font-semibold text-center">Planned actions</th>
                   <th className="px-2 py-3 text-xs font-semibold text-center">Validated actions</th>
@@ -171,11 +176,25 @@ export function EngagementView({ companyId }: EngagementViewProps) {
                         </span>
                       </div>
                     </td>
+                    <td className="px-2 py-2.5" style={{ borderRight: "1px solid var(--color-border)" }}>
+                      <span className="text-xs font-medium truncate block" style={{ color: "var(--color-text-muted)" }}>
+                        {user.buddyName ?? "—"}
+                      </span>
+                    </td>
                     <td className="px-2 py-2.5 text-center">
                       <span className="text-xs font-semibold text-blue-600">{user.plannedActions}</span>
                     </td>
                     <td className="px-2 py-2.5 text-center">
-                      <span className="text-xs font-semibold text-green-600">{user.validatedCount}</span>
+                      <span
+                        className={`tag ${user.validatedCount > 0 ? "tag--teal" : ""}`}
+                        style={
+                          user.validatedCount === 0
+                            ? { background: "var(--color-tag-red-bg, rgba(237, 69, 81, 0.12))", color: "var(--color-tag-red-text, #8C1C24)" }
+                            : undefined
+                        }
+                      >
+                        {user.validatedCount}
+                      </span>
                     </td>
                     <td className="px-2 py-2.5 text-center">
                       <div className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${commitmentBadgeColor(user.commitmentPct)}`}>

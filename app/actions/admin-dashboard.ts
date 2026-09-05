@@ -536,6 +536,18 @@ export interface EmailOpenWeeklyEntry {
   recapOpenRate: number;
   recapClicked: number;
   recapClickRate: number;
+  /** Unique users who received at least one reminder that week. */
+  reminderUsers: number;
+  /** Unique users who received at least one Friday recap that week. */
+  recapUsers: number;
+  /** Unique users who received reminder and/or recap that week (union). */
+  eitherMailUsers: number;
+  /** Unique users who opened at least one reminder that week. */
+  reminderOpenedUsers: number;
+  /** Unique users who opened at least one Friday recap that week. */
+  recapOpenedUsers: number;
+  /** Unique users who opened reminder and/or recap that week (union). */
+  eitherMailOpenedUsers: number;
   weekStartIst: string | null;
   weekEndIst: string | null;
 }
@@ -546,9 +558,18 @@ export interface EmailEngagementTotals {
   openRate: number;
   clicked: number;
   clickRate: number;
+  /** Unique users who opened at least one email in this category. */
+  openedUsers: number;
 }
 
-const ZERO_TOTALS: EmailEngagementTotals = { sent: 0, opened: 0, openRate: 0, clicked: 0, clickRate: 0 };
+const ZERO_TOTALS: EmailEngagementTotals = {
+  sent: 0,
+  opened: 0,
+  openRate: 0,
+  clicked: 0,
+  clickRate: 0,
+  openedUsers: 0,
+};
 
 /** Weekly + total-current open AND click rates for welcome ("credentials"),
  * reminder ("daily_reminder"), and Friday weekly recap ("weekly_recap") emails,
@@ -563,6 +584,7 @@ export async function getEmailOpenRates(
   welcomeTotals: EmailEngagementTotals;
   reminderTotals: EmailEngagementTotals;
   recapTotals: EmailEngagementTotals;
+  eitherTotals: EmailEngagementTotals;
   webhookConfigured: boolean;
   error?: string;
 }> {
@@ -571,6 +593,7 @@ export async function getEmailOpenRates(
     welcomeTotals: ZERO_TOTALS,
     reminderTotals: ZERO_TOTALS,
     recapTotals: ZERO_TOTALS,
+    eitherTotals: ZERO_TOTALS,
     webhookConfigured: !!process.env.RESEND_WEBHOOK_SECRET,
   };
   try {
@@ -654,6 +677,10 @@ export async function getEmailOpenRates(
       recapSent: number;
       recapOpened: number;
       recapClicked: number;
+      reminderUserIds: Set<string>;
+      recapUserIds: Set<string>;
+      reminderOpenedUserIds: Set<string>;
+      recapOpenedUserIds: Set<string>;
     };
 
     let welcomeSentTotal = 0;
@@ -665,6 +692,9 @@ export async function getEmailOpenRates(
     let recapSentTotal = 0;
     let recapOpenedTotal = 0;
     let recapClickedTotal = 0;
+    const welcomeOpenedUserIds = new Set<string>();
+    const reminderOpenedUserIds = new Set<string>();
+    const recapOpenedUserIds = new Set<string>();
     const weeklyMap = new Map<number, WeekBucket>();
     const emptyWeek = (): WeekBucket => ({
       welcomeSent: 0,
@@ -676,6 +706,10 @@ export async function getEmailOpenRates(
       recapSent: 0,
       recapOpened: 0,
       recapClicked: 0,
+      reminderUserIds: new Set(),
+      recapUserIds: new Set(),
+      reminderOpenedUserIds: new Set(),
+      recapOpenedUserIds: new Set(),
     });
 
     for (const row of emailRows) {
@@ -700,6 +734,7 @@ export async function getEmailOpenRates(
         if (opened) {
           welcomeOpenedTotal += 1;
           bucket.welcomeOpened += 1;
+          if (row.user_id) welcomeOpenedUserIds.add(row.user_id);
         }
         if (clicked) {
           welcomeClickedTotal += 1;
@@ -708,9 +743,14 @@ export async function getEmailOpenRates(
       } else if (row.template_id === "daily_reminder") {
         reminderSentTotal += 1;
         bucket.reminderSent += 1;
+        if (row.user_id) bucket.reminderUserIds.add(row.user_id);
         if (opened) {
           reminderOpenedTotal += 1;
           bucket.reminderOpened += 1;
+          if (row.user_id) {
+            bucket.reminderOpenedUserIds.add(row.user_id);
+            reminderOpenedUserIds.add(row.user_id);
+          }
         }
         if (clicked) {
           reminderClickedTotal += 1;
@@ -719,9 +759,14 @@ export async function getEmailOpenRates(
       } else if (row.template_id === "weekly_recap") {
         recapSentTotal += 1;
         bucket.recapSent += 1;
+        if (row.user_id) bucket.recapUserIds.add(row.user_id);
         if (opened) {
           recapOpenedTotal += 1;
           bucket.recapOpened += 1;
+          if (row.user_id) {
+            bucket.recapOpenedUserIds.add(row.user_id);
+            recapOpenedUserIds.add(row.user_id);
+          }
         }
         if (clicked) {
           recapClickedTotal += 1;
@@ -732,6 +777,11 @@ export async function getEmailOpenRates(
     }
 
     const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
+    const unionSize = (a: Set<string>, b: Set<string>) => {
+      const either = new Set(a);
+      for (const id of b) either.add(id);
+      return either.size;
+    };
 
     const displayAnchor = sharedWeekAnchor(anchors.values());
     // Same 1..elapsed-week axis as the other dashboard charts, so a new week
@@ -758,10 +808,22 @@ export async function getEmailOpenRates(
             recapOpenRate: pct(b.recapOpened, b.recapSent),
             recapClicked: b.recapClicked,
             recapClickRate: pct(b.recapClicked, b.recapSent),
+            reminderUsers: b.reminderUserIds.size,
+            recapUsers: b.recapUserIds.size,
+            eitherMailUsers: unionSize(b.reminderUserIds, b.recapUserIds),
+            reminderOpenedUsers: b.reminderOpenedUserIds.size,
+            recapOpenedUsers: b.recapOpenedUserIds.size,
+            eitherMailOpenedUsers: unionSize(b.reminderOpenedUserIds, b.recapOpenedUserIds),
             ...weekRangeFields(week, displayAnchor),
           };
         })
       : [];
+
+    const eitherOpenedUserIds = new Set(reminderOpenedUserIds);
+    for (const id of recapOpenedUserIds) eitherOpenedUserIds.add(id);
+    const eitherSentTotal = reminderSentTotal + recapSentTotal;
+    const eitherOpenedTotal = reminderOpenedTotal + recapOpenedTotal;
+    const eitherClickedTotal = reminderClickedTotal + recapClickedTotal;
 
     return {
       weekly,
@@ -771,6 +833,7 @@ export async function getEmailOpenRates(
         openRate: pct(welcomeOpenedTotal, welcomeSentTotal),
         clicked: welcomeClickedTotal,
         clickRate: pct(welcomeClickedTotal, welcomeSentTotal),
+        openedUsers: welcomeOpenedUserIds.size,
       },
       reminderTotals: {
         sent: reminderSentTotal,
@@ -778,6 +841,7 @@ export async function getEmailOpenRates(
         openRate: pct(reminderOpenedTotal, reminderSentTotal),
         clicked: reminderClickedTotal,
         clickRate: pct(reminderClickedTotal, reminderSentTotal),
+        openedUsers: reminderOpenedUserIds.size,
       },
       recapTotals: {
         sent: recapSentTotal,
@@ -785,6 +849,15 @@ export async function getEmailOpenRates(
         openRate: pct(recapOpenedTotal, recapSentTotal),
         clicked: recapClickedTotal,
         clickRate: pct(recapClickedTotal, recapSentTotal),
+        openedUsers: recapOpenedUserIds.size,
+      },
+      eitherTotals: {
+        sent: eitherSentTotal,
+        opened: eitherOpenedTotal,
+        openRate: pct(eitherOpenedTotal, eitherSentTotal),
+        clicked: eitherClickedTotal,
+        clickRate: pct(eitherClickedTotal, eitherSentTotal),
+        openedUsers: eitherOpenedUserIds.size,
       },
       webhookConfigured: !!process.env.RESEND_WEBHOOK_SECRET,
     };

@@ -206,6 +206,75 @@ export async function loadActionsReadByEmail(
   return result;
 }
 
+export type MemberEmailOpenCounts = {
+  /** Reminder opens + recap opens. */
+  eitherOpened: number;
+  reminderOpened: number;
+  recapOpened: number;
+};
+
+/** Per-member opened counts for reminder and Friday recap (click ⇒ open). */
+async function loadMemberEmailOpenCounts(
+  admin: ReturnType<typeof createAdminClient>,
+  userIds: string[],
+  cohortIds: string[]
+): Promise<Map<string, MemberEmailOpenCounts>> {
+  const result = new Map<string, MemberEmailOpenCounts>();
+  if (!userIds.length || !cohortIds.length) return result;
+
+  const cohortIdSet = new Set(cohortIds);
+  const userIdSet = new Set(userIds);
+  const emailTemplates = ["daily_reminder", "weekly_recap"] as const;
+
+  const { data: attributedRows } = await admin
+    .from("email_campaign_logs")
+    .select("user_id, template_id, cohort_id, created_at, opened_at, clicked_at")
+    .in("cohort_id", cohortIds)
+    .in("user_id", userIds)
+    .in("template_id", [...emailTemplates])
+    .eq("status", "sent");
+
+  const { data: unattributedRows } = await admin
+    .from("email_campaign_logs")
+    .select("user_id, template_id, cohort_id, created_at, opened_at, clicked_at")
+    .is("cohort_id", null)
+    .in("user_id", userIds)
+    .in("template_id", [...emailTemplates])
+    .eq("status", "sent");
+
+  const seen = new Set<string>();
+  for (const row of [...(attributedRows ?? []), ...(unattributedRows ?? [])] as {
+    user_id: string | null;
+    template_id: string;
+    cohort_id: string | null;
+    created_at: string;
+    opened_at: string | null;
+    clicked_at: string | null;
+  }[]) {
+    if (!row.user_id || !userIdSet.has(row.user_id)) continue;
+    if (row.cohort_id && !cohortIdSet.has(row.cohort_id)) continue;
+    const key = `${row.user_id}|${row.template_id}|${row.created_at}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const openedOrClicked = !!row.opened_at || !!row.clicked_at;
+    if (!openedOrClicked) continue;
+
+    const current = result.get(row.user_id) ?? { eitherOpened: 0, reminderOpened: 0, recapOpened: 0 };
+    if (row.template_id === "daily_reminder") {
+      current.reminderOpened += 1;
+    } else if (row.template_id === "weekly_recap") {
+      current.recapOpened += 1;
+    } else {
+      continue;
+    }
+    current.eitherOpened = current.reminderOpened + current.recapOpened;
+    result.set(row.user_id, current);
+  }
+
+  return result;
+}
+
 /** Get company-scoped analytics. Superadmin must pass companyId. */
 export async function getCompanyAnalytics(companyId?: string): Promise<{
   error?: string;
@@ -995,8 +1064,10 @@ export interface CohortMemberEngagement {
   commitmentPct: number;
   plannedActions: number;
   completedOnTimeActions: number;
-  /** Reminder emails opened or clicked (Resend webhook on email_campaign_logs). */
+  /** Reminder + recap emails opened or clicked. */
   actionsReadCount: number;
+  reminderOpenedCount: number;
+  recapOpenedCount: number;
   /** Auto-expired failures still awaiting participant confirm — matches Actions "Pending validation". */
   pendingValidationCount: number;
   /** Confirmed fails/skips — matches Actions "Didn't complete". */
@@ -1007,7 +1078,101 @@ export interface CohortMemberEngagement {
 
 export interface CohortAnalyticsDetail extends CohortAnalyticsSummary {
   weeklyChart: WeeklyActionChartEntry[];
+  /** Unique users emailed per week: either (reminder∪recap), reminder, weekly recap. */
+  weeklyEmailChart: WeeklyEmailChartEntry[];
   members: CohortMemberEngagement[];
+}
+
+export interface WeeklyEmailChartEntry {
+  weekNumber: number;
+  name: string;
+  eitherMailUsers: number;
+  reminderUsers: number;
+  recapUsers: number;
+  weekStartIst: string | null;
+  weekEndIst: string | null;
+}
+
+/** Unique recipients of reminder / Friday recap emails per cohort week — same
+ * either∪reminder∪recap definition as the Dashboard combined mail chart. */
+async function loadWeeklyEmailReachChart(
+  admin: ReturnType<typeof createAdminClient>,
+  cohortId: string,
+  userIds: string[],
+  cohortAnchor: Date,
+  maxWeek: number
+): Promise<WeeklyEmailChartEntry[]> {
+  if (!userIds.length) return [];
+
+  const userIdSet = new Set(userIds);
+  const emailTemplates = ["daily_reminder", "weekly_recap"] as const;
+
+  const { data: attributedRows } = await admin
+    .from("email_campaign_logs")
+    .select("user_id, template_id, cohort_id, created_at")
+    .eq("cohort_id", cohortId)
+    .in("user_id", userIds)
+    .in("template_id", [...emailTemplates])
+    .eq("status", "sent");
+
+  const { data: unattributedRows } = await admin
+    .from("email_campaign_logs")
+    .select("user_id, template_id, cohort_id, created_at")
+    .is("cohort_id", null)
+    .in("user_id", userIds)
+    .in("template_id", [...emailTemplates])
+    .eq("status", "sent");
+
+  type WeekMailBucket = { reminderUserIds: Set<string>; recapUserIds: Set<string> };
+  const weeklyMap = new Map<number, WeekMailBucket>();
+  const emptyMailWeek = (): WeekMailBucket => ({
+    reminderUserIds: new Set(),
+    recapUserIds: new Set(),
+  });
+
+  const seen = new Set<string>();
+  let emailMaxWeek = 0;
+  for (const row of [...(attributedRows ?? []), ...(unattributedRows ?? [])] as {
+    user_id: string | null;
+    template_id: string;
+    cohort_id: string | null;
+    created_at: string;
+  }[]) {
+    if (!row.user_id || !userIdSet.has(row.user_id)) continue;
+    if (row.cohort_id && row.cohort_id !== cohortId) continue;
+    const key = `${row.user_id}|${row.template_id}|${row.created_at}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const week = weekNumberFor(new Date(row.created_at), cohortAnchor);
+    emailMaxWeek = Math.max(emailMaxWeek, week);
+    const bucket = weeklyMap.get(week) ?? emptyMailWeek();
+    if (row.template_id === "daily_reminder") {
+      bucket.reminderUserIds.add(row.user_id);
+    } else if (row.template_id === "weekly_recap") {
+      bucket.recapUserIds.add(row.user_id);
+    }
+    weeklyMap.set(week, bucket);
+  }
+
+  if (!weeklyMap.size) return [];
+
+  const chartMaxWeek = Math.max(maxWeek, emailMaxWeek, 1);
+  const chart: WeeklyEmailChartEntry[] = [];
+  for (let weekNum = 1; weekNum <= chartMaxWeek; weekNum++) {
+    const b = weeklyMap.get(weekNum) ?? emptyMailWeek();
+    const either = new Set(b.reminderUserIds);
+    for (const id of b.recapUserIds) either.add(id);
+    chart.push({
+      weekNumber: weekNum,
+      name: `Week ${weekNum}`,
+      eitherMailUsers: either.size,
+      reminderUsers: b.reminderUserIds.size,
+      recapUsers: b.recapUserIds.size,
+      ...weekRangeFields(weekNum, cohortAnchor),
+    });
+  }
+  return chart;
 }
 
 /** Full funnel + weekly chart + per-member leaderboard for one cohort, used by the Cohorts
@@ -1127,7 +1292,7 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
       }
     }
 
-    const actionsReadByUser = await loadActionsReadByEmail(admin, userIds, [cohortId]);
+    const emailOpensByUser = await loadMemberEmailOpenCounts(admin, userIds, [cohortId]);
 
     const summary = summarizeCohortFunnel(
       userIds,
@@ -1178,11 +1343,20 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
       }
     }
 
+    const weeklyEmailChart = await loadWeeklyEmailReachChart(
+      admin,
+      cohortId,
+      userIds,
+      cohortAnchor,
+      maxWeek
+    );
+
     const members: CohortMemberEngagement[] = (
       userProfiles as { id: string; full_name: string | null }[]
     )
       .map((p) => {
         const commitment = cohortCommitment?.perUser.get(p.id);
+        const emailOpens = emailOpensByUser.get(p.id);
         return {
           id: p.id,
           name: p.full_name?.trim() || "User",
@@ -1191,7 +1365,9 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
           commitmentPct: walletScorePct(commitment?.plannedActions ?? 0, commitment?.missedActions ?? 0),
           plannedActions: commitment?.plannedActions ?? 0,
           completedOnTimeActions: commitment?.completedOnTimeActions ?? 0,
-          actionsReadCount: actionsReadByUser.get(p.id) ?? 0,
+          actionsReadCount: emailOpens?.eitherOpened ?? 0,
+          reminderOpenedCount: emailOpens?.reminderOpened ?? 0,
+          recapOpenedCount: emailOpens?.recapOpened ?? 0,
           pendingValidationCount: pendingValidationByUser.get(p.id) ?? 0,
           notCompletedCount: notCompletedByUser.get(p.id) ?? 0,
           acceptedCount: acceptedByUser.get(p.id) ?? 0,
@@ -1210,6 +1386,7 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
         commitmentMaximum: team?.maximum ?? 0,
         commitmentPct: walletScorePct(team?.plannedActions ?? 0, team?.missedActions ?? 0),
         weeklyChart,
+        weeklyEmailChart,
         members,
       },
     };

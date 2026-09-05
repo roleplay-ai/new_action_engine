@@ -48,6 +48,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
   const [emailWeekly, setEmailWeekly] = useState<EmailOpenWeeklyEntry[]>([]);
   const [emailReminderTotals, setEmailReminderTotals] = useState<EmailEngagementTotals | null>(null);
   const [emailRecapTotals, setEmailRecapTotals] = useState<EmailEngagementTotals | null>(null);
+  const [emailEitherTotals, setEmailEitherTotals] = useState<EmailEngagementTotals | null>(null);
   const [emailLoading, setEmailLoading] = useState(false);
 
   useEffect(() => {
@@ -103,14 +104,16 @@ export function DashboardView({ companyId }: DashboardViewProps) {
       setEmailWeekly([]);
       setEmailReminderTotals(null);
       setEmailRecapTotals(null);
+      setEmailEitherTotals(null);
       return;
     }
     setEmailLoading(true);
     getEmailOpenRates(companyId, selectedCohortId)
-      .then(({ weekly, reminderTotals, recapTotals, error }) => {
+      .then(({ weekly, reminderTotals, recapTotals, eitherTotals, error }) => {
         setEmailWeekly(!error ? weekly ?? [] : []);
         setEmailReminderTotals(!error ? reminderTotals ?? null : null);
         setEmailRecapTotals(!error ? recapTotals ?? null : null);
+        setEmailEitherTotals(!error ? eitherTotals ?? null : null);
       })
       .finally(() => setEmailLoading(false));
   }, [companyId, selectedCohortId]);
@@ -129,10 +132,6 @@ export function DashboardView({ companyId }: DashboardViewProps) {
   const barLabel = (value: unknown) => {
     const n = Number(value);
     return Number.isFinite(n) && n > 0 ? String(value) : "";
-  };
-  const barLabelPct = (value: unknown) => {
-    const n = Number(value);
-    return Number.isFinite(n) && n > 0 ? `${n}%` : "";
   };
 
   const emptyState = (msg: string) => (
@@ -163,20 +162,12 @@ export function DashboardView({ companyId }: DashboardViewProps) {
     "Avg. commitment %": e.avgCommitmentPct,
   }));
 
-  const emailOpenChartData = emailWeekly.map((e) => ({
+  const emailCombinedChartData = emailWeekly.map((e) => ({
     name: `Week ${e.weekNumber}`,
     weekRange: weekChartRange(e.weekStartIst, e.weekEndIst),
-    "Reminder open %": e.reminderOpenRate,
-    reminderSent: e.reminderSent,
-    reminderOpened: e.reminderOpened,
-  }));
-
-  const emailRecapChartData = emailWeekly.map((e) => ({
-    name: `Week ${e.weekNumber}`,
-    weekRange: weekChartRange(e.weekStartIst, e.weekEndIst),
-    "Weekly recap open %": e.recapOpenRate,
-    recapSent: e.recapSent,
-    recapOpened: e.recapOpened,
+    "Either mail opened": e.eitherMailOpenedUsers,
+    "Reminder opened": e.reminderOpenedUsers,
+    "Weekly recap opened": e.recapOpenedUsers,
   }));
 
   // Derive summary cards from the same week rows as the charts so the headline
@@ -187,6 +178,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
     return {
       sent,
       opened,
+      openedUsers: emailReminderTotals?.openedUsers ?? 0,
       openRate: sent > 0 ? Math.round((opened * 100) / sent) : (emailReminderTotals?.openRate ?? 0),
     };
   })();
@@ -196,38 +188,20 @@ export function DashboardView({ companyId }: DashboardViewProps) {
     return {
       sent,
       opened,
+      openedUsers: emailRecapTotals?.openedUsers ?? 0,
       openRate: sent > 0 ? Math.round((opened * 100) / sent) : (emailRecapTotals?.openRate ?? 0),
     };
   })();
-
-  const makeEmailOpenTooltipFormatter = (
-    rateKey: "Reminder open %" | "Weekly recap open %",
-    sentKey: "reminderSent" | "recapSent",
-    openedKey: "reminderOpened" | "recapOpened"
-  ) => (
-    value: unknown,
-    name: unknown,
-    item: { payload?: Record<string, unknown> }
-  ): [string, string] => {
-    const label = String(name ?? rateKey);
-    const row = item?.payload;
-    if (!row) return [`${value}%`, label];
-    const rate = Number(row[rateKey] ?? value);
-    const opened = Number(row[openedKey] ?? 0);
-    const sent = Number(row[sentKey] ?? 0);
-    return [`${rate}% (${opened} opened of ${sent} sent)`, label];
-  };
-
-  const emailOpenTooltipFormatter = makeEmailOpenTooltipFormatter(
-    "Reminder open %",
-    "reminderSent",
-    "reminderOpened"
-  );
-  const emailRecapTooltipFormatter = makeEmailOpenTooltipFormatter(
-    "Weekly recap open %",
-    "recapSent",
-    "recapOpened"
-  );
+  const eitherCardStats = (() => {
+    const sent = reminderCardStats.sent + recapCardStats.sent;
+    const opened = reminderCardStats.opened + recapCardStats.opened;
+    return {
+      sent,
+      opened,
+      openedUsers: emailEitherTotals?.openedUsers ?? 0,
+      openRate: sent > 0 ? Math.round((opened * 100) / sent) : (emailEitherTotals?.openRate ?? 0),
+    };
+  })();
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
@@ -499,107 +473,82 @@ export function DashboardView({ companyId }: DashboardViewProps) {
           </div>
         </div>
 
-        {/* Email Engagement: reminder + Friday weekly recap side by side */}
+        {/* Email Engagement: stats + combined unique-user opens chart */}
         <div className="space-y-3">
           <div className="flex justify-between items-center">
             <h4 className="text-sm font-semibold" style={{ color: "var(--color-text-secondary)" }}>
               Email Engagement
             </h4>
-            <span className="tag tag--yellow">Reminder &amp; Friday Weekly Recap · Open Rate</span>
+            <span className="tag tag--yellow">Either · Reminder · Friday Weekly Recap</span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Reminder emails */}
-            <div className="space-y-3">
-              <div className="bg-white rounded-xl p-4 flex flex-col gap-2" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
-                <span className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Reminder — open rate</span>
-                <span className="text-2xl font-bold leading-none" style={{ color: "#23CE6B" }}>
-                  {emailLoading ? "…" : `${reminderCardStats.openRate}%`}
-                </span>
-                <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                  {reminderCardStats.sent > 0 || emailReminderTotals
-                    ? `${reminderCardStats.opened} opened of ${reminderCardStats.sent} sent`
-                    : "No sends yet"}
-                </span>
-              </div>
-
-              <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 336 }}>
-                {emailLoading ? (
-                  emptyState("Loading…")
-                ) : emailOpenChartData.length === 0 ? (
-                  emptyState("No week-attributed sends yet")
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ReBarChart data={emailOpenChartData} margin={{ top: 32, right: 12, left: 8, bottom: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                      <XAxis
-                        dataKey="name"
-                        interval={0}
-                        tick={makeWeekChartTick(emailOpenChartData)}
-                        tickMargin={4}
-                        height={56}
-                      />
-                      <YAxis domain={[0, 110]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Open rate %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
-                      <Tooltip
-                        contentStyle={tooltipStyle}
-                        labelFormatter={weekChartLabelFormatter(emailOpenChartData)}
-                        formatter={emailOpenTooltipFormatter}
-                      />
-                      <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 8 }} />
-                      <Bar dataKey="Reminder open %" fill="#23CE6B" radius={[6, 6, 0, 0]}>
-                        <LabelList dataKey="Reminder open %" position="top" style={barLabelStyle} formatter={barLabelPct} />
-                      </Bar>
-                    </ReBarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-white rounded-xl p-4 flex flex-col gap-2" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
+              <span className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Either mail — open rate</span>
+              <span className="text-2xl font-bold leading-none" style={{ color: "#3699FC" }}>
+                {emailLoading ? "…" : `${eitherCardStats.openRate}%`}
+              </span>
+              <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                {eitherCardStats.sent > 0 || emailEitherTotals
+                  ? `${eitherCardStats.opened} opened of ${eitherCardStats.sent} sent · ${eitherCardStats.openedUsers} users opened`
+                  : "No sends yet"}
+              </span>
             </div>
-
-            {/* Friday weekly recap — orange to contrast green reminders */}
-            <div className="space-y-3">
-              <div className="bg-white rounded-xl p-4 flex flex-col gap-2" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
-                <span className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Friday weekly recap — open rate</span>
-                <span className="text-2xl font-bold leading-none" style={{ color: "#8B5CF6" }}>
-                  {emailLoading ? "…" : `${recapCardStats.openRate}%`}
-                </span>
-                <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                  {recapCardStats.sent > 0 || emailRecapTotals
-                    ? `${recapCardStats.opened} opened of ${recapCardStats.sent} sent`
-                    : "No sends yet"}
-                </span>
-              </div>
-
-              <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 336 }}>
-                {emailLoading ? (
-                  emptyState("Loading…")
-                ) : emailRecapChartData.length === 0 ? (
-                  emptyState("No week-attributed sends yet")
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ReBarChart data={emailRecapChartData} margin={{ top: 32, right: 12, left: 8, bottom: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                      <XAxis
-                        dataKey="name"
-                        interval={0}
-                        tick={makeWeekChartTick(emailRecapChartData)}
-                        tickMargin={4}
-                        height={56}
-                      />
-                      <YAxis domain={[0, 110]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 12 }} width={48} label={{ value: "Open rate %", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
-                      <Tooltip
-                        contentStyle={tooltipStyle}
-                        labelFormatter={weekChartLabelFormatter(emailRecapChartData)}
-                        formatter={emailRecapTooltipFormatter}
-                      />
-                      <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 8 }} />
-                      <Bar dataKey="Weekly recap open %" fill="#8B5CF6" radius={[6, 6, 0, 0]}>
-                        <LabelList dataKey="Weekly recap open %" position="top" style={barLabelStyle} formatter={barLabelPct} />
-                      </Bar>
-                    </ReBarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
+            <div className="bg-white rounded-xl p-4 flex flex-col gap-2" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
+              <span className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Reminder — open rate</span>
+              <span className="text-2xl font-bold leading-none" style={{ color: "#23CE6B" }}>
+                {emailLoading ? "…" : `${reminderCardStats.openRate}%`}
+              </span>
+              <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                {reminderCardStats.sent > 0 || emailReminderTotals
+                  ? `${reminderCardStats.opened} opened of ${reminderCardStats.sent} sent · ${reminderCardStats.openedUsers} users opened`
+                  : "No sends yet"}
+              </span>
             </div>
+            <div className="bg-white rounded-xl p-4 flex flex-col gap-2" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
+              <span className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Friday weekly recap — open rate</span>
+              <span className="text-2xl font-bold leading-none" style={{ color: "#8B5CF6" }}>
+                {emailLoading ? "…" : `${recapCardStats.openRate}%`}
+              </span>
+              <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                {recapCardStats.sent > 0 || emailRecapTotals
+                  ? `${recapCardStats.opened} opened of ${recapCardStats.sent} sent · ${recapCardStats.openedUsers} users opened`
+                  : "No sends yet"}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 336 }}>
+            {emailLoading ? (
+              emptyState("Loading…")
+            ) : emailCombinedChartData.length === 0 ? (
+              emptyState("No week-attributed sends yet")
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <ReBarChart data={emailCombinedChartData} barGap={4} barCategoryGap="28%" maxBarSize={28} margin={{ top: 32, right: 12, left: 8, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
+                  <XAxis
+                    dataKey="name"
+                    interval={0}
+                    tick={makeWeekChartTick(emailCombinedChartData)}
+                    tickMargin={4}
+                    height={56}
+                  />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={48} label={{ value: "Users", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
+                  <Tooltip contentStyle={tooltipStyle} labelFormatter={weekChartLabelFormatter(emailCombinedChartData)} />
+                  <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 8 }} />
+                  <Bar dataKey="Either mail opened" fill="#3699FC" radius={[6, 6, 0, 0]}>
+                    <LabelList dataKey="Either mail opened" position="top" style={barLabelStyle} formatter={barLabel} />
+                  </Bar>
+                  <Bar dataKey="Reminder opened" fill="#23CE6B" radius={[6, 6, 0, 0]}>
+                    <LabelList dataKey="Reminder opened" position="top" style={barLabelStyle} formatter={barLabel} />
+                  </Bar>
+                  <Bar dataKey="Weekly recap opened" fill="#8B5CF6" radius={[6, 6, 0, 0]}>
+                    <LabelList dataKey="Weekly recap opened" position="top" style={barLabelStyle} formatter={barLabel} />
+                  </Bar>
+                </ReBarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>

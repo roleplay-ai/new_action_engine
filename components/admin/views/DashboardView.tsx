@@ -364,17 +364,18 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               <div className="p-6 text-center text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>No members in scope yet</div>
             ) : (
               <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-                <table className="w-full text-left border-collapse table-fixed min-w-[960px] text-xs">
+                <table className="w-full text-left border-collapse table-fixed min-w-[1060px] text-xs">
                   <thead className="sticky top-0 z-10">
                     <tr style={{ background: "var(--color-bg-dark)", color: "var(--white)" }}>
-                      <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "28%" }}>Rank / Name</th>
-                      <th className="px-2 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "14%" }}>Buddy</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "10%" }}>Planned actions</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "10%" }}>Actions sent</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "10%" }}>Validated actions</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "10%" }}>Didn&apos;t complete</th>
+                      <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "24%" }}>Rank / Name</th>
+                      <th className="px-2 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "12%" }}>Buddy</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "9%" }}>Planned actions</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "9%" }}>Actions sent</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "9%" }}>Either mail opened</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "9%" }}>Validated actions</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "9%" }}>Didn&apos;t complete</th>
                       <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "9%" }}>Archived</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "9%" }}>Commitment score</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "10%" }}>Commitment score</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -397,6 +398,9 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                         <td className="px-2 py-2.5 text-center text-blue-600 font-semibold">{user.plannedActions}</td>
                         <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.actionsSentCount > 0 ? "var(--color-text-primary)" : "var(--color-text-muted)" }}>
                           {user.actionsSentCount}
+                        </td>
+                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.actionsReadCount > 0 ? "#3699FC" : "var(--color-text-muted)" }}>
+                          {user.actionsReadCount}
                         </td>
                         <td className="px-2 py-2.5 text-center">
                           <span

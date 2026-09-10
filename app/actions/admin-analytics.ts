@@ -214,7 +214,7 @@ export type MemberEmailOpenCounts = {
 };
 
 /** Per-member opened counts for reminder and Friday recap (click ⇒ open). */
-async function loadMemberEmailOpenCounts(
+export async function loadMemberEmailOpenCounts(
   admin: ReturnType<typeof createAdminClient>,
   userIds: string[],
   cohortIds: string[]
@@ -1374,7 +1374,9 @@ export async function getCohortAnalyticsDetail(cohortId: string): Promise<{
           validatedCount: validatedByUser.get(p.id) ?? 0,
         };
       })
-      .sort((a, b) => b.commitmentPoints - a.commitmentPoints);
+      // Same ranking as the Dashboard leaderboard (getDashboardLeaderboard): by commitment
+      // score % first, raw points as tiebreaker.
+      .sort((a, b) => b.commitmentPct - a.commitmentPct || b.commitmentPoints - a.commitmentPoints);
 
     return {
       detail: {

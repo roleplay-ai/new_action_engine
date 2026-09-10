@@ -16,7 +16,7 @@ import { elapsedWeekCount, resolveCohortWeekAnchors, sharedWeekAnchor, weekNumbe
 import {
   getAdminContext,
   loadCommitmentWalletByCohort,
-  loadActionsReadByEmail,
+  loadMemberEmailOpenCounts,
 } from "./admin-analytics";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -256,7 +256,7 @@ export interface DashboardLeaderboardEntry {
   /** user_actions delivered to the member in scope (reminders that went out). */
   actionsSentCount: number;
   validatedCount: number;
-  /** Reminder emails opened or clicked (Resend webhook on email_campaign_logs). */
+  /** Reminder or recap emails opened or clicked (Resend webhook on email_campaign_logs). */
   actionsReadCount: number;
   /** Auto-expired failures still awaiting confirm — matches Actions "Pending validation". */
   pendingValidationCount: number;
@@ -332,10 +332,10 @@ export async function getDashboardLeaderboard(
     );
 
     const cohortIds = await resolveCohortIds(admin, resolvedCompanyId, cohortId ?? null);
-    const [commitmentByCohort, buddyByUser, actionsReadByUser] = await Promise.all([
+    const [commitmentByCohort, buddyByUser, emailOpensByUser] = await Promise.all([
       loadCommitmentWalletByCohort(admin, cohortIds),
       loadBuddyNamesByUser(admin, cohortIds, userIds),
-      loadActionsReadByEmail(admin, userIds, cohortIds),
+      loadMemberEmailOpenCounts(admin, userIds, cohortIds),
     ]);
 
     const commitmentByUser = new Map<string, { points: number; maximum: number; plannedActions: number; missedActions: number }>();
@@ -395,7 +395,7 @@ export async function getDashboardLeaderboard(
         plannedActions: c?.plannedActions ?? 0,
         actionsSentCount: actionsSentByUser.get(id) ?? 0,
         validatedCount: validatedByUser.get(id) ?? 0,
-        actionsReadCount: actionsReadByUser.get(id) ?? 0,
+        actionsReadCount: emailOpensByUser.get(id)?.eitherOpened ?? 0,
         pendingValidationCount: pendingByUser.get(id) ?? 0,
         notCompletedCount: notCompletedByUser.get(id) ?? 0,
       };

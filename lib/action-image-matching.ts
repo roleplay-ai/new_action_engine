@@ -27,6 +27,11 @@ export type ActionToMatch = {
 
 type LibraryImage = { label: string; url: string };
 
+// Matches are keyed by position (1-based index into `actions`/`library`)
+// rather than by echoing back the action's UUID or the image's label — small
+// "lite" models have been observed corrupting long strings like UUIDs when
+// asked to reproduce them verbatim, silently dropping that match. A small
+// integer has no such failure mode.
 const matchSchema = {
   type: Type.OBJECT,
   properties: {
@@ -35,11 +40,10 @@ const matchSchema = {
       items: {
         type: Type.OBJECT,
         properties: {
-          actionId: { type: Type.STRING },
-          // Exact library label, or "" when nothing fits reasonably well.
-          label: { type: Type.STRING },
+          actionIndex: { type: Type.INTEGER },
+          imageIndex: { type: Type.INTEGER },
         },
-        required: ["actionId", "label"],
+        required: ["actionIndex", "imageIndex"],
       },
     },
   },
@@ -47,21 +51,21 @@ const matchSchema = {
 };
 
 function buildMatchPrompt(actions: ActionToMatch[], library: LibraryImage[]): string {
-  const libraryBlock = library.map((img) => `- ${img.label}`).join("\n");
+  const libraryBlock = library.map((img, i) => `${i + 1}. ${img.label}`).join("\n");
   const actionsBlock = actions
-    .map((a) => `- id: ${a.id}\n  title: ${a.title}${a.how ? `\n  how: ${a.how}` : ""}`)
+    .map((a, i) => `${i + 1}. ${a.title}${a.how ? ` — ${a.how}` : ""}`)
     .join("\n");
 
-  return `You pick a stock illustration for each workplace action below, from a FIXED library of image labels. Never invent a label — copy one EXACTLY as written in IMAGE LIBRARY, or return an empty string "" if none of them reasonably fit the action's situation or skill.
+  return `You pick a stock illustration for each workplace action below, from a FIXED numbered library of images.
 
-IMAGE LIBRARY (choose only from these, verbatim)
+IMAGE LIBRARY (numbered 1-${library.length})
 ${libraryBlock}
 
-ACTIONS
+ACTIONS (numbered 1-${actions.length})
 ${actionsBlock}
 
 TASK
-For every action above, return its id and the single best-fitting library label (verbatim), or "" if nothing fits well. Match on the underlying situation or interpersonal skill (e.g. asking for clarity, giving feedback, listening, delegating), not on exact wording. Return exactly one entry per action id, in any order.`;
+For every action number above, return its actionIndex and the imageIndex of the single closest-fitting library image. Match on the underlying situation or interpersonal skill (e.g. asking for clarity, giving feedback, listening, delegating), not on exact wording. Every action must get an imageIndex — always pick whichever library image is the closest available fit, even if none of them is a perfect match. Return exactly one entry per action number, in any order.`;
 }
 
 /** All rows in the fixed action-image library. */
@@ -102,7 +106,7 @@ export async function matchActionImagesForRows(admin: AdminClient, actions: Acti
     const text = response.text;
     if (!text) return;
 
-    let parsed: { matches?: Array<{ actionId?: string; label?: string }> };
+    let parsed: { matches?: Array<{ actionIndex?: number; imageIndex?: number }> };
     try {
       parsed = JSON.parse(text);
     } catch {
@@ -110,11 +114,13 @@ export async function matchActionImagesForRows(admin: AdminClient, actions: Acti
       return;
     }
 
-    const urlByLabel = new Map(library.map((img) => [img.label, img.url]));
     const updates = (parsed.matches ?? [])
-      .filter((m): m is { actionId: string; label: string } => !!m.actionId && !!m.label)
-      .map((m) => ({ actionId: m.actionId, url: urlByLabel.get(m.label) }))
-      .filter((m): m is { actionId: string; url: string } => !!m.url);
+      .map((m) => ({
+        action: typeof m.actionIndex === "number" ? actions[m.actionIndex - 1] : undefined,
+        url: typeof m.imageIndex === "number" ? library[m.imageIndex - 1]?.url : undefined,
+      }))
+      .filter((m): m is { action: ActionToMatch; url: string } => !!m.action && !!m.url)
+      .map((m) => ({ actionId: m.action.id, url: m.url }));
 
     if (!updates.length) return;
 

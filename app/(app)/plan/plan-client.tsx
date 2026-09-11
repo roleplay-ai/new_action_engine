@@ -322,7 +322,12 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
             onDragEnd={() => { setDraggedId(null); setDragOverId(null); }}
           >
             <div className="plan-action-order" title="Drag to reorder">
-              <div className="plan-action-number">{index + 1}</div>
+              {action.imageUrl
+                ? <div style={{ position: "relative", width: 44, height: 44, marginRight: 14 }}>
+                    <img src={action.imageUrl} alt="" width={44} height={44} style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", display: "block" }} />
+                    <span style={{ position: "absolute", bottom: -4, right: -4, width: 22, height: 22, borderRadius: "50%", background: "#FFCE00", color: "#221D23", fontSize: 12, fontWeight: 900, lineHeight: "22px", textAlign: "center", boxShadow: "0 0 0 2px #FFFFFF" }}>{index + 1}</span>
+                  </div>
+                : <div className="plan-action-number">{index + 1}</div>}
             </div>
             <div className="plan-action-copy plan-action-copy--compact">
               <h3 title={action.title}>{action.title}</h3>

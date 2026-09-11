@@ -26,4 +26,4 @@ export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
  * A far lighter task than action generation itself, so it defaults to a
  * smaller model; overridable via GEMINI_IMAGE_MATCH_MODEL.
  */
-export const GEMINI_IMAGE_MATCH_MODEL = process.env.GEMINI_IMAGE_MATCH_MODEL || "gemini-2.5-flash-lite";
+export const GEMINI_IMAGE_MATCH_MODEL = process.env.GEMINI_IMAGE_MATCH_MODEL || "gemini-3.5-flash-lite";

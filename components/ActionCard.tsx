@@ -65,13 +65,36 @@ const ActionCard: React.FC<Props> = ({
 
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1, minHeight: 0 }}>
           {action.imageUrl && (
-            <img
-              src={action.imageUrl}
-              alt=""
-              width={40}
-              height={40}
-              style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', objectFit: 'cover', flexShrink: 0 }}
-            />
+            <div style={{ position: 'relative', width: 56, height: 56, marginRight: 6, flexShrink: 0 }}>
+              <img
+                src={action.imageUrl}
+                alt=""
+                width={56}
+                height={56}
+                style={{ width: 56, height: 56, borderRadius: 'var(--radius-md)', objectFit: 'cover', display: 'block' }}
+              />
+              {action.planOrder != null && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    bottom: -6,
+                    right: -6,
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    background: 'var(--bright-amber)',
+                    color: '#221D23',
+                    fontSize: 13,
+                    fontWeight: 900,
+                    lineHeight: '24px',
+                    textAlign: 'center',
+                    boxShadow: '0 0 0 2px #FFFFFF',
+                  }}
+                >
+                  {action.planOrder + 1}
+                </span>
+              )}
+            </div>
           )}
           <p
             className="challenge-card__title"

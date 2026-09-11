@@ -16,6 +16,7 @@ type WeeklyAction = {
   how?: string;
   why?: string;
   time?: string;
+  imageUrl?: string;
 };
 
 function esc(value: unknown): string {
@@ -157,6 +158,7 @@ function renderWeeklyChallengesHtml(data: EmailTemplateData): string {
         (a) => `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;border:1px solid #e5e7eb;border-radius:8px;">
       <tr>
+        ${a.imageUrl ? `<td width="56" valign="top" style="width:56px;padding:14px 0 14px 14px;"><img src="${esc(a.imageUrl)}" width="42" height="42" alt="" style="width:42px;height:42px;border-radius:8px;object-fit:cover;display:block;" /></td>` : ""}
         <td style="padding:14px 16px;">
           <p style="margin:0 0 6px;color:#111827;font-size:15px;font-weight:bold;">${esc(a.what)}</p>
           ${a.how ? `<p style="margin:0 0 6px;color:#374151;font-size:13px;">${esc(a.how)}</p>` : ""}
@@ -328,7 +330,7 @@ function renderCredentialsHtml(data: EmailTemplateData): string {
 
 // ─── Plan activated summary ─────────────────────────────────────────────────
 
-type PlanSummaryAction = { title?: string; date?: string };
+type PlanSummaryAction = { title?: string; date?: string; imageUrl?: string };
 
 /** Shared with lib/action-plan-pdf.ts so the email body and PDF attachment always agree on formatting. */
 export function formatPlanActionDate(value: unknown): string {
@@ -384,7 +386,9 @@ function renderPlanActivatedSummaryHtml(data: EmailTemplateData): string {
         (action, i) => `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFDF8;border:1px solid #E6DDC7;border-radius:13px;margin:0 0 9px;">
       <tr>
-        <td width="46" valign="top" style="width:46px;padding:14px 0 14px 13px;"><div style="width:28px;height:28px;border-radius:9px;background:#FFCE00;color:#221D23;text-align:center;font-size:13px;line-height:28px;font-weight:900;">${i + 1}</div></td>
+        <td width="46" valign="top" style="width:46px;padding:14px 0 14px 13px;">${action.imageUrl
+            ? `<img src="${esc(action.imageUrl)}" width="28" height="28" alt="" style="width:28px;height:28px;border-radius:9px;object-fit:cover;display:block;" />`
+            : `<div style="width:28px;height:28px;border-radius:9px;background:#FFCE00;color:#221D23;text-align:center;font-size:13px;line-height:28px;font-weight:900;">${i + 1}</div>`}</td>
         <td valign="top" style="padding:13px 14px 13px 5px;">
           <div style="font-size:13px;line-height:18px;font-weight:650;color:#221D23;">${esc(action.title)}</div>
           ${formatPlanActionDate(action.date) ? `<div style="margin-top:3px;font-size:11px;line-height:15px;color:#8A818B;">${esc(formatPlanActionDate(action.date))}</div>` : ""}
@@ -534,6 +538,7 @@ type ReminderAction = {
   how?: string;
   timeEstimate?: string;
   complete_url?: string;
+  imageUrl?: string;
 };
 
 function reminderMetricCellHtml(params: {
@@ -581,7 +586,9 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
         (action) => `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFDF8;border:1px solid #E6DDC7;border-radius:13px;margin:0 0 9px;">
       <tr>
-        <td width="54" valign="top" style="width:54px;padding:15px 0 15px 13px;"><div style="width:31px;height:31px;border-radius:10px;background:#FFCE00;color:#221D23;text-align:center;font-size:16px;line-height:31px;font-weight:900;">&#8594;</div></td>
+        <td width="54" valign="top" style="width:54px;padding:15px 0 15px 13px;">${action.imageUrl
+            ? `<img src="${esc(action.imageUrl)}" width="31" height="31" alt="" style="width:31px;height:31px;border-radius:10px;object-fit:cover;display:block;" />`
+            : `<div style="width:31px;height:31px;border-radius:10px;background:#FFCE00;color:#221D23;text-align:center;font-size:16px;line-height:31px;font-weight:900;">&#8594;</div>`}</td>
         <td valign="top" style="padding:14px 14px 14px 5px;">
           <div style="font-size:13px;line-height:18px;font-weight:650;color:#221D23;">${esc(action.title)}</div>
         </td>
@@ -796,7 +803,9 @@ function renderWeeklyRecapHtml(data: EmailTemplateData): string {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border:1px solid #E8DFCA;border-radius:14px;margin:0 0 16px;">
       <tr>
         <td width="64" valign="middle" style="width:64px;padding:20px 0 20px 22px;">
-          <div style="width:46px;height:46px;border-radius:50%;background:#FFCE00;color:#221D23;text-align:center;font-size:28px;line-height:46px;font-weight:400;">&#8594;</div>
+          ${action.imageUrl
+            ? `<img src="${esc(action.imageUrl)}" width="46" height="46" alt="" style="width:46px;height:46px;border-radius:50%;object-fit:cover;display:block;" />`
+            : `<div style="width:46px;height:46px;border-radius:50%;background:#FFCE00;color:#221D23;text-align:center;font-size:28px;line-height:46px;font-weight:400;">&#8594;</div>`}
         </td>
         <td valign="middle" style="padding:20px 22px 20px 18px;">
           <div class="action-text" style="margin:0;font-size:17px;line-height:1.45;font-weight:700;color:#221D23;">${esc(action.title)}</div>

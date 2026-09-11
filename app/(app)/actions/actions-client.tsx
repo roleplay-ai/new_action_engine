@@ -751,7 +751,10 @@ export default function ActionsClient() {
           <div className="actions-current-list" style={{ "--action-cols": Math.min(currentActions.length, 3) } as CSSProperties}>
             {currentActions.map(({ userAction, action }, index) => <article className="actions-current-card" key={userAction.id}>
               <div className="actions-current-top"><span>Action # {(action.planOrder ?? index) + 1}</span><em>{action.timeEstimate}{action.planPoints ? ` · Protect ${action.planPoints} points today` : ""}</em></div>
-              <h3 style={{ fontSize: "1.25rem", fontWeight: "bold" }}>{action.title}</h3>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                {action.imageUrl && <img src={action.imageUrl} alt="" width={44} height={44} style={{ width: 44, height: 44, borderRadius: 12, objectFit: "cover", flexShrink: 0 }} />}
+                <h3 style={{ fontSize: "1.25rem", fontWeight: "bold", margin: 0 }}>{action.title}</h3>
+              </div>
               <p style={{ fontSize: "1rem", fontWeight: "normal" }}>{action.how}</p>
               <p style={{ fontSize: "1rem", fontWeight: "normal" }}><span style={{ fontWeight: "bold" }}>Why? </span>{action.why}</p>
               <div className="actions-current-buttons">
@@ -781,7 +784,11 @@ export default function ActionsClient() {
                   const deliveryDate = projectedDeliveryDate(settings, index);
                   const points = action.planPoints ?? 50;
                   return <article className={`plan-review-action${planIsArchived ? "" : " plan-review-action--reminder"}`} key={action.id}>
-                    <div className="plan-action-order"><div className="plan-action-number">{index + 1}</div></div>
+                    <div className="plan-action-order">
+                      {action.imageUrl
+                        ? <img src={action.imageUrl} alt="" width={28} height={28} style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover" }} />
+                        : <div className="plan-action-number">{index + 1}</div>}
+                    </div>
                     <div className="plan-action-copy plan-action-copy--compact">
                       <h3 title={action.title}>{action.title}</h3>
                       <div className="plan-action-meta">

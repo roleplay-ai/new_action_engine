@@ -63,19 +63,31 @@ const ActionCard: React.FC<Props> = ({
           )}
         </div>
 
-        <p
-          className="challenge-card__title"
-          title={action.title}
-          style={{
-            flex: 1,
-            overflow: 'hidden',
-            display: '-webkit-box',
-            WebkitLineClamp: 3,
-            WebkitBoxOrient: 'vertical',
-          }}
-        >
-          {action.title}
-        </p>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1, minHeight: 0 }}>
+          {action.imageUrl && (
+            <img
+              src={action.imageUrl}
+              alt=""
+              width={40}
+              height={40}
+              style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', objectFit: 'cover', flexShrink: 0 }}
+            />
+          )}
+          <p
+            className="challenge-card__title"
+            title={action.title}
+            style={{
+              flex: 1,
+              overflow: 'hidden',
+              display: '-webkit-box',
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: 'vertical',
+              margin: 0,
+            }}
+          >
+            {action.title}
+          </p>
+        </div>
 
         <div style={{
           display: 'flex',

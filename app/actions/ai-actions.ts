@@ -24,6 +24,7 @@ import { isResendConfigured, resend } from "@/lib/resend";
 import { renderEmailTemplate, formatPlanActionDate } from "@/lib/email-templates";
 import { buildFromHeader } from "@/lib/email-send";
 import { buildActionPlanPdf } from "@/lib/action-plan-pdf";
+import { matchActionImagesForRows } from "@/lib/action-image-matching";
 
 export type MyPlanSettings = {
   track: DeliveryTrack;
@@ -432,7 +433,7 @@ async function sendPlanActivatedSummaryEmail(params: {
       supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
       supabase
         .from("actions")
-        .select("title, plan_order")
+        .select("title, plan_order, image_url")
         .eq("created_by", userId)
         .eq("cohort_id", cohortId)
         .eq("is_personal", true)
@@ -478,7 +479,7 @@ async function sendPlanActivatedSummaryEmail(params: {
       if (index > 0 && index % batchSize === 0) {
         cursor = advanceNextDeliveryAt(cursor, sub.track, daysOfWeek, sub.time_of_day_utc);
       }
-      return { title: row.title as string, date: utcToISTDate(cursor) };
+      return { title: row.title as string, date: utcToISTDate(cursor), imageUrl: (row.image_url as string | null) ?? undefined };
     });
 
     let companyName = "";
@@ -920,8 +921,14 @@ export async function generateOneMorePersonalAction(): Promise<{ error?: string 
     }
 
     const rows = draftsToActionRows(drafts.slice(0, 1), companyId, user.id, cohortId, nextPlanOrder);
-    const { error: insertError } = await supabase.from("actions").insert(rows);
+    const { data: insertedActions, error: insertError } = await supabase.from("actions").insert(rows).select("id, title, how, why");
     if (insertError) return { error: insertError.message };
+
+    // Best-effort thumbnail match; must never delay this action's response.
+    if (insertedActions?.length) {
+      const admin = createAdminClient();
+      after(() => matchActionImagesForRows(admin, insertedActions));
+    }
 
     const totalActions = (existingActions?.length ?? 0) + 1;
     await supabase

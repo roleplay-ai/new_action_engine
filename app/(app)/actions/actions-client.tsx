@@ -751,7 +751,12 @@ export default function ActionsClient() {
           <div className="actions-current-list" style={{ "--action-cols": Math.min(currentActions.length, 3) } as CSSProperties}>
             {currentActions.map(({ userAction, action }, index) => <article className="actions-current-card" key={userAction.id}>
               <div className="actions-current-top"><span>Action # {(action.planOrder ?? index) + 1}</span><em>{action.timeEstimate}{action.planPoints ? ` · Protect ${action.planPoints} points today` : ""}</em></div>
-              <h3 style={{ fontSize: "1.25rem", fontWeight: "bold" }}>{action.title}</h3>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                {action.imageUrl && (
+                  <img src={action.imageUrl} alt="" width={88} height={88} style={{ width: 88, height: 88, borderRadius: 16, objectFit: "cover", display: "block", marginRight: 6, flexShrink: 0 }} />
+                )}
+                <h3 style={{ fontSize: "1.25rem", fontWeight: "bold", margin: 0 }}>{action.title}</h3>
+              </div>
               <p style={{ fontSize: "1rem", fontWeight: "normal" }}>{action.how}</p>
               <p style={{ fontSize: "1rem", fontWeight: "normal" }}><span style={{ fontWeight: "bold" }}>Why? </span>{action.why}</p>
               <div className="actions-current-buttons">
@@ -781,7 +786,14 @@ export default function ActionsClient() {
                   const deliveryDate = projectedDeliveryDate(settings, index);
                   const points = action.planPoints ?? 50;
                   return <article className={`plan-review-action${planIsArchived ? "" : " plan-review-action--reminder"}`} key={action.id}>
-                    <div className="plan-action-order"><div className="plan-action-number">{index + 1}</div></div>
+                    <div className="plan-action-order">
+                      {action.imageUrl
+                        ? <div style={{ position: "relative", width: 44, height: 44, marginRight: 14 }}>
+                            <img src={action.imageUrl} alt="" width={44} height={44} style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", display: "block" }} />
+                            <span style={{ position: "absolute", bottom: -4, right: -4, width: 22, height: 22, borderRadius: "50%", background: "#FFCE00", color: "#221D23", fontSize: 12, fontWeight: 900, lineHeight: "22px", textAlign: "center", boxShadow: "0 0 0 2px #FFFFFF" }}>{index + 1}</span>
+                          </div>
+                        : <div className="plan-action-number">{index + 1}</div>}
+                    </div>
                     <div className="plan-action-copy plan-action-copy--compact">
                       <h3 title={action.title}>{action.title}</h3>
                       <div className="plan-action-meta">

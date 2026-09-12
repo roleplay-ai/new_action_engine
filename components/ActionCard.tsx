@@ -63,19 +63,54 @@ const ActionCard: React.FC<Props> = ({
           )}
         </div>
 
-        <p
-          className="challenge-card__title"
-          title={action.title}
-          style={{
-            flex: 1,
-            overflow: 'hidden',
-            display: '-webkit-box',
-            WebkitLineClamp: 3,
-            WebkitBoxOrient: 'vertical',
-          }}
-        >
-          {action.title}
-        </p>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1, minHeight: 0 }}>
+          {action.imageUrl && (
+            <div style={{ position: 'relative', width: 56, height: 56, marginRight: 6, flexShrink: 0 }}>
+              <img
+                src={action.imageUrl}
+                alt=""
+                width={56}
+                height={56}
+                style={{ width: 56, height: 56, borderRadius: 'var(--radius-md)', objectFit: 'cover', display: 'block' }}
+              />
+              {action.planOrder != null && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    bottom: -6,
+                    right: -6,
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    background: 'var(--bright-amber)',
+                    color: '#221D23',
+                    fontSize: 13,
+                    fontWeight: 900,
+                    lineHeight: '24px',
+                    textAlign: 'center',
+                    boxShadow: '0 0 0 2px #FFFFFF',
+                  }}
+                >
+                  {action.planOrder + 1}
+                </span>
+              )}
+            </div>
+          )}
+          <p
+            className="challenge-card__title"
+            title={action.title}
+            style={{
+              flex: 1,
+              overflow: 'hidden',
+              display: '-webkit-box',
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: 'vertical',
+              margin: 0,
+            }}
+          >
+            {action.title}
+          </p>
+        </div>
 
         <div style={{
           display: 'flex',

@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateDraftActions, draftsToActionRows, assignScheduledBatch, getPinnedFirstActionTitle } from "@/lib/personal-action-generation";
+import { matchActionImagesForRows } from "@/lib/action-image-matching";
 
 /**
  * Background worker for filling a user's full multi-week action plan.
@@ -154,13 +155,20 @@ export async function POST(request: Request) {
   }
 
   const rows = draftsToActionRows(drafts, companyId, job.user_id, job.cohort_id, job.total_generated);
-  const { error: insertError } = await admin.from("actions").insert(rows);
+  const { data: insertedActions, error: insertError } = await admin.from("actions").insert(rows).select("id, title, how, why");
   if (insertError) {
     await admin
       .from("personal_action_generation_jobs")
       .update({ status: "failed", error_message: insertError.message, updated_at: nowIso })
       .eq("id", jobId);
     return NextResponse.json({ ok: false, error: insertError.message });
+  }
+
+  // Picking each action's thumbnail is a cheap best-effort step that must
+  // never delay or fail this batch's response — run it after the response
+  // goes out, same as the self-trigger for the next batch below.
+  if (insertedActions?.length) {
+    after(() => matchActionImagesForRows(admin, insertedActions));
   }
 
   const totalGenerated = job.total_generated + drafts.length;

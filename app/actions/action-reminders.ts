@@ -75,6 +75,7 @@ export type UpcomingWeeklyRecap = {
     theme: string;
     how: string;
     timeEstimate: string;
+    imageUrl: string | null;
   }[];
   actionCount: number;
   canSend: boolean;
@@ -102,6 +103,7 @@ export type UpcomingActionReminder = {
     theme: string;
     how: string;
     timeEstimate: string;
+    imageUrl: string | null;
   }[];
   actionCount: number;
   canSend: boolean;
@@ -201,7 +203,7 @@ async function resolveSubscriptionContext(
       companyByCohortId: Map<string, { name: string; logo_url: string | null } | null>;
       actionMap: Map<
         string,
-        { id: string; title: string; theme: string; how: string; timeEstimate: string; planOrder: number | null }
+        { id: string; title: string; theme: string; how: string; timeEstimate: string; planOrder: number | null; imageUrl: string | null }
       >;
       actionIdsBySubscription: Map<string, string[]>;
     }
@@ -237,7 +239,7 @@ async function resolveSubscriptionContext(
   const { data: actionRows, error: actionsError } = actionIds.length
     ? await admin
         .from("actions")
-        .select("id, title, how, theme, time_estimate, plan_order")
+        .select("id, title, how, theme, time_estimate, plan_order, image_url")
         .in("id", actionIds)
     : { data: [], error: null };
   if (actionsError) return { error: actionsError.message };
@@ -296,6 +298,7 @@ async function resolveSubscriptionContext(
         how: action.how,
         timeEstimate: action.time_estimate,
         planOrder: action.plan_order ?? null,
+        imageUrl: action.image_url ?? null,
       },
     ])
   );
@@ -354,6 +357,7 @@ async function loadUpcomingActionReminders(): Promise<{
             how: string;
             timeEstimate: string;
             planOrder: number | null;
+            imageUrl: string | null;
           } => Boolean(action)
         )
         .sort(
@@ -486,6 +490,7 @@ async function loadUpcomingWeeklyRecap(): Promise<{
             how: string;
             timeEstimate: string;
             planOrder: number | null;
+            imageUrl: string | null;
           } => Boolean(action)
         )
         .sort(
@@ -618,6 +623,7 @@ export async function bulkSendWeeklyRecap(
                 title: action.title,
                 how: action.how,
                 timeEstimate: action.timeEstimate,
+                imageUrl: action.imageUrl ?? undefined,
               })),
               has_finalised_plan: walletSummary?.hasFinalisedPlan ?? false,
               commitment_score: walletSummary?.currentScore ?? null,
@@ -762,6 +768,7 @@ export async function bulkSendUpcomingActionReminders(
                 title: action.title,
                 how: action.how,
                 timeEstimate: action.timeEstimate,
+                imageUrl: action.imageUrl ?? undefined,
               })),
               has_finalised_plan: walletSummary?.hasFinalisedPlan ?? false,
               commitment_score: walletSummary?.currentScore ?? null,

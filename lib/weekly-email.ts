@@ -64,6 +64,7 @@ export type WeeklyEmailAction = {
   how: string;
   why: string;
   time: string;
+  imageUrl?: string;
 };
 
 export type WeeklyEmailTemplateData = {
@@ -150,7 +151,7 @@ async function getAvailableActionsForUser(userId: string, limit: number): Promis
 
   const { data: actions } = await admin
     .from("actions")
-    .select("id, theme, title, how, why, time_estimate")
+    .select("id, theme, title, how, why, time_estimate, image_url")
     .in("id", unique)
     .eq("company_id", companyId);
 
@@ -165,6 +166,7 @@ async function getAvailableActionsForUser(userId: string, limit: number): Promis
       how: r.how,
       why: r.why,
       time: r.time_estimate ?? "5 mins",
+      imageUrl: r.image_url ?? undefined,
     }));
 }
 

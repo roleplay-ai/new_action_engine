@@ -15,6 +15,8 @@ export interface ActionCard {
   isPersonal?: boolean;
   /** Whole-number share of the cohort plan's 1,000-point starting balance. */
   planPoints?: number;
+  /** Public URL of the closest-matching action-image library illustration, or null/undefined if none was matched. */
+  imageUrl?: string | null;
 }
 
 export interface UserAction {

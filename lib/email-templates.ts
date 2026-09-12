@@ -16,6 +16,7 @@ type WeeklyAction = {
   how?: string;
   why?: string;
   time?: string;
+  imageUrl?: string;
 };
 
 function esc(value: unknown): string {
@@ -157,6 +158,7 @@ function renderWeeklyChallengesHtml(data: EmailTemplateData): string {
         (a) => `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;border:1px solid #e5e7eb;border-radius:8px;">
       <tr>
+        ${a.imageUrl ? `<td width="104" valign="top" style="width:104px;padding:14px 0 14px 14px;"><img src="${esc(a.imageUrl)}" width="90" height="90" alt="" style="width:90px;height:90px;border-radius:12px;object-fit:cover;display:block;" /></td>` : ""}
         <td style="padding:14px 16px;">
           <p style="margin:0 0 6px;color:#111827;font-size:15px;font-weight:bold;">${esc(a.what)}</p>
           ${a.how ? `<p style="margin:0 0 6px;color:#374151;font-size:13px;">${esc(a.how)}</p>` : ""}
@@ -328,7 +330,7 @@ function renderCredentialsHtml(data: EmailTemplateData): string {
 
 // ─── Plan activated summary ─────────────────────────────────────────────────
 
-type PlanSummaryAction = { title?: string; date?: string };
+type PlanSummaryAction = { title?: string; date?: string; imageUrl?: string };
 
 /** Shared with lib/action-plan-pdf.ts so the email body and PDF attachment always agree on formatting. */
 export function formatPlanActionDate(value: unknown): string {
@@ -382,18 +384,20 @@ function renderPlanActivatedSummaryHtml(data: EmailTemplateData): string {
     ? actions
       .map(
         (action, i) => `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFDF8;border:1px solid #E6DDC7;border-radius:13px;margin:0 0 9px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#221D23;border:1px solid #221D23;border-radius:13px;margin:0 0 9px;">
       <tr>
-        <td width="46" valign="top" style="width:46px;padding:14px 0 14px 13px;"><div style="width:28px;height:28px;border-radius:9px;background:#FFCE00;color:#221D23;text-align:center;font-size:13px;line-height:28px;font-weight:900;">${i + 1}</div></td>
-        <td valign="top" style="padding:13px 14px 13px 5px;">
-          <div style="font-size:13px;line-height:18px;font-weight:650;color:#221D23;">${esc(action.title)}</div>
-          ${formatPlanActionDate(action.date) ? `<div style="margin-top:3px;font-size:11px;line-height:15px;color:#8A818B;">${esc(formatPlanActionDate(action.date))}</div>` : ""}
+        <td width="86" valign="middle" style="width:86px;padding:14px 0 14px 13px;">${action.imageUrl
+            ? `<img src="${esc(action.imageUrl)}" width="70" height="70" alt="" style="width:70px;height:70px;border-radius:14px;object-fit:cover;display:block;" />`
+            : `<div style="width:28px;height:28px;border-radius:9px;background:#FFCE00;color:#221D23;text-align:center;font-size:13px;line-height:28px;font-weight:900;">${i + 1}</div>`}</td>
+        <td valign="middle" style="padding:13px 14px 13px 5px;">
+          <div style="font-size:13px;line-height:18px;font-weight:650;color:#FFFFFF;">${esc(action.title)}</div>
+          ${formatPlanActionDate(action.date) ? `<div style="margin-top:3px;font-size:11px;line-height:15px;color:#B7AEC2;">${esc(formatPlanActionDate(action.date))}</div>` : ""}
         </td>
       </tr>
     </table>`
       )
       .join("") + (actionsNote
-        ? `<div style="margin:6px 0 0;padding:12px 14px;background:#FFF8D9;border:1px solid #F0DF9A;border-radius:11px;color:#221D23;font-size:13px;line-height:19px;font-weight:800;">${esc(actionsNote)}</div>`
+        ? `<div style="margin:6px 0 0;font-size:12px;line-height:18px;color:#4F484D;">${esc(actionsNote)}</div>`
         : "")
     : `<p style="margin:0;padding:18px;border-radius:13px;background:#FFFDF8;border:1px solid #E6DDC7;color:#5f5860;font-size:13px;line-height:1.5;">No actions were found on this plan.</p>`;
 
@@ -441,10 +445,10 @@ function renderPlanActivatedSummaryHtml(data: EmailTemplateData): string {
           <table role="presentation" class="shell" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#FFFFFF;border-top:3px solid #FFCE00;border-left:1px solid #E8DFC6;border-right:1px solid #E8DFC6;border-bottom:1px solid #E8DFC6;">
 
             <tr>
-              <td class="pad" style="padding:30px 34px 28px;background:#221D23;color:#FFFFFF;font-family:Inter,Arial,sans-serif;">
-                ${heroTopRowHtml(`<div style="display:inline-block;padding:6px 10px;border:1px solid #23895C;border-radius:18px;color:#23CE68;font-size:9px;line-height:10px;font-weight:800;letter-spacing:1.15px;text-transform:uppercase;">Plan finalised</div>`, data)}
-                <div class="headline" style="margin-top:16px;font-size:34px;line-height:36px;font-weight:800;letter-spacing:-1.25px;">Your plan is<br /><span style="color:#FFCE00;">locked in.</span></div>
-                <div style="margin-top:12px;color:#E2DEE1;font-size:13px;line-height:19px;">Hey ${esc(firstName)}, this is your plan and actions you have finalised.</div>
+              <td class="pad" style="padding:30px 34px 28px;background:#FFCE00;color:#221D23;font-family:Inter,Arial,sans-serif;">
+                ${heroTopRowHtml(`<div style="display:inline-block;padding:6px 10px;border:1.5px solid #221D23;border-radius:18px;color:#221D23;font-size:9px;line-height:10px;font-weight:800;letter-spacing:1.15px;text-transform:uppercase;">Plan finalised</div>`, data)}
+                <div class="headline" style="margin-top:16px;font-size:34px;line-height:36px;font-weight:800;letter-spacing:-1.25px;color:#221D23;">Your plan is<br /><span style="color:#221D23;">locked in.</span></div>
+                <div style="margin-top:12px;color:rgba(34,29,35,.72);font-size:13px;line-height:19px;">Hey ${esc(firstName)}, this is your plan and actions you have finalised.</div>
               </td>
             </tr>
             ${planTextHtml}
@@ -474,7 +478,7 @@ function renderPlanActivatedSummaryHtml(data: EmailTemplateData): string {
 
             <tr>
               <td class="pad" style="padding:16px 34px 20px;font-family:Inter,Arial,sans-serif;">
-                <div style="padding:11px 13px;background:#FFF8D9;border-radius:11px;color:#4F484D;font-size:11px;line-height:16px;">You will get a <strong style="color:#221D23;">${frequency}</strong> reminder on email for your actions, based on your plan. Just one click needed on the app to verify it.</div>
+                <div style="font-size:12px;line-height:18px;color:#4F484D;">You will get a <strong style="color:#221D23;font-weight:800;">${frequency}</strong> reminder on email for your actions, based on your plan. Just one click needed on the app to verify it.</div>
               </td>
             </tr>
 
@@ -534,6 +538,7 @@ type ReminderAction = {
   how?: string;
   timeEstimate?: string;
   complete_url?: string;
+  imageUrl?: string;
 };
 
 function reminderMetricCellHtml(params: {
@@ -579,11 +584,13 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
     ? actions
       .map(
         (action) => `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFDF8;border:1px solid #E6DDC7;border-radius:13px;margin:0 0 9px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#221D23;border:1px solid #221D23;border-radius:13px;margin:0 0 9px;">
       <tr>
-        <td width="54" valign="top" style="width:54px;padding:15px 0 15px 13px;"><div style="width:31px;height:31px;border-radius:10px;background:#FFCE00;color:#221D23;text-align:center;font-size:16px;line-height:31px;font-weight:900;">&#8594;</div></td>
-        <td valign="top" style="padding:14px 14px 14px 5px;">
-          <div style="font-size:13px;line-height:18px;font-weight:650;color:#221D23;">${esc(action.title)}</div>
+        <td width="96" valign="middle" style="width:96px;padding:15px 0 15px 13px;">${action.imageUrl
+            ? `<img src="${esc(action.imageUrl)}" width="74" height="74" alt="" style="width:74px;height:74px;border-radius:14px;object-fit:cover;display:block;" />`
+            : `<div style="width:31px;height:31px;border-radius:10px;background:#FFCE00;color:#221D23;text-align:center;font-size:16px;line-height:31px;font-weight:900;">&#8594;</div>`}</td>
+        <td valign="middle" style="padding:14px 14px 14px 5px;">
+          <div style="font-size:13px;line-height:18px;font-weight:650;color:#FFFFFF;">${esc(action.title)}</div>
         </td>
         ${action.complete_url
             ? `<td width="98" valign="middle" align="right" style="width:98px;padding:14px 13px 14px 0;">
@@ -603,15 +610,15 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
     : 0;
 
   const rewardHtml = teamMaximumPoints === 0
-    ? `<div style="color:#CFC9CD;font-size:12px;line-height:1.5;">Waiting for finalised plans before a team reward can be tracked.</div>`
+    ? `<div style="color:#8A818B;font-size:12px;line-height:1.5;">Waiting for finalised plans before a team reward can be tracked.</div>`
     : !nextMilestone
-      ? `<div style="font-size:17px;line-height:21px;font-weight:800;">Every current reward unlocked!</div><div style="margin-top:7px;font-size:9px;line-height:12px;color:#CFC9CD;">Your team reached every milestone so far.</div>`
-      : `<div style="font-size:9px;line-height:12px;font-weight:800;color:#FFCE00;letter-spacing:1px;text-transform:uppercase;">Next team reward</div>
-         <div style="margin-top:4px;font-size:17px;line-height:21px;font-weight:800;">${esc(nextMilestone.headline)}</div>
+      ? `<div style="font-size:17px;line-height:21px;font-weight:800;color:#221D23;">Every current reward unlocked!</div><div style="margin-top:7px;font-size:9px;line-height:12px;color:#8A818B;">Your team reached every milestone so far.</div>`
+      : `<div style="font-size:9px;line-height:12px;font-weight:800;color:#B8860B;letter-spacing:1px;text-transform:uppercase;">Next team reward</div>
+         <div style="margin-top:4px;font-size:17px;line-height:21px;font-weight:800;color:#221D23;">${esc(nextMilestone.headline)}</div>
          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">
-           <tr><td style="height:7px;background:#474046;border-radius:6px;overflow:hidden;"><div style="width:${milestoneProgress}%;height:7px;background:#23CE68;border-radius:6px;"></div></td></tr>
+           <tr><td style="height:7px;background:#EFE7D2;border-radius:6px;overflow:hidden;"><div style="width:${milestoneProgress}%;height:7px;background:#23CE68;border-radius:6px;"></div></td></tr>
          </table>
-         <div style="margin-top:7px;font-size:9px;line-height:12px;color:#CFC9CD;">Every completed action moves your team closer.</div>`;
+         <div style="margin-top:7px;font-size:9px;line-height:12px;color:#8A818B;">Every completed action moves your team closer.</div>`;
 
   const preheader = "Your next actions are ready.";
 
@@ -647,39 +654,10 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
           <table role="presentation" class="shell" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#FFFFFF;border-top:3px solid #FFCE00;border-left:1px solid #E8DFC6;border-right:1px solid #E8DFC6;border-bottom:1px solid #E8DFC6;">
 
             <tr>
-              <td class="pad" style="padding:30px 34px 28px;background:#221D23;color:#FFFFFF;font-family:Inter,Arial,sans-serif;">
-                ${heroTopRowHtml(`<div style="display:inline-block;padding:6px 10px;border:1px solid #756510;border-radius:18px;color:#FFCE00;font-size:9px;line-height:10px;font-weight:800;letter-spacing:1.15px;text-transform:uppercase;">Your action reminder</div>`, data)}
-                <div class="headline" style="margin-top:16px;font-size:34px;line-height:36px;font-weight:800;letter-spacing:-1.25px;">Your next actions<br /><span style="color:#FFCE00;">are ready.</span></div>
-                <div style="margin-top:12px;color:#E2DEE1;font-size:13px;line-height:19px;">Hey ${esc(firstName)}, your next actions are ready when you are.</div>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:22px 34px 4px;font-family:Inter,Arial,sans-serif;">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                  <tr>
-                    ${reminderMetricCellHtml({
-    bg: "#FFF8D9", border: "#F0DF9A", iconBg: "#FFCE00", iconColor: "#221D23", icon: "&#10003;",
-    value: hasFinalisedPlan && commitmentScore !== null ? `${Math.round(commitmentScore)}%` : "&mdash;",
-    label: "Your Commitment Score",
-    padStyle: "padding-right:5px;",
-  })}
-                    ${reminderMetricCellHtml({
-    bg: "#F1ECFF", border: "#DDD2FF", iconBg: "#F68A29", iconColor: "#221D23", icon: "&#8596;",
-    value: buddyName && buddyScore !== null ? `${Math.round(buddyScore)}%` : "&mdash;",
-    label: buddyName ? `${esc(buddyName)} &middot; Your Buddy` : "No buddy yet",
-    padStyle: "padding-left:3px;padding-right:3px;",
-  })}
-                    ${reminderMetricCellHtml({
-    bg: "#EAF5FF", border: "#CDE7FF", iconBg: "#3696FC", iconColor: "#FFFFFF", icon: "&#9733;",
-    value: teamRank !== null && teamSize !== null
-      ? `${teamRank}<span style="font-size:12px;font-weight:700;color:#716A70;letter-spacing:0;"> / ${teamSize}</span>`
-      : "&mdash;",
-    label: "Team Contribution Rank",
-    padStyle: "padding-left:5px;",
-  })}
-                  </tr>
-                </table>
+              <td class="pad" style="padding:30px 34px 28px;background:#FFCE00;color:#221D23;font-family:Inter,Arial,sans-serif;">
+                ${heroTopRowHtml(`<div style="display:inline-block;padding:6px 10px;border:1.5px solid #221D23;border-radius:18px;color:#221D23;font-size:9px;line-height:10px;font-weight:800;letter-spacing:1.15px;text-transform:uppercase;">Your action reminder</div>`, data)}
+                <div class="headline" style="margin-top:16px;font-size:34px;line-height:36px;font-weight:800;letter-spacing:-1.25px;color:#221D23;">Your next actions<br /><span style="color:#221D23;">are ready.</span></div>
+                <div style="margin-top:12px;color:rgba(34,29,35,.72);font-size:13px;line-height:19px;">Hey ${esc(firstName)}, your next actions are ready when you are.</div>
               </td>
             </tr>
 
@@ -696,8 +674,37 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
             </tr>
 
             <tr>
+              <td class="pad" style="padding:6px 34px 4px;font-family:Inter,Arial,sans-serif;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    ${reminderMetricCellHtml({
+    bg: "#FFFFFF", border: "#E6DDC7", iconBg: "#FFCE00", iconColor: "#221D23", icon: "&#10003;",
+    value: hasFinalisedPlan && commitmentScore !== null ? `${Math.round(commitmentScore)}%` : "&mdash;",
+    label: "Your Commitment Score",
+    padStyle: "padding-right:5px;",
+  })}
+                    ${reminderMetricCellHtml({
+    bg: "#FFFFFF", border: "#E6DDC7", iconBg: "#F68A29", iconColor: "#221D23", icon: "&#8596;",
+    value: buddyName && buddyScore !== null ? `${Math.round(buddyScore)}%` : "&mdash;",
+    label: buddyName ? `${esc(buddyName)} &middot; Your Buddy` : "No buddy yet",
+    padStyle: "padding-left:3px;padding-right:3px;",
+  })}
+                    ${reminderMetricCellHtml({
+    bg: "#FFFFFF", border: "#E6DDC7", iconBg: "#3696FC", iconColor: "#FFFFFF", icon: "&#9733;",
+    value: teamRank !== null && teamSize !== null
+      ? `${teamRank}<span style="font-size:12px;font-weight:700;color:#716A70;letter-spacing:0;"> / ${teamSize}</span>`
+      : "&mdash;",
+    label: "Team Contribution Rank",
+    padStyle: "padding-left:5px;",
+  })}
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
               <td class="pad" style="padding:8px 34px 2px;font-family:Inter,Arial,sans-serif;">
-                <div style="padding:11px 13px;background:#FFF8D9;border-radius:11px;color:#4F484D;font-size:11px;line-height:16px;"><strong style="color:#221D23;">Done an action?</strong> Tap "Mark done" next to it above — one click updates your Commitment Score and adds points to your team.</div>
+                <div style="font-size:12px;line-height:18px;color:#4F484D;"><strong style="color:#221D23;font-weight:800;">Done an action?</strong> Click "Mark done" next to it above and in one click update your Commitment Score and add points to your team.</div>
               </td>
             </tr>
 
@@ -712,12 +719,12 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
 
             <tr>
               <td class="pad" style="padding:0 34px 22px;font-family:Inter,Arial,sans-serif;">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#221D23;border-radius:15px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border:1px solid #E6DDC7;border-radius:15px;">
                   <tr>
                     <td class="reward-icon-cell" width="82" valign="middle" style="width:82px;padding:16px 0 16px 16px;">
                       <div style="width:58px;height:58px;border-radius:15px;background:#FFCE00;color:#221D23;text-align:center;font-size:27px;line-height:58px;">${nextMilestone ? nextMilestone.icon : teamMaximumPoints === 0 ? "⏳" : "🎉"}</div>
                     </td>
-                    <td valign="middle" style="padding:16px 18px 16px 12px;color:#FFFFFF;">
+                    <td valign="middle" style="padding:16px 18px 16px 12px;color:#221D23;">
                       ${rewardHtml}
                     </td>
                   </tr>
@@ -770,7 +777,7 @@ function recapCompanyBadgeHtml(data: EmailTemplateData): string {
 }
 
 function recapHeroTopRowHtml(data: EmailTemplateData): string {
-  const pill = `<div style="display:inline-block;padding:8px 14px;border:1px solid #FFCE00;border-radius:999px;color:#FFCE00;font-size:11px;line-height:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;white-space:nowrap;">Your Friday recap</div>`;
+  const pill = `<div style="display:inline-block;padding:8px 14px;border:1.5px solid #221D23;border-radius:999px;color:#221D23;font-size:11px;line-height:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;white-space:nowrap;">Your Friday recap</div>`;
   const badge = recapCompanyBadgeHtml(data);
   if (!badge) return pill;
   return `
@@ -793,13 +800,15 @@ function renderWeeklyRecapHtml(data: EmailTemplateData): string {
     ? actions
       .map(
         (action) => `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border:1px solid #E8DFCA;border-radius:14px;margin:0 0 16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#221D23;border:1px solid #221D23;border-radius:14px;margin:0 0 16px;">
       <tr>
-        <td width="64" valign="middle" style="width:64px;padding:20px 0 20px 22px;">
-          <div style="width:46px;height:46px;border-radius:50%;background:#FFCE00;color:#221D23;text-align:center;font-size:28px;line-height:46px;font-weight:400;">&#8594;</div>
+        <td width="116" valign="middle" style="width:116px;padding:20px 0 20px 22px;">
+          ${action.imageUrl
+            ? `<img src="${esc(action.imageUrl)}" width="98" height="98" alt="" style="width:98px;height:98px;border-radius:16px;object-fit:cover;display:block;" />`
+            : `<div style="width:46px;height:46px;border-radius:14px;background:#FFCE00;color:#221D23;text-align:center;font-size:28px;line-height:46px;font-weight:400;">&#8594;</div>`}
         </td>
         <td valign="middle" style="padding:20px 22px 20px 18px;">
-          <div class="action-text" style="margin:0;font-size:17px;line-height:1.45;font-weight:700;color:#221D23;">${esc(action.title)}</div>
+          <div class="action-text" style="margin:0;font-size:17px;line-height:1.45;font-weight:700;color:#FFFFFF;">${esc(action.title)}</div>
         </td>
       </tr>
     </table>`
@@ -809,8 +818,8 @@ function renderWeeklyRecapHtml(data: EmailTemplateData): string {
 
   const headline =
     count === 0
-      ? `You&apos;re all<br /><span style="color:#FFCE00;">caught up this week.</span>`
-      : `${count} action${count === 1 ? " is" : "s are"} still<br /><span style="color:#FFCE00;">waiting for your confirmation.</span>`;
+      ? `You&apos;re all<br /><span style="color:#221D23;">caught up this week.</span>`
+      : `${count} action${count === 1 ? " is" : "s are"} still<br /><span style="color:#221D23;">waiting for your confirmation.</span>`;
 
   const subcopy =
     count === 0
@@ -854,11 +863,11 @@ function renderWeeklyRecapHtml(data: EmailTemplateData): string {
           <table role="presentation" class="shell" width="620" cellpadding="0" cellspacing="0" border="0" style="width:620px;max-width:620px;background:#FFFFFF;border-radius:18px;overflow:hidden;">
 
             <tr>
-              <td class="pad hero" style="padding:30px 34px 34px;background:#151719;color:#FFFFFF;font-family:Arial,Helvetica,sans-serif;">
+              <td class="pad hero" style="padding:30px 34px 34px;background:#FFCE00;color:#221D23;font-family:Arial,Helvetica,sans-serif;">
                 <div style="margin-bottom:42px;">${recapHeroTopRowHtml(data)}</div>
-                <p style="margin:0 0 18px;font-size:22px;line-height:1.25;font-weight:700;color:#FFFFFF;">Hey ${esc(firstName)},</p>
-                <h1 class="headline" style="margin:0;font-size:40px;line-height:1.08;letter-spacing:-1px;font-weight:800;color:#FFFFFF;">${headline}</h1>
-                <p style="margin:22px 0 0;font-size:16px;line-height:1.55;color:#F4F4F4;">${esc(subcopy)}</p>
+                <p style="margin:0 0 18px;font-size:22px;line-height:1.25;font-weight:700;color:#221D23;">Hey ${esc(firstName)},</p>
+                <h1 class="headline" style="margin:0;font-size:40px;line-height:1.08;letter-spacing:-1px;font-weight:800;color:#221D23;">${headline}</h1>
+                <p style="margin:22px 0 0;font-size:16px;line-height:1.55;color:rgba(34,29,35,.72);">${esc(subcopy)}</p>
               </td>
             </tr>
 

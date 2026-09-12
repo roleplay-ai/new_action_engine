@@ -46,6 +46,7 @@ type ReminderAction = {
   theme: string;
   timeEstimate: string;
   planOrder: number | null;
+  imageUrl: string | null;
 };
 
 export type WalletEmailSummary = {
@@ -156,7 +157,7 @@ async function buildReminderActionContext(
   const { data: actionRows } = allActionIds.length
     ? await admin
         .from("actions")
-        .select("id, title, how, theme, time_estimate, plan_order")
+        .select("id, title, how, theme, time_estimate, plan_order, image_url")
         .in("id", allActionIds)
     : { data: [] };
 
@@ -170,6 +171,7 @@ async function buildReminderActionContext(
         theme: action.theme,
         timeEstimate: action.time_estimate,
         planOrder: action.plan_order ?? null,
+        imageUrl: action.image_url ?? null,
       },
     ])
   );
@@ -344,6 +346,7 @@ export async function sendDailyActionReminders(
           title: action.title,
           how: action.how,
           timeEstimate: action.timeEstimate,
+          imageUrl: action.imageUrl ?? undefined,
         })),
         has_finalised_plan: walletSummary?.hasFinalisedPlan ?? false,
         commitment_score: walletSummary?.currentScore ?? null,
@@ -562,6 +565,7 @@ export async function sendWeeklyUnvalidatedRecap(fromEmail: string): Promise<Wee
           title: action.title,
           how: action.how,
           timeEstimate: action.timeEstimate,
+          imageUrl: action.imageUrl ?? undefined,
         })),
         has_finalised_plan: walletSummary?.hasFinalisedPlan ?? false,
         commitment_score: walletSummary?.currentScore ?? null,

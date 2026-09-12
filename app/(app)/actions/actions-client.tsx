@@ -698,7 +698,7 @@ export default function ActionsClient() {
     <nav className="actions-tabs" aria-label="Action views">
       <button type="button" className={tab === "upcoming" ? "active" : ""} onClick={() => setTab("upcoming")}>Upcoming <span>{scheduled.length}</span></button>
       <button type="button" className={tab === "completed" ? "active" : ""} onClick={() => setTab("completed")}>Completed <span>{completed.length}</span></button>
-      <button type="button" className={tab === "pending-validation" ? "active" : ""} onClick={() => setTab("pending-validation")}>Pending validation <span>{pendingValidation.length}</span></button>
+      <button type="button" className={tab === "pending-validation" ? "active" : ""} onClick={() => setTab("pending-validation")}>Pending validation <span style={pendingValidation.length > 0 ? { background: "#ED4551", color: "#fff" } : undefined}>{pendingValidation.length}</span></button>
       <button type="button" className={tab === "not-completed" ? "active" : ""} onClick={() => setTab("not-completed")}>Didn&apos;t complete <span>{notCompleted.length}</span></button>
       <button type="button" className={tab === "archived" ? "active" : ""} onClick={() => setTab("archived")}>Archived <span>{archiveReady ? archivedActions.length : "…"}</span></button>
       <button type="button" className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>Plan overview</button>

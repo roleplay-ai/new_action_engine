@@ -284,9 +284,9 @@ export default function RcplWorkspace({
                 <div><h3>{phase.title}</h3>{phase.subtitle && <p>{phase.subtitle}</p>}</div>
                 {!isDefaultJourney && phase.window && <strong className="rcpl-agenda-window">{phase.window}</strong>}
               </header>
-              {(phase.focus || phase.summary) && (
+              {/* {(phase.focus || phase.summary) && (
                 <div className="rcpl-agenda-focus"><div>{phase.focus && <strong>{phase.focus}</strong>}{phase.summary && <p>{phase.summary}</p>}</div></div>
-              )}
+              )} */}
               <div className="rcpl-agenda-days">
                 {phase.days.map((day) => (
                   <div className="rcpl-agenda-day" key={day.name}>

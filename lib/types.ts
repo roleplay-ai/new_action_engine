@@ -119,9 +119,13 @@ export interface Cohort {
   logoUrl?: string | null;
   companyName?: string | null;
   companyLogoUrl?: string | null;
-  /** The company's seeded program agenda, if any. Empty/undefined means the
+  /** This batch's seeded program agenda, if any. Empty/undefined means the
    * generic Journey workspace shows no agenda section. */
-  companyProgramPhases?: ProgramPhase[];
+  programPhases?: ProgramPhase[];
+  /** The id (ProgramPhase.id) of the phase this batch is currently in — the
+   * Journey/Home page defaults to this phase when no ?phase= is in the URL.
+   * Null/undefined falls back to the first phase. */
+  currentPhaseId?: string | null;
   trainerId?: string | null;
   trainer?: Trainer | null;
   /** When true, participants lose access to My Plan, action creation, and the
@@ -182,10 +186,10 @@ export interface ProgramDay {
   blocks: ProgramBlock[];
 }
 
-/** One phase of a company's seeded program agenda (companies.program_phases).
- * Set by a superadmin, usually at company creation, and rendered on the
- * generic Journey workspace's agenda section — mirrors the shape SURGE/RCPL
- * University hardcode in RcplWorkspace, but data-driven per company. */
+/** One phase of a batch's seeded program agenda (cohorts.program_phases).
+ * Set by an admin/superadmin per batch (cohort), and rendered on the generic
+ * Journey workspace's agenda section — Surge's own SURGE curriculum is just
+ * seeded data in this same shape (see migration 070_cohort_program_phases.sql). */
 export interface ProgramPhase {
   id: string;
   label: string;

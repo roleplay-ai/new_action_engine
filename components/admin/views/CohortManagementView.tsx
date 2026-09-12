@@ -62,7 +62,7 @@ import { createFacilitator, deleteFacilitator, listFacilitators } from "@/app/ac
 import { assignMemberTag, createParticipantTag, listParticipantTags } from "@/app/actions/participant-tags";
 import { FacilitatorPdfUploadField } from "@/components/admin/content/FacilitatorPdfUploadField";
 import { useSelectedAdminBatch } from "@/components/admin/AdminContext";
-import type { CohortDate, CohortMember, CohortNotice, CompanyBrand, Facilitator, ParticipantTag, PrepareContentItem, Trainer } from "@/lib/types";
+import type { CohortDate, CohortMember, CohortNotice, CompanyBrand, Facilitator, ParticipantTag, PrepareContentItem, ProgramPhase, Trainer } from "@/lib/types";
 
 interface CohortManagementViewProps {
   companyId: string | null;
@@ -84,6 +84,8 @@ type CohortSummary = {
   trainerId?: string | null;
   trainer?: Trainer | null;
   locked: boolean;
+  programPhases?: ProgramPhase[];
+  currentPhaseId?: string | null;
 };
 
 type CompanyUser = { id: string; full_name: string | null; email: string | null };
@@ -518,7 +520,7 @@ function CohortDetailPanel({
   role: string;
   onChange: () => Promise<void> | void;
 }) {
-  const [tab, setTab] = useState<"members" | "content" | "generation" | "trainer" | "buddies">("members");
+  const [tab, setTab] = useState<"members" | "content" | "trainer" | "agenda" | "generation" | "buddies">("members");
   const [editingNames, setEditingNames] = useState(false);
   const [editBatchName, setEditBatchName] = useState(cohort.batchName);
   const [editModuleName, setEditModuleName] = useState(cohort.moduleName ?? "");
@@ -537,6 +539,8 @@ function CohortDetailPanel({
   const [contentQuery, setContentQuery] = useState("");
   const [trainingContent, setTrainingContent] = useState(cohort.trainingContent ?? "");
   const [businessContext, setBusinessContext] = useState(cohort.businessContext ?? "");
+  const [programPhasesJson, setProgramPhasesJson] = useState(() => JSON.stringify(cohort.programPhases ?? [], null, 2));
+  const [currentPhaseId, setCurrentPhaseId] = useState(cohort.currentPhaseId ?? "");
   const [trainerRoster, setTrainerRoster] = useState<Trainer[]>([]);
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>(cohort.trainerId ?? "");
   const [notices, setNotices] = useState<CohortNotice[]>([]);
@@ -724,6 +728,21 @@ function CohortDetailPanel({
     return availableItems.filter((item) => `${item.title} ${item.type}`.toLowerCase().includes(needle));
   }, [availableItems, contentQuery]);
 
+  // Parsed live from the draft textarea so the "current phase" dropdown
+  // reflects unsaved edits — falls back to the last-saved phases if the
+  // draft doesn't parse, so the dropdown never goes empty mid-edit.
+  const draftAgendaPhases = useMemo((): { id: string; label: string }[] | null => {
+    try {
+      const parsed = JSON.parse(programPhasesJson || "[]");
+      if (!Array.isArray(parsed)) return null;
+      if (!parsed.every((phase) => phase && typeof phase.id === "string" && typeof phase.label === "string")) return null;
+      return parsed.map((phase) => ({ id: phase.id, label: phase.label }));
+    } catch {
+      return null;
+    }
+  }, [programPhasesJson]);
+  const agendaPhaseOptions = draftAgendaPhases ?? (cohort.programPhases ?? []).map((phase) => ({ id: phase.id, label: phase.label }));
+
   function toggleSelection(id: string, setter: React.Dispatch<React.SetStateAction<Set<string>>>) {
     setter((previous) => {
       const next = new Set(previous);
@@ -854,6 +873,15 @@ function CohortDetailPanel({
         },
         refetch: [fetchFacilitators],
       }
+    );
+  }
+
+  async function handleSaveAgenda() {
+    if (busyAction) return;
+    await runMutation(
+      "save-agenda",
+      () => updateCohort(cohort.id, { programPhasesJson, currentPhaseId: currentPhaseId || null }),
+      { syncList: true }
     );
   }
 
@@ -1067,6 +1095,9 @@ function CohortDetailPanel({
         </button>
         <button type="button" role="tab" aria-selected={tab === "trainer"} onClick={() => setTab("trainer")} className={tab === "trainer" ? "is-active" : ""}>
           <UserRound size={16} /> Trainer <span>{notices.length}</span>
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "agenda"} onClick={() => setTab("agenda")} className={tab === "agenda" ? "is-active" : ""}>
+          <CalendarDays size={16} /> Agenda <span>{(cohort.programPhases ?? []).length}</span>
         </button>
         {role === "superadmin" && (
           <button type="button" role="tab" aria-selected={tab === "generation"} onClick={() => setTab("generation")} className={tab === "generation" ? "is-active" : ""}>
@@ -1403,6 +1434,60 @@ function CohortDetailPanel({
                 ))}
               </div>
             )}
+          </section>
+        </div>
+      ) : tab === "agenda" ? (
+        <div className="cohort-admin-generation-context">
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head">
+              <div><h3>Program agenda</h3><p>Phases, days, and session blocks shown on this batch&apos;s Home/Journey page.</p></div>
+            </div>
+            <div className="cohort-admin-context-form">
+              <div className="cohort-admin-notice">
+                <Info size={17} />
+                <p>
+                  <strong>Shown only to this batch</strong>
+                  <span>Paste a JSON array of phases — each needs at least an "id" and a "label". Leave it as <code>[]</code> to hide the agenda section entirely.</span>
+                </p>
+              </div>
+              <label className="cohort-admin-field">
+                <span>Current phase</span>
+                <select
+                  value={currentPhaseId}
+                  onChange={(event) => setCurrentPhaseId(event.target.value)}
+                  disabled={Boolean(busyAction)}
+                  aria-label="Current phase"
+                >
+                  <option value="">No default (first phase shown)</option>
+                  {agendaPhaseOptions.map((phase) => <option key={phase.id} value={phase.id}>{phase.label}</option>)}
+                </select>
+                <em>Selected automatically for participants on their Home page until changed here.</em>
+              </label>
+              <label className="cohort-admin-field">
+                <span>Agenda JSON <em>Optional</em></span>
+                <textarea
+                  value={programPhasesJson}
+                  onChange={(event) => setProgramPhasesJson(event.target.value)}
+                  placeholder="[]"
+                  rows={16}
+                  spellCheck={false}
+                  className="cohort-admin-json-field"
+                  disabled={Boolean(busyAction)}
+                />
+              </label>
+              <div className="cohort-admin-context-actions">
+                <span>{draftAgendaPhases === null ? "This doesn't look like valid phase JSON yet." : `${draftAgendaPhases.length} phase${draftAgendaPhases.length === 1 ? "" : "s"} in this draft`}</span>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveAgenda()}
+                  disabled={Boolean(busyAction)}
+                  className="cohort-admin-button cohort-admin-button--primary"
+                >
+                  {busyAction === "save-agenda" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}
+                  {busyAction === "save-agenda" ? "Saving…" : "Save agenda"}
+                </button>
+              </div>
+            </div>
           </section>
         </div>
       ) : tab === "generation" ? (

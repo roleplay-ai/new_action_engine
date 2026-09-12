@@ -24,8 +24,9 @@ interface Particle {
   spin: number;
   duration: number;
   delay: number;
-  tx: number;
-  ty: number;
+  left: number;
+  drift: number;
+  fall: number;
   shape: "rect" | "circle" | "ribbon";
 }
 
@@ -33,28 +34,31 @@ interface ConfettiCelebrationProps {
   actionTitle?: string;
   pointsDelta?: number;
   completedLate?: boolean;
+  pendingValidationCount?: number;
   onContinue: () => void;
   onClose: () => void;
+  onViewPendingValidation?: () => void;
 }
 
 function makeParticles(): Particle[] {
   const colors = [C.amber, C.purple, C.green, C.orange, C.red, C.blue, C.pink];
   const shapes: Particle["shape"][] = ["rect", "circle", "ribbon"];
 
-  return Array.from({ length: 120 }, (_, i) => {
-    const theta = (Math.PI * 2 * i) / 120 + (Math.random() - 0.5) * 0.45;
-    const distance = 180 + Math.random() * 420;
+  // Falling confetti paper across the whole viewport, like it's raining down
+  // from just above the top edge rather than bursting from the center.
+  return Array.from({ length: 160 }, (_, i) => {
     const shape = shapes[i % 3];
     return {
       id: i,
       color: colors[i % colors.length],
       size: shape === "ribbon" ? 4 + Math.random() * 4 : 7 + Math.random() * 10,
       angle: Math.random() * 360,
-      spin: 360 + Math.random() * 720,
-      duration: 1.1 + Math.random() * 1.6,
-      delay: Math.random() * 0.25,
-      tx: Math.cos(theta) * distance,
-      ty: Math.sin(theta) * distance * 0.85 + 40 + Math.random() * 120,
+      spin: 360 + Math.random() * 540,
+      duration: 2.6 + Math.random() * 2.2,
+      delay: Math.random() * 3.5,
+      left: Math.random() * 100,
+      drift: (Math.random() - 0.5) * 180,
+      fall: 100,
       shape,
     };
   });
@@ -64,14 +68,16 @@ export default function ConfettiCelebration({
   actionTitle,
   pointsDelta,
   completedLate = false,
+  pendingValidationCount = 0,
   onContinue,
   onClose,
+  onViewPendingValidation,
 }: ConfettiCelebrationProps) {
   const [particles, setParticles] = useState<Particle[]>([]);
 
   useEffect(() => {
     setParticles(makeParticles());
-    const clearTimer = setTimeout(() => setParticles([]), 5000);
+    const clearTimer = setTimeout(() => setParticles([]), 6500);
     return () => clearTimeout(clearTimer);
   }, []);
 
@@ -79,9 +85,9 @@ export default function ConfettiCelebration({
     .map(
       (p) =>
         `@keyframes cf${p.id}{` +
-        `0%{transform:translate(-50%,-50%) scale(1) rotate(${p.angle}deg);opacity:1}` +
-        `70%{opacity:1}` +
-        `100%{transform:translate(calc(-50% + ${p.tx}px),calc(-50% + ${p.ty}px)) scale(0.35) rotate(${p.angle + p.spin}deg);opacity:0}}`
+        `0%{transform:translateY(-10vh) translateX(0) rotate(${p.angle}deg);opacity:1}` +
+        `90%{opacity:1}` +
+        `100%{transform:translateY(110vh) translateX(${p.drift}px) rotate(${p.angle + p.spin}deg);opacity:0}}`
     )
     .join("");
 
@@ -111,8 +117,8 @@ export default function ConfettiCelebration({
             key={p.id}
             style={{
               position: "absolute",
-              left: "50%",
-              top: "42%",
+              left: `${p.left}%`,
+              top: 0,
               width: p.shape === "ribbon" ? p.size : p.size,
               height:
                 p.shape === "circle"
@@ -122,7 +128,7 @@ export default function ConfettiCelebration({
                     : p.size * 0.45,
               background: p.color,
               borderRadius: p.shape === "circle" ? "50%" : p.shape === "ribbon" ? 2 : 2,
-              animation: `cf${p.id} ${p.duration}s ${p.delay}s cubic-bezier(0.12,0.75,0.28,1) both`,
+              animation: `cf${p.id} ${p.duration}s ${p.delay}s linear infinite backwards`,
               boxShadow: `0 0 0 1px ${p.color}33`,
             }}
           />
@@ -241,7 +247,6 @@ export default function ConfettiCelebration({
         >
           {[
             { label: completedLate ? "No points" : pointsDelta && pointsDelta > 0 ? `+${pointsDelta} points` : "Completed", color: "#8C7000" },
-            { label: "🔥 Streak", color: C.orange },
             { label: completedLate ? "✅ Recorded late" : "✅ Recorded", color: "#0A6632" },
           ].map((b) => (
             <span
@@ -266,21 +271,46 @@ export default function ConfettiCelebration({
             Done
           </button>
 
-          <button
-            onClick={onClose}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "var(--color-text-muted)",
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: "pointer",
-              padding: "8px",
-              width: "100%",
-            }}
-          >
-            Close
-          </button>
+          {pendingValidationCount > 0 && onViewPendingValidation ? (
+            <button
+              onClick={onViewPendingValidation}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                background: "#FFF8E0",
+                border: `1px solid ${C.amber}66`,
+                borderRadius: 10,
+                color: "#8C7000",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                padding: "10px 8px",
+                width: "100%",
+              }}
+            >
+              {pendingValidationCount === 1
+                ? "1 action is pending to be validated"
+                : `${pendingValidationCount} actions are pending to be validated`}
+            </button>
+          ) : (
+            <button
+              onClick={onClose}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--color-text-muted)",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                padding: "8px",
+                width: "100%",
+              }}
+            >
+              Close
+            </button>
+          )}
         </div>
       </div>
     </div>

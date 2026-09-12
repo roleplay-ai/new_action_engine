@@ -626,6 +626,11 @@ export default function ActionsClient() {
     router.push("/wallet");
   }
 
+  function viewPendingValidationFromCelebration() {
+    setCelebration(null);
+    setTab("pending-validation");
+  }
+
   function dismissBuddyReveal() {
     if (!cohort?.id) return;
     setBuddyGroup((current) => current ? { ...current, revealPending: false } : current);
@@ -999,8 +1004,10 @@ export default function ActionsClient() {
         actionTitle={celebration.title}
         pointsDelta={celebration.pointsDelta}
         completedLate={celebration.completedLate}
+        pendingValidationCount={pendingValidation.length}
         onContinue={continueFromCelebration}
         onClose={closeCelebration}
+        onViewPendingValidation={viewPendingValidationFromCelebration}
       />,
       document.body,
     )}

@@ -14,120 +14,16 @@ import { resolveVideoEmbed, resolveVideoThumbnail } from "@/lib/video-embed";
 import { browserNeedsExternalPdfViewer } from "@/lib/pdf-embed";
 import { daysUntil, nextUpcomingCohortDate } from "@/lib/cohort-dates";
 
-// This component is also used, unmodified in visual language, for every
-// non-Surge/RCPL University company — see prepare-client.tsx. Those callers
-// pass `phases` sourced from companies.program_phases (seeded by a superadmin)
-// instead of the hardcoded RCPL_PHASES below, plus their own hero copy. Surge
-// itself passes none of the optional props, so it renders byte-for-byte what
-// it always has.
+// This component is shared by every company — see prepare-client.tsx, which
+// passes `phases` sourced from this batch's own cohorts.program_phases
+// (seeded by an admin/superadmin per batch, see CohortManagementView's
+// Agenda tab) plus its own hero copy. Surge/RCPL University's SURGE
+// curriculum is just seeded data in that same column now (migration
+// 070_cohort_program_phases.sql) — the only thing still special-cased for it
+// is the hand-drawn journey curve graphic below, via `showCurveGraphic`.
 type PhaseBlock = ProgramBlock;
 type PhaseDay = ProgramDay;
 type RcplPhase = ProgramPhase;
-
-const RCPL_PHASES: RcplPhase[] = [
-  {
-    id: "1",
-    label: "Phase 1",
-    window: "Month 1 · 20 to 21 Aug",
-    title: "Module 1 · Leading Business & Leading Future",
-    subtitle: "",
-    focus: "Leading Business & Leading Future",
-    summary: "Build strategic perspective, business acumen, and confidence for the future. Followed by two days of application and teachbacks.",
-    days: [
-      {
-        name: "Day 1 · Leading Future",
-        date: "Thu 20 Aug",
-        takeaway: "Leave with a clear view of where the business is heading and one AI workflow you can run in your own week.",
-        blocks: [
-          { time: "9.30–10.00", name: "Program Overview", description: "How SURGE runs, what is expected between phases, and how this workspace fits in." },
-          { time: "10.00–11.30", name: "RCPL Strategy & Future Outlook", description: "Where the business is placing its bets and what that means for your function." },
-          { time: "11.45–4.30", name: "AI in Workplace", description: "A working session, lunch included. Build and test something on your own work." },
-          { time: "4.45–6.00", name: "Leadership Fireside Chat", description: "Open conversation with a senior leader. Bring questions." },
-          { time: "7.00–8.30", name: "Welcome Dinner", description: "Meet the people you will work with over the next six months." },
-        ],
-      },
-      {
-        name: "Day 2 · Business Acumen",
-        date: "Fri 21 Aug",
-        takeaway: "Run a business for three years in a day and see where your decisions create or cost value.",
-        blocks: [
-          { time: "9.30–11.15", name: "Foundation & Introduction to Simulation", description: "The commercial levers you will pull and the rules of the simulation." },
-          { time: "11.30–1.15", name: "Play Year 1 and Debrief", description: "Make the first decisions, review the results, and identify what you missed." },
-          { time: "2.00–3.30", name: "Play Year 2 and Debrief", description: "Adjust your strategy with what you learned and run it again." },
-          { time: "3.45–6.00", name: "Play Year 3, Debrief + Final Winners", description: "Run the last round, review the results, and connect the learning to your P&L." },
-        ],
-      },
-    ],
-  },
-  {
-    id: "2",
-    label: "Phase 2",
-    window: "Month 3 · 20 to 21 Oct",
-    title: "Module 2 · Leading Self",
-    subtitle: "",
-    focus: "Leading Self",
-    summary: "Work on the internal drivers: awareness, regulation, curiosity, and resilience. Followed by two months of application and teachbacks.",
-    days: [
-      {
-        name: "Day 3 · Curiosity & Agile Thinking",
-        date: "Mon 20 Oct",
-        takeaway: "Leave with three tools for opening up a problem before you rush to solve it.",
-        blocks: [
-          { time: "9.30–11.00", name: "Developing Curiosity & Agile Thinking", description: "Why experienced leaders stop asking questions, and how to rebuild the habit." },
-          { time: "11.15–1.00", name: "Creative Problem Solving through Six Thinking Hats", description: "A structured method for arguing well without making it personal." },
-          { time: "1.45–4.30", name: "Biomimicry for Innovation", description: "Borrow solutions from nature and apply them to retail problems." },
-          { time: "4.45–6.00", name: "Leadership Fireside Chat", description: "Open conversation with a senior leader." },
-        ],
-      },
-      {
-        name: "Day 4 · Emotional Intelligence",
-        date: "Tue 21 Oct",
-        takeaway: "Get language for what happens under pressure and a practical way to steady yourself in the moment.",
-        blocks: [
-          { time: "9.30–11.00", name: "Developing Self Awareness", description: "See what your default reactions cost through feedback and your own data." },
-          { time: "11.15–1.00", name: "Emotional Regulation", description: "Practical ways to hold your response when the stakes and noise are high." },
-          { time: "1.45–3.30", name: "Leading with Empathy", description: "Read the room and respond to what people are actually saying." },
-          { time: "3.45–6.00", name: "Building Resilience Under Pressure", description: "Recover quickly and keep your team steady while you do it." },
-        ],
-      },
-    ],
-  },
-  {
-    id: "3",
-    label: "Phase 3",
-    window: "Month 5 · 15 to 16 Dec",
-    title: "Module 3 · Leading Others",
-    subtitle: "",
-    focus: "Leading Others",
-    summary: "Build interpersonal excellence through influence, stakeholder work, and cross-functional collaboration.",
-    days: [
-      {
-        name: "Day 5 · Influencing without Authority",
-        date: "Mon 15 Dec",
-        takeaway: "Leave with a stakeholder map for one real situation and a plan for the person blocking it.",
-        blocks: [
-          { time: "9.30–11.00", name: "Building Trust and Credibility", description: "What earns you a hearing with people who do not report to you." },
-          { time: "11.15–1.00", name: "Sources of Influence", description: "The levers available beyond your title, and when each one works." },
-          { time: "1.45–3.15", name: "Stakeholder Management", description: "Map a live situation and plan the conversations that will move it." },
-          { time: "3.30–4.30", name: "Managing Resistance", description: "Work with the person who says no, instead of around them." },
-          { time: "4.45–6.00", name: "Fireside Chat", description: "Open conversation with a senior leader." },
-        ],
-      },
-      {
-        name: "Day 6 · Cross Functional Collaboration",
-        date: "Tue 16 Dec",
-        takeaway: "End with a shared commitment across functions and your SURGE graduation.",
-        blocks: [
-          { time: "9.30–11.00", name: "Collaborative Mindset", description: "What gets in the way when two functions both think they are right." },
-          { time: "11.15–1.00", name: "Breaking Silos", description: "Where handoffs break in this business and what you can fix from your seat." },
-          { time: "1.45–3.30", name: "Managing Interdependencies", description: "Run work that depends on teams you do not control." },
-          { time: "3.45–5.15", name: "Creating One Team Culture", description: "Agree the behaviours this batch will hold each other to." },
-          { time: "5.30–6.00", name: "SURGE Graduation", description: "Close, recognition, and your action-point totals." },
-        ],
-      },
-    ],
-  },
-];
 
 function formatSessionDate(value?: string | null, compact = false) {
   if (!value) return "Date to be announced";
@@ -212,9 +108,13 @@ type RcplWorkspaceProps = {
   onOpenResource: (item: PrepareContentItem) => void;
   notices: CohortNotice[];
   facilitators: Facilitator[];
-  /** Program agenda. Omit for Surge's own hardcoded SURGE curriculum; every
-   * other company passes its companies.program_phases here instead. */
+  /** This batch's program agenda (cohort.programPhases). Empty/omitted hides
+   * the agenda section. */
   phases?: RcplPhase[];
+  /** Renders the hand-drawn 3-point SURGE journey curve instead of the
+   * generic step list — only meaningful when `phases` has exactly 3 entries
+   * (the curve's labels are fixed artwork, not derived from phase content). */
+  showCurveGraphic?: boolean;
   /** Hero copy overrides — all default to Surge's existing SURGE copy, so
    * passing none of these keeps Surge pixel-identical. */
   programEyebrow?: string;
@@ -236,15 +136,16 @@ export default function RcplWorkspace({
   onOpenResource,
   notices,
   facilitators,
-  phases = RCPL_PHASES,
+  phases = [],
+  showCurveGraphic = false,
   programEyebrow = "RCPL Accelerated Leadership Program",
   heroTitle = "Your 5-month SURGE leadership journey",
   heroDescription = "Build the capability to lead the future, lead yourself, and lead others through immersive learning, practical application, teachbacks, and continued action at work.",
 }: RcplWorkspaceProps) {
   const searchParams = useSearchParams();
   const hasPhases = phases.length > 0;
-  const isDefaultJourney = phases === RCPL_PHASES;
-  const phaseId = searchParams.get("phase") ?? phases[0]?.id;
+  const isDefaultJourney = showCurveGraphic && phases.length === 3;
+  const phaseId = searchParams.get("phase") ?? cohort.currentPhaseId ?? phases[0]?.id;
   const phase = phases.find((item) => item.id === phaseId) ?? phases[0] ?? null;
   const [buddyInfoOpen, setBuddyInfoOpen] = useState(false);
 
@@ -315,7 +216,15 @@ export default function RcplWorkspace({
           <h2>{heroTitle}</h2>
           <p>{heroDescription}</p>
           <div className="rcpl-hero-meta">
-            {sessionDates.length === 0 ? (
+            {phase && phase.days.length > 0 ? (
+              // Show the selected module's own run dates rather than the
+              // cohort's overall session-date list — these are free-text day
+              // labels from the agenda JSON (e.g. "Thu 20 Aug"), not the ISO
+              // cohort_dates used for the countdown below.
+              phase.days.map((day) => (
+                <span key={day.name}><CalendarDays size={14} />{day.date}</span>
+              ))
+            ) : sessionDates.length === 0 ? (
               <span><CalendarDays size={14} />Date to be announced</span>
             ) : (
               sessionDates.map((date) => (
@@ -375,9 +284,9 @@ export default function RcplWorkspace({
                 <div><h3>{phase.title}</h3>{phase.subtitle && <p>{phase.subtitle}</p>}</div>
                 {!isDefaultJourney && phase.window && <strong className="rcpl-agenda-window">{phase.window}</strong>}
               </header>
-              {(phase.focus || phase.summary) && (
+              {/* {(phase.focus || phase.summary) && (
                 <div className="rcpl-agenda-focus"><div>{phase.focus && <strong>{phase.focus}</strong>}{phase.summary && <p>{phase.summary}</p>}</div></div>
-              )}
+              )} */}
               <div className="rcpl-agenda-days">
                 {phase.days.map((day) => (
                   <div className="rcpl-agenda-day" key={day.name}>

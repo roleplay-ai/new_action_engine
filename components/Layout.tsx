@@ -48,26 +48,18 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   const activePath = pendingHref || pathname || "";
   const isActive = (href: string) => activePath.startsWith(href);
   const showLoader = isLoading || contentLoading;
-  const companyName = cohort?.companyName?.trim().toLowerCase();
-  const isSurgeOrRcplUniversity = companyName === "rcpl university" || companyName === "surge";
   // The RcplWorkspace design (navy/gold shell, "Workspace" topbar label, phase
-  // picker) is now shared by every company — see RcplWorkspace.tsx. Surge/RCPL
-  // University keep their own hardcoded 3-phase list unchanged; every other
-  // company's picker is built from its seeded companies.program_phases.
-  const defaultRcplPhases = [
-    { id: "1", label: "Phase 1", title: "Leading Business & Future", window: "Month 1" },
-    { id: "2", label: "Phase 2", title: "Leading Self", window: "Month 3" },
-    { id: "3", label: "Phase 3", title: "Leading Others", window: "Month 5" },
-  ];
-  const rcplPhases = isSurgeOrRcplUniversity
-    ? defaultRcplPhases
-    : (cohort?.companyProgramPhases ?? []).map((phase) => ({
-      id: phase.id,
-      label: phase.label,
-      title: phase.focus || phase.title,
-      window: phase.window,
-    }));
-  const rcplPhase = searchParams.get("phase") ?? rcplPhases[0]?.id ?? "1";
+  // picker) is shared by every company — see RcplWorkspace.tsx. Each batch's
+  // picker is built from its own seeded cohort.programPhases (including
+  // Surge's, which is just seeded data in the same shape — see migration
+  // 070_cohort_program_phases.sql).
+  const rcplPhases = (cohort?.programPhases ?? []).map((phase) => ({
+    id: phase.id,
+    label: phase.label,
+    title: phase.focus || phase.title,
+    window: phase.window,
+  }));
+  const rcplPhase = searchParams.get("phase") ?? cohort?.currentPhaseId ?? rcplPhases[0]?.id ?? "1";
   const currentRcplPhase = rcplPhases.find((phase) => phase.id === rcplPhase) ?? rcplPhases[0] ?? null;
 
   async function switchCohort(cohortId: string) {

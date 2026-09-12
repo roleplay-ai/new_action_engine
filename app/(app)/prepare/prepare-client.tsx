@@ -20,11 +20,11 @@ function isPdfResource(item: PrepareContentItem) {
 
 /**
  * Every company gets the same RcplWorkspace design (agenda, resource library,
- * batch roster, commitment buddy, facilitators, chat). Surge renders it with
- * no overrides — its hardcoded SURGE curriculum and copy stay byte-for-byte
- * unchanged. Every other company passes its own DB-backed content instead:
- * companies.program_phases for the agenda, and cohort name/description/company
- * name for the hero copy. See components/journey/RcplWorkspace.tsx.
+ * batch roster, commitment buddy, facilitators, chat), reading its agenda
+ * from this batch's own cohort.programPhases. Surge keeps its default SURGE
+ * hero copy and the hand-drawn journey curve graphic (showCurveGraphic);
+ * every other company passes its own cohort name/description/company name
+ * for the hero copy instead. See components/journey/RcplWorkspace.tsx.
  */
 export default function PrepareClient({ initialData }: { initialData: JourneyData }) {
   const { personalPlanState } = useEngine();
@@ -136,8 +136,9 @@ export default function PrepareClient({ initialData }: { initialData: JourneyDat
       onOpenResource={setSelectedItem}
       notices={notices}
       facilitators={facilitators}
+      phases={cohort.programPhases ?? []}
+      showCurveGraphic={isSurge}
       {...(!isSurge && {
-        phases: cohort.companyProgramPhases ?? [],
         programEyebrow: cohort.companyName ? `${cohort.companyName} Workspace` : "Your Workspace",
         heroTitle: cohort.name,
         heroDescription: cohort.description || "Turn what you learn into something useful in your work and career.",

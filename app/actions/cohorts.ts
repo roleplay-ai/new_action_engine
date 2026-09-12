@@ -4,6 +4,7 @@ import { revalidatePath, unstable_cache, updateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Cohort, CohortDate, CohortMember, CohortOption, CompanyBrand, ProgramPhase, Trainer } from "@/lib/types";
+import { parseProgramPhasesJson } from "@/lib/program-phases";
 
 const COHORT_LOGOS_BUCKET = "cohort-logos";
 
@@ -48,13 +49,11 @@ async function loadTrainerMap(
   ]));
 }
 
-type CompanyBrandRow = { id: string; name: string; logo_url: string | null; program_phases: ProgramPhase[] };
+type CompanyBrandRow = { id: string; name: string; logo_url: string | null };
 
-/** Company id/name/logo (+ seeded program_phases) for a batch of companies.
- * program_phases is fetched as a best-effort extra: if that column isn't
- * there yet (e.g. migration 069 not applied), the whole query must not fail —
- * companyName/companyLogoUrl are load-bearing for routing (isRcplWorkspace)
- * and must never come back empty because of an unrelated optional field. */
+/** Company id/name/logo for a batch of companies. The program agenda lives on
+ * the cohort itself now (cohorts.program_phases) — see migration
+ * 070_cohort_program_phases.sql. */
 async function loadCompanyBrandRows(
   supabase: Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient>,
   companyIds: string[],
@@ -62,14 +61,8 @@ async function loadCompanyBrandRows(
   const ids = [...new Set(companyIds)];
   if (ids.length === 0) return [];
 
-  const withPhases = await supabase.from("companies").select("id, name, logo_url, program_phases").in("id", ids);
-  if (!withPhases.error) {
-    return (withPhases.data ?? []) as CompanyBrandRow[];
-  }
-
-  console.error("companies query with program_phases failed, falling back without it:", withPhases.error.message);
-  const fallback = await supabase.from("companies").select("id, name, logo_url").in("id", ids);
-  return (fallback.data ?? []).map((row: { id: string; name: string; logo_url: string | null }) => ({ ...row, program_phases: [] }));
+  const { data } = await supabase.from("companies").select("id, name, logo_url").in("id", ids);
+  return (data ?? []) as CompanyBrandRow[];
 }
 
 /** Every cohort_dates row for a batch of cohorts, grouped and sorted ascending
@@ -216,6 +209,11 @@ export async function updateCohort(
     businessContext?: string;
     logoUrl?: string | null;
     trainerId?: string | null;
+    /** Program agenda JSON pasted in by an admin/superadmin. Undefined leaves
+     * it unchanged; an empty string clears it. Parsed with parseProgramPhasesJson. */
+    programPhasesJson?: string;
+    /** The id of the phase this batch is currently in (or null to clear it). */
+    currentPhaseId?: string | null;
   }
 ): Promise<{ error?: string }> {
   try {
@@ -232,7 +230,12 @@ export async function updateCohort(
       }
     }
 
+    const { phases, error: phasesError } = parseProgramPhasesJson(params.programPhasesJson);
+    if (phasesError) return { error: phasesError };
+
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (phases !== undefined) updates.program_phases = phases;
+    if (params.currentPhaseId !== undefined) updates.current_phase_id = params.currentPhaseId || null;
     if (params.batchName != null || params.moduleName !== undefined) {
       // Only one part may have been passed in — fetch the other so the
       // derived `name` composite (and the untouched part) stays correct.
@@ -433,7 +436,7 @@ export async function listCohorts(companyId: string): Promise<{
       supabase.from("companies").select("id, name, logo_url").eq("id", companyId).single(),
       supabase
         .from("cohorts")
-        .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, trainer_id, locked")
+        .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, trainer_id, locked, program_phases, current_phase_id")
         .eq("company_id", companyId)
         .is("archived_at", null)
         .order("created_at", { ascending: false }),
@@ -460,7 +463,7 @@ export async function listCohorts(companyId: string): Promise<{
 
     return {
       company: companyBrand,
-      cohorts: cohorts.map((c: { id: string; name: string; batch_name: string; module_name: string | null; description: string | null; training_content: string | null; business_context: string | null; logo_url: string | null; trainer_id: string | null; locked: boolean }) => ({
+      cohorts: cohorts.map((c: { id: string; name: string; batch_name: string; module_name: string | null; description: string | null; training_content: string | null; business_context: string | null; logo_url: string | null; trainer_id: string | null; locked: boolean; program_phases: ProgramPhase[]; current_phase_id: string | null }) => ({
         id: c.id,
         name: c.name,
         batchName: c.batch_name,
@@ -475,6 +478,8 @@ export async function listCohorts(companyId: string): Promise<{
         trainerId: c.trainer_id,
         trainer: c.trainer_id ? trainerMap.get(c.trainer_id) ?? null : null,
         locked: c.locked,
+        programPhases: c.program_phases ?? [],
+        currentPhaseId: c.current_phase_id,
       })),
     };
   } catch (e) {
@@ -492,7 +497,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
 
     const { data: cohort } = await supabase
       .from("cohorts")
-      .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, company_id, trainer_id, locked")
+      .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, company_id, trainer_id, locked, program_phases, current_phase_id")
       .eq("id", cohortId)
       .single();
     if (!cohort) return { error: "Batch not found" };
@@ -526,6 +531,8 @@ export async function getCohortDetail(cohortId: string): Promise<{
         trainerId: cohort.trainer_id,
         trainer: cohort.trainer_id ? trainerMap.get(cohort.trainer_id) ?? null : null,
         locked: cohort.locked,
+        programPhases: cohort.program_phases ?? [],
+        currentPhaseId: cohort.current_phase_id,
       },
       members: (members ?? []).map(mapMemberRow),
     };
@@ -711,7 +718,7 @@ const computeMyCohorts = unstable_cache(
     const [{ data: cohortRows }, { data: memberRows }] = await Promise.all([
       admin
         .from("cohorts")
-        .select("id, name, batch_name, module_name, description, logo_url, company_id, archived_at, trainer_id, locked")
+        .select("id, name, batch_name, module_name, description, logo_url, company_id, archived_at, trainer_id, locked, program_phases, current_phase_id")
         .in("id", orderedIds),
       admin
         .from("cohort_members")
@@ -765,7 +772,8 @@ const computeMyCohorts = unstable_cache(
         companyId: row.company_id,
         companyName: company?.name ?? null,
         companyLogoUrl: company?.logo_url ?? null,
-        companyProgramPhases: company?.program_phases ?? [],
+        programPhases: row.program_phases ?? [],
+        currentPhaseId: row.current_phase_id,
         archivedAt: row.archived_at,
         isCurrent: row.id === currentCohortId,
         isSelected: row.id === selectedCohortId,
@@ -874,7 +882,8 @@ export async function getMyCohort(options?: { includeRoster?: boolean }): Promis
         companyId: selected!.companyId,
         companyName: selected!.companyName,
         companyLogoUrl: selected!.companyLogoUrl,
-        companyProgramPhases: selected!.companyProgramPhases,
+        programPhases: selected!.programPhases,
+        currentPhaseId: selected!.currentPhaseId,
         trainerId: selected!.trainerId,
         trainer: selected!.trainer,
         // The lock only ever applies to participants — an admin/superadmin/

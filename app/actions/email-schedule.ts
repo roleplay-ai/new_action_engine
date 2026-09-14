@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isResendConfigured } from "@/lib/resend";
@@ -237,15 +238,19 @@ export async function runEmailSchedulerNow(): Promise<{
   try {
     await ensureSuperadmin();
 
-    const configuredBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
-    const isLikelyLocal =
-      process.env.VERCEL !== "1" && process.env.NODE_ENV !== "production";
-    // In local dev, NEXT_PUBLIC_APP_URL is often set to the deployed URL.
-    // For "Run now" we want local logs + local env, so prefer localhost.
-    const baseUrl =
-      isLikelyLocal && configuredBaseUrl.includes("vercel.app")
-        ? "http://localhost:3000"
-        : configuredBaseUrl || "http://localhost:3000";
+    // Always target the deployment actually serving this request — not
+    // NEXT_PUBLIC_APP_URL, which is typically pinned to production. On a
+    // Vercel Preview deployment (which Vercel's own Cron Jobs never trigger —
+    // crons only fire against Production) that mismatch meant "Run now" would
+    // silently run the *production* scheduler instead of the preview's own,
+    // against the preview's own data. Deriving the host from the incoming
+    // request's headers makes this work correctly on preview, production,
+    // and local dev alike.
+    const requestHeaders = await headers();
+    const forwardedHost = requestHeaders.get("x-forwarded-host");
+    const host = forwardedHost || requestHeaders.get("host");
+    const protocol = requestHeaders.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
+    const baseUrl = host ? `${protocol}://${host}` : "http://localhost:3000";
     const secret = process.env.CRON_SECRET;
     const url = `${baseUrl}/api/cron/email-scheduler${secret ? `?secret=${secret}` : ""}`;
 
@@ -267,6 +272,49 @@ export async function runEmailSchedulerNow(): Promise<{
     return { ok: true, processed: data?.processed, results: data?.results };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to trigger scheduler" };
+  }
+}
+
+/**
+ * Manually trigger the Friday weekly-recap cron handler right now. Same
+ * same-deployment targeting as runEmailSchedulerNow above, for the same reason:
+ * Vercel Cron Jobs never fire on Preview deployments, so this is the only way
+ * to exercise that path there.
+ */
+export async function runWeeklyRecapNow(): Promise<{
+  ok?: boolean;
+  recap?: { sent: number; failed: number; skippedEmpty: number; skippedDisabled: number; skippedClaimed: number };
+  error?: string;
+}> {
+  try {
+    await ensureSuperadmin();
+
+    const requestHeaders = await headers();
+    const forwardedHost = requestHeaders.get("x-forwarded-host");
+    const host = forwardedHost || requestHeaders.get("host");
+    const protocol = requestHeaders.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
+    const baseUrl = host ? `${protocol}://${host}` : "http://localhost:3000";
+    const secret = process.env.CRON_SECRET;
+    const url = `${baseUrl}/api/cron/weekly-recap${secret ? `?secret=${secret}` : ""}`;
+
+    const res = await fetch(url, { cache: "no-store" });
+    const text = await res.text();
+    let data: any = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+
+    if (!res.ok) {
+      const msg =
+        (data && typeof data.error === "string" && data.error) ||
+        (text?.trim() ? text.trim() : `Weekly recap returned ${res.status}`);
+      return { error: msg };
+    }
+    return { ok: true, recap: data?.recap };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to trigger weekly recap" };
   }
 }
 

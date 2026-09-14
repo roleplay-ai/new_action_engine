@@ -23,7 +23,7 @@ function formatCommitmentScore(value: number) {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, role }) => {
-  const { profile, isLoading, cohort, cohorts, refetch, personalPlanState, userActions } = useEngine();
+  const { profile, isLoading, cohort, cohorts, refetch, personalPlanState, userActions, allActions } = useEngine();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -44,6 +44,13 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
     if (role !== "user") items.push({ href: "/admin", label: "Admin", shortLabel: "Admin", icon: ShieldCheck });
     return items;
   }, [role]);
+
+  // Actions retired unresolved when the next batch arrived — awaiting the
+  // participant's "did you do this?" confirmation on the My Actions page.
+  const pendingValidationCount = useMemo(() => {
+    const actionIds = new Set(allActions.map((action) => action.id));
+    return userActions.filter((item) => item.status === "failed" && item.autoExpired && actionIds.has(item.actionId)).length;
+  }, [userActions, allActions]);
 
   const activePath = pendingHref || pathname || "";
   const isActive = (href: string) => activePath.startsWith(href);
@@ -135,6 +142,9 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
               <Link key={item.href} href={item.href} className={isActive(item.href) ? "active" : ""} onClick={() => beginNavigation(item.href)}>
                 <span className="participant-nav-icon"><item.icon size={17} strokeWidth={2.3} /></span>
                 {item.label}
+                {item.href === "/actions" && pendingValidationCount > 0 && (
+                  <span className="participant-nav-badge" aria-label={`${pendingValidationCount} actions pending validation`}>{pendingValidationCount}</span>
+                )}
               </Link>
             ))}
           </nav>
@@ -193,7 +203,12 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       <nav className="participant-bottom-nav" aria-label="Mobile participant navigation">
         {navItems.slice(0, 4).map((item) => (
           <Link key={item.href} href={item.href} className={isActive(item.href) ? "active" : ""} onClick={() => beginNavigation(item.href)}>
-            <item.icon size={20} />
+            <span className="participant-bottom-nav-icon">
+              <item.icon size={20} />
+              {item.href === "/actions" && pendingValidationCount > 0 && (
+                <span className="participant-nav-badge participant-nav-badge--dot" aria-label={`${pendingValidationCount} actions pending validation`}>{pendingValidationCount}</span>
+              )}
+            </span>
             <span className="participant-nav-label">
               <span className="participant-nav-label-full">{item.label}</span>
               <span className="participant-nav-label-short">{item.shortLabel}</span>

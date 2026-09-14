@@ -21,6 +21,8 @@ import {
   toggleEmailSchedule,
   deleteEmailSchedule,
   bulkRunEmailSchedulesNow,
+  runEmailSchedulerNow,
+  runWeeklyRecapNow,
   type EmailSchedule,
   type ScheduleType,
 } from "@/app/actions/email-schedule";
@@ -552,6 +554,12 @@ export default function EmailSchedulerPanel({
   const [actionError, setActionError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<string | null>(null);
+  // Vercel Cron Jobs only fire against the Production deployment — never
+  // Preview — so these two hit the same cron routes Vercel would call, but
+  // against whichever deployment is currently loaded (see runEmailSchedulerNow
+  // / runWeeklyRecapNow, which target the request's own host). This is the
+  // only way to exercise the daily/weekly cron logic on a Preview URL.
+  const [runningCron, setRunningCron] = useState<"daily" | "weekly" | null>(null);
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(
     new Set()
   );
@@ -651,6 +659,46 @@ export default function EmailSchedulerPanel({
     }
   }
 
+  async function handleRunDailyCronNow() {
+    setRunningCron("daily");
+    setRunResult(null);
+    setActionError(null);
+    try {
+      const result = await runEmailSchedulerNow();
+      if (result.error) {
+        setActionError(result.error);
+      } else {
+        setRunResult(
+          `Daily cron ran: ${result.processed ?? 0} email schedule${result.processed === 1 ? "" : "s"} processed (plus personal-action delivery and reminders).`
+        );
+        await loadSchedules();
+      }
+    } finally {
+      setRunningCron(null);
+    }
+  }
+
+  async function handleRunWeeklyRecapNow() {
+    setRunningCron("weekly");
+    setRunResult(null);
+    setActionError(null);
+    try {
+      const result = await runWeeklyRecapNow();
+      if (result.error) {
+        setActionError(result.error);
+      } else {
+        const recap = result.recap;
+        setRunResult(
+          recap
+            ? `Weekly recap ran: ${recap.sent} sent, ${recap.failed} failed, ${recap.skippedEmpty} skipped (nothing pending), ${recap.skippedDisabled} skipped (disabled).`
+            : "Weekly recap ran."
+        );
+      }
+    } finally {
+      setRunningCron(null);
+    }
+  }
+
   async function handleDelete(id: string) {
     setActionError(null);
     const result = await deleteEmailSchedule(id);
@@ -719,11 +767,33 @@ export default function EmailSchedulerPanel({
       {panelExpanded && (
         <div className="border-t-2 border-black">
           {/* Info bar */}
-          <div className="px-4 py-2 bg-sky-100 border-b border-sky-200">
+          <div className="px-4 py-2 bg-sky-100 border-b border-sky-200 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-bold text-sky-800 uppercase tracking-wider">
               Automatic delivery runs daily at 11:30 AM IST. Bulk run sends the
               selected upcoming occurrence immediately and moves it to its next cycle.
+              On Preview deployments, Vercel never triggers these crons automatically —
+              use the buttons below to run them against this deployment for testing.
             </p>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={handleRunDailyCronNow}
+                disabled={runningCron !== null}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-white border-2 border-black rounded-lg text-xs font-black uppercase disabled:opacity-50"
+              >
+                {runningCron === "daily" ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
+                Run daily cron
+              </button>
+              <button
+                type="button"
+                onClick={handleRunWeeklyRecapNow}
+                disabled={runningCron !== null}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-white border-2 border-black rounded-lg text-xs font-black uppercase disabled:opacity-50"
+              >
+                {runningCron === "weekly" ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
+                Run weekly recap
+              </button>
+            </div>
           </div>
 
           {/* Run result toast */}

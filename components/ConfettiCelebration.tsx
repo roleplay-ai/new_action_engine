@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { X, CheckCircle2, ChevronRight } from "lucide-react";
 
 const C = {
   ink: "#221D23",
@@ -24,8 +24,9 @@ interface Particle {
   spin: number;
   duration: number;
   delay: number;
-  tx: number;
-  ty: number;
+  left: number;
+  drift: number;
+  fall: number;
   shape: "rect" | "circle" | "ribbon";
 }
 
@@ -33,28 +34,33 @@ interface ConfettiCelebrationProps {
   actionTitle?: string;
   pointsDelta?: number;
   completedLate?: boolean;
+  pendingValidationCount?: number;
+  completedCount?: number;
+  totalPlanCount?: number;
   onContinue: () => void;
   onClose: () => void;
+  onViewPendingValidation?: () => void;
 }
 
 function makeParticles(): Particle[] {
   const colors = [C.amber, C.purple, C.green, C.orange, C.red, C.blue, C.pink];
   const shapes: Particle["shape"][] = ["rect", "circle", "ribbon"];
 
-  return Array.from({ length: 120 }, (_, i) => {
-    const theta = (Math.PI * 2 * i) / 120 + (Math.random() - 0.5) * 0.45;
-    const distance = 180 + Math.random() * 420;
+  // Falling confetti paper across the whole viewport, like it's raining down
+  // from just above the top edge rather than bursting from the center.
+  return Array.from({ length: 160 }, (_, i) => {
     const shape = shapes[i % 3];
     return {
       id: i,
       color: colors[i % colors.length],
       size: shape === "ribbon" ? 4 + Math.random() * 4 : 7 + Math.random() * 10,
       angle: Math.random() * 360,
-      spin: 360 + Math.random() * 720,
-      duration: 1.1 + Math.random() * 1.6,
-      delay: Math.random() * 0.25,
-      tx: Math.cos(theta) * distance,
-      ty: Math.sin(theta) * distance * 0.85 + 40 + Math.random() * 120,
+      spin: 360 + Math.random() * 540,
+      duration: 2.6 + Math.random() * 2.2,
+      delay: Math.random() * 3.5,
+      left: Math.random() * 100,
+      drift: (Math.random() - 0.5) * 180,
+      fall: 100,
       shape,
     };
   });
@@ -64,14 +70,18 @@ export default function ConfettiCelebration({
   actionTitle,
   pointsDelta,
   completedLate = false,
+  pendingValidationCount = 0,
+  completedCount,
+  totalPlanCount,
   onContinue,
   onClose,
+  onViewPendingValidation,
 }: ConfettiCelebrationProps) {
   const [particles, setParticles] = useState<Particle[]>([]);
 
   useEffect(() => {
     setParticles(makeParticles());
-    const clearTimer = setTimeout(() => setParticles([]), 5000);
+    const clearTimer = setTimeout(() => setParticles([]), 6500);
     return () => clearTimeout(clearTimer);
   }, []);
 
@@ -79,9 +89,9 @@ export default function ConfettiCelebration({
     .map(
       (p) =>
         `@keyframes cf${p.id}{` +
-        `0%{transform:translate(-50%,-50%) scale(1) rotate(${p.angle}deg);opacity:1}` +
-        `70%{opacity:1}` +
-        `100%{transform:translate(calc(-50% + ${p.tx}px),calc(-50% + ${p.ty}px)) scale(0.35) rotate(${p.angle + p.spin}deg);opacity:0}}`
+        `0%{transform:translateY(-10vh) translateX(0) rotate(${p.angle}deg);opacity:1}` +
+        `90%{opacity:1}` +
+        `100%{transform:translateY(110vh) translateX(${p.drift}px) rotate(${p.angle + p.spin}deg);opacity:0}}`
     )
     .join("");
 
@@ -111,8 +121,8 @@ export default function ConfettiCelebration({
             key={p.id}
             style={{
               position: "absolute",
-              left: "50%",
-              top: "42%",
+              left: `${p.left}%`,
+              top: 0,
               width: p.shape === "ribbon" ? p.size : p.size,
               height:
                 p.shape === "circle"
@@ -122,7 +132,7 @@ export default function ConfettiCelebration({
                     : p.size * 0.45,
               background: p.color,
               borderRadius: p.shape === "circle" ? "50%" : p.shape === "ribbon" ? 2 : 2,
-              animation: `cf${p.id} ${p.duration}s ${p.delay}s cubic-bezier(0.12,0.75,0.28,1) both`,
+              animation: `cf${p.id} ${p.duration}s ${p.delay}s linear infinite backwards`,
               boxShadow: `0 0 0 1px ${p.color}33`,
             }}
           />
@@ -169,21 +179,45 @@ export default function ConfettiCelebration({
           <X size={16} strokeWidth={2.5} />
         </button>
 
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            margin: "0 auto 16px",
-            display: "grid",
-            placeItems: "center",
-            borderRadius: 17,
-            background: C.amber,
-            fontSize: 28,
-            lineHeight: 1,
-          }}
-        >
-          🎉
+        <div style={{ width: 56, margin: "0 auto 10px" }}>
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              display: "grid",
+              placeItems: "center",
+              borderRadius: 17,
+              background: C.amber,
+              fontSize: 28,
+              lineHeight: 1,
+            }}
+          >
+            🎉
+          </div>
         </div>
+
+        {typeof completedCount === "number" && completedCount > 0 && (
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              margin: "0 auto 14px",
+              background: `${C.green}18`,
+              border: `1px solid ${C.green}55`,
+              borderRadius: 99,
+              padding: "5px 12px",
+              color: "#0A6632",
+              fontSize: 12,
+              fontWeight: 800,
+            }}
+          >
+            <CheckCircle2 size={13} strokeWidth={2.75} />
+            {typeof totalPlanCount === "number" && totalPlanCount > 0
+              ? `${completedCount} of ${totalPlanCount} plan actions completed`
+              : `${completedCount} plan action${completedCount === 1 ? "" : "s"} completed`}
+          </div>
+        )}
 
         <h3
           style={{
@@ -197,7 +231,7 @@ export default function ConfettiCelebration({
           Action completed!
         </h3>
 
-        {actionTitle && (
+        {/* {actionTitle && (
           <p
             style={{
               color: C.textSecondary,
@@ -211,7 +245,7 @@ export default function ConfettiCelebration({
           >
             {actionTitle}
           </p>
-        )}
+        )} */}
 
         <p
           style={{
@@ -241,7 +275,6 @@ export default function ConfettiCelebration({
         >
           {[
             { label: completedLate ? "No points" : pointsDelta && pointsDelta > 0 ? `+${pointsDelta} points` : "Completed", color: "#8C7000" },
-            { label: "🔥 Streak", color: C.orange },
             { label: completedLate ? "✅ Recorded late" : "✅ Recorded", color: "#0A6632" },
           ].map((b) => (
             <span
@@ -266,21 +299,50 @@ export default function ConfettiCelebration({
             Done
           </button>
 
-          <button
-            onClick={onClose}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "var(--color-text-muted)",
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: "pointer",
-              padding: "8px",
-              width: "100%",
-            }}
-          >
-            Close
-          </button>
+          {pendingValidationCount > 0 && onViewPendingValidation ? (
+            <button
+              onClick={onViewPendingValidation}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                background: `${C.red}14`,
+                border: `1.5px solid ${C.red}`,
+                borderRadius: 10,
+                color: C.red,
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: "pointer",
+                padding: "11px 12px",
+                width: "100%",
+              }}
+            >
+              <CheckCircle2 size={16} strokeWidth={2.5} />
+              <span>
+                {pendingValidationCount === 1
+                  ? "1 action is pending to be validated"
+                  : `${pendingValidationCount} actions are pending to be validated`}
+              </span>
+              <ChevronRight size={16} strokeWidth={2.5} />
+            </button>
+          ) : (
+            <button
+              onClick={onClose}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--color-text-muted)",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                padding: "8px",
+                width: "100%",
+              }}
+            >
+              Close
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -1481,6 +1481,33 @@ input[type="range"] {
   background: var(--bright-amber);
 }
 
+.participant-nav-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: #ED4551;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.participant-bottom-nav-icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.participant-bottom-nav-icon .participant-nav-badge.participant-nav-badge--dot {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  margin-left: 0;
+}
+
 .participant-sidebar-user {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) auto;
@@ -16202,7 +16229,6 @@ textarea.commitment-buddy-contact-selectable {
 
 .actions-reminder-email {
   overflow: hidden;
-  border-top: 2px solid var(--journey-yellow);
   border-radius: 16px;
   background: #fff;
   box-shadow: 0 8px 18px rgba(34, 29, 35, .08);
@@ -16210,25 +16236,48 @@ textarea.commitment-buddy-contact-selectable {
 
 .actions-reminder-email-hero {
   padding: 12px;
-  color: #fff;
-  background: #221d23;
+  color: #221d23;
+  background: var(--journey-yellow);
 }
 
-.actions-reminder-email-hero>span {
+.actions-reminder-email-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.actions-reminder-email-hero-top>span {
   display: inline-block;
   padding: 3px 6px;
-  border: 1px solid #5c4f0c;
+  border: 1.5px solid #221d23;
   border-radius: 10px;
-  color: var(--journey-yellow);
+  color: #221d23;
   font-size: 6px;
   font-weight: 950;
   letter-spacing: .12em;
   text-transform: uppercase;
 }
 
+.actions-reminder-email-hero-badge {
+  display: flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.actions-reminder-email-hero-badge img {
+  display: block;
+  height: 13px;
+  width: auto;
+  max-width: 46px;
+  object-fit: contain;
+}
+
 .actions-reminder-email-hero h4 {
-  margin: 6px 0 6px;
-  color: #fff;
+  margin: 8px 0 6px;
+  color: #221d23;
   font-size: 16px;
   line-height: 1.06;
   letter-spacing: -.04em;
@@ -16236,12 +16285,12 @@ textarea.commitment-buddy-contact-selectable {
 
 .actions-reminder-email-hero h4 strong {
   display: block;
-  color: var(--journey-yellow);
+  color: #221d23;
 }
 
 .actions-reminder-email-hero p {
   margin: 0;
-  color: #d8d1d6;
+  color: rgba(34, 29, 35, .72);
   font-size: 8px;
   line-height: 1.5;
 }
@@ -16261,19 +16310,9 @@ textarea.commitment-buddy-contact-selectable {
 .actions-reminder-metric {
   min-width: 0;
   padding: 7px 6px;
-  border: 1px solid #f0dfa8;
+  border: 1px solid #e6ddc7;
   border-radius: 9px;
-  background: #fff8d9;
-}
-
-.actions-reminder-metric--buddy {
-  border-color: #ddd2ff;
-  background: #f1ecff;
-}
-
-.actions-reminder-metric--rank {
-  border-color: #cde7ff;
-  background: #eaf5ff;
+  background: #fff;
 }
 
 .actions-reminder-metric i {
@@ -16338,14 +16377,13 @@ textarea.commitment-buddy-contact-selectable {
 
 .actions-reminder-email-action {
   display: grid;
-  grid-template-columns: 23px minmax(0, 1fr);
+  grid-template-columns: 23px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 8px;
   margin-bottom: 6px;
-  border: 1px solid #ece7d8;
   border-radius: 10px;
-  background: #fff;
+  background: #221d23;
 }
 
 .actions-reminder-email-action>i {
@@ -16361,10 +16399,18 @@ textarea.commitment-buddy-contact-selectable {
   font-weight: 950;
 }
 
+.actions-reminder-email-action-image {
+  width: 23px;
+  height: 23px;
+  border-radius: 6px;
+  object-fit: cover;
+  display: block;
+}
+
 .actions-reminder-email-action strong {
   display: -webkit-box;
   overflow: hidden;
-  color: var(--journey-ink);
+  color: #fff;
   font-size: 9px;
   font-weight: 650;
   line-height: 1.35;
@@ -16372,12 +16418,19 @@ textarea.commitment-buddy-contact-selectable {
   -webkit-line-clamp: 2;
 }
 
+.actions-reminder-email-action-btn {
+  padding: 4px 7px;
+  border-radius: 6px;
+  color: #fff;
+  background: #23ce68;
+  font-size: 7px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .actions-reminder-email-tip {
-  margin-bottom: 8px;
-  padding: 7px 8px;
-  border-radius: 8px;
+  margin: 0 0 8px;
   color: #4f484d;
-  background: #fff8d9;
   font-size: 7px;
   line-height: 1.4;
 }
@@ -16404,8 +16457,9 @@ textarea.commitment-buddy-contact-selectable {
   align-items: center;
   gap: 8px;
   padding: 8px;
+  border: 1px solid #e6ddc7;
   border-radius: 11px;
-  background: #221d23;
+  background: #fff;
 }
 
 .actions-reminder-email-reward>i {
@@ -16422,12 +16476,12 @@ textarea.commitment-buddy-contact-selectable {
 
 .actions-reminder-email-reward>div {
   min-width: 0;
-  color: #fff;
+  color: var(--journey-ink);
 }
 
 .actions-reminder-email-reward small {
   display: block;
-  color: var(--journey-yellow);
+  color: #b8860b;
   font-size: 6px;
   font-weight: 900;
   letter-spacing: .07em;
@@ -16438,6 +16492,7 @@ textarea.commitment-buddy-contact-selectable {
   display: block;
   margin-top: 2px;
   overflow: hidden;
+  color: var(--journey-ink);
   font-size: 10px;
   font-weight: 800;
   text-overflow: ellipsis;
@@ -16449,7 +16504,7 @@ textarea.commitment-buddy-contact-selectable {
   margin-top: 6px;
   border-radius: 4px;
   overflow: hidden;
-  background: #474046;
+  background: #efe7d2;
 }
 
 .actions-reminder-email-reward-bar>span {
@@ -16461,14 +16516,15 @@ textarea.commitment-buddy-contact-selectable {
 
 .actions-reminder-email-footer {
   padding: 7px 10px;
-  color: #8b8387;
+  border-top: 1px solid #ece7e0;
+  color: #8b8489;
   background: #fff;
   font-size: 6px;
   text-align: center;
 }
 
 .actions-reminder-email-footer b {
-  color: var(--journey-ink);
+  color: #623cea;
 }
 
 .actions-reminder-preview-note {

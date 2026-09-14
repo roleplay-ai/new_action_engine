@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { X, CheckCircle2, ChevronRight } from "lucide-react";
 
 const C = {
   ink: "#221D23",
@@ -35,6 +35,8 @@ interface ConfettiCelebrationProps {
   pointsDelta?: number;
   completedLate?: boolean;
   pendingValidationCount?: number;
+  completedCount?: number;
+  totalPlanCount?: number;
   onContinue: () => void;
   onClose: () => void;
   onViewPendingValidation?: () => void;
@@ -69,6 +71,8 @@ export default function ConfettiCelebration({
   pointsDelta,
   completedLate = false,
   pendingValidationCount = 0,
+  completedCount,
+  totalPlanCount,
   onContinue,
   onClose,
   onViewPendingValidation,
@@ -175,21 +179,45 @@ export default function ConfettiCelebration({
           <X size={16} strokeWidth={2.5} />
         </button>
 
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            margin: "0 auto 16px",
-            display: "grid",
-            placeItems: "center",
-            borderRadius: 17,
-            background: C.amber,
-            fontSize: 28,
-            lineHeight: 1,
-          }}
-        >
-          🎉
+        <div style={{ width: 56, margin: "0 auto 10px" }}>
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              display: "grid",
+              placeItems: "center",
+              borderRadius: 17,
+              background: C.amber,
+              fontSize: 28,
+              lineHeight: 1,
+            }}
+          >
+            🎉
+          </div>
         </div>
+
+        {typeof completedCount === "number" && completedCount > 0 && (
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              margin: "0 auto 14px",
+              background: `${C.green}18`,
+              border: `1px solid ${C.green}55`,
+              borderRadius: 99,
+              padding: "5px 12px",
+              color: "#0A6632",
+              fontSize: 12,
+              fontWeight: 800,
+            }}
+          >
+            <CheckCircle2 size={13} strokeWidth={2.75} />
+            {typeof totalPlanCount === "number" && totalPlanCount > 0
+              ? `${completedCount} of ${totalPlanCount} plan actions completed`
+              : `${completedCount} plan action${completedCount === 1 ? "" : "s"} completed`}
+          </div>
+        )}
 
         <h3
           style={{
@@ -203,7 +231,7 @@ export default function ConfettiCelebration({
           Action completed!
         </h3>
 
-        {actionTitle && (
+        {/* {actionTitle && (
           <p
             style={{
               color: C.textSecondary,
@@ -217,7 +245,7 @@ export default function ConfettiCelebration({
           >
             {actionTitle}
           </p>
-        )}
+        )} */}
 
         <p
           style={{
@@ -278,21 +306,25 @@ export default function ConfettiCelebration({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 6,
-                background: "#FFF8E0",
-                border: `1px solid ${C.amber}66`,
+                gap: 8,
+                background: `${C.red}14`,
+                border: `1.5px solid ${C.red}`,
                 borderRadius: 10,
-                color: "#8C7000",
+                color: C.red,
                 fontSize: 12,
-                fontWeight: 700,
+                fontWeight: 800,
                 cursor: "pointer",
-                padding: "10px 8px",
+                padding: "11px 12px",
                 width: "100%",
               }}
             >
-              {pendingValidationCount === 1
-                ? "1 action is pending to be validated"
-                : `${pendingValidationCount} actions are pending to be validated`}
+              <CheckCircle2 size={16} strokeWidth={2.5} />
+              <span>
+                {pendingValidationCount === 1
+                  ? "1 action is pending to be validated"
+                  : `${pendingValidationCount} actions are pending to be validated`}
+              </span>
+              <ChevronRight size={16} strokeWidth={2.5} />
             </button>
           ) : (
             <button

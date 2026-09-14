@@ -509,6 +509,7 @@ export default function ActionsClient() {
   const pendingValidation = userActions.filter((item) => item.status === "failed" && item.autoExpired && actionMap.has(item.actionId));
   const notCompleted = userActions.filter((item) => (item.status === "failed" || item.status === "skipped") && !item.autoExpired && actionMap.has(item.actionId));
   const usedActionIds = new Set(userActions.map((item) => item.actionId));
+  const totalPlanActions = allActions.filter((action) => action.isPersonal).length;
   const currentActions = scheduled.map((item) => ({ userAction: item, action: actionMap.get(item.actionId)! }));
   const upcoming = planCanPerform ? allActions.filter((action) => action.isPersonal && !usedActionIds.has(action.id)) : [];
   const fallbackReminderAction: ReminderPreviewAction = {
@@ -1033,6 +1034,8 @@ export default function ActionsClient() {
         pointsDelta={celebration.pointsDelta}
         completedLate={celebration.completedLate}
         pendingValidationCount={pendingValidation.length}
+        completedCount={completed.length}
+        totalPlanCount={totalPlanActions}
         onContinue={continueFromCelebration}
         onClose={closeCelebration}
         onViewPendingValidation={viewPendingValidationFromCelebration}

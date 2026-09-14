@@ -884,7 +884,7 @@ function renderWeeklyRecapHtml(data: EmailTemplateData): string {
                     </td>
                   </tr>
                 </table>
-                <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:#D92D20;font-weight:700;text-align:center;">⚠ Reminder: ${count} action${count === 1 ? "" : "s"} still ${count === 1 ? "needs" : "need"} to be validated.</p>`
+                <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:#ED4551;font-weight:700;text-align:center;">⚠ Reminder: ${count} action${count === 1 ? "" : "s"} still ${count === 1 ? "needs" : "need"} to be validated.</p>`
       : ""}
 
                 ${count > 0

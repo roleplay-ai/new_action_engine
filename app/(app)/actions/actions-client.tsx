@@ -241,11 +241,14 @@ type ReminderPreviewAction = {
   title: string;
   how: string;
   timeEstimate: string;
+  imageUrl?: string | null;
 };
 
 function ReminderEmailPreview({
   firstName,
-  action,
+  actions,
+  companyName,
+  companyLogoUrl,
   hasFinalisedPlan,
   commitmentScore,
   buddyName,
@@ -256,7 +259,9 @@ function ReminderEmailPreview({
   teamMaximumPoints,
 }: {
   firstName: string;
-  action: ReminderPreviewAction;
+  actions: ReminderPreviewAction[];
+  companyName?: string | null;
+  companyLogoUrl?: string | null;
   hasFinalisedPlan: boolean;
   commitmentScore: number | null;
   buddyName: string | null;
@@ -299,7 +304,14 @@ function ReminderEmailPreview({
 
       <div className="actions-reminder-email">
         <div className="actions-reminder-email-hero">
-          <span>Your action reminder</span>
+          <div className="actions-reminder-email-hero-top">
+            <span>Your action reminder</span>
+            {companyLogoUrl && (
+              <span className="actions-reminder-email-hero-badge">
+                <img src={companyLogoUrl} alt={companyName ?? "Company"} />
+              </span>
+            )}
+          </div>
           <h4>Your next actions<strong>are ready.</strong></h4>
           <p>Hey {firstName}, your next actions are ready when you are.</p>
         </div>
@@ -323,12 +335,19 @@ function ReminderEmailPreview({
           </div>
 
           <p className="actions-reminder-email-section-label">Your actions</p>
-          <article className="actions-reminder-email-action">
-            <i aria-hidden="true">→</i>
-            <strong>{action.title}</strong>
-          </article>
+          {actions.map((action, index) => (
+            <article className="actions-reminder-email-action" key={index}>
+              {action.imageUrl ? (
+                <img className="actions-reminder-email-action-image" src={action.imageUrl} alt="" />
+              ) : (
+                <i aria-hidden="true">→</i>
+              )}
+              <strong>{action.title}</strong>
+              <span className="actions-reminder-email-action-btn">Mark done</span>
+            </article>
+          ))}
 
-          <div className="actions-reminder-email-tip"><strong>Done an action?</strong> Tap &quot;Mark done&quot; next to it above — one click updates your Commitment Score and adds points to your team.</div>
+          <p className="actions-reminder-email-tip"><strong>Done an action?</strong> Tap &quot;Mark done&quot; next to it above and in one click update your Commitment Score and add points to your team.</p>
 
           <p className="actions-reminder-email-login">Prefer to review them in the app? <span>Log in to update each action individually.</span></p>
 
@@ -492,11 +511,18 @@ export default function ActionsClient() {
   const usedActionIds = new Set(userActions.map((item) => item.actionId));
   const currentActions = scheduled.map((item) => ({ userAction: item, action: actionMap.get(item.actionId)! }));
   const upcoming = planCanPerform ? allActions.filter((action) => action.isPersonal && !usedActionIds.has(action.id)) : [];
-  const reminderAction: ReminderPreviewAction = currentActions[0]?.action ?? upcoming[0] ?? allActions[0] ?? {
+  const fallbackReminderAction: ReminderPreviewAction = {
     title: "Turn one learning into a question",
     how: "Before your next conversation, write one open question that helps you understand the other person's perspective.",
     timeEstimate: "10 minutes",
   };
+  const reminderActions: ReminderPreviewAction[] = currentActions.length
+    ? currentActions.map(({ action }) => action)
+    : upcoming.length
+      ? [upcoming[0]]
+      : allActions.length
+        ? [allActions[0]]
+        : [fallbackReminderAction];
   const reminderFirstName = profile.name.trim().split(/\s+/)[0] || "there";
 
   // One-click "Mark done" links from reminder emails land here already
@@ -831,7 +857,9 @@ export default function ActionsClient() {
             <CommitmentBuddyCard group={buddyGroup} onContact={setContactBuddy} />
             <ReminderEmailPreview
               firstName={reminderFirstName}
-              action={reminderAction}
+              actions={reminderActions}
+              companyName={cohort?.companyName}
+              companyLogoUrl={cohort?.companyLogoUrl}
               hasFinalisedPlan={commitmentScore?.hasFinalisedPlan ?? false}
               commitmentScore={commitmentScore?.score ?? null}
               buddyName={buddyGroup?.buddies[0]?.name ?? null}

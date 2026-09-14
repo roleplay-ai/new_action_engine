@@ -873,18 +873,19 @@ function renderWeeklyRecapHtml(data: EmailTemplateData): string {
 
             <tr>
               <td class="pad content" style="padding:38px 34px 42px;font-family:Arial,Helvetica,sans-serif;">
+                <h2 style="margin:0 0 18px;font-size:24px;line-height:1.2;font-weight:800;color:#221D23;">Your actions</h2>
+                ${actionsHtml}
+
                 ${completeAllUrl && count > 0
-      ? `<table role="presentation" class="cta" width="78%" cellpadding="0" cellspacing="0" border="0" align="center" style="width:78%;margin:0 auto 40px;">
+      ? `<table role="presentation" class="cta" width="78%" cellpadding="0" cellspacing="0" border="0" align="center" style="width:78%;margin:8px auto 0;">
                   <tr>
                     <td align="center" style="background:#23CE68;border-radius:9px;">
                       <a href="${esc(completeAllUrl)}" target="_blank" style="display:block;padding:19px 22px;color:#FFFFFF;text-decoration:none;text-align:center;font-size:16px;line-height:16px;font-weight:800;letter-spacing:.2px;text-transform:uppercase;">Confirm all as completed</a>
                     </td>
                   </tr>
-                </table>`
+                </table>
+                <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:#D92D20;font-weight:700;text-align:center;">⚠ Reminder: ${count} action${count === 1 ? "" : "s"} still ${count === 1 ? "needs" : "need"} to be validated.</p>`
       : ""}
-
-                <h2 style="margin:0 0 18px;font-size:24px;line-height:1.2;font-weight:800;color:#221D23;">Your actions</h2>
-                ${actionsHtml}
 
                 ${count > 0
       ? `<p style="margin:34px 0 0;font-size:15px;line-height:1.55;color:#4B474C;text-align:left;">

@@ -164,7 +164,7 @@ export default function ActionReminderLogsPanel({
         <div className="border-t-2 border-black">
           <div className="px-4 py-2 bg-amber-100 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2">
             <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">
-              Daily/weekly reminders at 11:30 AM IST + Friday recap at 4:00 PM IST · showing all {logs.length} logged send{logs.length === 1 ? "" : "s"}
+              Daily/weekly reminders at 11:30 AM IST + Friday recap at 12:30 PM IST · showing all {logs.length} logged send{logs.length === 1 ? "" : "s"}
               {logs.length > 0 ? ` (${reminderCount} reminder${reminderCount === 1 ? "" : "s"}, ${recapCount} recap${recapCount === 1 ? "" : "s"})` : ""}
             </p>
             <button

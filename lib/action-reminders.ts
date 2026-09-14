@@ -423,7 +423,7 @@ export const FIXED_WEEKLY_RECAP_TIME_IST = "16:00";
  * whatever is still "scheduled" — i.e. not yet validated — for the week,
  * with a single "I completed all" link that bulk-completes the whole list
  * instead of per-action links. Meant to be triggered once a week (Fridays,
- * 4:00 PM IST / 10:30 UTC — see vercel.json) by its own cron path; the
+ * 12:30 PM IST / 7:00 UTC — see vercel.json) by its own cron path; the
  * (subscription, recap_date) claim below keeps repeated or overlapping
  * invocations on the same day idempotent regardless of how often it's hit.
  */

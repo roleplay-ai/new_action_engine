@@ -88,7 +88,7 @@ function RecapRow({
 
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
             <span className="font-semibold">{recap.cohortName}</span>
-            <span>Every Friday at 4:00 PM IST</span>
+            <span>Every Friday at 12:30 PM IST</span>
           </div>
 
           <p className="mt-1 flex items-center gap-1 text-sm font-bold text-emerald-700">
@@ -240,7 +240,7 @@ export default function WeeklyRecapQueuePanel({
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-200 bg-emerald-100 px-4 py-3">
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">
-                Every active participant · one bulk &quot;I completed all&quot; button, fixed delivery at 4:00 PM IST Fridays
+                Every active participant · one bulk &quot;I completed all&quot; button, fixed delivery at 12:30 PM IST Fridays
               </p>
               <p className="mt-1 text-sm text-emerald-700">
                 Lists whoever still has open actions right now — daily and weekly plans alike. Manual sends are logged but

@@ -4,7 +4,7 @@ import { sendWeeklyUnvalidatedRecap } from "@/lib/action-reminders";
 
 /**
  * Friday week-recap cron — separate from the main daily scheduler because it
- * runs at a different time of day (4:00 PM IST / 10:30 UTC, Fridays only —
+ * runs at a different time of day (12:30 PM IST / 7:00 UTC, Fridays only —
  * see vercel.json) and covers every active participant regardless of their
  * own daily/weekly cadence. Sends a recap of everything still unvalidated
  * for the week, with a single "I completed all" bulk-complete link.

@@ -264,7 +264,7 @@ export default function ConfettiCelebration({
             : "Nice work closing the knowing-doing gap. Keep the momentum going."}
         </p>
 
-        <div
+        {/* <div
           style={{
             display: "flex",
             justifyContent: "center",
@@ -273,26 +273,8 @@ export default function ConfettiCelebration({
             marginBottom: 26,
           }}
         >
-          {[
-            { label: completedLate ? "No points" : pointsDelta && pointsDelta > 0 ? `+${pointsDelta} points` : "Completed", color: "#8C7000" },
-            { label: completedLate ? "✅ Recorded late" : "✅ Recorded", color: "#0A6632" },
-          ].map((b) => (
-            <span
-              key={b.label}
-              style={{
-                background: `${b.color}18`,
-                color: b.color,
-                fontSize: 12,
-                fontWeight: 700,
-                padding: "6px 14px",
-                borderRadius: 99,
-                border: `1px solid ${b.color}33`,
-              }}
-            >
-              {b.label}
-            </span>
-          ))}
-        </div>
+
+        </div> */}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <button onClick={onContinue} className="journey-primary-button" style={{ width: "100%" }}>

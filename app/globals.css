@@ -14252,6 +14252,42 @@ input[type="range"] {
   background: var(--journey-yellow-soft);
 }
 
+.reference-actions .actions-tabs button.tab-upcoming {
+  border-color: #e6be31;
+}
+
+.reference-actions .actions-tabs button.tab-upcoming.active {
+  box-shadow: 0 3px 10px rgba(34, 29, 35, .09);
+}
+
+.reference-actions .actions-tabs button.tab-upcoming.active::after {
+  background: #e6be31;
+}
+
+.reference-actions .actions-tabs button.tab-pending-validation {
+  border-color: #ED4551;
+}
+
+.reference-actions .actions-tabs button.tab-pending-validation.active {
+  box-shadow: 0 3px 10px rgba(34, 29, 35, .09);
+}
+
+.reference-actions .actions-tabs button.tab-pending-validation.active::after {
+  background: #ED4551;
+}
+
+.reference-actions .actions-tabs button.tab-completed {
+  border-color: #2f9e51;
+}
+
+.reference-actions .actions-tabs button.tab-completed.active {
+  box-shadow: 0 3px 10px rgba(34, 29, 35, .09);
+}
+
+.reference-actions .actions-tabs button.tab-completed.active::after {
+  background: #2f9e51;
+}
+
 @media (max-width: 820px) {
   .reference-actions .actions-tabs {
     display: flex;
@@ -14449,9 +14485,9 @@ input[type="range"] {
 }
 
 .actions-pending-validation-buttons>.journey-primary-button {
-  min-height: 34px;
-  padding: 0 12px;
-  font-size: 9px;
+  min-height: 42px;
+  padding: 0 18px;
+  font-size: 12px;
   display: inline-flex;
   align-items: center;
   gap: 6px;

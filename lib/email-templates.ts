@@ -1005,12 +1005,12 @@ export const EMAIL_TEMPLATES = {
   credentials: {
     label: "Login Credentials",
     subject: (data: EmailTemplateData) =>
-      `Hi ${str(data, "first_name", "there")} - Welcome to ${str(data, "company_name", "Nudgeable")}, your access is ready`,
+      `Hi ${str(data, "first_name", "there")} 👋 - Welcome to ${str(data, "company_name", "Nudgeable")}, your access is ready`,
     render: renderCredentialsHtml,
   },
   plan_activated_summary: {
     label: "Plan Finalised Summary",
-    subject: (data: EmailTemplateData) => `Hi ${str(data, "first_name", "there")}, your plan is finalised and active`,
+    subject: (data: EmailTemplateData) => `Hi ${str(data, "first_name", "there")} 👋, your plan is finalised and active`,
     render: renderPlanActivatedSummaryHtml,
   },
   calendar_invite: {
@@ -1023,7 +1023,7 @@ export const EMAIL_TEMPLATES = {
     subject: (data: EmailTemplateData) => {
       const name = str(data, "first_name", "there");
       const parts = [str(data, "company_name"), str(data, "batch_name"), str(data, "module_name")].filter(Boolean);
-      return `Hi ${name} — Your actions are ready${parts.length ? ` — ${parts.join(" — ")}` : ""}`;
+      return `Hi ${name} 👋 — Your actions are ready${parts.length ? ` — ${parts.join(" — ")}` : ""}`;
     },
     render: renderDailyReminderHtml,
   },
@@ -1032,8 +1032,8 @@ export const EMAIL_TEMPLATES = {
     subject: (data: EmailTemplateData) => {
       const name = str(data, "first_name", "there");
       const count = Array.isArray(data.actions) ? data.actions.length : 0;
-      if (count === 0) return `Hi ${name} — You're all caught up this week`;
-      return `Hi ${name} — ${count} action${count === 1 ? " is" : "s are"} still waiting for your confirmation`;
+      if (count === 0) return `Hi ${name} 👋 — You're all caught up this week`;
+      return `Hi ${name} 👋 — ${count} action${count === 1 ? " is" : "s are"} still waiting for your confirmation`;
     },
     render: renderWeeklyRecapHtml,
   },

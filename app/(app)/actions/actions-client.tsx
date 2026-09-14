@@ -723,11 +723,11 @@ export default function ActionsClient() {
     </div>
 
     <nav className="actions-tabs" aria-label="Action views">
-      <button type="button" className={tab === "upcoming" ? "active" : ""} onClick={() => setTab("upcoming")}>Upcoming <span>{scheduled.length}</span></button>
-      <button type="button" className={tab === "completed" ? "active" : ""} onClick={() => setTab("completed")}>Completed <span>{completed.length}</span></button>
-      <button type="button" className={tab === "pending-validation" ? "active" : ""} onClick={() => setTab("pending-validation")}>Pending validation <span style={pendingValidation.length > 0 ? { background: "#ED4551", color: "#fff" } : undefined}>{pendingValidation.length}</span></button>
+      <button type="button" className={`tab-upcoming${tab === "upcoming" ? " active" : ""}`} onClick={() => setTab("upcoming")}>Upcoming <span>{scheduled.length}</span></button>
+      <button type="button" className={`tab-pending-validation${tab === "pending-validation" ? " active" : ""}`} onClick={() => setTab("pending-validation")}>Pending validation <span style={pendingValidation.length > 0 ? { background: "#ED4551", color: "#fff" } : undefined}>{pendingValidation.length}</span></button>
       <button type="button" className={tab === "not-completed" ? "active" : ""} onClick={() => setTab("not-completed")}>Didn&apos;t complete <span>{notCompleted.length}</span></button>
-      <button type="button" className={tab === "archived" ? "active" : ""} onClick={() => setTab("archived")}>Archived <span>{archiveReady ? archivedActions.length : "…"}</span></button>
+      <button type="button" className={`tab-completed${tab === "completed" ? " active" : ""}`} onClick={() => setTab("completed")}>Completed <span>{completed.length}</span></button>
+      <button type="button" className={tab === "archived" ? "active" : ""} onClick={() => setTab("archived")}>Old Module <span>{archiveReady ? archivedActions.length : "…"}</span></button>
       <button type="button" className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>Plan overview</button>
     </nav>
 
@@ -821,9 +821,9 @@ export default function ActionsClient() {
                     <div className="plan-action-order">
                       {action.imageUrl
                         ? <div style={{ position: "relative", width: 44, height: 44, marginRight: 14 }}>
-                            <img src={action.imageUrl} alt="" width={44} height={44} style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", display: "block" }} />
-                            <span style={{ position: "absolute", bottom: -4, right: -4, width: 22, height: 22, borderRadius: "50%", background: "#FFCE00", color: "#221D23", fontSize: 12, fontWeight: 900, lineHeight: "22px", textAlign: "center", boxShadow: "0 0 0 2px #FFFFFF" }}>{index + 1}</span>
-                          </div>
+                          <img src={action.imageUrl} alt="" width={44} height={44} style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", display: "block" }} />
+                          <span style={{ position: "absolute", bottom: -4, right: -4, width: 22, height: 22, borderRadius: "50%", background: "#FFCE00", color: "#221D23", fontSize: 12, fontWeight: 900, lineHeight: "22px", textAlign: "center", boxShadow: "0 0 0 2px #FFFFFF" }}>{index + 1}</span>
+                        </div>
                         : <div className="plan-action-number">{index + 1}</div>}
                     </div>
                     <div className="plan-action-copy plan-action-copy--compact">
@@ -880,9 +880,9 @@ export default function ActionsClient() {
       {completed.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CheckCircle2 size={19} /><span><strong>{action.title}</strong><small>{item.completedLate ? `Completed late · no Wallet points${item.reflection ? ` · ${item.reflection}` : ""}` : `Completed on time${item.pointsDelta ? ` · +${item.pointsDelta} points` : ""}${item.reflection ? ` · ${item.reflection}` : ""}`}</small></span><em>{formatDate(item.completedAt || item.scheduledAt || item.scheduledDate)}</em></div>; })}
     </div></section>}
 
-    {tab === "pending-validation" && <section className="actions-list-card actions-completed-card"><h3>Pending validation</h3><p>These left Current actions when your next batch arrived before you checked in. If you actually did one, mark it done — it&apos;ll count in full: points go to your Batch Action Bank and your Commitment Score goes back up.</p><div className="actions-completed-list actions-not-completed-list actions-pending-validation-list">
+    {tab === "pending-validation" && <section className="actions-list-card actions-completed-card"><h3>Pending validation</h3><p>These weren&apos;t marked done before your next batch arrived. If you did them, mark them done now.</p><div className="actions-completed-list actions-not-completed-list actions-pending-validation-list">
       {pendingValidation.length === 0 && <div className="actions-empty-state"><Hourglass size={28} /><strong>Nothing awaiting validation</strong><p>Unfinished Current actions move here when your next batch arrives.</p></div>}
-      {pendingValidation.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><Hourglass size={19} /><span><strong>{action.title}</strong><small>Moved here when your next actions arrived on {formatDate(item.missedAt || item.scheduledAt || item.scheduledDate)} — did you do this?</small></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em><div className="actions-pending-validation-buttons"><button type="button" className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(item.actionId)}><Check size={16} /> I did it</button><button type="button" disabled={busy} aria-busy={dismissingId === item.actionId} onClick={() => void confirmNotDone(item.actionId)}>{dismissingId === item.actionId ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> Saving…</> : "No, I didn't"}</button></div></div>; })}
+      {pendingValidation.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><Hourglass size={19} /><span><strong>{action.title}</strong></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em><div className="actions-pending-validation-buttons"><button type="button" className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(item.actionId)}><Check size={16} /> I did it</button><button type="button" disabled={busy} aria-busy={dismissingId === item.actionId} onClick={() => void confirmNotDone(item.actionId)}>{dismissingId === item.actionId ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> Saving…</> : "No, I didn't"}</button></div></div>; })}
     </div></section>}
 
     {tab === "not-completed" && <section className="actions-list-card actions-completed-card"><h3>Actions not completed</h3><p>A record of workplace actions you skipped or could not complete.</p><div className="actions-completed-list actions-not-completed-list">

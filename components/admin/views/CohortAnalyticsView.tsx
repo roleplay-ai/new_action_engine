@@ -317,7 +317,7 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl p-4" style={{ border: "1px solid var(--color-border)" }}>
+      {/* <div className="bg-white rounded-xl p-4" style={{ border: "1px solid var(--color-border)" }}>
         <div className="flex justify-between items-center mb-3">
           <h4 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Weekly email reach</h4>
           <span className="text-[10px] font-medium" style={{ color: "var(--color-text-muted)" }}>
@@ -353,7 +353,7 @@ function CohortDrilldown({ detail }: { detail: CohortAnalyticsDetail }) {
             </ResponsiveContainer>
           )}
         </div>
-      </div>
+      </div> */}
 
       <div className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-border)" }}>
         <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>

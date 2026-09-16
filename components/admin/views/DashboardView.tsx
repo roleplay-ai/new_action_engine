@@ -12,6 +12,8 @@ import {
   ResponsiveContainer,
   Legend,
   LabelList,
+  PieChart,
+  Pie,
 } from "recharts";
 import { useAdminContext } from "@/components/admin/AdminContext";
 import { makeWeekChartTick, weekChartLabelFormatter, weekChartRange } from "@/components/admin/WeekChartTick";
@@ -165,9 +167,11 @@ export function DashboardView({ companyId }: DashboardViewProps) {
   const emailCombinedChartData = emailWeekly.map((e) => ({
     name: `Week ${e.weekNumber}`,
     weekRange: weekChartRange(e.weekStartIst, e.weekEndIst),
-    "Either mail opened": e.eitherMailOpenedUsers,
+    "Reminder sent": e.reminderSent,
     "Reminder opened": e.reminderOpenedUsers,
+    "Weekly recap sent": e.recapSent,
     "Weekly recap opened": e.recapOpenedUsers,
+    "Either mail opened": e.eitherMailOpenedUsers,
   }));
 
   // Derive summary cards from the same week rows as the charts so the headline
@@ -202,6 +206,17 @@ export function DashboardView({ companyId }: DashboardViewProps) {
       openRate: sent > 0 ? Math.round((opened * 100) / sent) : (emailEitherTotals?.openRate ?? 0),
     };
   })();
+  // Weekly average of unique "either mail" openers/reach, for the "avg of users who
+  // open either mail" stat card — averaged per week rather than a lifetime union.
+  const eitherWeeklyAvgStats = (() => {
+    if (emailWeekly.length === 0) return { avgOpenedUsers: 0, avgReachUsers: 0 };
+    const totalOpened = emailWeekly.reduce((sum, e) => sum + e.eitherMailOpenedUsers, 0);
+    const totalReach = emailWeekly.reduce((sum, e) => sum + e.eitherMailUsers, 0);
+    return {
+      avgOpenedUsers: Math.round(totalOpened / emailWeekly.length),
+      avgReachUsers: Math.round(totalReach / emailWeekly.length),
+    };
+  })();
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
@@ -220,56 +235,79 @@ export function DashboardView({ companyId }: DashboardViewProps) {
 
       {/* ── BATCH DRILL-DOWN ── */}
       <div className="space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="space-y-1">
-            <h3 className="text-sm font-semibold" style={{ color: "var(--color-text-secondary)" }}>
-              Batch &amp; Module Drill-down
-            </h3>
-            <p className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
-              Defaults to the current batch. Switch above to another batch, or &quot;All batches&quot; for the consolidated view.
-            </p>
+        {/* Users who've finalised an action plan — same "made a plan" signal as the
+            Leaderboard's "No plan" tag (commitmentMaximum > 0), so the two numbers agree.
+            Batch avg sits beside it (mean among activated users only). */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <div
+            className="bg-white rounded-2xl px-6 py-5 flex flex-col justify-center gap-1"
+            style={{
+              border: "1px solid rgba(54, 153, 252, 0.45)",
+              boxShadow: "var(--shadow-md)",
+            }}
+          >
+            <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+              Activated action plan
+            </span>
+            <span className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold leading-none" style={{ color: "#3699FC" }}>
+                {scoreBucketsLoading ? "…" : scoreBuckets ? scoreBuckets.totalUsers - scoreBuckets.notStarted : 0}
+              </span>
+              <span className="text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
+                of {scoreBucketsLoading ? "…" : scoreBuckets?.totalUsers ?? 0}
+              </span>
+            </span>
           </div>
-          {/* Users who've finalised an action plan — same "made a plan" signal as the
-              Leaderboard's "No plan" tag (commitmentMaximum > 0), so the two numbers agree.
-              Batch avg sits beside it (mean among activated users only). */}
-          <div className="flex flex-wrap items-stretch gap-2.5 shrink-0">
-            <div
-              className="bg-white rounded-xl px-4 py-2.5 flex flex-col justify-center gap-0.5 min-w-[148px]"
-              style={{
-                border: "1px solid rgba(54, 153, 252, 0.45)",
-                boxShadow: "var(--shadow-sm)",
-              }}
-            >
-              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
-                Activated action plan
+          <div
+            className="bg-white rounded-2xl px-6 py-5 flex flex-col justify-center gap-1"
+            style={{
+              border: "1px solid rgba(35, 206, 107, 0.45)",
+              boxShadow: "var(--shadow-md)",
+            }}
+          >
+            <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+              Batch avg commitment
+            </span>
+            <span className="text-4xl font-bold leading-none" style={{ color: "#16A34A" }}>
+              {scoreBucketsLoading
+                ? "…"
+                : scoreBuckets?.avgCommitmentPct != null
+                  ? `${scoreBuckets.avgCommitmentPct}%`
+                  : "—"}
+            </span>
+          </div>
+          <div
+            className="bg-white rounded-2xl px-6 py-5 flex flex-col justify-center gap-1"
+            style={{
+              border: "1px solid rgba(139, 92, 246, 0.45)",
+              boxShadow: "var(--shadow-md)",
+            }}
+          >
+            <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+              Total actions validated
+            </span>
+            <span className="text-4xl font-bold leading-none" style={{ color: "#8B5CF6" }}>
+              {leaderboardLoading ? "…" : leaderboard.reduce((sum, u) => sum + u.validatedCount, 0)}
+            </span>
+          </div>
+          <div
+            className="bg-white rounded-2xl px-6 py-5 flex flex-col justify-center gap-1"
+            style={{
+              border: "1px solid rgba(29, 78, 216, 0.45)",
+              boxShadow: "var(--shadow-md)",
+            }}
+          >
+            <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+              Avg. users who opened either mail / week
+            </span>
+            <span className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold leading-none" style={{ color: "#1D4ED8" }}>
+                {emailLoading ? "…" : eitherWeeklyAvgStats.avgOpenedUsers}
               </span>
-              <span className="flex items-baseline gap-1.5">
-                <span className="text-3xl font-bold leading-none" style={{ color: "#3699FC" }}>
-                  {scoreBucketsLoading ? "…" : scoreBuckets ? scoreBuckets.totalUsers - scoreBuckets.notStarted : 0}
-                </span>
-                <span className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
-                  of {scoreBucketsLoading ? "…" : scoreBuckets?.totalUsers ?? 0}
-                </span>
+              <span className="text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
+                of {emailLoading ? "…" : eitherWeeklyAvgStats.avgReachUsers}
               </span>
-            </div>
-            <div
-              className="bg-white rounded-xl px-4 py-2.5 flex flex-col justify-center gap-0.5 min-w-[148px]"
-              style={{
-                border: "1px solid rgba(35, 206, 107, 0.45)",
-                boxShadow: "var(--shadow-sm)",
-              }}
-            >
-              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
-                Batch avg commitment
-              </span>
-              <span className="text-3xl font-bold leading-none" style={{ color: "#16A34A" }}>
-                {scoreBucketsLoading
-                  ? "…"
-                  : scoreBuckets?.avgCommitmentPct != null
-                    ? `${scoreBuckets.avgCommitmentPct}%`
-                    : "—"}
-              </span>
-            </div>
+            </span>
           </div>
         </div>
 
@@ -324,25 +362,34 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                 <span className="tag tag--yellow">{scoreBuckets.notStarted} not started (no plan yet)</span>
               )}
             </div>
-            <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 320 }}>
+            <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 360 }}>
               {scoreBucketsLoading ? (
                 emptyState("Loading…")
               ) : !scoreBuckets || scoreBuckets.totalUsers === 0 ? (
                 emptyState("No commitment data yet")
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <ReBarChart data={scoreBucketChartData} margin={{ top: 32, right: 12, left: 8, bottom: 28 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={8} height={48} label={{ value: "Commitment score band", position: "insideBottom", offset: -16, fontSize: 11 }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={48} label={{ value: "Users", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
-                    <Tooltip contentStyle={tooltipStyle} />
-                    <Bar dataKey="Users" radius={[6, 6, 0, 0]}>
+                  <PieChart margin={{ top: 16, right: 48, left: 48, bottom: 8 }}>
+                    <Tooltip contentStyle={tooltipStyle} formatter={(value, name) => [`${value} users`, name]} />
+                    <Legend
+                      verticalAlign="bottom"
+                      wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingTop: 8 }}
+                      formatter={(value) => <span style={{ color: "var(--color-text-secondary)" }}>{value}</span>}
+                    />
+                    <Pie
+                      data={scoreBucketChartData}
+                      dataKey="Users"
+                      nameKey="name"
+                      cx="50%"
+                      cy="46%"
+                      outerRadius="60%"
+                      label={({ name, value }) => `${name}: ${value}`}
+                    >
                       {scoreBucketChartData.map((entry) => (
                         <Cell key={entry.name} fill={entry.color} />
                       ))}
-                      <LabelList dataKey="Users" position="top" style={barLabelStyle} formatter={barLabel} />
-                    </Bar>
-                  </ReBarChart>
+                    </Pie>
+                  </PieChart>
                 </ResponsiveContainer>
               )}
             </div>
@@ -364,17 +411,18 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               <div className="p-6 text-center text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>No members in scope yet</div>
             ) : (
               <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-                <table className="w-full text-left border-collapse table-fixed min-w-[1060px] text-xs">
+                <table className="w-full text-left border-collapse table-fixed min-w-[1180px] text-xs">
                   <thead className="sticky top-0 z-10">
                     <tr style={{ background: "var(--color-bg-dark)", color: "var(--white)" }}>
                       <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "24%" }}>Rank / Name</th>
                       <th className="px-2 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "12%" }}>Buddy</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "9%" }}>Planned actions</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "9%" }}>Actions sent</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "9%" }}>Either mail opened</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "9%" }}>Validated actions</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "9%" }}>Didn&apos;t complete</th>
-                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "9%" }}>Archived</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "8%" }}>Either mail opened</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "8%" }}>Planned actions</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "8%" }}>Actions sent</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "8%" }}>Validated actions</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "8%" }}>Current actions left</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "8%" }}>Didn&apos;t complete</th>
+                      <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "9%" }}>Pending validation</th>
                       <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "10%" }}>Commitment score</th>
                     </tr>
                   </thead>
@@ -395,12 +443,12 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                             {user.buddyName ?? "—"}
                           </span>
                         </td>
+                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.actionsReadCount > 0 ? "#3699FC" : "var(--color-text-muted)" }}>
+                          {user.actionsReadCount}
+                        </td>
                         <td className="px-2 py-2.5 text-center text-blue-600 font-semibold">{user.plannedActions}</td>
                         <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.actionsSentCount > 0 ? "var(--color-text-primary)" : "var(--color-text-muted)" }}>
                           {user.actionsSentCount}
-                        </td>
-                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.actionsReadCount > 0 ? "#3699FC" : "var(--color-text-muted)" }}>
-                          {user.actionsReadCount}
                         </td>
                         <td className="px-2 py-2.5 text-center">
                           <span
@@ -413,6 +461,9 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                           >
                             {user.validatedCount}
                           </span>
+                        </td>
+                        <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.currentCount > 0 ? "#3699FC" : "var(--color-text-muted)" }}>
+                          {user.currentCount}
                         </td>
                         <td className="px-2 py-2.5 text-center font-semibold" style={{ color: user.notCompletedCount > 0 ? "#EF4444" : "var(--color-text-muted)" }}>
                           {user.notCompletedCount}
@@ -487,18 +538,8 @@ export function DashboardView({ companyId }: DashboardViewProps) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="bg-white rounded-xl p-4 flex flex-col gap-2" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
-              <span className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Either mail — open rate</span>
-              <span className="text-2xl font-bold leading-none" style={{ color: "#3699FC" }}>
-                {emailLoading ? "…" : `${eitherCardStats.openRate}%`}
-              </span>
-              <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                {eitherCardStats.sent > 0 || emailEitherTotals
-                  ? `${eitherCardStats.opened} opened of ${eitherCardStats.sent} sent · ${eitherCardStats.openedUsers} users opened`
-                  : "No sends yet"}
-              </span>
-            </div>
-            <div className="bg-white rounded-xl p-4 flex flex-col gap-2" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
+
+            {/* <div className="bg-white rounded-xl p-4 flex flex-col gap-2" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
               <span className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Reminder — open rate</span>
               <span className="text-2xl font-bold leading-none" style={{ color: "#23CE6B" }}>
                 {emailLoading ? "…" : `${reminderCardStats.openRate}%`}
@@ -508,8 +549,8 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                   ? `${reminderCardStats.opened} opened of ${reminderCardStats.sent} sent · ${reminderCardStats.openedUsers} users opened`
                   : "No sends yet"}
               </span>
-            </div>
-            <div className="bg-white rounded-xl p-4 flex flex-col gap-2" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
+            </div> */}
+            {/* <div className="bg-white rounded-xl p-4 flex flex-col gap-2" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-sm)" }}>
               <span className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Friday weekly recap — open rate</span>
               <span className="text-2xl font-bold leading-none" style={{ color: "#8B5CF6" }}>
                 {emailLoading ? "…" : `${recapCardStats.openRate}%`}
@@ -519,17 +560,17 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                   ? `${recapCardStats.opened} opened of ${recapCardStats.sent} sent · ${recapCardStats.openedUsers} users opened`
                   : "No sends yet"}
               </span>
-            </div>
+            </div> */}
           </div>
 
-          <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 336 }}>
+          <div className="bg-white rounded-2xl p-4 overflow-visible" style={{ border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)", height: 400 }}>
             {emailLoading ? (
               emptyState("Loading…")
             ) : emailCombinedChartData.length === 0 ? (
               emptyState("No week-attributed sends yet")
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <ReBarChart data={emailCombinedChartData} barGap={4} barCategoryGap="28%" maxBarSize={28} margin={{ top: 32, right: 12, left: 8, bottom: 8 }}>
+                <ReBarChart data={emailCombinedChartData} barGap={4} barCategoryGap="28%" maxBarSize={18} margin={{ top: 60, right: 12, left: 8, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                   <XAxis
                     dataKey="name"
@@ -540,15 +581,25 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                   />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={48} label={{ value: "Users", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} />
                   <Tooltip contentStyle={tooltipStyle} labelFormatter={weekChartLabelFormatter(emailCombinedChartData)} />
-                  <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 8 }} />
-                  <Bar dataKey="Either mail opened" fill="#3699FC" radius={[6, 6, 0, 0]}>
-                    <LabelList dataKey="Either mail opened" position="top" style={barLabelStyle} formatter={barLabel} />
+                  <Legend
+                    verticalAlign="top"
+                    wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingBottom: 24 }}
+                    formatter={(value) => <span style={{ color: "var(--color-text-secondary)" }}>{value}</span>}
+                  />
+                  <Bar dataKey="Reminder sent" fill="#BBE8D0" radius={[4, 4, 0, 0]} maxBarSize={16}>
+                    <LabelList dataKey="Reminder sent" position="top" offset={6} style={barLabelStyle} formatter={barLabel} />
                   </Bar>
-                  <Bar dataKey="Reminder opened" fill="#23CE6B" radius={[6, 6, 0, 0]}>
-                    <LabelList dataKey="Reminder opened" position="top" style={barLabelStyle} formatter={barLabel} />
+                  <Bar dataKey="Reminder opened" fill="#23CE6B" radius={[4, 4, 0, 0]} maxBarSize={16}>
+                    <LabelList dataKey="Reminder opened" position="top" offset={6} style={barLabelStyle} formatter={barLabel} />
                   </Bar>
-                  <Bar dataKey="Weekly recap opened" fill="#8B5CF6" radius={[6, 6, 0, 0]}>
-                    <LabelList dataKey="Weekly recap opened" position="top" style={barLabelStyle} formatter={barLabel} />
+                  <Bar dataKey="Weekly recap sent" fill="#DDD6FE" radius={[4, 4, 0, 0]} maxBarSize={16}>
+                    <LabelList dataKey="Weekly recap sent" position="top" offset={6} style={barLabelStyle} formatter={barLabel} />
+                  </Bar>
+                  <Bar dataKey="Weekly recap opened" fill="#8B5CF6" radius={[4, 4, 0, 0]} maxBarSize={16}>
+                    <LabelList dataKey="Weekly recap opened" position="top" offset={6} style={barLabelStyle} formatter={barLabel} />
+                  </Bar>
+                  <Bar dataKey="Either mail opened" fill="#1D4ED8" radius={[6, 6, 0, 0]} maxBarSize={40}>
+                    <LabelList dataKey="Either mail opened" position="top" offset={6} style={{ ...barLabelStyle, fontWeight: 700 }} formatter={barLabel} />
                   </Bar>
                 </ReBarChart>
               </ResponsiveContainer>

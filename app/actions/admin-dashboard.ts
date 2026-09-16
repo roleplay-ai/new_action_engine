@@ -255,6 +255,8 @@ export interface DashboardLeaderboardEntry {
   plannedActions: number;
   /** user_actions delivered to the member in scope (reminders that went out). */
   actionsSentCount: number;
+  /** Still-scheduled, unresolved actions — matches Actions "Current actions". */
+  currentCount: number;
   validatedCount: number;
   /** Reminder or recap emails opened or clicked (Resend webhook on email_campaign_logs). */
   actionsReadCount: number;
@@ -364,6 +366,7 @@ export async function getDashboardLeaderboard(
     const { data: uaRows } = await uaQuery;
 
     const actionsSentByUser = new Map<string, number>();
+    const currentByUser = new Map<string, number>();
     const validatedByUser = new Map<string, number>();
     const pendingByUser = new Map<string, number>();
     const notCompletedByUser = new Map<string, number>();
@@ -373,6 +376,9 @@ export async function getDashboardLeaderboard(
       auto_expired: boolean | null;
     }[]) {
       actionsSentByUser.set(row.user_id, (actionsSentByUser.get(row.user_id) ?? 0) + 1);
+      if (row.status === "scheduled") {
+        currentByUser.set(row.user_id, (currentByUser.get(row.user_id) ?? 0) + 1);
+      }
       if (row.status === "success") {
         validatedByUser.set(row.user_id, (validatedByUser.get(row.user_id) ?? 0) + 1);
       }
@@ -394,6 +400,7 @@ export async function getDashboardLeaderboard(
         commitmentPct: walletScorePct(c?.plannedActions ?? 0, c?.missedActions ?? 0),
         plannedActions: c?.plannedActions ?? 0,
         actionsSentCount: actionsSentByUser.get(id) ?? 0,
+        currentCount: currentByUser.get(id) ?? 0,
         validatedCount: validatedByUser.get(id) ?? 0,
         actionsReadCount: emailOpensByUser.get(id)?.eitherOpened ?? 0,
         pendingValidationCount: pendingByUser.get(id) ?? 0,

@@ -162,6 +162,9 @@ export async function createCohort(params: {
   /** Optional single date to seed cohort_dates with — more can be added afterwards. */
   initialDate?: string;
   companyId?: string;
+  /** Email "From" display name override for this batch. Blank/omitted falls
+   * back to the assigned trainer, then "Nudgeable" (see lib/email-send.ts). */
+  senderName?: string;
 }): Promise<{ error?: string; id?: string }> {
   try {
     const { supabase, userId, companyId, role } = await getAdminContext();
@@ -182,6 +185,7 @@ export async function createCohort(params: {
         description: params.description?.trim() || null,
         training_content: role === "superadmin" ? params.trainingContent?.trim() || null : null,
         business_context: role === "superadmin" ? params.businessContext?.trim() || null : null,
+        sender_name: params.senderName?.trim() || null,
       })
       .select("id")
       .single();
@@ -209,6 +213,9 @@ export async function updateCohort(
     businessContext?: string;
     logoUrl?: string | null;
     trainerId?: string | null;
+    /** Email "From" display name override for this batch. An empty string
+     * clears it back to the trainer/"Nudgeable" fallback chain. */
+    senderName?: string;
     /** Program agenda JSON pasted in by an admin/superadmin. Undefined leaves
      * it unchanged; an empty string clears it. Parsed with parseProgramPhasesJson. */
     programPhasesJson?: string;
@@ -251,6 +258,7 @@ export async function updateCohort(
     if (params.businessContext != null) updates.business_context = params.businessContext.trim() || null;
     if (params.logoUrl !== undefined) updates.logo_url = params.logoUrl?.trim() || null;
     if (params.trainerId !== undefined) updates.trainer_id = params.trainerId || null;
+    if (params.senderName !== undefined) updates.sender_name = params.senderName.trim() || null;
 
     const { error } = await supabase.from("cohorts").update(updates).eq("id", id);
     if (error) return { error: error.message };
@@ -436,7 +444,7 @@ export async function listCohorts(companyId: string): Promise<{
       supabase.from("companies").select("id, name, logo_url").eq("id", companyId).single(),
       supabase
         .from("cohorts")
-        .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, trainer_id, locked, program_phases, current_phase_id")
+        .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, trainer_id, sender_name, locked, program_phases, current_phase_id")
         .eq("company_id", companyId)
         .is("archived_at", null)
         .order("created_at", { ascending: false }),
@@ -463,7 +471,7 @@ export async function listCohorts(companyId: string): Promise<{
 
     return {
       company: companyBrand,
-      cohorts: cohorts.map((c: { id: string; name: string; batch_name: string; module_name: string | null; description: string | null; training_content: string | null; business_context: string | null; logo_url: string | null; trainer_id: string | null; locked: boolean; program_phases: ProgramPhase[]; current_phase_id: string | null }) => ({
+      cohorts: cohorts.map((c: { id: string; name: string; batch_name: string; module_name: string | null; description: string | null; training_content: string | null; business_context: string | null; logo_url: string | null; trainer_id: string | null; sender_name: string | null; locked: boolean; program_phases: ProgramPhase[]; current_phase_id: string | null }) => ({
         id: c.id,
         name: c.name,
         batchName: c.batch_name,
@@ -477,6 +485,7 @@ export async function listCohorts(companyId: string): Promise<{
         contentCount: contentCounts.get(c.id) ?? 0,
         trainerId: c.trainer_id,
         trainer: c.trainer_id ? trainerMap.get(c.trainer_id) ?? null : null,
+        senderName: c.sender_name,
         locked: c.locked,
         programPhases: c.program_phases ?? [],
         currentPhaseId: c.current_phase_id,
@@ -497,7 +506,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
 
     const { data: cohort } = await supabase
       .from("cohorts")
-      .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, company_id, trainer_id, locked, program_phases, current_phase_id")
+      .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, company_id, trainer_id, sender_name, locked, program_phases, current_phase_id")
       .eq("id", cohortId)
       .single();
     if (!cohort) return { error: "Batch not found" };
@@ -530,6 +539,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
         memberCount: members?.length ?? 0,
         trainerId: cohort.trainer_id,
         trainer: cohort.trainer_id ? trainerMap.get(cohort.trainer_id) ?? null : null,
+        senderName: cohort.sender_name,
         locked: cohort.locked,
         programPhases: cohort.program_phases ?? [],
         currentPhaseId: cohort.current_phase_id,

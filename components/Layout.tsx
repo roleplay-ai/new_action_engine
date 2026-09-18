@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEngine } from "@/lib/store";
-import { ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ShieldCheck, ArrowLeft } from "lucide-react";
+import { ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ArrowLeft } from "lucide-react";
 import { LogoutButton } from "@/app/(app)/logout-button";
 import PageLoader from "@/components/PageLoader";
 import { usePageLoadingControls } from "@/components/PageLoadingProvider";
@@ -34,16 +34,15 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   } | null>(null);
   const { contentLoading, pendingHref, loaderTheme, beginNavigation } = usePageLoadingControls();
 
-  const navItems = useMemo(() => {
-    const items = [
+  const navItems = useMemo(
+    () => [
       { href: "/journey", label: "Home", shortLabel: "Home", icon: Home },
       { href: "/plan", label: "My Plan", shortLabel: "Plan", icon: Sparkles },
       { href: "/actions", label: "My Actions", shortLabel: "Actions", icon: ListChecks },
       { href: "/wallet", label: "Commitment Points", shortLabel: "Points", icon: PiggyBank },
-    ];
-    if (role !== "user") items.push({ href: "/admin", label: "Admin", shortLabel: "Admin", icon: ShieldCheck });
-    return items;
-  }, [role]);
+    ],
+    []
+  );
 
   // Actions retired unresolved when the next batch arrived — awaiting the
   // participant's "did you do this?" confirmation on the My Actions page.
@@ -150,34 +149,66 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
           </nav>
         </div>
 
-        {role !== "user" && (
-          <Link
-            href="/admin"
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 mb-2 rounded-xl text-sm font-semibold transition-all"
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              color: "rgba(255,255,255,0.7)",
-              border: "1px solid rgba(255,255,255,0.08)",
-            }}
-            onClick={() => beginNavigation("/admin")}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "rgba(255,206,0,0.12)";
-              (e.currentTarget as HTMLElement).style.color = "var(--bright-amber)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)";
-              (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.7)";
-            }}
-          >
-            <ArrowLeft size={14} strokeWidth={2} />
-            Back to Admin
-          </Link>
-        )}
+        <div>
+          {role !== "user" && cohorts.length > 0 && (
+            <label
+              className="w-full flex flex-col gap-1 px-3 py-2 mb-2 rounded-xl text-sm transition-all"
+              style={{
+                background: "rgba(255,206,0,0.10)",
+                border: "1px solid rgba(255,206,0,0.28)",
+              }}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "rgba(255,206,0,0.75)" }}>
+                Switch Batch
+              </span>
+              <select
+                aria-label="Switch batch"
+                value={cohort?.id ?? ""}
+                disabled={switchingCohort}
+                onChange={(event) => void switchCohort(event.target.value)}
+                className="w-full bg-transparent outline-none cursor-pointer font-semibold"
+                style={{ color: "var(--bright-amber)" }}
+              >
+                {cohorts.map((option) => (
+                  <option key={option.id} value={option.id} style={{ color: "#111" }}>
+                    {option.batchName}
+                    {option.moduleName ? ` — ${option.moduleName}` : ""}
+                    {option.isCurrent ? " · Current" : " · Earlier"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
-        <div className="participant-sidebar-user">
-          <div className="participant-avatar">{profile.name.substring(0, 2).toUpperCase()}</div>
-          <div><strong>{profile.name}</strong><small>Participant</small></div>
-          <div className="participant-logout"><LogoutButton variant="icon" /></div>
+          {role !== "user" && (
+            <Link
+              href="/admin"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 mb-2 rounded-xl text-sm font-semibold transition-all"
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                color: "rgba(255,255,255,0.7)",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+              onClick={() => beginNavigation("/admin")}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = "rgba(255,206,0,0.12)";
+                (e.currentTarget as HTMLElement).style.color = "var(--bright-amber)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)";
+                (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.7)";
+              }}
+            >
+              <ArrowLeft size={14} strokeWidth={2} />
+              Back to Admin
+            </Link>
+          )}
+
+          <div className="participant-sidebar-user">
+            <div className="participant-avatar">{profile.name.substring(0, 2).toUpperCase()}</div>
+            <div><strong>{profile.name}</strong><small>Participant</small></div>
+            <div className="participant-logout"><LogoutButton variant="icon" /></div>
+          </div>
         </div>
       </aside>
 

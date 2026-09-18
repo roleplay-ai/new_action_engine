@@ -83,6 +83,7 @@ type CohortSummary = {
   logoUrl?: string | null;
   trainerId?: string | null;
   trainer?: Trainer | null;
+  senderName?: string | null;
   locked: boolean;
   programPhases?: ProgramPhase[];
   currentPhaseId?: string | null;
@@ -543,6 +544,7 @@ function CohortDetailPanel({
   const [currentPhaseId, setCurrentPhaseId] = useState(cohort.currentPhaseId ?? "");
   const [trainerRoster, setTrainerRoster] = useState<Trainer[]>([]);
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>(cohort.trainerId ?? "");
+  const [senderName, setSenderName] = useState<string>(cohort.senderName ?? "");
   const [notices, setNotices] = useState<CohortNotice[]>([]);
   const [noticeDraft, setNoticeDraft] = useState("");
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
@@ -617,6 +619,7 @@ function CohortDetailPanel({
     setMembers(detailResult.members ?? []);
     setMemberIds(new Set((detailResult.members ?? []).map((member) => member.id)));
     setSelectedTrainerId(detailResult.cohort?.trainerId ?? "");
+    setSenderName(detailResult.cohort?.senderName ?? "");
   }, [cohort.id]);
 
   const fetchCompanyUsers = useCallback(async () => {
@@ -664,6 +667,7 @@ function CohortDetailPanel({
         error?: string;
         members?: CohortMember[];
         trainerId?: string;
+        senderName?: string;
         companyUsers?: CompanyUser[];
         assignedContentIds?: string[];
         libraryItems?: PrepareContentItem[];
@@ -686,6 +690,7 @@ function CohortDetailPanel({
       setLibraryItems(payload.libraryItems ?? []);
       setTrainerRoster(payload.trainers ?? []);
       setSelectedTrainerId(payload.trainerId ?? "");
+      setSenderName(payload.senderName ?? "");
       setNotices(payload.notices ?? []);
       setFacilitators(payload.facilitators ?? []);
     } catch (caughtError) {
@@ -821,6 +826,14 @@ function CohortDetailPanel({
     await runMutation(
       "assign-trainer",
       () => updateCohort(cohort.id, { trainerId: selectedTrainerId || null }),
+      { syncList: true }
+    );
+  }
+
+  async function handleSaveSenderName() {
+    await runMutation(
+      "save-sender-name",
+      () => updateCohort(cohort.id, { senderName }),
       { syncList: true }
     );
   }
@@ -1320,6 +1333,30 @@ function CohortDetailPanel({
             ) : (
               <div className="cohort-admin-notice"><Info size={17} /><p><strong>Only a superadmin can change this</strong><span>Ask a superadmin to assign or update this batch's trainer.</span></p></div>
             )}
+          </section>
+
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head"><div><h3>Email sender name</h3><p>Shown as the "From" name on this batch's emails (reminders, recaps, notices). Leave blank to fall back to the assigned trainer, then "Nudgeable".</p></div></div>
+            <div className="cohort-admin-panel-action">
+              <label className="cohort-admin-field" style={{ flex: 1 }}>
+                <span>Sender name <em>Optional</em></span>
+                <input
+                  value={senderName}
+                  onChange={(event) => setSenderName(event.target.value)}
+                  disabled={Boolean(busyAction)}
+                  placeholder="Nudgeable"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void handleSaveSenderName()}
+                disabled={Boolean(busyAction) || senderName === (cohort.senderName ?? "")}
+                className="cohort-admin-button cohort-admin-button--primary"
+              >
+                {busyAction === "save-sender-name" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}
+                {busyAction === "save-sender-name" ? "Saving…" : "Save"}
+              </button>
+            </div>
           </section>
 
           <section className="cohort-admin-panel">

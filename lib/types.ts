@@ -128,6 +128,10 @@ export interface Cohort {
   currentPhaseId?: string | null;
   trainerId?: string | null;
   trainer?: Trainer | null;
+  /** Optional override for the email "From" display name on this batch's
+   * communications. Falls back to the assigned trainer's name, then
+   * "Nudgeable", when unset — see lib/email-send.ts. */
+  senderName?: string | null;
   /** When true, participants lose access to My Plan, action creation, and the
    * Commitment Wallet until a superadmin unlocks the cohort. Defaults to true
    * for new cohorts (see migration 061_cohort_lock.sql). */

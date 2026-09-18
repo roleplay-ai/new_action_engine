@@ -146,20 +146,23 @@ export async function sendTemplateToUsers({
     }
   }
 
-  // Each recipient's email shows their cohort's assigned trainer as the
-  // sender name (falls back to "Nudgeable" when the cohort has none, or the
+  // Each recipient's email shows their cohort's sender name: an explicit
+  // per-batch override set in Cohort Management wins first, then the
+  // cohort's assigned trainer, then "Nudgeable" when neither is set (or the
   // recipient has no cohort yet — e.g. a brand-new user's welcome email).
   const cohortIds = [...new Set(
     [...profileMap.values()].map((p) => p.cohortId).filter((id): id is string => !!id)
   )];
   const trainerIdByCohortId = new Map<string, string>();
+  const senderNameByCohortId = new Map<string, string>();
   if (cohortIds.length) {
     const { data: cohortRows } = await admin
       .from("cohorts")
-      .select("id, trainer_id")
+      .select("id, trainer_id, sender_name")
       .in("id", cohortIds);
     for (const row of cohortRows ?? []) {
       if (row.trainer_id) trainerIdByCohortId.set(row.id as string, row.trainer_id as string);
+      if (row.sender_name) senderNameByCohortId.set(row.id as string, row.sender_name as string);
     }
   }
   const trainerNameById = new Map<string, string>();
@@ -307,8 +310,9 @@ export async function sendTemplateToUsers({
         });
       }
 
+      const cohortSenderName = prof?.cohortId ? senderNameByCohortId.get(prof.cohortId) : undefined;
       const trainerId = prof?.cohortId ? trainerIdByCohortId.get(prof.cohortId) : undefined;
-      const senderName = (trainerId ? trainerNameById.get(trainerId) : undefined) ?? "Nudgeable";
+      const senderName = cohortSenderName ?? (trainerId ? trainerNameById.get(trainerId) : undefined) ?? "Nudgeable";
 
       const { subject, html } = renderEmailTemplate(templateKey, dynamicTemplateData);
       const { data: sendData, error: sendError } = await resend.emails.send({

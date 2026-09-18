@@ -190,10 +190,12 @@ export async function scheduleAction(params: {
       if (actionRow.cohort_id) {
         const { data: cohortRow } = await supabase
           .from("cohorts")
-          .select("trainer_id")
+          .select("trainer_id, sender_name")
           .eq("id", actionRow.cohort_id)
           .maybeSingle();
-        if (cohortRow?.trainer_id) {
+        if (cohortRow?.sender_name) {
+          senderName = cohortRow.sender_name;
+        } else if (cohortRow?.trainer_id) {
           const { data: trainerRow } = await supabase
             .from("trainers")
             .select("name")

@@ -117,6 +117,50 @@ export async function getMyCommitmentWallet(knownCohortId?: string): Promise<{
   }
 }
 
+export type TeamCommitmentScore = {
+  teamName: string;
+  averageScore: number | null;
+  memberCount: number;
+  scoredMemberCount: number;
+};
+
+/** Average Commitment Score per team (participant_tags group) within a
+ * cohort — used to show every team's standing above the roster card. A team
+ * with no finalised plans yet has `averageScore: null`. */
+export async function getCohortTeamCommitmentScores(cohortId: string): Promise<{
+  teams: TeamCommitmentScore[];
+  error?: string;
+}> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("get_cohort_team_commitment_scores", {
+      p_cohort_id: cohortId,
+    });
+    if (error) return { teams: [], error: error.message };
+
+    const rows = (data ?? []) as {
+      team_name: string;
+      average_score: number | string | null;
+      member_count: number;
+      scored_member_count: number;
+    }[];
+
+    return {
+      teams: rows.map((row) => ({
+        teamName: row.team_name,
+        averageScore: row.average_score == null ? null : Number(row.average_score),
+        memberCount: row.member_count,
+        scoredMemberCount: row.scored_member_count,
+      })),
+    };
+  } catch (error) {
+    return {
+      teams: [],
+      error: error instanceof Error ? error.message : "Failed to load team commitment scores",
+    };
+  }
+}
+
 /**
  * Confirm a "Pending validation" action really wasn't done. Leaves its
  * missed, 0-point Wallet settlement untouched — this only clears the

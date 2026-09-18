@@ -9,6 +9,7 @@ import CohortChat from "@/components/journey/CohortChat";
 import NoticeBoardCard from "@/components/journey/NoticeBoardCard";
 import FacilitatorsCard from "@/components/journey/FacilitatorsCard";
 import FlipCountdown from "@/components/journey/FlipCountdown";
+import { getCohortTeamCommitmentScores, type TeamCommitmentScore } from "@/app/actions/commitment-wallet";
 import type { Cohort, CohortMember, CohortNotice, Facilitator, PrepareContentItem, ProgramBlock, ProgramDay, ProgramPhase, UserPrepareProgress } from "@/lib/types";
 import { resolveVideoEmbed, resolveVideoThumbnail } from "@/lib/video-embed";
 import { browserNeedsExternalPdfViewer } from "@/lib/pdf-embed";
@@ -148,6 +149,39 @@ export default function RcplWorkspace({
   const phaseId = searchParams.get("phase") ?? cohort.currentPhaseId ?? phases[0]?.id;
   const phase = phases.find((item) => item.id === phaseId) ?? phases[0] ?? null;
   const [buddyInfoOpen, setBuddyInfoOpen] = useState(false);
+  const [teamScores, setTeamScores] = useState<TeamCommitmentScore[]>([]);
+
+  useEffect(() => {
+    // The Commitment Wallet (and so any commitment-score data) is hidden
+    // entirely while the cohort is locked — same gate as My Plan/Wallet.
+    if (cohort.locked) {
+      setTeamScores([]);
+      return;
+    }
+    let cancelled = false;
+    void getCohortTeamCommitmentScores(cohort.id).then((result) => {
+      if (!cancelled) setTeamScores(result.teams);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [cohort.id, cohort.locked]);
+
+  // Only worth showing once participants are actually split into named
+  // teams — a single "Unassigned" bucket is just the whole batch, which the
+  // roster card below already represents. Hidden while the batch is locked.
+  const showTeamScores =
+    !cohort.locked &&
+    (teamScores.length > 1 || (teamScores.length === 1 && teamScores[0].teamName !== "Unassigned"));
+  const sortedTeamScores = useMemo(
+    () =>
+      [...teamScores].sort((a, b) => {
+        if (a.averageScore === null) return b.averageScore === null ? 0 : 1;
+        if (b.averageScore === null) return -1;
+        return b.averageScore - a.averageScore;
+      }),
+    [teamScores]
+  );
 
   const sessionDates = useMemo(
     () => [...(cohort.dates ?? [])].filter(Boolean).sort(),
@@ -329,6 +363,22 @@ export default function RcplWorkspace({
         </main>
 
         <aside className="rcpl-side-rail">
+          {showTeamScores && (
+            <section className="rcpl-card rcpl-team-scores">
+              <header><h3>Team commitment scores</h3></header>
+              <div>
+                {sortedTeamScores.map((team) => (
+                  <div className="rcpl-team-score-row" key={team.teamName}>
+                    <span className="rcpl-team-score-name">{team.teamName}</span>
+                    <span className="rcpl-team-score-value">
+                      {team.averageScore === null ? "—" : `${team.averageScore}%`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           <section className="rcpl-card rcpl-participants">
             <header><h3>Your batch</h3></header>
             <div>

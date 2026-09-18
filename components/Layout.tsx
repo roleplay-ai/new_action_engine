@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEngine } from "@/lib/store";
-import { ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ShieldCheck } from "lucide-react";
+import { ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ShieldCheck, ArrowLeft } from "lucide-react";
 import { LogoutButton } from "@/app/(app)/logout-button";
 import PageLoader from "@/components/PageLoader";
 import { usePageLoadingControls } from "@/components/PageLoadingProvider";
@@ -149,6 +149,30 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             ))}
           </nav>
         </div>
+
+        {role !== "user" && (
+          <Link
+            href="/admin"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 mb-2 rounded-xl text-sm font-semibold transition-all"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              color: "rgba(255,255,255,0.7)",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+            onClick={() => beginNavigation("/admin")}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "rgba(255,206,0,0.12)";
+              (e.currentTarget as HTMLElement).style.color = "var(--bright-amber)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)";
+              (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.7)";
+            }}
+          >
+            <ArrowLeft size={14} strokeWidth={2} />
+            Back to Admin
+          </Link>
+        )}
 
         <div className="participant-sidebar-user">
           <div className="participant-avatar">{profile.name.substring(0, 2).toUpperCase()}</div>

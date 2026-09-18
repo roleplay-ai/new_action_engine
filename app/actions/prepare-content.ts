@@ -274,12 +274,31 @@ export async function listContentItems(type?: PrepareContentType): Promise<{
   items?: PrepareContentItem[];
 }> {
   try {
-    const { supabase } = await ensureContentAuthor();
+    const { supabase, role, companyId } = await getAdminContext();
+
+    // Company admins only see content assigned to one of their own company's
+    // cohorts — the library itself is global, but an admin should only manage
+    // what's actually relevant to their company. Superadmin sees everything.
+    let restrictToIds: string[] | null = null;
+    if (role === "admin") {
+      const { data: cohorts } = await supabase.from("cohorts").select("id").eq("company_id", companyId);
+      const cohortIds = (cohorts ?? []).map((c: { id: string }) => c.id);
+      if (!cohortIds.length) return { items: [] };
+
+      const { data: assignments } = await supabase
+        .from("cohort_prepare_assignments")
+        .select("content_item_id")
+        .in("cohort_id", cohortIds);
+      restrictToIds = Array.from(new Set((assignments ?? []).map((a: { content_item_id: string }) => a.content_item_id)));
+      if (!restrictToIds.length) return { items: [] };
+    }
+
     let query = supabase
       .from("prepare_content_items")
       .select("id, type, title, description, badge_label, is_active, video_url, video_duration_seconds, preread_url, preread_body")
       .order("created_at", { ascending: false });
     if (type) query = query.eq("type", type);
+    if (restrictToIds) query = query.in("id", restrictToIds);
     const { data, error } = await query;
     if (error) return { error: error.message };
 

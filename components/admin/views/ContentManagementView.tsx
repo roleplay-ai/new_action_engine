@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, X, Trash2, Archive, PlayCircle, HelpCircle, FileText } from "lucide-react";
+import { Plus, X, Trash2, Archive, Eye, PlayCircle, HelpCircle, FileText } from "lucide-react";
 import {
   listContentItems,
   listActiveLibraryItems,
@@ -11,6 +11,7 @@ import {
   updateContentItem,
   archiveContentItem,
   deleteContentItem,
+  getContentItemDetail,
 } from "@/app/actions/prepare-content";
 import type { PrepareContentItem, PrepareContentType } from "@/lib/types";
 import { VideoUploadField } from "@/components/admin/content/VideoUploadField";
@@ -31,11 +32,18 @@ export function ContentManagementView({ role }: ContentManagementViewProps) {
   // this view only ever renders for one of those two roles (route-gated in
   // app/(app)/admin/layout.tsx), so canManage is always true in practice.
   const canManage = role === "superadmin" || role === "admin";
+  // Only superadmin can archive/unarchive — a company admin's list is already
+  // scoped to their own company's content, so archiving is reserved for the
+  // superadmin-owned global library.
+  const canArchive = role === "superadmin";
   const [items, setItems] = useState<PrepareContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [previewItem, setPreviewItem] = useState<PrepareContentItem | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -79,6 +87,19 @@ export function ContentManagementView({ role }: ContentManagementViewProps) {
       return;
     }
     await refresh();
+  }
+
+  async function handlePreview(id: string) {
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewItem(null);
+    const { error, item } = await getContentItemDetail(id);
+    setPreviewLoading(false);
+    if (error || !item) {
+      setPreviewError(error ?? "Failed to load content");
+      return;
+    }
+    setPreviewItem(item);
   }
 
   return (
@@ -149,14 +170,24 @@ export function ContentManagementView({ role }: ContentManagementViewProps) {
                 {canManage && (
                   <div className="flex gap-2 shrink-0">
                     <button
-                      onClick={() => handleArchiveToggle(item)}
-                      disabled={busyId === item.id}
-                      className="btn btn--icon"
-                      aria-label={item.isActive ? "Archive" : "Unarchive"}
-                      title={item.isActive ? "Archive" : "Unarchive"}
+                      onClick={() => handlePreview(item.id)}
+                      className="btn btn--sm btn--decline"
+                      aria-label="View"
+                      title="View"
                     >
-                      <Archive size={14} strokeWidth={2.5} />
+                      <Eye size={14} strokeWidth={2.5} /> View
                     </button>
+                    {canArchive && (
+                      <button
+                        onClick={() => handleArchiveToggle(item)}
+                        disabled={busyId === item.id}
+                        className="btn btn--icon"
+                        aria-label={item.isActive ? "Archive" : "Unarchive"}
+                        title={item.isActive ? "Archive" : "Unarchive"}
+                      >
+                        <Archive size={14} strokeWidth={2.5} />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDelete(item.id)}
                       disabled={busyId === item.id}
@@ -173,6 +204,111 @@ export function ContentManagementView({ role }: ContentManagementViewProps) {
           })}
         </ul>
       )}
+
+      {(previewLoading || previewError || previewItem) && (
+        <ContentPreviewModal
+          loading={previewLoading}
+          error={previewError}
+          item={previewItem}
+          onClose={() => {
+            setPreviewItem(null);
+            setPreviewError(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ContentPreviewModal({
+  loading,
+  error,
+  item,
+  onClose,
+}: {
+  loading: boolean;
+  error: string | null;
+  item: PrepareContentItem | null;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="card w-full max-w-lg max-h-[85vh] overflow-y-auto space-y-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold" style={{ color: "var(--color-text-primary)" }}>
+            {item ? item.title : "Preview"}
+          </h3>
+          <button onClick={onClose} className="btn btn--icon" aria-label="Close">
+            <X size={14} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        {loading && <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>Loading…</p>}
+        {error && <p className="text-xs font-bold" style={{ color: "#ED4551" }}>{error}</p>}
+
+        {item && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="tag tag--blue">{TYPE_META[item.type].label}</span>
+              {item.badgeLabel && <span className="tag">{item.badgeLabel}</span>}
+              {!item.isActive && (
+                <span className="text-[10px] font-bold uppercase" style={{ color: "#ED4551" }}>Archived</span>
+              )}
+            </div>
+
+            {item.description && (
+              <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>{item.description}</p>
+            )}
+
+            {item.type === "video" && item.videoUrl && (
+              <video src={item.videoUrl} controls className="w-full rounded-lg" style={{ maxHeight: "50vh" }} />
+            )}
+
+            {item.type === "preread" && (
+              <div className="space-y-2">
+                {item.prereadUrl && (
+                  <a href={item.prereadUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold" style={{ color: "var(--dodger-blue)" }}>
+                    {item.prereadUrl}
+                  </a>
+                )}
+                {item.prereadBody && (
+                  <p className="text-sm whitespace-pre-wrap" style={{ color: "var(--color-text-primary)" }}>{item.prereadBody}</p>
+                )}
+              </div>
+            )}
+
+            {item.type === "quiz" && (
+              <div className="space-y-3">
+                {(item.questions ?? []).map((q, qi) => (
+                  <div key={q.id} className="card__inset space-y-1.5">
+                    <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                      {qi + 1}. {q.questionText}
+                    </p>
+                    <ul className="space-y-1 pl-2">
+                      {q.options.map((o) => (
+                        <li
+                          key={o.id}
+                          className="text-xs"
+                          style={{ color: o.isCorrect ? "var(--emerald, #059669)" : "var(--color-text-muted)", fontWeight: o.isCorrect ? 700 : 400 }}
+                        >
+                          {o.isCorrect ? "✓ " : "• "}{o.optionText}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

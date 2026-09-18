@@ -4376,6 +4376,12 @@ input[type="range"] {
 
 /* ── Page loader (searching magnifier + blur) ── */
 .page-loader {
+  /* Margin (not just inset) still offsets a fixed box, so this can't inherit
+     a stray margin-top from an ancestor's Tailwind `space-y-*` sibling rule —
+     e.g. the admin shell renders this as the 2nd child after AdminContextBar
+     inside a `space-y-4` container, which was pushing the overlay down and
+     leaving a gap that exposed the batch selector above it. */
+  margin: 0 !important;
   position: fixed;
   top: 0;
   right: 0;

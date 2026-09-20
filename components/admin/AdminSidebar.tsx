@@ -265,21 +265,21 @@ export function AdminSidebar({ displayName }: AdminSidebarProps) {
         href="/journey"
         className="w-full flex items-center justify-center gap-2 px-3 py-2.5 mb-2 rounded-xl text-sm font-semibold transition-all"
         style={{
-          background: "rgba(255,255,255,0.06)",
-          color: "rgba(255,255,255,0.7)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          background: "rgba(255,206,0,0.12)",
+          color: "var(--bright-amber)",
+          border: "1px solid rgba(255,206,0,0.55)",
         }}
         onMouseEnter={(e) => {
-          (e.currentTarget as HTMLElement).style.background = "rgba(255,206,0,0.12)";
-          (e.currentTarget as HTMLElement).style.color = "var(--bright-amber)";
+          (e.currentTarget as HTMLElement).style.background = "rgba(255,206,0,0.22)";
+          (e.currentTarget as HTMLElement).style.borderColor = "var(--bright-amber)";
         }}
         onMouseLeave={(e) => {
-          (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)";
-          (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.7)";
+          (e.currentTarget as HTMLElement).style.background = "rgba(255,206,0,0.12)";
+          (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,206,0,0.55)";
         }}
       >
         <ArrowLeft size={14} strokeWidth={2} />
-        Back to app
+        Participant View
       </Link>
       {/* ── Footer ── */}
       <div
@@ -334,7 +334,7 @@ export function AdminSidebar({ displayName }: AdminSidebarProps) {
           }}
         >
           <LogOut size={14} />
-          Sign out
+          Logout
         </button>
       </div>
     </aside>

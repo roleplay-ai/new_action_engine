@@ -5,8 +5,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
 type LogoutButtonProps = {
-  /** Icon-only control for dark sidebars; text button elsewhere. */
-  variant?: "icon" | "text";
+  /** Icon-only control for dark sidebars; full-width labeled row for dark
+   * sidebars (admins previewing the participant view); text button elsewhere. */
+  variant?: "icon" | "text" | "sidebar-full";
 };
 
 export function LogoutButton({ variant = "text" }: LogoutButtonProps) {
@@ -29,6 +30,15 @@ export function LogoutButton({ variant = "text" }: LogoutButtonProps) {
         title="Log out"
       >
         <LogOut size={15} strokeWidth={2.2} />
+      </button>
+    );
+  }
+
+  if (variant === "sidebar-full") {
+    return (
+      <button type="button" onClick={handleLogout} className="participant-logout-full">
+        <LogOut size={14} strokeWidth={2.2} />
+        Logout
       </button>
     );
   }

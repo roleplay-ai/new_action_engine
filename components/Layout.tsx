@@ -150,65 +150,74 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
         </div>
 
         <div>
-          {role !== "user" && cohorts.length > 0 && (
-            <label
-              className="w-full flex flex-col gap-1 px-3 py-2 mb-2 rounded-xl text-sm transition-all"
-              style={{
-                background: "rgba(255,206,0,0.10)",
-                border: "1px solid rgba(255,206,0,0.28)",
-              }}
-            >
-              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "rgba(255,206,0,0.75)" }}>
-                Switch Batch
-              </span>
-              <select
-                aria-label="Switch batch"
-                value={cohort?.id ?? ""}
-                disabled={switchingCohort}
-                onChange={(event) => void switchCohort(event.target.value)}
-                className="w-full bg-transparent outline-none cursor-pointer font-semibold"
-                style={{ color: "var(--bright-amber)" }}
-              >
-                {cohorts.map((option) => (
-                  <option key={option.id} value={option.id} style={{ color: "#111" }}>
-                    {option.batchName}
-                    {option.moduleName ? ` — ${option.moduleName}` : ""}
-                    {option.isCurrent ? " · Current" : " · Earlier"}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          {role !== "user" && cohorts.length > 0 && (() => {
+            const currentOption = cohorts.find((option) => option.id === cohort?.id) ?? cohorts[0];
+            return (
+              <details className="rcpl-sidebar-batch-picker">
+                <summary>
+                  <span>
+                    <small>Switch Batch</small>
+                    <strong>
+                      {currentOption.batchName}
+                      {currentOption.moduleName ? ` — ${currentOption.moduleName}` : ""}
+                    </strong>
+                  </span>
+                  <ChevronDown size={15} />
+                </summary>
+                <div>
+                  {cohorts.map((option) => (
+                    <button
+                      type="button"
+                      key={option.id}
+                      disabled={switchingCohort}
+                      className={option.id === cohort?.id ? "active" : undefined}
+                      onClick={(event) => {
+                        void switchCohort(option.id);
+                        event.currentTarget.closest("details")?.removeAttribute("open");
+                      }}
+                    >
+                      <strong>
+                        {option.batchName}
+                        {option.moduleName ? ` — ${option.moduleName}` : ""}
+                      </strong>
+                      <small>{option.isCurrent ? "Current" : "Earlier"}</small>
+                    </button>
+                  ))}
+                </div>
+              </details>
+            );
+          })()}
 
           {role !== "user" && (
             <Link
               href="/admin"
               className="w-full flex items-center justify-center gap-2 px-3 py-2.5 mb-2 rounded-xl text-sm font-semibold transition-all"
               style={{
-                background: "rgba(255,255,255,0.06)",
-                color: "rgba(255,255,255,0.7)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,206,0,0.12)",
+                color: "var(--bright-amber)",
+                border: "1px solid rgba(255,206,0,0.55)",
               }}
               onClick={() => beginNavigation("/admin")}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "rgba(255,206,0,0.12)";
-                (e.currentTarget as HTMLElement).style.color = "var(--bright-amber)";
+                (e.currentTarget as HTMLElement).style.background = "rgba(255,206,0,0.22)";
+                (e.currentTarget as HTMLElement).style.borderColor = "var(--bright-amber)";
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)";
-                (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.7)";
+                (e.currentTarget as HTMLElement).style.background = "rgba(255,206,0,0.12)";
+                (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,206,0,0.55)";
               }}
             >
               <ArrowLeft size={14} strokeWidth={2} />
-              Back to Admin
+              Admin View
             </Link>
           )}
 
           <div className="participant-sidebar-user">
             <div className="participant-avatar">{profile.name.substring(0, 2).toUpperCase()}</div>
             <div><strong>{profile.name}</strong><small>Participant</small></div>
-            <div className="participant-logout"><LogoutButton variant="icon" /></div>
+            {role === "user" && <div className="participant-logout"><LogoutButton variant="icon" /></div>}
           </div>
+          {role !== "user" && <LogoutButton variant="sidebar-full" />}
         </div>
       </aside>
 
@@ -237,7 +246,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             )}
 
             <div className="participant-topbar-actions">
-              {cohorts.length > 0 && <label className="participant-cohort-switcher participant-batch-switcher">
+              {role === "user" && cohorts.length > 0 && <label className="participant-cohort-switcher participant-batch-switcher">
                 <select aria-label="View module" value={cohort?.id ?? ""} disabled={switchingCohort} onChange={(event) => void switchCohort(event.target.value)}>
                   {cohorts.map((option) => <option key={option.id} value={option.id}>{option.moduleName || option.batchName}{option.isCurrent ? " · Current" : " · Earlier"}</option>)}
                 </select>

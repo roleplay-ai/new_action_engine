@@ -257,8 +257,14 @@ export function BatchPickerGate({ children }: { children: React.ReactNode }) {
 
   const { options, loading } = useBatchOptions(draftCompanyId);
 
-  const needsCompanyPick = role === "superadmin" && companies.length > 0 && !effectiveCompanyId;
-  const needsBatchPick = !!effectiveCompanyId && !loading && options.length > 0 && selectedCohortId === null && !dismissed;
+  // Superadmins jump between companies/batches far more often than a
+  // company admin does — the pop-out and the background-load screen exist
+  // to stop a company admin's dashboard from flashing "all batches" data
+  // before settling on their one real batch, which doesn't apply the same
+  // way here. Superadmin keeps the plain top-bar switcher instead.
+  const needsCompanyPick = role === "superadmin" ? false : companies.length > 0 && !effectiveCompanyId;
+  const needsBatchPick =
+    role !== "superadmin" && !!effectiveCompanyId && !loading && options.length > 0 && selectedCohortId === null && !dismissed;
   const showPicker = needsCompanyPick || needsBatchPick;
 
   if (!showPicker) {
@@ -267,7 +273,7 @@ export function BatchPickerGate({ children }: { children: React.ReactNode }) {
         {/* Mounted so its fetches run in the background; visually covered by
             the loading screen below until it reports itself ready. */}
         {children}
-        {!viewReady && (
+        {role !== "superadmin" && !viewReady && (
           <PageLoader
             variant="admin"
             label="Loading batch data…"

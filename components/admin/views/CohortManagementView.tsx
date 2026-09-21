@@ -59,7 +59,7 @@ import {
 import { getCohortNotices, postCohortNotice, deleteCohortNotice } from "@/app/actions/cohort-notices";
 import { fetchAdminJson, isAbortError } from "@/lib/admin-fetch";
 import { createFacilitator, deleteFacilitator, listFacilitators } from "@/app/actions/facilitators";
-import { assignMemberTag, createParticipantTag, listParticipantTags } from "@/app/actions/participant-tags";
+import { assignMemberTag, createParticipantTag, listParticipantTagsForCompany } from "@/app/actions/participant-tags";
 import { FacilitatorPdfUploadField } from "@/components/admin/content/FacilitatorPdfUploadField";
 import { useSelectedAdminBatch } from "@/components/admin/AdminContext";
 import type { CohortDate, CohortMember, CohortNotice, CompanyBrand, Facilitator, ParticipantTag, PrepareContentItem, ProgramPhase, Trainer } from "@/lib/types";
@@ -647,10 +647,10 @@ function CohortDetailPanel({
   }, [cohort.id]);
 
   const fetchTags = useCallback(async () => {
-    const tagsResult = await listParticipantTags();
+    const tagsResult = await listParticipantTagsForCompany(companyId);
     if (tagsResult.error) { setError(tagsResult.error); return; }
     setTags(tagsResult.tags ?? []);
-  }, []);
+  }, [companyId]);
 
   const fetchDates = useCallback(async () => {
     const datesResult = await listCohortDates(cohort.id);

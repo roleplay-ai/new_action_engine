@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Building2, Layers } from "lucide-react";
 import { BatchSelector, useBatchOptions } from "@/components/admin/BatchSelector";
 import PageLoader from "@/components/PageLoader";
@@ -285,10 +286,12 @@ export function BatchPickerGate({ children }: { children: React.ReactNode }) {
     setDismissed(true);
   }
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-      style={{ background: "rgba(12,15,20,0.6)", backdropFilter: "blur(2px)" }}
+      style={{ top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100vh", background: "rgba(12,15,20,0.6)", backdropFilter: "blur(2px)" }}
     >
       <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5" style={{ boxShadow: "var(--shadow-lg)" }}>
         <div className="space-y-1">
@@ -296,7 +299,7 @@ export function BatchPickerGate({ children }: { children: React.ReactNode }) {
             Select a batch to continue
           </h3>
           <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-            Pick the batch (cohort) you want to review — its data loads in the background and shows once it&apos;s ready.
+            Pick the batch and module you want to review — its data loads in the background and shows once it&apos;s ready.
           </p>
         </div>
 
@@ -331,7 +334,7 @@ export function BatchPickerGate({ children }: { children: React.ReactNode }) {
           {draftCompanyId && (
             <label className="block space-y-1">
               <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
-                Batch (Cohort)
+                Batch / Module
               </span>
               <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ border: "1px solid var(--color-border)" }}>
                 <Layers size={15} strokeWidth={2} style={{ color: "var(--color-text-muted)" }} />
@@ -366,7 +369,8 @@ export function BatchPickerGate({ children }: { children: React.ReactNode }) {
           View dashboard
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

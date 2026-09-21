@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { clearAdminBatchSelection } from "@/components/admin/AdminContext";
 import {
   LayoutDashboard,
   BarChart3,
@@ -82,6 +83,7 @@ export function AdminSidebar({ displayName }: AdminSidebarProps) {
   );
 
   const handleLogout = async () => {
+    clearAdminBatchSelection();
     const supabase = createClient();
     await supabase.auth.signOut();
     router.refresh();

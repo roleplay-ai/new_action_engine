@@ -36,22 +36,35 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ companyId }: DashboardViewProps) {
-  const { selectedCohortId } = useAdminContext();
+  const { selectedCohortId, setViewReady } = useAdminContext();
   // ── Batch/module drill-down (selector + buckets, leaderboard, weekly trend, email opens) ──
   const [actionWeeklyTrend, setActionWeeklyTrend] = useState<ActionWeeklyTrendEntry[]>([]);
-  const [actionWeeklyLoading, setActionWeeklyLoading] = useState(false);
+  const [actionWeeklyLoading, setActionWeeklyLoading] = useState(true);
   const [scoreBuckets, setScoreBuckets] = useState<CommitmentScoreBuckets | null>(null);
-  const [scoreBucketsLoading, setScoreBucketsLoading] = useState(false);
+  const [scoreBucketsLoading, setScoreBucketsLoading] = useState(true);
   const [leaderboard, setLeaderboard] = useState<DashboardLeaderboardEntry[]>([]);
-  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [weeklyTrend, setWeeklyTrend] = useState<CommitmentWeeklyTrendEntry[]>([]);
   const [weeklyTrendDelta, setWeeklyTrendDelta] = useState<number | null>(null);
-  const [weeklyTrendLoading, setWeeklyTrendLoading] = useState(false);
+  const [weeklyTrendLoading, setWeeklyTrendLoading] = useState(true);
   const [emailWeekly, setEmailWeekly] = useState<EmailOpenWeeklyEntry[]>([]);
   const [emailReminderTotals, setEmailReminderTotals] = useState<EmailEngagementTotals | null>(null);
   const [emailRecapTotals, setEmailRecapTotals] = useState<EmailEngagementTotals | null>(null);
   const [emailEitherTotals, setEmailEitherTotals] = useState<EmailEngagementTotals | null>(null);
-  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(true);
+
+  // All five sections fetch independently; rather than letting each one pop
+  // in on its own timeline, report readiness up to BatchPickerGate once every
+  // section has settled at least once for this company/cohort, so its
+  // loading screen — not an assumption that picking a batch means the data
+  // is there — is what decides when the dashboard actually shows.
+  const dashboardReady = !actionWeeklyLoading && !scoreBucketsLoading && !leaderboardLoading && !weeklyTrendLoading && !emailLoading;
+
+  useEffect(() => {
+    setViewReady(dashboardReady);
+  }, [dashboardReady, setViewReady]);
+
+  useEffect(() => () => setViewReady(true), [setViewReady]);
 
   useEffect(() => {
     if (!companyId) {

@@ -20,6 +20,7 @@ import {
   type CohortAnalyticsDetail,
 } from "@/app/actions/admin-analytics";
 import { makeWeekChartTick, weekChartLabelFormatter, weekChartRange } from "@/components/admin/WeekChartTick";
+import { useAdminContext } from "@/components/admin/AdminContext";
 
 interface CohortAnalyticsViewProps {
   companyId: string | null;
@@ -49,6 +50,7 @@ const tooltipStyle = {
 };
 
 export function CohortAnalyticsView({ companyId }: CohortAnalyticsViewProps) {
+  const { setViewReady } = useAdminContext();
   const [entries, setEntries] = useState<CohortAnalyticsSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +58,12 @@ export function CohortAnalyticsView({ companyId }: CohortAnalyticsViewProps) {
   const [detail, setDetail] = useState<CohortAnalyticsDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setViewReady(!loading);
+  }, [loading, setViewReady]);
+
+  useEffect(() => () => setViewReady(true), [setViewReady]);
 
   const refresh = useCallback(async () => {
     if (!companyId) {

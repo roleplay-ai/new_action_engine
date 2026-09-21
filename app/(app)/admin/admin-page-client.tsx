@@ -4,6 +4,7 @@ import { EngineProvider } from "@/lib/store";
 import {
   AdminContextProvider,
   AdminContextBar,
+  BatchPickerGate,
   NoCompanyWarning,
   useAdminContext,
   useOptionalAdminContext,
@@ -96,7 +97,7 @@ export function AdminPageClient({
       <div className="max-w-7xl mx-auto w-full space-y-4">
         <AdminContextBar />
         <NoCompanyWarning />
-        {content}
+        <BatchPickerGate>{content}</BatchPickerGate>
       </div>
     </AdminContextProvider>
   );

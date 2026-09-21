@@ -3,6 +3,7 @@
 import { LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { clearAdminBatchSelection } from "@/components/admin/AdminContext";
 
 type LogoutButtonProps = {
   /** Icon-only control for dark sidebars; full-width labeled row for dark
@@ -14,6 +15,7 @@ export function LogoutButton({ variant = "text" }: LogoutButtonProps) {
   const router = useRouter();
 
   async function handleLogout() {
+    clearAdminBatchSelection();
     const supabase = createClient();
     await supabase.auth.signOut();
     router.refresh();

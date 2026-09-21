@@ -1,11 +1,28 @@
 "use client";
 
 import React, { createContext, useContext, useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { Building2 } from "lucide-react";
-import { BatchSelector } from "@/components/admin/BatchSelector";
+import { Building2, Layers } from "lucide-react";
+import { BatchSelector, useBatchOptions } from "@/components/admin/BatchSelector";
+import PageLoader from "@/components/PageLoader";
 
 const COMPANY_STORAGE_KEY = "nudgeable:admin:companyId";
 const COHORT_STORAGE_KEY = "nudgeable:admin:cohortId";
+// Set only when a batch was picked through an explicit user action (the
+// BatchPickerGate pop-out, or the top-bar switcher afterwards) — never by
+// the hydration restore itself. A stored cohort id without this flag means
+// it was left over from before this confirmation step existed, so it's
+// ignored on restore instead of silently skipping the pop-out.
+const CONFIRMED_STORAGE_KEY = "nudgeable:admin:batchConfirmed";
+
+/** Clears the remembered company/batch selection so the next login always
+ * lands back on the BatchPickerGate pop-out instead of silently reusing
+ * whatever was picked in a previous session on this tab. Call on logout. */
+export function clearAdminBatchSelection() {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(COMPANY_STORAGE_KEY);
+  sessionStorage.removeItem(COHORT_STORAGE_KEY);
+  sessionStorage.removeItem(CONFIRMED_STORAGE_KEY);
+}
 
 interface Company {
   id: string;
@@ -22,6 +39,14 @@ interface AdminContextType {
   effectiveCompanyId: string | null;
   selectedCohortId: string | null;
   setSelectedCohortId: (id: string | null) => void;
+  /** True once the active view's own data has finished loading. Views with
+   * their own background fetches (Dashboard, Engagement, Cohort Analytics)
+   * report into this so BatchPickerGate can keep a single loading screen up
+   * until everything is actually ready, instead of assuming a batch pick
+   * means the data is there. Views that don't opt in leave this at its
+   * default `true`, so they're never blocked. */
+  viewReady: boolean;
+  setViewReady: (ready: boolean) => void;
 }
 
 const AdminContext = createContext<AdminContextType | null>(null);
@@ -70,6 +95,7 @@ export function AdminContextProvider({
 }: AdminContextProviderProps) {
   const [selectedCompanyId, setSelectedCompanyIdState] = useState<string | null>(null);
   const [selectedCohortId, setSelectedCohortIdState] = useState<string | null>(null);
+  const [viewReady, setViewReady] = useState(true);
   const selectedCompanyIdRef = useRef<string | null>(null);
   const hydratedRef = useRef(false);
   selectedCompanyIdRef.current = selectedCompanyId;
@@ -79,6 +105,7 @@ export function AdminContextProvider({
     hydratedRef.current = true;
     const storedCompany = sessionStorage.getItem(COMPANY_STORAGE_KEY);
     const storedCohort = sessionStorage.getItem(COHORT_STORAGE_KEY);
+    const wasConfirmed = sessionStorage.getItem(CONFIRMED_STORAGE_KEY) === "1";
     if (role === "superadmin") {
       const nextCompany =
         storedCompany && companies.some((company) => company.id === storedCompany)
@@ -88,7 +115,14 @@ export function AdminContextProvider({
       setSelectedCompanyIdState(nextCompany);
       if (nextCompany) sessionStorage.setItem(COMPANY_STORAGE_KEY, nextCompany);
     }
-    if (storedCohort) setSelectedCohortIdState(storedCohort);
+    // Only restore a remembered batch if it was explicitly confirmed — a
+    // cohort id left over from before this pop-out existed (or from a
+    // partial/older session) must not silently skip the picker.
+    if (storedCohort && wasConfirmed) {
+      setSelectedCohortIdState(storedCohort);
+    } else if (storedCohort) {
+      sessionStorage.removeItem(COHORT_STORAGE_KEY);
+    }
   }, [role, companies]);
 
   const setSelectedCompanyId = useCallback((id: string | null) => {
@@ -96,13 +130,22 @@ export function AdminContextProvider({
     selectedCompanyIdRef.current = id;
     setSelectedCompanyIdState(id);
     setSelectedCohortIdState(null);
+    setViewReady(true);
     sessionStorage.removeItem(COHORT_STORAGE_KEY);
+    sessionStorage.removeItem(CONFIRMED_STORAGE_KEY);
     if (id) sessionStorage.setItem(COMPANY_STORAGE_KEY, id);
     else sessionStorage.removeItem(COMPANY_STORAGE_KEY);
   }, []);
 
   const setSelectedCohortId = useCallback((id: string | null) => {
     setSelectedCohortIdState(id);
+    // A newly picked batch hasn't loaded anything yet — don't let the
+    // previous batch's (now stale) data or "ready" state show through while
+    // the new one's fetches are still in flight.
+    setViewReady(false);
+    // Only ever called from an explicit user action (the picker pop-out or
+    // the top-bar switcher), so it's safe to mark this as confirmed.
+    sessionStorage.setItem(CONFIRMED_STORAGE_KEY, "1");
     if (id) sessionStorage.setItem(COHORT_STORAGE_KEY, id);
     else sessionStorage.removeItem(COHORT_STORAGE_KEY);
   }, []);
@@ -120,6 +163,8 @@ export function AdminContextProvider({
         effectiveCompanyId,
         selectedCohortId,
         setSelectedCohortId,
+        viewReady,
+        setViewReady,
       }}
     >
       {children}
@@ -177,6 +222,154 @@ export function AdminContextBar() {
   );
 }
 
+/**
+ * Never assumes a batch: blocks the actual view from being *shown* until the
+ * admin has explicitly chosen a company + batch/module from a pop-out — no
+ * batch gets auto-picked, and nothing renders on a guess. Once confirmed,
+ * the view mounts and fetches in the background behind a loading screen;
+ * the gate only reveals it once the view reports (via `viewReady`) that its
+ * data has actually finished loading, instead of assuming the pick alone
+ * means the data is there.
+ */
+export function BatchPickerGate({ children }: { children: React.ReactNode }) {
+  const {
+    companies,
+    role,
+    selectedCompanyId,
+    setSelectedCompanyId,
+    effectiveCompanyId,
+    selectedCohortId,
+    setSelectedCohortId,
+    viewReady,
+  } = useAdminContext();
+
+  const [draftCompanyId, setDraftCompanyId] = useState<string | null>(effectiveCompanyId);
+  const [draftCohortId, setDraftCohortId] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    setDraftCompanyId(effectiveCompanyId);
+    // A newly resolved/changed company always needs its own explicit batch
+    // pick — don't let a stale "dismissed" hide the gate for it.
+    setDismissed(false);
+  }, [effectiveCompanyId]);
+
+  const { options, loading } = useBatchOptions(draftCompanyId);
+
+  const needsCompanyPick = role === "superadmin" && companies.length > 0 && !effectiveCompanyId;
+  const needsBatchPick = !!effectiveCompanyId && !loading && options.length > 0 && selectedCohortId === null && !dismissed;
+  const showPicker = needsCompanyPick || needsBatchPick;
+
+  if (!showPicker) {
+    return (
+      <>
+        {/* Mounted so its fetches run in the background; visually covered by
+            the loading screen below until it reports itself ready. */}
+        {children}
+        {!viewReady && (
+          <PageLoader
+            variant="admin"
+            label="Loading batch data…"
+            sublabel="Fetching charts and metrics — this'll only take a moment."
+          />
+        )}
+      </>
+    );
+  }
+
+  function handleContinue() {
+    if (role === "superadmin" && draftCompanyId && draftCompanyId !== selectedCompanyId) {
+      setSelectedCompanyId(draftCompanyId);
+    }
+    setSelectedCohortId(draftCohortId);
+    setDismissed(true);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+      style={{ background: "rgba(12,15,20,0.6)", backdropFilter: "blur(2px)" }}
+    >
+      <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5" style={{ boxShadow: "var(--shadow-lg)" }}>
+        <div className="space-y-1">
+          <h3 className="text-lg font-bold" style={{ color: "var(--color-text-primary)" }}>
+            Select a batch to continue
+          </h3>
+          <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+            Pick the batch (cohort) you want to review — its data loads in the background and shows once it&apos;s ready.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {role === "superadmin" && companies.length > 0 && (
+            <label className="block space-y-1">
+              <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+                Company
+              </span>
+              <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ border: "1px solid var(--color-border)" }}>
+                <Building2 size={15} strokeWidth={2} style={{ color: "var(--color-text-muted)" }} />
+                <select
+                  value={draftCompanyId ?? ""}
+                  onChange={(e) => {
+                    setDraftCompanyId(e.target.value || null);
+                    setDraftCohortId(null);
+                  }}
+                  className="w-full text-sm font-semibold bg-transparent outline-none cursor-pointer"
+                  style={{ color: "var(--color-text-primary)" }}
+                >
+                  <option value="">Select company…</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </label>
+          )}
+
+          {draftCompanyId && (
+            <label className="block space-y-1">
+              <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+                Batch (Cohort)
+              </span>
+              <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ border: "1px solid var(--color-border)" }}>
+                <Layers size={15} strokeWidth={2} style={{ color: "var(--color-text-muted)" }} />
+                <select
+                  value={draftCohortId ?? ""}
+                  disabled={loading}
+                  onChange={(e) => setDraftCohortId(e.target.value || null)}
+                  className="w-full text-sm font-semibold bg-transparent outline-none cursor-pointer disabled:cursor-wait"
+                  style={{ color: "var(--color-text-primary)" }}
+                >
+                  <option value="" disabled>
+                    {loading ? "Loading batches…" : "Select a batch…"}
+                  </option>
+                  {options.map((opt) => (
+                    <option key={opt.cohortId} value={opt.cohortId}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </label>
+          )}
+        </div>
+
+        <button
+          type="button"
+          disabled={!draftCompanyId || !draftCohortId || loading}
+          onClick={handleContinue}
+          className="w-full rounded-xl py-2.5 text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ background: "var(--bright-amber)", color: "var(--color-text-primary)" }}
+        >
+          View dashboard
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function AdminShell({
   children,
   companies,
@@ -188,7 +381,7 @@ export function AdminShell({
       <div className="max-w-7xl mx-auto w-full space-y-4">
         <AdminContextBar />
         <NoCompanyWarning />
-        {children}
+        <BatchPickerGate>{children}</BatchPickerGate>
       </div>
     </AdminContextProvider>
   );

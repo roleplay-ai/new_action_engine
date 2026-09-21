@@ -371,7 +371,7 @@ export default function RcplWorkspace({
                   <div className="rcpl-team-score-row" key={team.teamName}>
                     <span className="rcpl-team-score-name">{team.teamName}</span>
                     <span className="rcpl-team-score-value">
-                      {team.averageScore === null ? "—" : `${team.averageScore}%`}
+                      {team.averageScore === null ? "—" : `${Math.round(team.averageScore)}%`}
                     </span>
                   </div>
                 ))}

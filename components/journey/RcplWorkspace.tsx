@@ -365,13 +365,13 @@ export default function RcplWorkspace({
         <aside className="rcpl-side-rail">
           {showTeamScores && (
             <section className="rcpl-card rcpl-team-scores">
-              <header><h3>Team commitment scores</h3></header>
+              <header><h3>Team avg commitment score</h3></header>
               <div>
                 {sortedTeamScores.map((team) => (
                   <div className="rcpl-team-score-row" key={team.teamName}>
                     <span className="rcpl-team-score-name">{team.teamName}</span>
                     <span className="rcpl-team-score-value">
-                      {team.averageScore === null ? "—" : `${team.averageScore}%`}
+                      {team.averageScore === null ? "—" : `${Math.round(team.averageScore)}%`}
                     </span>
                   </div>
                 ))}

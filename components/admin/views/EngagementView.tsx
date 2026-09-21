@@ -24,11 +24,17 @@ interface EngagementViewProps {
 }
 
 export function EngagementView({ companyId }: EngagementViewProps) {
-  const { selectedCohortId } = useAdminContext();
+  const { selectedCohortId, setViewReady } = useAdminContext();
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<UserEngagementRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setViewReady(!loading);
+  }, [loading, setViewReady]);
+
+  useEffect(() => () => setViewReady(true), [setViewReady]);
 
   useEffect(() => {
     let cancelled = false;

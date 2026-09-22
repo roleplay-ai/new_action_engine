@@ -10,6 +10,7 @@ import {
   Mail,
   RefreshCw,
   ShieldCheck,
+  Tag,
   UserRound,
   Users,
 } from "lucide-react";
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { href: "/superadmin/users", label: "Users", description: "Access and roles", icon: Users },
   { href: "/superadmin/content-library", label: "Content", description: "Learning library", icon: Library },
   { href: "/superadmin/trainers", label: "Trainers", description: "Trainer roster", icon: UserRound },
+  { href: "/superadmin/tags", label: "Participant tags", description: "Team tag roster", icon: Tag },
   { href: "/superadmin/emails", label: "Emails & reminders", description: "Queue and delivery", icon: Mail },
   { href: "/superadmin/cohorts", label: "Batches", description: "Batch management", icon: GraduationCap },
 ];

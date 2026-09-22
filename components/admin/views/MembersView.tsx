@@ -16,7 +16,7 @@ function initials(value: string) {
   return words.map((word) => word[0]?.toUpperCase()).join("") || "B";
 }
 
-function MembersWorkspace({ cohortId }: { cohortId: string }) {
+function MembersWorkspace({ cohortId, companyId }: { cohortId: string; companyId: string }) {
   const [roster, setRoster] = useState<CohortMember[]>([]);
   const [tags, setTags] = useState<ParticipantTag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +33,7 @@ function MembersWorkspace({ cohortId }: { cohortId: string }) {
           error?: string;
           members?: CohortMember[];
           tags?: ParticipantTag[];
-        }>(`/api/admin/cohorts/${encodeURIComponent(cohortId)}?bundle=members`, controller.signal);
+        }>(`/api/admin/cohorts/${encodeURIComponent(cohortId)}?bundle=members&companyId=${encodeURIComponent(companyId)}`, controller.signal);
         if (controller.signal.aborted) return;
         if (result.error) {
           setError(result.error);
@@ -55,7 +55,7 @@ function MembersWorkspace({ cohortId }: { cohortId: string }) {
 
     void load();
     return () => controller.abort();
-  }, [cohortId]);
+  }, [cohortId, companyId]);
 
   if (loading) {
     return (
@@ -207,7 +207,7 @@ export function MembersView({ companyId }: MembersViewProps) {
         <main className="cohort-admin-workspace">
           {selectedCohort ? (
             <div className="cohort-admin-trainer-panel" key={selectedCohort.id}>
-              <MembersWorkspace cohortId={selectedCohort.id} />
+              <MembersWorkspace cohortId={selectedCohort.id} companyId={companyId} />
             </div>
           ) : (
             <div className="cohort-admin-placeholder">

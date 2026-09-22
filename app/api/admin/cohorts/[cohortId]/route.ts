@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCohortDetail, getCompanyUsers, listCohortDates } from "@/app/actions/cohorts";
 import { getCohortNotices } from "@/app/actions/cohort-notices";
 import { listFacilitators } from "@/app/actions/facilitators";
-import { listParticipantTags } from "@/app/actions/participant-tags";
+import { listParticipantTagsForCompany } from "@/app/actions/participant-tags";
 import { listActiveLibraryItems, listCohortContent } from "@/app/actions/prepare-content";
 import { listTrainers } from "@/app/actions/trainers";
 import { getAdminContext } from "@/app/actions/admin-analytics";
@@ -38,9 +38,10 @@ export async function GET(
     }
 
     if (bundle === "members") {
+      if (!companyId) return json({ error: "companyId required" }, 400);
       const [detailResult, tagsResult] = await Promise.all([
         getCohortDetail(cohortId),
-        listParticipantTags(),
+        listParticipantTagsForCompany(companyId),
       ]);
       return json({
         error: detailResult.error || tagsResult.error,
@@ -70,7 +71,7 @@ export async function GET(
         role === "superadmin" ? listTrainers() : Promise.resolve({ trainers: [] as Trainer[], error: undefined as string | undefined }),
         getCohortNotices(cohortId),
         listFacilitators(cohortId),
-        listParticipantTags(),
+        listParticipantTagsForCompany(companyId),
         listCohortDates(cohortId),
       ]);
       return json({

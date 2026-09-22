@@ -773,6 +773,18 @@
   background: #17814f;
 }
 
+.superadmin-icon-action.danger {
+  color: #b3261e;
+  border-color: #f3c6c0;
+  background: #fcebe9;
+}
+
+.superadmin-icon-action.danger:hover {
+  color: #fff;
+  border-color: #b3261e;
+  background: #b3261e;
+}
+
 .superadmin-company-edit-fields {
   min-width: 0;
   display: flex;

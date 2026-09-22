@@ -5,6 +5,7 @@ import WelcomeEmailPanel from "../welcome-email-panel";
 import ActionReminderLogsPanel from "../action-reminder-logs-panel";
 import ActionReminderQueuePanel from "../action-reminder-queue-panel";
 import WeeklyRecapQueuePanel from "../weekly-recap-queue-panel";
+import TeamLeaderboardEmailPanel from "../team-leaderboard-email-panel";
 import EmailManagementTabs from "../email-management-tabs";
 import { KeyRound, MailCheck, ShieldCheck } from "lucide-react";
 
@@ -32,6 +33,8 @@ export default async function SuperadminEmailsPage() {
   const users = Array.isArray(usersResult) ? usersResult : [];
   const usersError = !Array.isArray(usersResult) ? usersResult.error : null;
 
+  const { data: companies } = await supabase.from("companies").select("id, name, slug").order("name");
+
   return (
     <div className="superadmin-page">
       <div className="superadmin-page-heading"><div><h1>Emails &amp; reminders</h1><p>Review upcoming participant reminders, send them immediately, and manage secure access and the Friday recap.</p></div></div>
@@ -52,6 +55,7 @@ export default async function SuperadminEmailsPage() {
         reminders={<ActionReminderQueuePanel alwaysExpanded />}
         welcome={<WelcomeEmailPanel users={users} />}
         recap={<WeeklyRecapQueuePanel alwaysExpanded />}
+        leaderboard={<TeamLeaderboardEmailPanel companies={companies ?? []} />}
         history={<ActionReminderLogsPanel alwaysExpanded />}
       />
     </div>

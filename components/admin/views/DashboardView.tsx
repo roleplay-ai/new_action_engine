@@ -231,6 +231,18 @@ export function DashboardView({ companyId }: DashboardViewProps) {
     };
   })();
 
+  // Of users who've activated a plan (commitmentMaximum > 0, same signal as the
+  // "Activated action plan" card), how many have validated at least one action.
+  const validationRateStats = (() => {
+    const planned = leaderboard.filter((u) => u.commitmentMaximum > 0);
+    const validatedAtLeastOne = planned.filter((u) => u.validatedCount > 0).length;
+    return {
+      plannedCount: planned.length,
+      validatedAtLeastOne,
+      pct: planned.length > 0 ? Math.round((validatedAtLeastOne * 100) / planned.length) : 0,
+    };
+  })();
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
 
@@ -251,7 +263,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
         {/* Users who've finalised an action plan — same "made a plan" signal as the
             Leaderboard's "No plan" tag (commitmentMaximum > 0), so the two numbers agree.
             Batch avg sits beside it (mean among activated users only). */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
           <div
             className="bg-white rounded-2xl px-6 py-5 flex flex-col justify-center gap-1"
             style={{
@@ -319,6 +331,25 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               </span>
               <span className="text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
                 of {emailLoading ? "…" : eitherWeeklyAvgStats.avgReachUsers}
+              </span>
+            </span>
+          </div>
+          <div
+            className="bg-white rounded-2xl px-6 py-5 flex flex-col justify-center gap-1"
+            style={{
+              border: "1px solid rgba(35, 206, 107, 0.45)",
+              boxShadow: "var(--shadow-md)",
+            }}
+          >
+            <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+              Validated atleast 1 action
+            </span>
+            <span className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold leading-none" style={{ color: "#16A34A" }}>
+                {leaderboardLoading ? "…" : `${validationRateStats.pct}%`}
+              </span>
+              <span className="text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
+                {leaderboardLoading ? "…" : `${validationRateStats.validatedAtLeastOne} of ${validationRateStats.plannedCount}`}
               </span>
             </span>
           </div>

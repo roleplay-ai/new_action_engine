@@ -87,6 +87,7 @@ type CohortSummary = {
   locked: boolean;
   programPhases?: ProgramPhase[];
   currentPhaseId?: string | null;
+  maxWeeks?: number | null;
 };
 
 type CompanyUser = { id: string; full_name: string | null; email: string | null };
@@ -545,6 +546,7 @@ function CohortDetailPanel({
   const [trainerRoster, setTrainerRoster] = useState<Trainer[]>([]);
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>(cohort.trainerId ?? "");
   const [senderName, setSenderName] = useState<string>(cohort.senderName ?? "");
+  const [maxWeeks, setMaxWeeks] = useState<string>(cohort.maxWeeks != null ? String(cohort.maxWeeks) : "");
   const [notices, setNotices] = useState<CohortNotice[]>([]);
   const [noticeDraft, setNoticeDraft] = useState("");
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
@@ -620,6 +622,7 @@ function CohortDetailPanel({
     setMemberIds(new Set((detailResult.members ?? []).map((member) => member.id)));
     setSelectedTrainerId(detailResult.cohort?.trainerId ?? "");
     setSenderName(detailResult.cohort?.senderName ?? "");
+    setMaxWeeks(detailResult.cohort?.maxWeeks != null ? String(detailResult.cohort.maxWeeks) : "");
   }, [cohort.id]);
 
   const fetchCompanyUsers = useCallback(async () => {
@@ -668,6 +671,7 @@ function CohortDetailPanel({
         members?: CohortMember[];
         trainerId?: string;
         senderName?: string;
+        maxWeeks?: number | null;
         companyUsers?: CompanyUser[];
         assignedContentIds?: string[];
         libraryItems?: PrepareContentItem[];
@@ -691,6 +695,7 @@ function CohortDetailPanel({
       setTrainerRoster(payload.trainers ?? []);
       setSelectedTrainerId(payload.trainerId ?? "");
       setSenderName(payload.senderName ?? "");
+      setMaxWeeks(payload.maxWeeks != null ? String(payload.maxWeeks) : "");
       setNotices(payload.notices ?? []);
       setFacilitators(payload.facilitators ?? []);
     } catch (caughtError) {
@@ -834,6 +839,15 @@ function CohortDetailPanel({
     await runMutation(
       "save-sender-name",
       () => updateCohort(cohort.id, { senderName }),
+      { syncList: true }
+    );
+  }
+
+  async function handleSaveMaxWeeks() {
+    const trimmed = maxWeeks.trim();
+    await runMutation(
+      "save-max-weeks",
+      () => updateCohort(cohort.id, { maxWeeks: trimmed ? Number(trimmed) : null }),
       { syncList: true }
     );
   }
@@ -1355,6 +1369,33 @@ function CohortDetailPanel({
               >
                 {busyAction === "save-sender-name" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}
                 {busyAction === "save-sender-name" ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </section>
+
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head"><div><h3>Maximum plan duration</h3><p>Caps how many weeks a participant can choose when building their action plan for this batch. Leave blank to allow up to the platform default of 24 weeks.</p></div></div>
+            <div className="cohort-admin-panel-action">
+              <label className="cohort-admin-field" style={{ flex: 1 }}>
+                <span>Maximum weeks <em>Optional, 2-24</em></span>
+                <input
+                  type="number"
+                  min={2}
+                  max={24}
+                  value={maxWeeks}
+                  onChange={(event) => setMaxWeeks(event.target.value)}
+                  disabled={Boolean(busyAction)}
+                  placeholder="24"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void handleSaveMaxWeeks()}
+                disabled={Boolean(busyAction) || maxWeeks === (cohort.maxWeeks != null ? String(cohort.maxWeeks) : "")}
+                className="cohort-admin-button cohort-admin-button--primary"
+              >
+                {busyAction === "save-max-weeks" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}
+                {busyAction === "save-max-weeks" ? "Saving…" : "Save"}
               </button>
             </div>
           </section>

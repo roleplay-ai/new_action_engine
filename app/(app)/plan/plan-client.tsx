@@ -278,7 +278,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
       <div className={isPlanActive || isPlanArchived ? "done" : generatedActions.length > 0 ? "current" : ""}><span>{isPlanActive || isPlanArchived ? <Check size={13} /> : 3}</span>{isPlanActive ? "Active" : isPlanArchived ? "Archived" : "Activate"}</div>
     </div>
 
-    {(showInitialSetup || editingSetup) && <Onboarding inline initialTrainingText={initialTrainingText} onGeneratingChange={setSetupGenerationPending} onComplete={async () => {
+    {(showInitialSetup || editingSetup) && <Onboarding inline initialTrainingText={initialTrainingText} maxWeeks={cohort?.maxWeeks} onGeneratingChange={setSetupGenerationPending} onComplete={async () => {
       setEditingSetup(false);
       await Promise.all([
         refetch(),

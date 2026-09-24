@@ -136,6 +136,10 @@ export interface Cohort {
    * Commitment Wallet until a superadmin unlocks the cohort. Defaults to true
    * for new cohorts (see migration 061_cohort_lock.sql). */
   locked: boolean;
+  /** Optional admin-set cap (in weeks) on how long a participant's action
+   * plan for this batch may run. Null/undefined falls back to the global
+   * 2-24 week range enforced in app/actions/ai-actions.ts. */
+  maxWeeks?: number | null;
 }
 
 /** One row backing Cohort.dates, with the id needed to remove it individually

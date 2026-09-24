@@ -22,8 +22,14 @@ const Onboarding: React.FC<{
   onGeneratingChange?: (generating: boolean) => void;
   initialTrainingText?: string;
   inline?: boolean;
-}> = ({ onComplete, onGeneratingChange, initialTrainingText = "", inline = false }) => {
-  const [durationWeeks, setDurationWeeks] = useState(6);
+  /** Batch-level cap on plan duration (see cohorts.max_weeks). Null/undefined
+   * leaves every preset duration available. */
+  maxWeeks?: number | null;
+}> = ({ onComplete, onGeneratingChange, initialTrainingText = "", inline = false, maxWeeks = null }) => {
+  const availableDurations = maxWeeks ? DURATIONS.filter((weeks) => weeks <= maxWeeks) : DURATIONS;
+  const [durationWeeks, setDurationWeeks] = useState<number>(() => (
+    availableDurations.includes(6) ? 6 : availableDurations[availableDurations.length - 1] ?? DURATIONS[0]
+  ));
   const [track, setTrack] = useState<DeliveryTrack>("weekly");
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([2]);
   const [weeklyActionCount, setWeeklyActionCount] = useState<1 | 2 | 3 | 4 | 5>(2);
@@ -111,7 +117,7 @@ const Onboarding: React.FC<{
         </div>
 
         <div className={`plan-setup-grid ${track === "weekly" ? "weekly" : "daily"}`}>
-          <label className="plan-setup-field"><span>Duration</span><select value={durationWeeks} onChange={(event) => setDurationWeeks(Number(event.target.value))}>{DURATIONS.map((weeks) => <option key={weeks} value={weeks}>{weeks} weeks</option>)}</select></label>
+          <label className="plan-setup-field"><span>Duration</span><select value={durationWeeks} onChange={(event) => setDurationWeeks(Number(event.target.value))}>{availableDurations.map((weeks) => <option key={weeks} value={weeks}>{weeks} weeks</option>)}</select></label>
 
           {track === "weekly" ? <label className="plan-setup-field"><span>Actions per week</span><select value={weeklyActionCount} onChange={(event) => setWeeklyActionCount(Number(event.target.value) as 1 | 2 | 3 | 4 | 5)}>{([1, 2, 3, 4, 5] as const).map((count) => <option key={count} value={count}>{count} action{count === 1 ? "" : "s"}</option>)}</select></label> : <div className="plan-setup-field"><span>Actions per weekday</span><div className="plan-fixed-action-count"><strong>1 action</strong><small>Fixed for a realistic daily pace</small></div></div>}
 

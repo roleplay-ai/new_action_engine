@@ -165,11 +165,18 @@ export async function createCohort(params: {
   /** Email "From" display name override for this batch. Blank/omitted falls
    * back to the assigned trainer, then "Nudgeable" (see lib/email-send.ts). */
   senderName?: string;
+  /** Cap (in weeks) on how long a participant's action plan for this batch
+   * may run. Omitted/null leaves the global 2-24 week range in effect. */
+  maxWeeks?: number | null;
 }): Promise<{ error?: string; id?: string }> {
   try {
     const { supabase, userId, companyId, role } = await getAdminContext();
     const resolvedCompanyId = role === "admin" ? companyId : params.companyId;
     if (!resolvedCompanyId) return { error: "Company required" };
+
+    if (params.maxWeeks != null && (!Number.isInteger(params.maxWeeks) || params.maxWeeks < 2 || params.maxWeeks > 24)) {
+      return { error: "Maximum plan weeks must be between 2 and 24" };
+    }
 
     const batchName = params.batchName.trim();
     const moduleName = params.moduleName?.trim() || null;
@@ -186,6 +193,7 @@ export async function createCohort(params: {
         training_content: role === "superadmin" ? params.trainingContent?.trim() || null : null,
         business_context: role === "superadmin" ? params.businessContext?.trim() || null : null,
         sender_name: params.senderName?.trim() || null,
+        max_weeks: params.maxWeeks ?? null,
       })
       .select("id")
       .single();
@@ -221,6 +229,9 @@ export async function updateCohort(
     programPhasesJson?: string;
     /** The id of the phase this batch is currently in (or null to clear it). */
     currentPhaseId?: string | null;
+    /** Cap (in weeks) on how long a participant's action plan for this batch
+     * may run. Null clears it back to the global 2-24 week range. */
+    maxWeeks?: number | null;
   }
 ): Promise<{ error?: string }> {
   try {
@@ -259,6 +270,12 @@ export async function updateCohort(
     if (params.logoUrl !== undefined) updates.logo_url = params.logoUrl?.trim() || null;
     if (params.trainerId !== undefined) updates.trainer_id = params.trainerId || null;
     if (params.senderName !== undefined) updates.sender_name = params.senderName.trim() || null;
+    if (params.maxWeeks !== undefined) {
+      if (params.maxWeeks !== null && (!Number.isInteger(params.maxWeeks) || params.maxWeeks < 2 || params.maxWeeks > 24)) {
+        return { error: "Maximum plan weeks must be between 2 and 24" };
+      }
+      updates.max_weeks = params.maxWeeks;
+    }
 
     const { error } = await supabase.from("cohorts").update(updates).eq("id", id);
     if (error) return { error: error.message };
@@ -444,7 +461,7 @@ export async function listCohorts(companyId: string): Promise<{
       supabase.from("companies").select("id, name, logo_url").eq("id", companyId).single(),
       supabase
         .from("cohorts")
-        .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, trainer_id, sender_name, locked, program_phases, current_phase_id")
+        .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, trainer_id, sender_name, locked, program_phases, current_phase_id, max_weeks")
         .eq("company_id", companyId)
         .is("archived_at", null)
         .order("created_at", { ascending: false }),
@@ -471,7 +488,7 @@ export async function listCohorts(companyId: string): Promise<{
 
     return {
       company: companyBrand,
-      cohorts: cohorts.map((c: { id: string; name: string; batch_name: string; module_name: string | null; description: string | null; training_content: string | null; business_context: string | null; logo_url: string | null; trainer_id: string | null; sender_name: string | null; locked: boolean; program_phases: ProgramPhase[]; current_phase_id: string | null }) => ({
+      cohorts: cohorts.map((c: { id: string; name: string; batch_name: string; module_name: string | null; description: string | null; training_content: string | null; business_context: string | null; logo_url: string | null; trainer_id: string | null; sender_name: string | null; locked: boolean; program_phases: ProgramPhase[]; current_phase_id: string | null; max_weeks: number | null }) => ({
         id: c.id,
         name: c.name,
         batchName: c.batch_name,
@@ -489,6 +506,7 @@ export async function listCohorts(companyId: string): Promise<{
         locked: c.locked,
         programPhases: c.program_phases ?? [],
         currentPhaseId: c.current_phase_id,
+        maxWeeks: c.max_weeks,
       })),
     };
   } catch (e) {
@@ -506,7 +524,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
 
     const { data: cohort } = await supabase
       .from("cohorts")
-      .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, company_id, trainer_id, sender_name, locked, program_phases, current_phase_id")
+      .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, company_id, trainer_id, sender_name, locked, program_phases, current_phase_id, max_weeks")
       .eq("id", cohortId)
       .single();
     if (!cohort) return { error: "Batch not found" };
@@ -543,6 +561,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
         locked: cohort.locked,
         programPhases: cohort.program_phases ?? [],
         currentPhaseId: cohort.current_phase_id,
+        maxWeeks: cohort.max_weeks,
       },
       members: (members ?? []).map(mapMemberRow),
     };
@@ -728,7 +747,7 @@ const computeMyCohorts = unstable_cache(
     const [{ data: cohortRows }, { data: memberRows }] = await Promise.all([
       admin
         .from("cohorts")
-        .select("id, name, batch_name, module_name, description, logo_url, company_id, archived_at, trainer_id, locked, program_phases, current_phase_id")
+        .select("id, name, batch_name, module_name, description, logo_url, company_id, archived_at, trainer_id, locked, program_phases, current_phase_id, max_weeks")
         .in("id", orderedIds),
       admin
         .from("cohort_members")
@@ -790,6 +809,7 @@ const computeMyCohorts = unstable_cache(
         trainerId: row.trainer_id,
         trainer: row.trainer_id ? trainerMap.get(row.trainer_id) ?? null : null,
         locked: row.locked,
+        maxWeeks: row.max_weeks,
       };
     });
 
@@ -900,6 +920,7 @@ export async function getMyCohort(options?: { includeRoster?: boolean }): Promis
         // trainer who lands on a participant page via a cohort they merely
         // manage should never be blocked by it.
         locked: context.role === "user" && selected!.locked,
+        maxWeeks: selected!.maxWeeks,
       },
       roster,
     };

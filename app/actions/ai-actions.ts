@@ -45,7 +45,7 @@ export type DraftPlanScheduleSlot = {
   batchNumber: number;
 };
 
-async function getSelectedPlanCohort(requireCurrent = false, knownCohortId?: string): Promise<{ cohortId?: string; error?: string }> {
+async function getSelectedPlanCohort(requireCurrent = false, knownCohortId?: string): Promise<{ cohortId?: string; maxWeeks?: number | null; error?: string }> {
   // Callers that already resolved their own selected cohort this render (e.g. from
   // useEngine()) can pass it straight through and skip re-deriving it from scratch,
   // which is a ~6-7 query operation inside getMyCohorts(). Only skip when the caller
@@ -56,7 +56,7 @@ async function getSelectedPlanCohort(requireCurrent = false, knownCohortId?: str
   const selected = context.cohorts.find((cohort) => cohort.isSelected);
   if (!selected) return { error: "Select a batch first" };
   if (requireCurrent && !selected.isCurrent) return { error: "New plans can only be built for your current batch" };
-  return { cohortId: selected.id };
+  return { cohortId: selected.id, maxWeeks: selected.maxWeeks };
 }
 
 export async function getMyPlanSettings(knownCohortId?: string): Promise<{ settings: MyPlanSettings | null; error?: string }> {
@@ -268,8 +268,9 @@ export async function saveGeneratedActions(params: {
       return { error: "Action count must be between 1 and 5" };
     }
     const actionCount = params.track === "daily" ? 1 : params.dailyActionCount;
-    if (!Number.isInteger(params.durationWeeks) || params.durationWeeks < 2 || params.durationWeeks > 24) {
-      return { error: "Plan duration must be between 2 and 24 weeks" };
+    const effectiveMaxWeeks = Math.min(cohortContext.maxWeeks ?? 24, 24);
+    if (!Number.isInteger(params.durationWeeks) || params.durationWeeks < 2 || params.durationWeeks > effectiveMaxWeeks) {
+      return { error: `Plan duration must be between 2 and ${effectiveMaxWeeks} weeks` };
     }
 
     const contextText = buildTrainingContext(params.userNotes, params.focusThemes, params.focusCustomText);

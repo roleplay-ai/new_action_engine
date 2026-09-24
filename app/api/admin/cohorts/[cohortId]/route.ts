@@ -88,6 +88,7 @@ export async function GET(
         members: detailResult.members ?? [],
         trainerId: detailResult.cohort?.trainerId ?? "",
         senderName: detailResult.cohort?.senderName ?? "",
+        maxWeeks: detailResult.cohort?.maxWeeks ?? null,
         companyUsers: usersResult.users ?? [],
         assignedContentIds: (contentResult.items ?? []).map((item) => item.id),
         libraryItems: libraryResult.items ?? [],

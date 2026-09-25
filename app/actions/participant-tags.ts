@@ -106,10 +106,29 @@ export async function listParticipantTagsForCompany(companyId: string): Promise<
   }
 }
 
-/** Every tag with how many participants (and distinct companies) currently
- * carry it — the superadmin tag management screen's own list, so renaming or
- * deleting a widely-reused tag isn't a guess. */
-export type ParticipantTagUsage = ParticipantTag & { memberCount: number; companyCount: number };
+/** One batch currently using a team, for the superadmin tag management
+ * screen's per-tag breakdown. */
+export type ParticipantTagBatchUsage = {
+  cohortId: string;
+  cohortName: string;
+  companyId: string;
+  companyName: string;
+  memberCount: number;
+  /** What this team is actually called in this one batch — the batch's own
+   * cohort_team_names override if a superadmin set one, otherwise just the
+   * tag's global name. */
+  displayName: string;
+  isRenamed: boolean;
+};
+
+/** Every tag with how many participants (and distinct companies/batches)
+ * currently carry it — the superadmin tag management screen's own list, so
+ * renaming or deleting a widely-reused tag isn't a guess. */
+export type ParticipantTagUsage = ParticipantTag & {
+  memberCount: number;
+  companyCount: number;
+  batches: ParticipantTagBatchUsage[];
+};
 
 export async function listParticipantTagsWithUsage(): Promise<{ error?: string; tags?: ParticipantTagUsage[] }> {
   try {
@@ -119,23 +138,75 @@ export async function listParticipantTagsWithUsage(): Promise<{ error?: string; 
     const { data: tags, error: tagsError } = await admin.from("participant_tags").select("id, name").order("name");
     if (tagsError) return { error: tagsError.message };
 
+    // Archiving a batch is this app's soft-delete (see archiveCohort in
+    // app/actions/cohorts.ts) — its cohort_members rows, and any tag_id on
+    // them, stick around in the DB. Excluding archived cohorts here (like
+    // every other "current" listing does, e.g. listCohorts) keeps a team's
+    // usage count from being inflated by batches that have since been
+    // retired, which is what made this screen look like it showed stale data.
     const { data: usageRows, error: usageError } = await admin
       .from("cohort_members")
-      .select("tag_id, cohorts(company_id)")
-      .not("tag_id", "is", null);
+      .select("tag_id, cohorts!inner(id, name, company_id, archived_at)")
+      .not("tag_id", "is", null)
+      .is("cohorts.archived_at", null);
     if (usageError) return { error: usageError.message };
+
+    type UsageRow = { tag_id: string; cohorts: { id: string; name: string; company_id: string } | { id: string; name: string; company_id: string }[] | null };
+    const rows = (usageRows ?? []) as UsageRow[];
+
+    const companyIds = new Set<string>();
+    for (const row of rows) {
+      const cohort = Array.isArray(row.cohorts) ? row.cohorts[0] : row.cohorts;
+      if (cohort) companyIds.add(cohort.company_id);
+    }
+    const companyRows = companyIds.size
+      ? await admin.from("companies").select("id, name").in("id", [...companyIds])
+      : { data: [] as { id: string; name: string }[] };
+    const companyNameById = new Map((companyRows.data ?? []).map((company) => [company.id, company.name]));
+
+    // Per-batch display-name overrides (see cohort_team_names, migration 078)
+    // — without these, a team renamed just for one batch (from that batch's
+    // own Settings tab) would never show its renamed label here, only the
+    // tag's global name, which is what made a rename look like it "didn't work".
+    const cohortIds = [...new Set(rows.map((row) => (Array.isArray(row.cohorts) ? row.cohorts[0]?.id : row.cohorts?.id)).filter((id): id is string => !!id))];
+    const teamNameRows = cohortIds.length
+      ? await admin.from("cohort_team_names").select("cohort_id, tag_id, display_name").in("cohort_id", cohortIds)
+      : { data: [] as { cohort_id: string; tag_id: string; display_name: string }[] };
+    const overrideByCohortAndTag = new Map(
+      (teamNameRows.data ?? []).map((row) => [`${row.cohort_id}:${row.tag_id}`, row.display_name])
+    );
 
     const memberCounts = new Map<string, number>();
     const companySets = new Map<string, Set<string>>();
-    for (const row of (usageRows ?? []) as { tag_id: string; cohorts: { company_id: string } | { company_id: string }[] | null }[]) {
-      memberCounts.set(row.tag_id, (memberCounts.get(row.tag_id) ?? 0) + 1);
+    const batchesByTag = new Map<string, Map<string, ParticipantTagBatchUsage & { overrideName?: string }>>();
+
+    for (const row of rows) {
       const cohort = Array.isArray(row.cohorts) ? row.cohorts[0] : row.cohorts;
-      const companyId = cohort?.company_id;
-      if (companyId) {
-        const set = companySets.get(row.tag_id) ?? new Set<string>();
-        set.add(companyId);
-        companySets.set(row.tag_id, set);
+      if (!cohort) continue;
+
+      memberCounts.set(row.tag_id, (memberCounts.get(row.tag_id) ?? 0) + 1);
+
+      const companySet = companySets.get(row.tag_id) ?? new Set<string>();
+      companySet.add(cohort.company_id);
+      companySets.set(row.tag_id, companySet);
+
+      const batchMap = batchesByTag.get(row.tag_id) ?? new Map<string, ParticipantTagBatchUsage & { overrideName?: string }>();
+      const existing = batchMap.get(cohort.id);
+      if (existing) {
+        existing.memberCount += 1;
+      } else {
+        batchMap.set(cohort.id, {
+          cohortId: cohort.id,
+          cohortName: cohort.name,
+          companyId: cohort.company_id,
+          companyName: companyNameById.get(cohort.company_id) ?? "Unknown company",
+          memberCount: 1,
+          displayName: "",
+          isRenamed: false,
+          overrideName: overrideByCohortAndTag.get(`${cohort.id}:${row.tag_id}`),
+        });
       }
+      batchesByTag.set(row.tag_id, batchMap);
     }
 
     return {
@@ -143,6 +214,13 @@ export async function listParticipantTagsWithUsage(): Promise<{ error?: string; 
         ...mapTagRow(tag),
         memberCount: memberCounts.get(tag.id) ?? 0,
         companyCount: companySets.get(tag.id)?.size ?? 0,
+        batches: [...(batchesByTag.get(tag.id)?.values() ?? [])]
+          .map(({ overrideName, ...batch }) => ({
+            ...batch,
+            displayName: overrideName ?? tag.name,
+            isRenamed: !!overrideName,
+          }))
+          .sort((a, b) => a.companyName.localeCompare(b.companyName) || a.cohortName.localeCompare(b.cohortName)),
       })),
     };
   } catch (e) {
@@ -173,6 +251,7 @@ export async function renameParticipantTag(id: string, name: string): Promise<{ 
     revalidatePath("/admin");
     revalidatePath("/admin/members");
     revalidatePath("/superadmin");
+    revalidatePath("/superadmin/tags");
     revalidatePath("/journey");
     revalidatePath("/trainer/members");
     return { tag: mapTagRow(data) };
@@ -200,6 +279,7 @@ export async function createParticipantTag(name: string): Promise<{ error?: stri
     revalidatePath("/admin");
     revalidatePath("/admin/members");
     revalidatePath("/superadmin");
+    revalidatePath("/superadmin/tags");
     revalidatePath("/trainer/members");
     return { id: data.id, tag: mapTagRow(data) };
   } catch (e) {
@@ -219,6 +299,7 @@ export async function deleteParticipantTag(id: string): Promise<{ error?: string
     revalidatePath("/admin");
     revalidatePath("/admin/members");
     revalidatePath("/superadmin");
+    revalidatePath("/superadmin/tags");
     revalidatePath("/journey");
     revalidatePath("/trainer/members");
     return {};
@@ -337,6 +418,7 @@ export async function assignMemberTag(cohortId: string, userId: string, tagId: s
 
     revalidatePath("/admin");
     revalidatePath("/admin/members");
+    revalidatePath("/superadmin/tags");
     revalidatePath("/journey");
     revalidatePath("/trainer/members");
     return {};

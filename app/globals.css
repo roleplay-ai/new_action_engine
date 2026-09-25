@@ -11677,6 +11677,10 @@ input[type="range"] {
   background: #fff;
 }
 
+.cohort-admin-panel--wide {
+  grid-column: 1 / -1;
+}
+
 .cohort-admin-panel-head {
   display: flex;
   min-height: 68px;
@@ -12113,6 +12117,66 @@ input[type="range"] {
   font-size: 9px !important;
   font-weight: 750;
   white-space: nowrap;
+}
+
+.cohort-admin-team-list {
+  display: grid;
+  gap: 8px;
+  padding: 4px 16px 16px;
+}
+
+.cohort-admin-team-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cohort-admin-team-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--cohort-border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--cohort-ink);
+  font-size: 11px;
+}
+
+.cohort-admin-team-name {
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+  color: var(--cohort-ink);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cohort-admin-team-name em {
+  color: var(--cohort-muted);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.cohort-admin-icon-button {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #8d858b;
+}
+
+.cohort-admin-icon-button:not(:disabled):hover {
+  border-color: var(--cohort-border);
+  background: #f5f2f4;
+  color: var(--cohort-ink);
 }
 
 .cohort-admin-expectation-row {

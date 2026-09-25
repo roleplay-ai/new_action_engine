@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCohortDetail, getCompanyUsers, listCohortDates } from "@/app/actions/cohorts";
 import { getCohortNotices } from "@/app/actions/cohort-notices";
 import { listFacilitators } from "@/app/actions/facilitators";
-import { listParticipantTagsForCompany } from "@/app/actions/participant-tags";
+import { getCohortTeamNameOverrides, listParticipantTagsForCompany } from "@/app/actions/participant-tags";
 import { listActiveLibraryItems, listCohortContent } from "@/app/actions/prepare-content";
 import { listTrainers } from "@/app/actions/trainers";
 import { getAdminContext } from "@/app/actions/admin-analytics";
@@ -61,7 +61,7 @@ export async function GET(
         trainersResult,
         noticesResult,
         facilitatorsResult,
-        tagsResult,
+        teamNameOverridesResult,
         datesResult,
       ] = await Promise.all([
         getCohortDetail(cohortId),
@@ -71,7 +71,10 @@ export async function GET(
         role === "superadmin" ? listTrainers() : Promise.resolve({ trainers: [] as Trainer[], error: undefined as string | undefined }),
         getCohortNotices(cohortId),
         listFacilitators(cohortId),
-        listParticipantTagsForCompany(companyId),
+        // Not listParticipantTagsForCompany here — the workspace view's own
+        // team list is derived client-side from this cohort's own roster
+        // (detailResult.members), not every team used anywhere in the company.
+        getCohortTeamNameOverrides(cohortId),
         listCohortDates(cohortId),
       ]);
       return json({
@@ -83,7 +86,7 @@ export async function GET(
           trainersResult.error ||
           noticesResult.error ||
           facilitatorsResult.error ||
-          tagsResult.error ||
+          teamNameOverridesResult.error ||
           datesResult.error,
         members: detailResult.members ?? [],
         trainerId: detailResult.cohort?.trainerId ?? "",
@@ -95,7 +98,7 @@ export async function GET(
         trainers: trainersResult.trainers ?? [],
         notices: noticesResult.notices ?? [],
         facilitators: facilitatorsResult.facilitators ?? [],
-        tags: tagsResult.tags ?? [],
+        teamNameOverrides: teamNameOverridesResult.overrides ?? {},
         dates: datesResult.dates ?? [],
       });
     }

@@ -227,6 +227,84 @@ export async function deleteParticipantTag(id: string): Promise<{ error?: string
   }
 }
 
+/** This batch's own display-name overrides for shared teams (participant_tags
+ * rows) — see cohort_team_names (migration 078). Keyed by tag_id; a tag with
+ * no entry here falls back to its global participant_tags.name for this
+ * batch. Readable by the batch's own company admin or any superadmin. */
+export async function getCohortTeamNameOverrides(cohortId: string): Promise<{ error?: string; overrides?: Record<string, string> }> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "Not authenticated" };
+
+    const isSuperadminEmail = user.email?.toLowerCase() === SUPERADMIN_EMAIL;
+    const { data: profile } = await supabase.from("profiles").select("role, company_id").eq("id", user.id).single();
+    const isSuperadmin = profile?.role === "superadmin" || isSuperadminEmail;
+    if (!isSuperadmin) {
+      const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).maybeSingle();
+      if (profile?.role !== "admin" || !cohort || cohort.company_id !== profile.company_id) {
+        return { error: "Access denied" };
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("cohort_team_names")
+      .select("tag_id, display_name")
+      .eq("cohort_id", cohortId);
+    if (error) return { error: error.message };
+
+    const overrides: Record<string, string> = {};
+    for (const row of (data ?? []) as { tag_id: string; display_name: string }[]) {
+      overrides[row.tag_id] = row.display_name;
+    }
+    return { overrides };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+/** Set (or clear, with a blank or unchanged name) this batch's own
+ * display-name override for a shared team. Superadmin only — the underlying
+ * tag can be shared across other companies' batches, so a plain company admin
+ * isn't allowed to change how it's labelled even just for their own batch. */
+export async function setCohortTeamName(cohortId: string, tagId: string, displayName: string): Promise<{ error?: string }> {
+  try {
+    await ensureSuperadmin();
+    const supabase = await createClient();
+
+    const { data: tag, error: tagError } = await supabase.from("participant_tags").select("name").eq("id", tagId).single();
+    if (tagError || !tag) return { error: "Team not found" };
+
+    const trimmed = displayName.trim();
+    if (!trimmed || trimmed === tag.name) {
+      const { error } = await supabase.from("cohort_team_names").delete().eq("cohort_id", cohortId).eq("tag_id", tagId);
+      if (error) return { error: error.message };
+      revalidatePath("/admin");
+      revalidatePath("/journey");
+      return {};
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from("cohort_team_names")
+      .upsert(
+        { cohort_id: cohortId, tag_id: tagId, display_name: trimmed, updated_by: user?.id, updated_at: new Date().toISOString() },
+        { onConflict: "cohort_id,tag_id" }
+      );
+    if (error) return { error: error.message };
+
+    revalidatePath("/admin");
+    revalidatePath("/journey");
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
 /** Assign (or clear, with tagId null) a participant's tag for one specific
  * cohort membership. Superadmin, company admin of that cohort, or the
  * cohort's own trainer. */

@@ -24,6 +24,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Settings,
   Trash2,
   UserPlus,
   UserRound,
@@ -59,7 +60,7 @@ import {
 import { getCohortNotices, postCohortNotice, deleteCohortNotice } from "@/app/actions/cohort-notices";
 import { fetchAdminJson, isAbortError } from "@/lib/admin-fetch";
 import { createFacilitator, deleteFacilitator, listFacilitators } from "@/app/actions/facilitators";
-import { assignMemberTag, createParticipantTag, listParticipantTagsForCompany } from "@/app/actions/participant-tags";
+import { assignMemberTag, createParticipantTag, getCohortTeamNameOverrides, setCohortTeamName } from "@/app/actions/participant-tags";
 import { FacilitatorPdfUploadField } from "@/components/admin/content/FacilitatorPdfUploadField";
 import { useSelectedAdminBatch } from "@/components/admin/AdminContext";
 import type { CohortDate, CohortMember, CohortNotice, CompanyBrand, Facilitator, ParticipantTag, PrepareContentItem, ProgramPhase, Trainer } from "@/lib/types";
@@ -104,6 +105,19 @@ function formatStartDate(date: string | null | undefined) {
 function initials(value: string | null | undefined) {
   const words = (value || "Unnamed user").trim().split(/\s+/).slice(0, 2);
   return words.map((word) => word[0]?.toUpperCase()).join("") || "U";
+}
+
+/** The distinct teams currently in use within one batch, derived from its own
+ * roster rather than every team used anywhere in the company. Merges into
+ * `previous` (instead of replacing it) so a team just created this session —
+ * which has no member wearing it yet, and so can never come back from the
+ * roster — isn't dropped from the list before it's had a chance to be assigned. */
+function mergeTagsFromMembers(members: CohortMember[], previous: ParticipantTag[]): ParticipantTag[] {
+  const byId = new Map(previous.map((tag) => [tag.id, tag]));
+  for (const member of members) {
+    if (member.tag) byId.set(member.tag.id, member.tag);
+  }
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Preview text for a buddy selection in click order, e.g. ["Riya", "Aman"]
@@ -522,15 +536,27 @@ function CohortDetailPanel({
   role: string;
   onChange: () => Promise<void> | void;
 }) {
-  const [tab, setTab] = useState<"members" | "content" | "trainer" | "agenda" | "generation" | "buddies">("members");
+  const [tab, setTab] = useState<"members" | "content" | "trainer" | "agenda" | "settings" | "generation" | "buddies">("members");
   const [editingNames, setEditingNames] = useState(false);
   const [editBatchName, setEditBatchName] = useState(cohort.batchName);
   const [editModuleName, setEditModuleName] = useState(cohort.moduleName ?? "");
   const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
   const [members, setMembers] = useState<CohortMember[]>([]);
   const [memberIds, setMemberIds] = useState<Set<string>>(new Set());
-  const [tags, setTags] = useState<ParticipantTag[]>([]);
+  // Teams (participant_tags) actually used within THIS batch — derived from
+  // its own members' assigned tags, not every team used anywhere in the
+  // company, so a team only used in a different batch never shows up here.
+  // A freshly created team is appended optimistically (see handleCreateTag)
+  // so it can be assigned in this batch before anyone carries it yet.
+  const [cohortTags, setCohortTags] = useState<ParticipantTag[]>([]);
   const [newTagName, setNewTagName] = useState("");
+  const [creatingTag, setCreatingTag] = useState(false);
+  // This batch's own display-name overrides for shared teams (see
+  // cohort_team_names, migration 078) — keyed by tag_id, falling back to the
+  // tag's global name for any team with no override.
+  const [teamNameOverrides, setTeamNameOverrides] = useState<Record<string, string>>({});
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  const [editingTeamName, setEditingTeamName] = useState("");
   const [cohortDates, setCohortDates] = useState<CohortDate[]>([]);
   const [newDateValue, setNewDateValue] = useState("");
   const [libraryItems, setLibraryItems] = useState<PrepareContentItem[]>([]);
@@ -623,6 +649,9 @@ function CohortDetailPanel({
     setSelectedTrainerId(detailResult.cohort?.trainerId ?? "");
     setSenderName(detailResult.cohort?.senderName ?? "");
     setMaxWeeks(detailResult.cohort?.maxWeeks != null ? String(detailResult.cohort.maxWeeks) : "");
+    // Merge (not replace) so a just-created, not-yet-assigned team stays in
+    // the list even though it can't come back from the roster itself.
+    setCohortTags((current) => mergeTagsFromMembers(detailResult.members ?? [], current));
   }, [cohort.id]);
 
   const fetchCompanyUsers = useCallback(async () => {
@@ -649,11 +678,11 @@ function CohortDetailPanel({
     setFacilitators(facilitatorsResult.facilitators ?? []);
   }, [cohort.id]);
 
-  const fetchTags = useCallback(async () => {
-    const tagsResult = await listParticipantTagsForCompany(companyId);
-    if (tagsResult.error) { setError(tagsResult.error); return; }
-    setTags(tagsResult.tags ?? []);
-  }, [companyId]);
+  const fetchTeamNames = useCallback(async () => {
+    const overridesResult = await getCohortTeamNameOverrides(cohort.id);
+    if (overridesResult.error) { setError(overridesResult.error); return; }
+    setTeamNameOverrides(overridesResult.overrides ?? {});
+  }, [cohort.id]);
 
   const fetchDates = useCallback(async () => {
     const datesResult = await listCohortDates(cohort.id);
@@ -678,7 +707,7 @@ function CohortDetailPanel({
         trainers?: Trainer[];
         notices?: CohortNotice[];
         facilitators?: Facilitator[];
-        tags?: ParticipantTag[];
+        teamNameOverrides?: Record<string, string>;
         dates?: CohortDate[];
       }>(
         `/api/admin/cohorts/${encodeURIComponent(cohort.id)}?bundle=workspace&companyId=${encodeURIComponent(companyId)}`,
@@ -688,7 +717,8 @@ function CohortDetailPanel({
       setMembers(payload.members ?? []);
       setMemberIds(new Set((payload.members ?? []).map((member) => member.id)));
       setCompanyUsers(payload.companyUsers ?? []);
-      setTags(payload.tags ?? []);
+      setCohortTags(mergeTagsFromMembers(payload.members ?? [], []));
+      setTeamNameOverrides(payload.teamNameOverrides ?? {});
       setCohortDates(payload.dates ?? []);
       setAssignedContentIds(new Set(payload.assignedContentIds ?? []));
       setLibraryItems(payload.libraryItems ?? []);
@@ -849,6 +879,45 @@ function CohortDetailPanel({
       "save-max-weeks",
       () => updateCohort(cohort.id, { maxWeeks: trimmed ? Number(trimmed) : null }),
       { syncList: true }
+    );
+  }
+
+  // Not routed through runMutation because it needs the created tag back
+  // (to append it to this batch's own team list) — runMutation's `after`
+  // callback only ever gets a void signal, not the mutation's result.
+  async function handleCreateTag() {
+    if (!newTagName.trim() || creatingTag || busyAction) return;
+    setCreatingTag(true);
+    setError(null);
+    try {
+      const result = await createParticipantTag(newTagName);
+      if (result.error) { setError(result.error); return; }
+      if (result.tag) {
+        setCohortTags((current) => [...current, result.tag!].sort((a, b) => a.name.localeCompare(b.name)));
+      }
+      setNewTagName("");
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Failed to create team");
+    } finally {
+      setCreatingTag(false);
+    }
+  }
+
+  function startEditTeamName(tag: ParticipantTag) {
+    setEditingTeamId(tag.id);
+    setEditingTeamName(teamNameOverrides[tag.id] ?? tag.name);
+  }
+
+  function cancelEditTeamName() {
+    setEditingTeamId(null);
+    setEditingTeamName("");
+  }
+
+  async function handleSaveTeamName(tagId: string) {
+    await runMutation(
+      `save-team-name:${tagId}`,
+      () => setCohortTeamName(cohort.id, tagId, editingTeamName),
+      { after: () => { setEditingTeamId(null); setEditingTeamName(""); }, refetch: [fetchTeamNames] }
     );
   }
 
@@ -1126,6 +1195,9 @@ function CohortDetailPanel({
         <button type="button" role="tab" aria-selected={tab === "agenda"} onClick={() => setTab("agenda")} className={tab === "agenda" ? "is-active" : ""}>
           <CalendarDays size={16} /> Agenda <span>{(cohort.programPhases ?? []).length}</span>
         </button>
+        <button type="button" role="tab" aria-selected={tab === "settings"} onClick={() => setTab("settings")} className={tab === "settings" ? "is-active" : ""}>
+          <Settings size={16} /> Settings
+        </button>
         {role === "superadmin" && (
           <button type="button" role="tab" aria-selected={tab === "generation"} onClick={() => setTab("generation")} className={tab === "generation" ? "is-active" : ""}>
             <NotebookPen size={16} /> Action context
@@ -1158,8 +1230,7 @@ function CohortDetailPanel({
                 className="cohort-admin-tag-creator"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  if (!newTagName.trim() || busyAction) return;
-                  void runMutation("create-tag", () => createParticipantTag(newTagName), { after: () => setNewTagName(""), refetch: [fetchTags] });
+                  void handleCreateTag();
                 }}
               >
                 <input
@@ -1167,10 +1238,10 @@ function CohortDetailPanel({
                   onChange={(event) => setNewTagName(event.target.value)}
                   placeholder="New tag, e.g. Team A"
                   aria-label="New tag name"
-                  disabled={Boolean(busyAction)}
+                  disabled={creatingTag || Boolean(busyAction)}
                 />
-                <button type="submit" disabled={Boolean(busyAction) || !newTagName.trim()} className="cohort-admin-button cohort-admin-button--secondary">
-                  {busyAction === "create-tag" ? <Loader2 size={14} className="cohort-admin-spin" /> : <Plus size={14} />}
+                <button type="submit" disabled={creatingTag || Boolean(busyAction) || !newTagName.trim()} className="cohort-admin-button cohort-admin-button--secondary">
+                  {creatingTag ? <Loader2 size={14} className="cohort-admin-spin" /> : <Plus size={14} />}
                   Add tag
                 </button>
               </form>
@@ -1194,10 +1265,10 @@ function CohortDetailPanel({
                         }
                       >
                         <option value="">No tag</option>
-                        {tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
+                        {cohortTags.map((tag) => <option key={tag.id} value={tag.id}>{teamNameOverrides[tag.id] ?? tag.name}</option>)}
                       </select>
                     ) : (
-                      member.tag && <span className="cohort-admin-tag-badge">{member.tag.name}</span>
+                      member.tag && <span className="cohort-admin-tag-badge">{teamNameOverrides[member.tag.id] ?? member.tag.name}</span>
                     )}
                     <button
                       type="button"
@@ -1347,57 +1418,6 @@ function CohortDetailPanel({
             ) : (
               <div className="cohort-admin-notice"><Info size={17} /><p><strong>Only a superadmin can change this</strong><span>Ask a superadmin to assign or update this batch's trainer.</span></p></div>
             )}
-          </section>
-
-          <section className="cohort-admin-panel">
-            <div className="cohort-admin-panel-head"><div><h3>Email sender name</h3><p>Shown as the "From" name on this batch's emails (reminders, recaps, notices). Leave blank to fall back to the assigned trainer, then "Nudgeable".</p></div></div>
-            <div className="cohort-admin-panel-action">
-              <label className="cohort-admin-field" style={{ flex: 1 }}>
-                <span>Sender name <em>Optional</em></span>
-                <input
-                  value={senderName}
-                  onChange={(event) => setSenderName(event.target.value)}
-                  disabled={Boolean(busyAction)}
-                  placeholder="Nudgeable"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => void handleSaveSenderName()}
-                disabled={Boolean(busyAction) || senderName === (cohort.senderName ?? "")}
-                className="cohort-admin-button cohort-admin-button--primary"
-              >
-                {busyAction === "save-sender-name" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}
-                {busyAction === "save-sender-name" ? "Saving…" : "Save"}
-              </button>
-            </div>
-          </section>
-
-          <section className="cohort-admin-panel">
-            <div className="cohort-admin-panel-head"><div><h3>Maximum plan duration</h3><p>Caps how many weeks a participant can choose when building their action plan for this batch. Leave blank to allow up to the platform default of 24 weeks.</p></div></div>
-            <div className="cohort-admin-panel-action">
-              <label className="cohort-admin-field" style={{ flex: 1 }}>
-                <span>Maximum weeks <em>Optional, 2-24</em></span>
-                <input
-                  type="number"
-                  min={2}
-                  max={24}
-                  value={maxWeeks}
-                  onChange={(event) => setMaxWeeks(event.target.value)}
-                  disabled={Boolean(busyAction)}
-                  placeholder="24"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => void handleSaveMaxWeeks()}
-                disabled={Boolean(busyAction) || maxWeeks === (cohort.maxWeeks != null ? String(cohort.maxWeeks) : "")}
-                className="cohort-admin-button cohort-admin-button--primary"
-              >
-                {busyAction === "save-max-weeks" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}
-                {busyAction === "save-max-weeks" ? "Saving…" : "Save"}
-              </button>
-            </div>
           </section>
 
           <section className="cohort-admin-panel">
@@ -1566,6 +1586,122 @@ function CohortDetailPanel({
                 </button>
               </div>
             </div>
+          </section>
+        </div>
+      ) : tab === "settings" ? (
+        <div className="cohort-admin-picker-grid">
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head"><div><h3>Email sender name</h3><p>Shown as the "From" name on this batch's emails (reminders, recaps, notices). Leave blank to fall back to the assigned trainer, then "Nudgeable".</p></div></div>
+            <div className="cohort-admin-panel-action">
+              <label className="cohort-admin-field" style={{ flex: 1 }}>
+                <span>Sender name <em>Optional</em></span>
+                <input
+                  value={senderName}
+                  onChange={(event) => setSenderName(event.target.value)}
+                  disabled={Boolean(busyAction)}
+                  placeholder="Nudgeable"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void handleSaveSenderName()}
+                disabled={Boolean(busyAction) || senderName === (cohort.senderName ?? "")}
+                className="cohort-admin-button cohort-admin-button--primary"
+              >
+                {busyAction === "save-sender-name" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}
+                {busyAction === "save-sender-name" ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </section>
+
+          <section className="cohort-admin-panel">
+            <div className="cohort-admin-panel-head"><div><h3>Maximum plan duration</h3><p>Caps how many weeks a participant can choose when building their action plan for this batch. Leave blank to allow up to the platform default of 24 weeks.</p></div></div>
+            <div className="cohort-admin-panel-action">
+              <label className="cohort-admin-field" style={{ flex: 1 }}>
+                <span>Maximum weeks <em>Optional, 2-24</em></span>
+                <input
+                  type="number"
+                  min={2}
+                  max={24}
+                  value={maxWeeks}
+                  onChange={(event) => setMaxWeeks(event.target.value)}
+                  disabled={Boolean(busyAction)}
+                  placeholder="24"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void handleSaveMaxWeeks()}
+                disabled={Boolean(busyAction) || maxWeeks === (cohort.maxWeeks != null ? String(cohort.maxWeeks) : "")}
+                className="cohort-admin-button cohort-admin-button--primary"
+              >
+                {busyAction === "save-max-weeks" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}
+                {busyAction === "save-max-weeks" ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </section>
+
+          <section className="cohort-admin-panel cohort-admin-panel--wide">
+            <div className="cohort-admin-panel-head">
+              <div><h3>Team names</h3><p>Rename how a shared team's label appears just for this batch, without changing it anywhere else that team is used. {role === "superadmin" ? "" : "Only a superadmin can rename a team."}</p></div>
+              <span>{cohortTags.length}</span>
+            </div>
+            {cohortTags.length === 0 ? (
+              <div className="cohort-admin-mini-empty"><Users size={20} /><strong>No teams in this batch yet</strong><span>Assign a team to a member on the Members tab, then come back here to rename it.</span></div>
+            ) : (
+              <div className="cohort-admin-team-list" aria-label="Teams in this batch">
+                {cohortTags.map((tag) => {
+                  const effectiveName = teamNameOverrides[tag.id] ?? tag.name;
+                  const isEditing = editingTeamId === tag.id;
+                  return (
+                    <div key={tag.id} className="cohort-admin-team-row">
+                      {isEditing ? (
+                        <>
+                          <input
+                            value={editingTeamName}
+                            onChange={(event) => setEditingTeamName(event.target.value)}
+                            aria-label={`Rename ${tag.name} for this batch`}
+                            disabled={Boolean(busyAction)}
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveTeamName(tag.id)}
+                            disabled={Boolean(busyAction) || !editingTeamName.trim()}
+                            aria-label="Save team name"
+                            className="cohort-admin-icon-button"
+                          >
+                            {busyAction === `save-team-name:${tag.id}` ? <Loader2 size={13} className="cohort-admin-spin" /> : <Check size={13} />}
+                          </button>
+                          <button type="button" onClick={cancelEditTeamName} disabled={Boolean(busyAction)} aria-label="Cancel rename" className="cohort-admin-icon-button">
+                            <X size={13} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="cohort-admin-team-name">
+                            {effectiveName}
+                            {teamNameOverrides[tag.id] && <em title={`Global team name: ${tag.name}`}> · renamed for this batch</em>}
+                          </span>
+                          {role === "superadmin" && (
+                            <button
+                              type="button"
+                              onClick={() => startEditTeamName(tag)}
+                              disabled={Boolean(busyAction)}
+                              aria-label={`Rename ${effectiveName} for this batch`}
+                              title="Rename for this batch"
+                              className="cohort-admin-icon-button"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
         </div>
       ) : tab === "generation" ? (

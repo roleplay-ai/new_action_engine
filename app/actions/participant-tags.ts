@@ -66,46 +66,6 @@ export async function listParticipantTags(): Promise<{ error?: string; tags?: Pa
   }
 }
 
-/** Tags actually assigned to at least one participant somewhere within the
- * given company — used wherever a company admin (or anyone assigning a tag
- * within one company's roster) picks from existing tags, instead of the
- * full global tag list, which would otherwise mix in every other company's
- * team names too. Superadmin still gets the full roster via
- * listParticipantTags on the dedicated tag management page. */
-export async function listParticipantTagsForCompany(companyId: string): Promise<{ error?: string; tags?: ParticipantTag[] }> {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return { error: "Not authenticated" };
-
-    const isSuperadminEmail = user.email?.toLowerCase() === SUPERADMIN_EMAIL;
-    const { data: profile } = await supabase.from("profiles").select("role, company_id").eq("id", user.id).single();
-    const isSuperadmin = profile?.role === "superadmin" || isSuperadminEmail;
-    if (!isSuperadmin && !(profile?.role === "admin" && profile.company_id === companyId)) {
-      return { error: "Access denied" };
-    }
-
-    const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("cohort_members")
-      .select("participant_tags(id, name), cohorts!inner(company_id)")
-      .eq("cohorts.company_id", companyId)
-      .not("tag_id", "is", null);
-    if (error) return { error: error.message };
-
-    const seen = new Map<string, ParticipantTag>();
-    for (const row of (data ?? []) as { participant_tags: { id: string; name: string } | { id: string; name: string }[] | null }[]) {
-      const tag = Array.isArray(row.participant_tags) ? row.participant_tags[0] : row.participant_tags;
-      if (tag) seen.set(tag.id, mapTagRow(tag));
-    }
-    return { tags: [...seen.values()].sort((a, b) => a.name.localeCompare(b.name)) };
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Failed" };
-  }
-}
-
 /** One batch currently using a team, for the superadmin tag management
  * screen's per-tag breakdown. */
 export type ParticipantTagBatchUsage = {
@@ -249,7 +209,6 @@ export async function renameParticipantTag(id: string, name: string): Promise<{ 
     }
 
     revalidatePath("/admin");
-    revalidatePath("/admin/members");
     revalidatePath("/superadmin");
     revalidatePath("/superadmin/tags");
     revalidatePath("/journey");
@@ -277,7 +236,6 @@ export async function createParticipantTag(name: string): Promise<{ error?: stri
     }
 
     revalidatePath("/admin");
-    revalidatePath("/admin/members");
     revalidatePath("/superadmin");
     revalidatePath("/superadmin/tags");
     revalidatePath("/trainer/members");
@@ -297,7 +255,6 @@ export async function deleteParticipantTag(id: string): Promise<{ error?: string
     if (error) return { error: error.message };
 
     revalidatePath("/admin");
-    revalidatePath("/admin/members");
     revalidatePath("/superadmin");
     revalidatePath("/superadmin/tags");
     revalidatePath("/journey");
@@ -417,7 +374,6 @@ export async function assignMemberTag(cohortId: string, userId: string, tagId: s
     if (error) return { error: error.message };
 
     revalidatePath("/admin");
-    revalidatePath("/admin/members");
     revalidatePath("/superadmin/tags");
     revalidatePath("/journey");
     revalidatePath("/trainer/members");

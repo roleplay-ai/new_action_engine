@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-/** One cohort member's manual buddy pairing state, for the superadmin's
+/** One cohort member's manual buddy pairing state, for the batch admin's
  * mapping screen. `buddyId` is who this member currently sees (their
  * outgoing assignment). `seenBy` is who else has this member as *their*
  * buddy — the reverse edge. In a mutual pair that's the same person as
@@ -20,34 +20,47 @@ export type BuddyMappingMember = {
   revealedAt: string | null;
 };
 
-async function requireSuperadmin(): Promise<{ userId: string }> {
+/** Superadmin, or a company admin managing one of their own company's
+ * batches — the same access rule as the rest of the batch admin surface (see
+ * getAdminContext-style checks in app/actions/cohorts.ts). Buddy mapping used
+ * to be superadmin-only; it's now also available from the admin panel's own
+ * Batch Management screen. */
+async function requireCohortManager(cohortId: string): Promise<{ userId: string }> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const { data: profile } = await supabase.from("profiles").select("role, company_id").eq("id", user.id).single();
 
   const superadminEmail = (process.env.SUPERADMIN_EMAIL || "admin@actionengine").toLowerCase();
   const isSuperadminEmail = user.email?.toLowerCase() === superadminEmail;
-  if (profile?.role !== "superadmin" && !isSuperadminEmail) {
-    throw new Error("Forbidden: superadmin only");
+  if (profile?.role === "superadmin" || isSuperadminEmail) {
+    return { userId: user.id };
   }
 
-  return { userId: user.id };
+  if (profile?.role === "admin") {
+    const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).maybeSingle();
+    if (cohort && cohort.company_id === profile.company_id) {
+      return { userId: user.id };
+    }
+  }
+
+  throw new Error("Forbidden: admin or superadmin only");
 }
 
 /** Every member of the batch plus who they're currently paired to see.
- * Manual pairing is superadmin-only, so this bypasses RLS via the service-role
- * client the same way the rest of the batch admin surface reads member/profile
- * rows across companies (see getCompanyUsers/getCohortDetail in cohorts.ts). */
+ * Manual pairing is limited to a superadmin, or the batch's own company
+ * admin, so this bypasses RLS via the service-role client the same way the
+ * rest of the batch admin surface reads member/profile rows across companies
+ * (see getCompanyUsers/getCohortDetail in cohorts.ts). */
 export async function listCommitmentBuddyRoster(cohortId: string): Promise<{
   error?: string;
   members?: BuddyMappingMember[];
 }> {
   try {
-    await requireSuperadmin();
+    await requireCohortManager(cohortId);
     const admin = createAdminClient();
 
     const [{ data: members, error: membersError }, { data: assignments, error: assignmentsError }] = await Promise.all([
@@ -113,13 +126,13 @@ export async function listCommitmentBuddyRoster(cohortId: string): Promise<{
  * members, in the order provided: member[0] sees member[1], member[1] sees
  * member[2], ... and the last member sees member[0] — closing the loop. Two
  * members is a normal mutual pair; three or more is a cycle (e.g. A->B->C->A).
- * Never auto-generated — always an explicit superadmin action. */
+ * Never auto-generated — always an explicit admin/superadmin action. */
 export async function saveCommitmentBuddyCircle(
   cohortId: string,
   orderedUserIds: string[]
 ): Promise<{ error?: string }> {
   try {
-    await requireSuperadmin();
+    await requireCohortManager(cohortId);
 
     const ids = orderedUserIds.map((id) => id.trim()).filter(Boolean);
     const uniqueIds = new Set(ids);
@@ -149,6 +162,7 @@ export async function saveCommitmentBuddyCircle(
     if (error) return { error: error.message };
 
     revalidatePath("/superadmin/cohorts");
+    revalidatePath("/admin/control-panel/cohorts");
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to save buddy pairing" };
@@ -156,10 +170,10 @@ export async function saveCommitmentBuddyCircle(
 }
 
 /** Unpairs one member: clears who they see. Leaves the rest of any pair/cycle
- * they were part of untouched — a superadmin re-pairs those separately. */
+ * they were part of untouched — an admin/superadmin re-pairs those separately. */
 export async function removeCommitmentBuddyAssignment(cohortId: string, userId: string): Promise<{ error?: string }> {
   try {
-    await requireSuperadmin();
+    await requireCohortManager(cohortId);
     const admin = createAdminClient();
     const { error } = await admin
       .from("commitment_buddy_assignments")
@@ -169,6 +183,7 @@ export async function removeCommitmentBuddyAssignment(cohortId: string, userId: 
     if (error) return { error: error.message };
 
     revalidatePath("/superadmin/cohorts");
+    revalidatePath("/admin/control-panel/cohorts");
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to remove buddy pairing" };

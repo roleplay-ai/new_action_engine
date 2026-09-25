@@ -7,14 +7,12 @@ import { createClient } from "@/lib/supabase/client";
 import { clearAdminBatchSelection } from "@/components/admin/AdminContext";
 import {
   LayoutDashboard,
-  BarChart3,
   Settings2,
   ChevronDown,
   ChevronRight,
   LogOut,
   MessageSquareText,
   Megaphone,
-  Users,
   ArrowLeft,
 } from "lucide-react";
 
@@ -32,15 +30,6 @@ const navItems: NavItem[] = [
     label: "Dashboard",
     icon: LayoutDashboard,
     href: "/admin",
-  },
-  {
-    id: "analytics",
-    label: "Analytics",
-    icon: BarChart3,
-    children: [
-      { id: "cohorts-analytics", label: "Batches", href: "/admin/analytics/cohorts" },
-      { id: "engagement", label: "Engagement", href: "/admin/analytics/engagement" },
-    ],
   },
   {
     id: "control-panel",
@@ -63,12 +52,6 @@ const navItems: NavItem[] = [
     icon: Megaphone,
     href: "/admin/notices",
   },
-  {
-    id: "members",
-    label: "Members & tags",
-    icon: Users,
-    href: "/admin/members",
-  },
 ];
 
 interface AdminSidebarProps {
@@ -79,7 +62,7 @@ export function AdminSidebar({ displayName }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [expandedSections, setExpandedSections] = React.useState<Set<string>>(
-    new Set(["analytics", "control-panel"])
+    new Set(["control-panel"])
   );
 
   const handleLogout = async () => {

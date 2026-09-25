@@ -536,7 +536,7 @@ function CohortDetailPanel({
   role: string;
   onChange: () => Promise<void> | void;
 }) {
-  const [tab, setTab] = useState<"members" | "content" | "trainer" | "agenda" | "settings" | "generation" | "buddies">("members");
+  const [tab, setTab] = useState<"members" | "content" | "trainer" | "buddies" | "settings" | "generation">("members");
   const [editingNames, setEditingNames] = useState(false);
   const [editBatchName, setEditBatchName] = useState(cohort.batchName);
   const [editModuleName, setEditModuleName] = useState(cohort.moduleName ?? "");
@@ -567,8 +567,6 @@ function CohortDetailPanel({
   const [contentQuery, setContentQuery] = useState("");
   const [trainingContent, setTrainingContent] = useState(cohort.trainingContent ?? "");
   const [businessContext, setBusinessContext] = useState(cohort.businessContext ?? "");
-  const [programPhasesJson, setProgramPhasesJson] = useState(() => JSON.stringify(cohort.programPhases ?? [], null, 2));
-  const [currentPhaseId, setCurrentPhaseId] = useState(cohort.currentPhaseId ?? "");
   const [trainerRoster, setTrainerRoster] = useState<Trainer[]>([]);
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>(cohort.trainerId ?? "");
   const [senderName, setSenderName] = useState<string>(cohort.senderName ?? "");
@@ -585,9 +583,9 @@ function CohortDetailPanel({
   const [error, setError] = useState<string | null>(null);
   const canManageTags = role === "admin" || role === "superadmin";
 
-  // Manual commitment-buddy mapping — superadmin only, loaded lazily the
-  // first time the tab is opened (not part of the eager workspace bundle,
-  // since only a superadmin can ever see or use it).
+  // Manual commitment-buddy mapping — loaded lazily the first time the tab
+  // is opened (not part of the eager workspace bundle, since most sessions
+  // never visit it).
   const [buddyRoster, setBuddyRoster] = useState<BuddyMappingMember[]>([]);
   const [buddyLoaded, setBuddyLoaded] = useState(false);
   const [buddyLoading, setBuddyLoading] = useState(false);
@@ -610,9 +608,9 @@ function CohortDetailPanel({
   }, [cohort.id]);
 
   useEffect(() => {
-    if (role !== "superadmin" || tab !== "buddies" || buddyLoaded || buddyLoading) return;
+    if (tab !== "buddies" || buddyLoaded || buddyLoading) return;
     void fetchBuddyRoster();
-  }, [role, tab, buddyLoaded, buddyLoading, fetchBuddyRoster]);
+  }, [tab, buddyLoaded, buddyLoading, fetchBuddyRoster]);
 
   function toggleBuddySelection(userId: string) {
     setBuddySelection((current) =>
@@ -767,21 +765,6 @@ function CohortDetailPanel({
     if (!needle) return availableItems;
     return availableItems.filter((item) => `${item.title} ${item.type}`.toLowerCase().includes(needle));
   }, [availableItems, contentQuery]);
-
-  // Parsed live from the draft textarea so the "current phase" dropdown
-  // reflects unsaved edits — falls back to the last-saved phases if the
-  // draft doesn't parse, so the dropdown never goes empty mid-edit.
-  const draftAgendaPhases = useMemo((): { id: string; label: string }[] | null => {
-    try {
-      const parsed = JSON.parse(programPhasesJson || "[]");
-      if (!Array.isArray(parsed)) return null;
-      if (!parsed.every((phase) => phase && typeof phase.id === "string" && typeof phase.label === "string")) return null;
-      return parsed.map((phase) => ({ id: phase.id, label: phase.label }));
-    } catch {
-      return null;
-    }
-  }, [programPhasesJson]);
-  const agendaPhaseOptions = draftAgendaPhases ?? (cohort.programPhases ?? []).map((phase) => ({ id: phase.id, label: phase.label }));
 
   function toggleSelection(id: string, setter: React.Dispatch<React.SetStateAction<Set<string>>>) {
     setter((previous) => {
@@ -969,15 +952,6 @@ function CohortDetailPanel({
         },
         refetch: [fetchFacilitators],
       }
-    );
-  }
-
-  async function handleSaveAgenda() {
-    if (busyAction) return;
-    await runMutation(
-      "save-agenda",
-      () => updateCohort(cohort.id, { programPhasesJson, currentPhaseId: currentPhaseId || null }),
-      { syncList: true }
     );
   }
 
@@ -1192,8 +1166,8 @@ function CohortDetailPanel({
         <button type="button" role="tab" aria-selected={tab === "trainer"} onClick={() => setTab("trainer")} className={tab === "trainer" ? "is-active" : ""}>
           <UserRound size={16} /> Trainer <span>{notices.length}</span>
         </button>
-        <button type="button" role="tab" aria-selected={tab === "agenda"} onClick={() => setTab("agenda")} className={tab === "agenda" ? "is-active" : ""}>
-          <CalendarDays size={16} /> Agenda <span>{(cohort.programPhases ?? []).length}</span>
+        <button type="button" role="tab" aria-selected={tab === "buddies"} onClick={() => setTab("buddies")} className={tab === "buddies" ? "is-active" : ""}>
+          <Handshake size={16} /> Buddy mapping <span>{buddyRoster.filter((m) => m.buddyId).length}</span>
         </button>
         <button type="button" role="tab" aria-selected={tab === "settings"} onClick={() => setTab("settings")} className={tab === "settings" ? "is-active" : ""}>
           <Settings size={16} /> Settings
@@ -1201,11 +1175,6 @@ function CohortDetailPanel({
         {role === "superadmin" && (
           <button type="button" role="tab" aria-selected={tab === "generation"} onClick={() => setTab("generation")} className={tab === "generation" ? "is-active" : ""}>
             <NotebookPen size={16} /> Action context
-          </button>
-        )}
-        {role === "superadmin" && (
-          <button type="button" role="tab" aria-selected={tab === "buddies"} onClick={() => setTab("buddies")} className={tab === "buddies" ? "is-active" : ""}>
-            <Handshake size={16} /> Buddy mapping <span>{buddyRoster.filter((m) => m.buddyId).length}</span>
           </button>
         )}
       </div>
@@ -1532,60 +1501,6 @@ function CohortDetailPanel({
                 ))}
               </div>
             )}
-          </section>
-        </div>
-      ) : tab === "agenda" ? (
-        <div className="cohort-admin-generation-context">
-          <section className="cohort-admin-panel">
-            <div className="cohort-admin-panel-head">
-              <div><h3>Program agenda</h3><p>Phases, days, and session blocks shown on this batch&apos;s Home/Journey page.</p></div>
-            </div>
-            <div className="cohort-admin-context-form">
-              <div className="cohort-admin-notice">
-                <Info size={17} />
-                <p>
-                  <strong>Shown only to this batch</strong>
-                  <span>Paste a JSON array of phases — each needs at least an "id" and a "label". Leave it as <code>[]</code> to hide the agenda section entirely.</span>
-                </p>
-              </div>
-              <label className="cohort-admin-field">
-                <span>Current phase</span>
-                <select
-                  value={currentPhaseId}
-                  onChange={(event) => setCurrentPhaseId(event.target.value)}
-                  disabled={Boolean(busyAction)}
-                  aria-label="Current phase"
-                >
-                  <option value="">No default (first phase shown)</option>
-                  {agendaPhaseOptions.map((phase) => <option key={phase.id} value={phase.id}>{phase.label}</option>)}
-                </select>
-                <em>Selected automatically for participants on their Home page until changed here.</em>
-              </label>
-              <label className="cohort-admin-field">
-                <span>Agenda JSON <em>Optional</em></span>
-                <textarea
-                  value={programPhasesJson}
-                  onChange={(event) => setProgramPhasesJson(event.target.value)}
-                  placeholder="[]"
-                  rows={16}
-                  spellCheck={false}
-                  className="cohort-admin-json-field"
-                  disabled={Boolean(busyAction)}
-                />
-              </label>
-              <div className="cohort-admin-context-actions">
-                <span>{draftAgendaPhases === null ? "This doesn't look like valid phase JSON yet." : `${draftAgendaPhases.length} phase${draftAgendaPhases.length === 1 ? "" : "s"} in this draft`}</span>
-                <button
-                  type="button"
-                  onClick={() => void handleSaveAgenda()}
-                  disabled={Boolean(busyAction)}
-                  className="cohort-admin-button cohort-admin-button--primary"
-                >
-                  {busyAction === "save-agenda" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}
-                  {busyAction === "save-agenda" ? "Saving…" : "Save agenda"}
-                </button>
-              </div>
-            </div>
           </section>
         </div>
       ) : tab === "settings" ? (

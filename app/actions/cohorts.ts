@@ -890,11 +890,24 @@ export async function getMyCohort(options?: { includeRoster?: boolean }): Promis
       // profiles — without this, "Learn alongside N colleagues" would only
       // ever resolve the current user's own name.
       const admin = createAdminClient();
-      const { data: members } = await admin
-        .from("cohort_members")
-        .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name, email), participant_tags(id, name)")
-        .eq("cohort_id", cohortId);
-      roster = (members ?? []).map(mapMemberRow);
+      const [{ data: members }, { data: teamNameRows }] = await Promise.all([
+        admin
+          .from("cohort_members")
+          .select("user_id, profiles!cohort_members_user_id_fkey(id, full_name, email), participant_tags(id, name)")
+          .eq("cohort_id", cohortId),
+        admin.from("cohort_team_names").select("tag_id, display_name").eq("cohort_id", cohortId),
+      ]);
+      // Per-batch team display-name overrides (cohort_team_names, migration
+      // 078) — a participant should see the same renamed team label a
+      // superadmin set for this batch, not just the tag's global name.
+      const teamNameOverrides = new Map((teamNameRows ?? []).map((row) => [row.tag_id, row.display_name]));
+      roster = (members ?? []).map((row) => {
+        const member = mapMemberRow(row);
+        if (member.tag && teamNameOverrides.has(member.tag.id)) {
+          member.tag = { ...member.tag, name: teamNameOverrides.get(member.tag.id)! };
+        }
+        return member;
+      });
     }
 
     return {

@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Mail, CheckSquare, Square, Loader2, Pencil, Trash2, Building2 } from "lucide-react";
+import { Mail, CheckSquare, Square, Loader2, Pencil, Trash2, Building2, CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   updateUserBySuperadmin,
   deleteUserBySuperadmin,
@@ -17,6 +17,8 @@ type User = {
   company_id: string | null;
   role: string;
   company_name: string | null;
+  cohort_id?: string | null;
+  cohort_name?: string | null;
   persistent_login_key?: string | null;
   has_stored_credentials?: boolean;
 };
@@ -48,11 +50,39 @@ export default function UsersList({
   const UNASSIGNED = "__unassigned__";
   const [companyFilter, setCompanyFilter] = useState<string>("");
 
-  const filteredUsers = useMemo(() => {
-    if (!companyFilter) return users;
-    if (companyFilter === UNASSIGNED) return users.filter((u) => !u.company_id);
-    return users.filter((u) => u.company_id === companyFilter);
+  // Batch filter — options are scoped to the selected company, since a batch
+  // name like "Batch 1" is reused across companies and would be ambiguous
+  // listed all together.
+  const UNASSIGNED_BATCH = "__unassigned_batch__";
+  const [batchFilter, setBatchFilter] = useState<string>("");
+  const batches = useMemo(() => {
+    const batchMap = new Map<string, string>();
+    for (const u of users) {
+      if (!u.cohort_id || !u.cohort_name) continue;
+      if (companyFilter && companyFilter !== UNASSIGNED && u.company_id !== companyFilter) continue;
+      batchMap.set(u.cohort_id, u.cohort_name);
+    }
+    return Array.from(batchMap, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [users, companyFilter]);
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) => {
+      const matchesCompany =
+        !companyFilter || (companyFilter === UNASSIGNED ? !u.company_id : u.company_id === companyFilter);
+      const matchesBatch =
+        !batchFilter || (batchFilter === UNASSIGNED_BATCH ? !u.cohort_id : u.cohort_id === batchFilter);
+      return matchesCompany && matchesBatch;
+    });
+  }, [users, companyFilter, batchFilter]);
+
+  // Pagination — applies only to what's rendered in the table; bulk
+  // selection/actions still operate across the full filtered set so
+  // "select all" isn't limited to the current page.
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedUsers = filteredUsers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   // Selection state (shared by bulk delete and welcome email actions)
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
@@ -212,7 +242,9 @@ export default function UsersList({
           value={companyFilter}
           onChange={(e) => {
             setCompanyFilter(e.target.value);
+            setBatchFilter("");
             setSelectedUserIds(new Set());
+            setPage(1);
           }}
           className="px-3 py-1.5 border-2 border-black rounded-lg text-xs font-bold bg-white"
         >
@@ -221,6 +253,27 @@ export default function UsersList({
           {companies.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
+            </option>
+          ))}
+        </select>
+        <label className="flex items-center gap-2 text-xs font-bold uppercase text-slate-600">
+          <CalendarRange size={15} />
+          Batch
+        </label>
+        <select
+          value={batchFilter}
+          onChange={(e) => {
+            setBatchFilter(e.target.value);
+            setSelectedUserIds(new Set());
+            setPage(1);
+          }}
+          className="px-3 py-1.5 border-2 border-black rounded-lg text-xs font-bold bg-white"
+        >
+          <option value="">All batches</option>
+          <option value={UNASSIGNED_BATCH}>Unassigned</option>
+          {batches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
             </option>
           ))}
         </select>
@@ -405,6 +458,7 @@ export default function UsersList({
             <th className="w-10 p-4"></th>
             <th className="text-left p-4 font-black uppercase text-xs tracking-wider">User</th>
             <th className="text-left p-4 font-black uppercase text-xs tracking-wider">Company</th>
+            <th className="text-left p-4 font-black uppercase text-xs tracking-wider">Batch</th>
             <th className="text-left p-4 font-black uppercase text-xs tracking-wider">Role</th>
             <th className="text-left p-4 font-black uppercase text-xs tracking-wider">Actions</th>
           </tr>
@@ -412,12 +466,12 @@ export default function UsersList({
         <tbody>
           {filteredUsers.length === 0 && (
             <tr>
-              <td colSpan={5} className="p-8 text-center text-sm text-slate-400">
+              <td colSpan={6} className="p-8 text-center text-sm text-slate-400">
                 No users match this filter.
               </td>
             </tr>
           )}
-          {filteredUsers.map((u) => {
+          {pagedUsers.map((u) => {
             const canDelete = u.role !== "superadmin" && u.id !== currentUserId;
             return (
               <tr key={u.id} className="border-b border-slate-200 hover:bg-slate-50">
@@ -461,6 +515,13 @@ export default function UsersList({
                 <td className="p-4">
                   {u.company_name ? (
                     <span>{u.company_name}</span>
+                  ) : (
+                    <span className="text-slate-400">—</span>
+                  )}
+                </td>
+                <td className="p-4">
+                  {u.cohort_name ? (
+                    <span>{u.cohort_name}</span>
                   ) : (
                     <span className="text-slate-400">—</span>
                   )}
@@ -513,6 +574,32 @@ export default function UsersList({
           })}
         </tbody>
       </table>
+
+      {filteredUsers.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-t-2 border-black bg-slate-50">
+          <span className="text-xs font-semibold text-slate-500">
+            Page {currentPage} of {totalPages}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="flex items-center gap-1 px-3 py-1.5 border-2 border-black rounded-lg text-xs font-bold uppercase hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft size={14} /> Prev
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="flex items-center gap-1 px-3 py-1.5 border-2 border-black rounded-lg text-xs font-bold uppercase hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

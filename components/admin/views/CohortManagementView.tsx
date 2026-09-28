@@ -10,6 +10,7 @@ import {
   CalendarDays,
   Check,
   ChevronRight,
+  FileSpreadsheet,
   FileText,
   Handshake,
   Info,
@@ -64,6 +65,7 @@ import { assignMemberTag, createParticipantTag, getCohortTeamNameOverrides, setC
 import { FacilitatorPdfUploadField } from "@/components/admin/content/FacilitatorPdfUploadField";
 import { useSelectedAdminBatch } from "@/components/admin/AdminContext";
 import type { CohortDate, CohortMember, CohortNotice, CompanyBrand, Facilitator, ParticipantTag, PrepareContentItem, ProgramPhase, Trainer } from "@/lib/types";
+import { utils as xlsxUtils, writeFile as writeXlsxFile } from "xlsx";
 
 interface CohortManagementViewProps {
   companyId: string | null;
@@ -564,6 +566,7 @@ function CohortDetailPanel({
   const [pendingAddIds, setPendingAddIds] = useState<Set<string>>(new Set());
   const [pendingContentIds, setPendingContentIds] = useState<Set<string>>(new Set());
   const [memberQuery, setMemberQuery] = useState("");
+  const [currentMemberQuery, setCurrentMemberQuery] = useState("");
   const [contentQuery, setContentQuery] = useState("");
   const [trainingContent, setTrainingContent] = useState(cohort.trainingContent ?? "");
   const [businessContext, setBusinessContext] = useState(cohort.businessContext ?? "");
@@ -743,6 +746,13 @@ function CohortDetailPanel({
   }, [refresh]);
 
   const currentMembers = members;
+  const visibleCurrentMembers = useMemo(() => {
+    const needle = currentMemberQuery.trim().toLowerCase();
+    if (!needle) return currentMembers;
+    return currentMembers.filter((member) =>
+      `${member.fullName || "Unnamed user"} ${member.email ?? ""}`.toLowerCase().includes(needle)
+    );
+  }, [currentMembers, currentMemberQuery]);
   const availableUsers = useMemo(
     () => companyUsers.filter((user) => !memberIds.has(user.id)),
     [companyUsers, memberIds]
@@ -901,6 +911,20 @@ function CohortDetailPanel({
     } finally {
       setCreatingTag(false);
     }
+  }
+
+  function handleExportMembers() {
+    const rows = currentMembers.map((member) => ({
+      "Member name": member.fullName || "Unnamed user",
+      Email: member.email || "",
+      "Team assigned": member.tag ? (teamNameOverrides[member.tag.id] ?? member.tag.name) : "",
+    }));
+    const worksheet = xlsxUtils.json_to_sheet(rows);
+    worksheet["!cols"] = [{ wch: 28 }, { wch: 32 }, { wch: 20 }];
+    const workbook = xlsxUtils.book_new();
+    xlsxUtils.book_append_sheet(workbook, worksheet, "Members");
+    const fileNameBase = `${cohort.batchName}${cohort.moduleName ? ` ${cohort.moduleName}` : ""}`.replace(/[\\/:*?"<>|]+/g, "-");
+    writeXlsxFile(workbook, `${fileNameBase} members.xlsx`);
   }
 
   function startEditTeamName(tag: ParticipantTag) {
@@ -1224,7 +1248,20 @@ function CohortDetailPanel({
       ) : tab === "members" ? (
         <div className="cohort-admin-picker-grid">
           <section className="cohort-admin-panel">
-            <div className="cohort-admin-panel-head"><div><h3>Current members</h3><p>People currently learning in this batch.</p></div><span>{currentMembers.length}</span></div>
+            <div className="cohort-admin-panel-head">
+              <div><h3>Current members</h3><p>People currently learning in this batch.</p></div>
+              <span>{currentMembers.length}</span>
+              <button
+                type="button"
+                onClick={handleExportMembers}
+                disabled={currentMembers.length === 0}
+                className="cohort-admin-button cohort-admin-button--secondary"
+                title="Export current members as an Excel sheet"
+              >
+                <FileSpreadsheet size={14} />
+                Export Excel
+              </button>
+            </div>
             {canManageTags && (
               <form
                 className="cohort-admin-tag-creator"
@@ -1249,39 +1286,46 @@ function CohortDetailPanel({
             {currentMembers.length === 0 ? (
               <div className="cohort-admin-mini-empty"><Users size={20} /><strong>No members yet</strong><span>Select people from the company directory.</span></div>
             ) : (
-              <div className="cohort-admin-people-list">
-                {currentMembers.map((member) => (
-                  <div key={member.id} className="cohort-admin-person">
-                    <span className="cohort-admin-avatar">{initials(member.fullName)}</span>
-                    <div><strong>{member.fullName || "Unnamed user"}</strong><span>{member.email || "Batch participant"}</span></div>
-                    {canManageTags ? (
-                      <select
-                        className="cohort-admin-tag-select"
-                        value={member.tag?.id ?? ""}
-                        disabled={Boolean(busyAction)}
-                        aria-label={`Tag for ${member.fullName || "participant"}`}
-                        onChange={(event) =>
-                          void runMutation(`assign-tag:${member.id}`, () => assignMemberTag(cohort.id, member.id, event.target.value || null), { refetch: [fetchMembers] })
-                        }
-                      >
-                        <option value="">No tag</option>
-                        {cohortTags.map((tag) => <option key={tag.id} value={tag.id}>{teamNameOverrides[tag.id] ?? tag.name}</option>)}
-                      </select>
-                    ) : (
-                      member.tag && <span className="cohort-admin-tag-badge">{teamNameOverrides[member.tag.id] ?? member.tag.name}</span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => void runMutation(`remove-member:${member.id}`, () => removeMembersFromCohort(cohort.id, [member.id]), { refetch: [fetchMembers, fetchCompanyUsers], syncList: true })}
-                      disabled={Boolean(busyAction)}
-                      aria-label={`Remove ${member.fullName || "member"}`}
-                      title="Remove from batch"
-                    >
-                      {busyAction === `remove-member:${member.id}` ? <Loader2 size={15} className="cohort-admin-spin" /> : <X size={15} />}
-                    </button>
+              <>
+                <label className="cohort-admin-search cohort-admin-search--panel"><Search size={15} /><input value={currentMemberQuery} onChange={(event) => setCurrentMemberQuery(event.target.value)} placeholder="Search current members" aria-label="Search current members" /></label>
+                {visibleCurrentMembers.length === 0 ? (
+                  <div className="cohort-admin-no-results">No members match your search.</div>
+                ) : (
+                  <div className="cohort-admin-people-list">
+                    {visibleCurrentMembers.map((member) => (
+                      <div key={member.id} className="cohort-admin-person">
+                        <span className="cohort-admin-avatar">{initials(member.fullName)}</span>
+                        <div><strong>{member.fullName || "Unnamed user"}</strong><span>{member.email || "Batch participant"}</span></div>
+                        {canManageTags ? (
+                          <select
+                            className="cohort-admin-tag-select"
+                            value={member.tag?.id ?? ""}
+                            disabled={Boolean(busyAction)}
+                            aria-label={`Tag for ${member.fullName || "participant"}`}
+                            onChange={(event) =>
+                              void runMutation(`assign-tag:${member.id}`, () => assignMemberTag(cohort.id, member.id, event.target.value || null), { refetch: [fetchMembers] })
+                            }
+                          >
+                            <option value="">No tag</option>
+                            {cohortTags.map((tag) => <option key={tag.id} value={tag.id}>{teamNameOverrides[tag.id] ?? tag.name}</option>)}
+                          </select>
+                        ) : (
+                          member.tag && <span className="cohort-admin-tag-badge">{teamNameOverrides[member.tag.id] ?? member.tag.name}</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void runMutation(`remove-member:${member.id}`, () => removeMembersFromCohort(cohort.id, [member.id]), { refetch: [fetchMembers, fetchCompanyUsers], syncList: true })}
+                          disabled={Boolean(busyAction)}
+                          aria-label={`Remove ${member.fullName || "member"}`}
+                          title="Remove from batch"
+                        >
+                          {busyAction === `remove-member:${member.id}` ? <Loader2 size={15} className="cohort-admin-spin" /> : <X size={15} />}
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </section>
 

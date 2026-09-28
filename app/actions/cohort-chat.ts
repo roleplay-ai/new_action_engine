@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { notifyAdmin } from "@/lib/admin-notify";
 import type { CohortMessage } from "@/lib/types";
 
 type ChatAccess = {
@@ -129,6 +130,13 @@ export async function sendCohortMessage(cohortId: string, message: string): Prom
       .single();
     if (error) return { error: error.message };
     if (!row) return { error: "The message was sent but could not be displayed" };
+
+    const { data: cohortRow } = await access.supabase.from("cohorts").select("batch_name, module_name").eq("id", cohortId).maybeSingle();
+    const batchLabel = [cohortRow?.batch_name, cohortRow?.module_name].filter(Boolean).join(" — ") || cohortId;
+    void notifyAdmin(`New chat message in ${batchLabel}`, [
+      `${access.userName} sent a message in ${batchLabel}:`,
+      cleanMessage,
+    ]);
 
     revalidatePath("/journey");
     return {

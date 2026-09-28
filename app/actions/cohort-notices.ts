@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isResendConfigured } from "@/lib/resend";
 import { sendTemplateToUsers } from "@/lib/email-send";
+import { notifyAdmin } from "@/lib/admin-notify";
 import type { CohortNotice } from "@/lib/types";
 
 /** Shared access check: who can see/post to a cohort's notice board.
@@ -105,9 +106,16 @@ export async function postCohortNotice(cohortId: string, message: string): Promi
     if (error) return { error: error.message };
     if (!row) return { error: "The notice was posted but could not be displayed" };
 
-    const [{ data: authorProfile }, { data: trainerRow }] = await Promise.all([
+    const [{ data: authorProfile }, { data: trainerRow }, { data: cohortRow }] = await Promise.all([
       access.supabase.from("profiles").select("full_name").eq("id", access.userId).single(),
       access.supabase.from("trainers").select("image_url").eq("user_id", access.userId).maybeSingle(),
+      access.supabase.from("cohorts").select("batch_name, module_name").eq("id", cohortId).maybeSingle(),
+    ]);
+
+    const batchLabel = [cohortRow?.batch_name, cohortRow?.module_name].filter(Boolean).join(" — ") || cohortId;
+    void notifyAdmin(`New announcement in ${batchLabel}`, [
+      `${authorProfile?.full_name?.trim() || "A trainer"} posted a new announcement in ${batchLabel}:`,
+      cleanMessage,
     ]);
 
     revalidatePath("/journey");

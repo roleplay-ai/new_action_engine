@@ -352,6 +352,8 @@ export async function getUsersWithProfiles(): Promise<
     company_id: string | null;
     role: string;
     company_name: string | null;
+    cohort_id: string | null;
+    cohort_name: string | null;
     persistent_login_key: string | null;
     has_stored_credentials: boolean;
     welcome_email_sent_at: string | null;
@@ -366,13 +368,16 @@ export async function getUsersWithProfiles(): Promise<
 
     const { data: profiles } = await admin
       .from("profiles")
-      .select("id, full_name, company_id, role, persistent_login_key");
+      .select("id, full_name, company_id, role, persistent_login_key, current_cohort_id");
     const profileMap = new Map(
       (profiles ?? []).map((p) => [p.id, p])
     );
 
     const { data: companies } = await admin.from("companies").select("id, name");
     const companyMap = new Map((companies ?? []).map((c) => [c.id, c.name]));
+
+    const { data: cohorts } = await admin.from("cohorts").select("id, name");
+    const cohortMap = new Map((cohorts ?? []).map((c) => [c.id, c.name]));
 
     const userIds = (usersData?.users ?? []).map((user) => user.id);
     const credentialUserIds = new Set<string>();
@@ -413,6 +418,8 @@ export async function getUsersWithProfiles(): Promise<
         company_id: p?.company_id ?? null,
         role: p?.role ?? "user",
         company_name: p?.company_id ? companyMap.get(p.company_id) ?? null : null,
+        cohort_id: p?.current_cohort_id ?? null,
+        cohort_name: p?.current_cohort_id ? cohortMap.get(p.current_cohort_id) ?? null : null,
         persistent_login_key: p?.persistent_login_key ?? null,
         has_stored_credentials: credentialUserIds.has(u.id),
         welcome_email_sent_at: welcomeSentAt.get(u.id) ?? null,

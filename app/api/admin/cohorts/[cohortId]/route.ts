@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCohortDetail, getCompanyUsers, listCohortDates } from "@/app/actions/cohorts";
 import { getCohortNotices } from "@/app/actions/cohort-notices";
 import { listFacilitators } from "@/app/actions/facilitators";
-import { getCohortTeamNameOverrides, listParticipantTagsForCompany } from "@/app/actions/participant-tags";
+import { getCohortTeamNameOverrides } from "@/app/actions/participant-tags";
 import { listActiveLibraryItems, listCohortContent } from "@/app/actions/prepare-content";
 import { listTrainers } from "@/app/actions/trainers";
 import { getAdminContext } from "@/app/actions/admin-analytics";
@@ -37,19 +37,6 @@ export async function GET(
       return json(await getCohortNotices(cohortId));
     }
 
-    if (bundle === "members") {
-      if (!companyId) return json({ error: "companyId required" }, 400);
-      const [detailResult, tagsResult] = await Promise.all([
-        getCohortDetail(cohortId),
-        listParticipantTagsForCompany(companyId),
-      ]);
-      return json({
-        error: detailResult.error || tagsResult.error,
-        members: detailResult.members ?? [],
-        tags: tagsResult.tags ?? [],
-      });
-    }
-
     if (bundle === "workspace") {
       if (!companyId) return json({ error: "companyId required" }, 400);
       const { role } = await getAdminContext();
@@ -71,9 +58,9 @@ export async function GET(
         role === "superadmin" ? listTrainers() : Promise.resolve({ trainers: [] as Trainer[], error: undefined as string | undefined }),
         getCohortNotices(cohortId),
         listFacilitators(cohortId),
-        // Not listParticipantTagsForCompany here — the workspace view's own
-        // team list is derived client-side from this cohort's own roster
-        // (detailResult.members), not every team used anywhere in the company.
+        // The workspace view's own team list is derived client-side from this
+        // cohort's own roster (detailResult.members), not every team used
+        // anywhere in the company — only its per-batch overrides come from here.
         getCohortTeamNameOverrides(cohortId),
         listCohortDates(cohortId),
       ]);

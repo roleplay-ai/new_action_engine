@@ -25,6 +25,8 @@ export type WelcomeEmailUser = {
   full_name: string;
   company_id: string | null;
   company_name: string | null;
+  cohort_id: string | null;
+  cohort_name: string | null;
   role: string;
   persistent_login_key: string | null;
   has_stored_credentials: boolean;
@@ -66,6 +68,7 @@ export default function WelcomeEmailPanel({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [companyId, setCompanyId] = useState("all");
+  const [batchId, setBatchId] = useState("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +94,21 @@ export default function WelcomeEmailPanel({
     );
   }, [participantUsers]);
 
+  // Batch options are scoped to the selected company (a batch name like
+  // "Batch 1" is reused across companies, so listing every batch when "All
+  // companies" is selected would be ambiguous without a company prefix).
+  const batches = useMemo(() => {
+    const batchMap = new Map<string, string>();
+    for (const user of participantUsers) {
+      if (!user.cohort_id || !user.cohort_name) continue;
+      if (companyId !== "all" && user.company_id !== companyId) continue;
+      batchMap.set(user.cohort_id, user.cohort_name);
+    }
+    return Array.from(batchMap, ([id, name]) => ({ id, name })).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  }, [companyId, participantUsers]);
+
   const visibleUsers = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return participantUsers.filter((user) => {
@@ -99,14 +117,17 @@ export default function WelcomeEmailPanel({
         (companyId === "unassigned"
           ? !user.company_id
           : user.company_id === companyId);
+      const matchesBatch =
+        batchId === "all" ||
+        (batchId === "unassigned" ? !user.cohort_id : user.cohort_id === batchId);
       const matchesQuery =
         !normalizedQuery ||
         user.email.toLowerCase().includes(normalizedQuery) ||
         user.full_name.toLowerCase().includes(normalizedQuery) ||
         (user.company_name ?? "").toLowerCase().includes(normalizedQuery);
-      return matchesCompany && matchesQuery;
+      return matchesCompany && matchesBatch && matchesQuery;
     });
-  }, [companyId, participantUsers, query]);
+  }, [batchId, companyId, participantUsers, query]);
 
   const visibleReadyIds = visibleUsers
     .filter(isWelcomeReady)
@@ -221,7 +242,10 @@ export default function WelcomeEmailPanel({
         </label>
         <select
           value={companyId}
-          onChange={(event) => setCompanyId(event.target.value)}
+          onChange={(event) => {
+            setCompanyId(event.target.value);
+            setBatchId("all");
+          }}
           aria-label="Filter by company"
           className="min-w-[170px]"
         >
@@ -230,6 +254,20 @@ export default function WelcomeEmailPanel({
           {companies.map((company) => (
             <option key={company.id} value={company.id}>
               {company.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={batchId}
+          onChange={(event) => setBatchId(event.target.value)}
+          aria-label="Filter by batch"
+          className="min-w-[170px]"
+        >
+          <option value="all">All batches</option>
+          <option value="unassigned">Unassigned</option>
+          {batches.map((batch) => (
+            <option key={batch.id} value={batch.id}>
+              {batch.name}
             </option>
           ))}
         </select>
@@ -244,7 +282,7 @@ export default function WelcomeEmailPanel({
           ) : (
             <Square size={16} />
           )}
-          {allVisibleReadySelected ? "Clear visible" : "Select ready"}
+          {allVisibleReadySelected ? "Clear all" : "Select all"}
         </button>
         <button
           type="button"
@@ -351,6 +389,7 @@ export default function WelcomeEmailPanel({
                     <span className="mt-0.5 block truncate text-[11px] text-[#8d858e]">
                       {user.email}
                       {user.company_name ? ` · ${user.company_name}` : " · Unassigned"}
+                      {user.cohort_name ? ` · ${user.cohort_name}` : ""}
                     </span>
                     <span className="mt-1 block text-[10px] text-[#a19aa2]">
                       Last welcome: {formatIstDate(user.welcome_email_sent_at)}

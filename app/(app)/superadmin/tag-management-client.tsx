@@ -2,7 +2,7 @@
 
 import { type ReactNode, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Check, Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
+import { Building2, Check, ChevronDown, ChevronRight, Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import {
   createParticipantTag,
   deleteParticipantTag,
@@ -25,6 +25,16 @@ export default function TagManagementClient({
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  function toggleExpanded(id: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,75 +120,106 @@ export default function TagManagementClient({
         <ul className="grid gap-2">
           {tags.map((tag) => {
             const editing = editingId === tag.id;
+            const expanded = expandedIds.has(tag.id);
+            const hasBatches = tag.batches.length > 0;
             return (
-              <li
-                key={tag.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
-              >
-                {editing ? (
-                  <input
-                    value={editName}
-                    onChange={(event) => setEditName(event.target.value)}
-                    autoFocus
-                    className="form-input flex-1 min-w-[160px]"
-                  />
-                ) : (
-                  <div className="flex min-w-0 flex-col">
-                    <strong className="truncate text-sm text-slate-800">{tag.name}</strong>
-                    <span className="flex items-center gap-3 text-xs text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <Users size={12} /> {tag.memberCount} participant{tag.memberCount === 1 ? "" : "s"}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Building2 size={12} /> {tag.companyCount} compan{tag.companyCount === 1 ? "y" : "ies"}
-                      </span>
-                    </span>
-                  </div>
-                )}
-
-                <div className="flex flex-shrink-0 items-center gap-1.5">
+              <li key={tag.id} className="rounded-xl border border-slate-200 bg-white">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                   {editing ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleSaveRename(tag.id)}
-                        disabled={savingId === tag.id || !editName.trim()}
-                        className="superadmin-icon-action success"
-                        aria-label="Save"
-                      >
-                        {savingId === tag.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingId(null)}
-                        className="superadmin-icon-action"
-                        aria-label="Cancel"
-                      >
-                        <X size={16} />
-                      </button>
-                    </>
+                    <input
+                      value={editName}
+                      onChange={(event) => setEditName(event.target.value)}
+                      autoFocus
+                      className="form-input flex-1 min-w-[160px]"
+                    />
                   ) : (
-                    <>
+                    <div className="flex min-w-0 flex-col">
+                      <strong className="truncate text-sm text-slate-800">{tag.name}</strong>
                       <button
                         type="button"
-                        onClick={() => startEdit(tag)}
-                        className="superadmin-icon-action"
-                        aria-label={`Rename ${tag.name}`}
+                        onClick={() => hasBatches && toggleExpanded(tag.id)}
+                        disabled={!hasBatches}
+                        className="flex items-center gap-3 text-xs text-slate-500 disabled:cursor-default"
+                        aria-expanded={expanded}
+                        aria-label={hasBatches ? `${expanded ? "Hide" : "Show"} batches using ${tag.name}` : undefined}
                       >
-                        <Pencil size={15} />
+                        <span className="flex items-center gap-1">
+                          <Users size={12} /> {tag.memberCount} participant{tag.memberCount === 1 ? "" : "s"}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Building2 size={12} /> {tag.companyCount} compan{tag.companyCount === 1 ? "y" : "ies"}
+                        </span>
+                        {hasBatches && (expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(tag)}
-                        disabled={deletingId === tag.id}
-                        className="superadmin-icon-action danger"
-                        aria-label={`Delete ${tag.name}`}
-                      >
-                        {deletingId === tag.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                      </button>
-                    </>
+                    </div>
                   )}
+
+                  <div className="flex flex-shrink-0 items-center gap-1.5">
+                    {editing ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleSaveRename(tag.id)}
+                          disabled={savingId === tag.id || !editName.trim()}
+                          className="superadmin-icon-action success"
+                          aria-label="Save"
+                        >
+                          {savingId === tag.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingId(null)}
+                          className="superadmin-icon-action"
+                          aria-label="Cancel"
+                        >
+                          <X size={16} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(tag)}
+                          className="superadmin-icon-action"
+                          aria-label={`Rename ${tag.name}`}
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(tag)}
+                          disabled={deletingId === tag.id}
+                          className="superadmin-icon-action danger"
+                          aria-label={`Delete ${tag.name}`}
+                        >
+                          {deletingId === tag.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
+
+                {expanded && hasBatches && (
+                  <ul className="grid gap-1 border-t border-slate-100 px-4 py-2.5">
+                    {tag.batches.map((batch) => (
+                      <li key={batch.cohortId} className="flex items-center justify-between gap-3 text-xs text-slate-600">
+                        <span className="truncate">
+                          <span className="font-semibold text-slate-700">{batch.companyName}</span>
+                          <span className="text-slate-400"> — </span>
+                          {batch.cohortName}
+                          {batch.isRenamed && (
+                            <span className="ml-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                              shown as &quot;{batch.displayName}&quot; here
+                            </span>
+                          )}
+                        </span>
+                        <span className="flex-shrink-0 text-slate-400">
+                          {batch.memberCount} member{batch.memberCount === 1 ? "" : "s"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             );
           })}

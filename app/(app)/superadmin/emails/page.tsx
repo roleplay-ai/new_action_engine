@@ -6,6 +6,7 @@ import ActionReminderLogsPanel from "../action-reminder-logs-panel";
 import ActionReminderQueuePanel from "../action-reminder-queue-panel";
 import WeeklyRecapQueuePanel from "../weekly-recap-queue-panel";
 import TeamLeaderboardEmailPanel from "../team-leaderboard-email-panel";
+import EngagementNudgeEmailPanel from "../engagement-nudge-email-panel";
 import EmailManagementTabs from "../email-management-tabs";
 import { KeyRound, MailCheck, ShieldCheck } from "lucide-react";
 
@@ -56,6 +57,8 @@ export default async function SuperadminEmailsPage() {
         welcome={<WelcomeEmailPanel users={users} />}
         recap={<WeeklyRecapQueuePanel alwaysExpanded />}
         leaderboard={<TeamLeaderboardEmailPanel companies={companies ?? []} />}
+        openedNoAction={<EngagementNudgeEmailPanel kind="opened_no_action" companies={companies ?? []} />}
+        noPlan={<EngagementNudgeEmailPanel kind="no_plan" companies={companies ?? []} />}
         history={<ActionReminderLogsPanel alwaysExpanded />}
       />
     </div>

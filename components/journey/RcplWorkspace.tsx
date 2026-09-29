@@ -10,6 +10,7 @@ import NoticeBoardCard from "@/components/journey/NoticeBoardCard";
 import FacilitatorsCard from "@/components/journey/FacilitatorsCard";
 import FlipCountdown from "@/components/journey/FlipCountdown";
 import { getCohortTeamCommitmentScores, type TeamCommitmentScore } from "@/app/actions/commitment-wallet";
+import { getMyCommitmentBuddies, type CommitmentBuddyProgress } from "@/app/actions/commitment-buddies";
 import type { Cohort, CohortMember, CohortNotice, Facilitator, PrepareContentItem, ProgramBlock, ProgramDay, ProgramPhase, UserPrepareProgress } from "@/lib/types";
 import { resolveVideoEmbed, resolveVideoThumbnail } from "@/lib/video-embed";
 import { browserNeedsExternalPdfViewer } from "@/lib/pdf-embed";
@@ -150,6 +151,23 @@ export default function RcplWorkspace({
   const phase = phases.find((item) => item.id === phaseId) ?? phases[0] ?? null;
   const [buddyInfoOpen, setBuddyInfoOpen] = useState(false);
   const [teamScores, setTeamScores] = useState<TeamCommitmentScore[]>([]);
+  // null while loading; only fetched once the batch is unlocked.
+  const [buddies, setBuddies] = useState<CommitmentBuddyProgress[] | null>(null);
+
+  useEffect(() => {
+    if (cohort.locked) {
+      setBuddies(null);
+      return;
+    }
+    let cancelled = false;
+    setBuddies(null);
+    void getMyCommitmentBuddies(cohort.id).then((result) => {
+      if (!cancelled) setBuddies(result.group.buddies);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [cohort.id, cohort.locked]);
 
   useEffect(() => {
     // The Commitment Wallet (and so any commitment-score data) is hidden
@@ -404,7 +422,25 @@ export default function RcplWorkspace({
               <h3>Your commitment buddy</h3>
               <button type="button" onClick={() => setBuddyInfoOpen(true)}>How this works</button>
             </header>
-            <p>Buddies are revealed on My Actions after your personal action plan goes live.</p>
+            {cohort.locked ? (
+              <p>Your buddy&apos;s name and email will appear here once your batch is unlocked.</p>
+            ) : buddies === null ? (
+              <p>Loading your buddy…</p>
+            ) : buddies.length === 0 ? (
+              <p>Your buddy hasn&apos;t been assigned yet. Check back soon.</p>
+            ) : (
+              <div className="rcpl-buddy-list">
+                {buddies.map((buddy, index) => (
+                  <div className="rcpl-participant" key={buddy.id}>
+                    <b style={{ background: ["#1D3C66", "#B8862B", "#D03A2C", "#2E9E63", "#7A5CC9"][index % 5] }}>{initials(buddy.name)}</b>
+                    <span>
+                      <strong>{buddy.name}</strong>
+                      <small>{buddy.email ? <a href={`mailto:${buddy.email}`}>{buddy.email}</a> : "—"}</small>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <FacilitatorsCard facilitators={facilitators} variant="rcpl" />
@@ -428,8 +464,8 @@ export default function RcplWorkspace({
               <li>
                 <b aria-hidden="true">1</b>
                 <span>
-                  <strong>Assigned at random</strong>
-                  <p>Your buddy is created within your batch and revealed after your personal action plan goes live.</p>
+                  <strong>Paired within your batch</strong>
+                  <p>Your buddy is someone from your own batch. Their name and email appear on this card once your batch is unlocked.</p>
                 </span>
               </li>
               <li>

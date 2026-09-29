@@ -4,12 +4,21 @@ import { useState, type ReactNode } from "react";
 import {
   CalendarClock,
   Clock3,
+  EyeOff,
   History,
+  MailOpen,
   MailPlus,
   Trophy,
 } from "lucide-react";
 
-type EmailTab = "reminders" | "welcome" | "recap" | "leaderboard" | "history";
+type EmailTab =
+  | "reminders"
+  | "welcome"
+  | "recap"
+  | "leaderboard"
+  | "openedNoAction"
+  | "noPlan"
+  | "history";
 
 const TABS = [
   {
@@ -37,6 +46,18 @@ const TABS = [
     icon: Trophy,
   },
   {
+    id: "openedNoAction" as const,
+    label: "Opened, no action",
+    description: "Manual nudge to readers",
+    icon: MailOpen,
+  },
+  {
+    id: "noPlan" as const,
+    label: "No plan yet",
+    description: "Manual nudge to start",
+    icon: EyeOff,
+  },
+  {
     id: "history" as const,
     label: "Delivery history",
     description: "Reminder send activity",
@@ -49,12 +70,16 @@ export default function EmailManagementTabs({
   welcome,
   recap,
   leaderboard,
+  openedNoAction,
+  noPlan,
   history,
 }: {
   reminders: ReactNode;
   welcome: ReactNode;
   recap: ReactNode;
   leaderboard: ReactNode;
+  openedNoAction: ReactNode;
+  noPlan: ReactNode;
   history: ReactNode;
 }) {
   const [activeTab, setActiveTab] = useState<EmailTab>("reminders");
@@ -66,6 +91,8 @@ export default function EmailManagementTabs({
     welcome,
     recap,
     leaderboard,
+    openedNoAction,
+    noPlan,
     history,
   };
 
@@ -105,7 +132,7 @@ export default function EmailManagementTabs({
     <div className="grid gap-4">
       <div className="sticky top-[74px] z-40 rounded-2xl border border-[#dfdcdf] bg-white/95 p-1.5 shadow-[0_10px_28px_rgba(34,29,35,.08)] backdrop-blur-xl">
         <div
-          className="grid grid-cols-5 gap-1 overflow-x-auto"
+          className="grid grid-cols-7 gap-1 overflow-x-auto"
           role="tablist"
           aria-label="Email management sections"
         >

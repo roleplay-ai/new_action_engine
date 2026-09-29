@@ -48,24 +48,26 @@ export type NudgeContent = { subject: string; body: string };
 
 export const NUDGE_DEFAULT_CONTENT: Record<NudgeKind, NudgeContent> = {
   opened_no_action: {
-    subject: "Hi {{full_name}}, have you completed any of your actions from the {{company_name}} Action Plan?",
+    subject: "Hi {{first_name}}, have you completed any of your actions from the {{company_name}} Action Plan?",
     body: [
       "Hi {{full_name}},",
       "You accepted these actions during action planning and have been receiving nudges for them. We noticed you haven’t marked any as **Done** yet.",
       "If you’ve completed an action, please mark it **Done** in your plan.",
       "[[UPDATE MY ACTIONS]]",
-      "Need any support with your actions? Just let us know. We’re here to help.",
+      "Need any support with your actions? Just let us know at team@nudgeable.ai. We’re here to help.",
+      "From\nTeam Nudgeable",
     ].join("\n\n"),
   },
   no_plan: {
-    subject: "Complete your action plan to stay on track with your batch",
+    subject: "Hi {{first_name}}, complete your action plan to stay on track with your batch",
     body: [
       "Hi {{full_name}},",
       "The workshop is over, but we noticed you haven’t completed your action plan yet.",
       "Please log in with your credentials and complete it as soon as possible. Your batch has started its action journey, and delaying your plan may leave you too little time to finish alongside your colleagues.",
-      "**App link:** {{app_link}}\n**Login ID:** {{login_email}}\n**Password:** {{password}}",
+      "**Platform link:** {{app_link}}\n**Login ID:** {{login_email}}\n**Password:** {{password}}",
       "[[COMPLETE MY ACTION PLAN]]",
-      "Need help logging in or completing your plan? Just let us know. We’re here to help.",
+      "Need help logging in or completing your plan? Just let us know at team@nudgeable.ai. We’re here to help.",
+      "From\nTeam Nudgeable",
     ].join("\n\n"),
   },
 };
@@ -145,6 +147,10 @@ export function renderNudgeSubject(subject: string, values: Values): string {
     .trim();
 }
 
+const LINK_STYLE = "color:#1a0dab;text-decoration:underline;";
+/** Capturing, so String.split keeps each address at the odd indexes. */
+const EMAIL_IN_TEXT = /([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/;
+
 const BUTTON_STYLE =
   "display:inline-block;padding:12px 26px;background:#FFCE00;border:2px solid #221D23;border-radius:10px;" +
   "color:#221D23;font-size:13px;line-height:16px;font-weight:bold;letter-spacing:.4px;text-decoration:none;";
@@ -159,12 +165,22 @@ export function renderNudgeBodyParagraphs(body: string, values: Values, loginUrl
 
   const html = tokenizeNudgeText(body.replace(/\r\n?/g, "\n"))
     .map((token) => {
-      if (token.type === "text") return escapeHtml(token.value);
+      if (token.type === "text") {
+        // Typed email addresses become blue mailto links, like the app link.
+        return token.value
+          .split(EMAIL_IN_TEXT)
+          .map((part, index) =>
+            index % 2 === 1
+              ? placeholder(`<a href="mailto:${escapeHtml(part)}" style="${LINK_STYLE}">${escapeHtml(part)}</a>`)
+              : escapeHtml(part)
+          )
+          .join("");
+      }
       if (token.type === "variable") {
         if (!token.known) return "";
         const value = variableValue(values, token.name);
         if (URL_VARIABLES.has(token.name) && /^https?:\/\//i.test(value)) {
-          return placeholder(`<a href="${escapeHtml(value)}" target="_blank" style="color:#1a0dab;">${escapeHtml(value)}</a>`);
+          return placeholder(`<a href="${escapeHtml(value)}" target="_blank" style="${LINK_STYLE}">${escapeHtml(value)}</a>`);
         }
         return placeholder(escapeHtml(value));
       }

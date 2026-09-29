@@ -7,6 +7,12 @@
  */
 
 import { nextMilestoneFor, milestonePoints } from "./commitment-wallet-milestones";
+import {
+  NUDGE_DEFAULT_CONTENT,
+  renderNudgeBodyParagraphs,
+  renderNudgeSubject,
+  type NudgeKind,
+} from "./nudge-email-content";
 
 export type EmailTemplateData = Record<string, unknown>;
 
@@ -1096,6 +1102,45 @@ function renderTeamLeaderboardHtml(data: EmailTemplateData): string {
 </html>`;
 }
 
+// ─── Engagement nudges (manual, superadmin-sent) ────────────────────────────
+
+/** Deliberately plain, personal-looking emails with no design — they should
+ * read like a note from the trainer, not another campaign. Still HTML (not
+ * text-only) so Resend's open/click tracking keeps working. `paragraphs` are
+ * trusted template HTML; anything user-supplied must be escaped by the caller. */
+function plainEmailHtml(title: string, paragraphs: string[]): string {
+  const body = paragraphs
+    .map((html, index) => `<p style="margin:0${index === paragraphs.length - 1 ? "" : " 0 16px"};">${html}</p>`)
+    .join("\n    ");
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${esc(title)}</title>
+  </head>
+  <body style="margin:0;padding:16px;background:#FFFFFF;color:#222222;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;">
+    ${body}
+  </body>
+</html>`;
+}
+
+/** Admin-editable nudge (see lib/nudge-email-content.ts): `custom_subject` /
+ * `custom_body` carry the superadmin's edited text, falling back to the
+ * default wording when absent. */
+function nudgeContent(kind: NudgeKind, data: EmailTemplateData) {
+  const defaults = NUDGE_DEFAULT_CONTENT[kind];
+  return {
+    subject: renderNudgeSubject(str(data, "custom_subject", defaults.subject), data),
+    body: str(data, "custom_body", defaults.body),
+  };
+}
+
+function renderNudgeEmail(kind: NudgeKind, data: EmailTemplateData): string {
+  const { subject, body } = nudgeContent(kind, data);
+  return plainEmailHtml(subject, renderNudgeBodyParagraphs(body, data, str(data, "login_url", "#")));
+}
+
 // ─── Registry ───────────────────────────────────────────────────────────────
 
 export const EMAIL_TEMPLATES = {
@@ -1159,6 +1204,16 @@ export const EMAIL_TEMPLATES = {
       return `Hi ${name} 👋 — Team Commitment Leaderboard${batch ? ` — ${batch}` : ""}`;
     },
     render: renderTeamLeaderboardHtml,
+  },
+  opened_no_action: {
+    label: "Opened, No Action Nudge",
+    subject: (data: EmailTemplateData) => nudgeContent("opened_no_action", data).subject,
+    render: (data: EmailTemplateData) => renderNudgeEmail("opened_no_action", data),
+  },
+  no_plan_nudge: {
+    label: "No Plan Yet Nudge",
+    subject: (data: EmailTemplateData) => nudgeContent("no_plan", data).subject,
+    render: (data: EmailTemplateData) => renderNudgeEmail("no_plan", data),
   },
 } as const;
 

@@ -7718,6 +7718,16 @@ input[type="range"] {
   line-height: 1.45;
 }
 
+.rcpl-buddy-list {
+  margin-top: 10px;
+}
+
+.rcpl-buddy-list small a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .journey-trainer-card {
   display: grid;
   gap: 12px;

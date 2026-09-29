@@ -91,6 +91,8 @@ export async function sendTemplateToUsers({
   includeStoredCredentials = false,
   loginPath,
   cohortIdForUser,
+  cc,
+  bcc,
 }: {
   userIds: string[];
   /** Key of a template defined in lib/email-templates.ts (e.g. "weekly_challenges", "credentials"). */
@@ -106,6 +108,10 @@ export async function sendTemplateToUsers({
   loginPath?: string;
   /** Prefer this batch over profiles.selected_cohort_id when logging the send. */
   cohortIdForUser?: (userId: string) => string | null | undefined;
+  /** Copied on every recipient's email. Each copy is identical to that
+   * recipient's email, including their personal auto-login link. */
+  cc?: string[];
+  bcc?: string[];
 }): Promise<SendToUsersResult[]> {
   if (!isEmailTemplateKey(templateId)) {
     return userIds.map((userId) => ({
@@ -320,6 +326,8 @@ export async function sendTemplateToUsers({
         from: buildFromHeader(fromEmail, senderName),
         subject,
         html,
+        ...(cc?.length ? { cc } : {}),
+        ...(bcc?.length ? { bcc } : {}),
       });
       if (sendError) throw new Error(sendError.message);
 

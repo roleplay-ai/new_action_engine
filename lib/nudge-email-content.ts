@@ -6,7 +6,7 @@
  *
  * Format:
  *   {{full_name}}    replaced per recipient (see NUDGE_VARIABLES)
- *   [[Link text]]    that recipient's auto-login link, with this label
+ *   [[Link text]]    a button to that recipient's auto-login link
  *   **text**         bold
  *   blank line       new paragraph; a single line break stays a line break
  * Everything the admin types is HTML-escaped; only the markers above become
@@ -20,14 +20,26 @@ export const NUDGE_TEMPLATE_KEY = {
   no_plan: "no_plan_nudge",
 } as const;
 
+export const NUDGE_APP_URL = "https://practice.nudgeable.ai";
+
 export const NUDGE_VARIABLES = [
   { key: "full_name", label: "Participant's full name (from profile)" },
   { key: "first_name", label: "Participant's first name" },
   { key: "company_name", label: "Company name" },
   { key: "batch_name", label: "Batch / module name" },
+  { key: "app_link", label: `App link (${NUDGE_APP_URL})` },
+  { key: "login_email", label: "Participant's login ID" },
+  { key: "password", label: "Participant's stored password" },
 ] as const;
 
 const KNOWN_VARIABLES = new Set<string>(NUDGE_VARIABLES.map((variable) => variable.key));
+/** Variables whose value is a URL, rendered as a clickable link in the body. */
+const URL_VARIABLES = new Set(["app_link"]);
+/** Variables that need each recipient's stored login credentials. */
+const CREDENTIAL_VARIABLES = new Set(["login_email", "password"]);
+/** Shown when a recipient has no stored password (e.g. their account predates
+ * stored credentials). */
+export const NUDGE_PASSWORD_FALLBACK = "Use your existing password";
 
 export const NUDGE_SUBJECT_MAX = 200;
 export const NUDGE_BODY_MAX = 5000;
@@ -46,11 +58,12 @@ export const NUDGE_DEFAULT_CONTENT: Record<NudgeKind, NudgeContent> = {
     ].join("\n\n"),
   },
   no_plan: {
-    subject: "Hi {{full_name}}, have you completed your {{company_name}} Action Plan yet?",
+    subject: "Complete your action plan to stay on track with your batch",
     body: [
       "Hi {{full_name}},",
       "The workshop is over, but we noticed you haven’t completed your action plan yet.",
       "Please log in with your credentials and complete it as soon as possible. Your batch has started its action journey, and delaying your plan may leave you too little time to finish alongside your colleagues.",
+      "**App link:** {{app_link}}\n**Login ID:** {{login_email}}\n**Password:** {{password}}",
       "[[COMPLETE MY ACTION PLAN]]",
       "Need help logging in or completing your plan? Just let us know. We’re here to help.",
     ].join("\n\n"),
@@ -94,6 +107,13 @@ export function nudgeTextHasLink(text: string): boolean {
   return tokenizeNudgeText(text).some((token) => token.type === "link");
 }
 
+/** True when the content needs recipients' stored login ID / password. */
+export function nudgeContentUsesCredentials(content: NudgeContent): boolean {
+  return tokenizeNudgeText(`${content.subject}\n${content.body}`).some(
+    (token) => token.type === "variable" && CREDENTIAL_VARIABLES.has(token.name)
+  );
+}
+
 type Values = Record<string, unknown>;
 
 function variableValue(values: Values, name: string): string {
@@ -125,18 +145,34 @@ export function renderNudgeSubject(subject: string, values: Values): string {
     .trim();
 }
 
+const BUTTON_STYLE =
+  "display:inline-block;padding:12px 26px;background:#FFCE00;border:2px solid #221D23;border-radius:10px;" +
+  "color:#221D23;font-size:13px;line-height:16px;font-weight:bold;letter-spacing:.4px;text-decoration:none;";
+
 /** Body paragraphs as trusted HTML fragments. */
 export function renderNudgeBodyParagraphs(body: string, values: Values, loginUrl: string): string[] {
+  // Variable values and buttons go in as placeholders and are swapped in
+  // after the **bold** pass, so a value that happens to contain ** (e.g. a
+  // password) is never reinterpreted as formatting.
+  const fragments: string[] = [];
+  const placeholder = (html: string) => `${fragments.push(html) - 1}`;
+
   const html = tokenizeNudgeText(body.replace(/\r\n?/g, "\n"))
     .map((token) => {
       if (token.type === "text") return escapeHtml(token.value);
-      if (token.type === "variable") return token.known ? escapeHtml(variableValue(values, token.name)) : "";
-      return `<a href="${escapeHtml(loginUrl)}" target="_blank" style="color:#1a0dab;font-weight:bold;">${escapeHtml(token.label)}</a>`;
+      if (token.type === "variable") {
+        if (!token.known) return "";
+        const value = variableValue(values, token.name);
+        if (URL_VARIABLES.has(token.name) && /^https?:\/\//i.test(value)) {
+          return placeholder(`<a href="${escapeHtml(value)}" target="_blank" style="color:#1a0dab;">${escapeHtml(value)}</a>`);
+        }
+        return placeholder(escapeHtml(value));
+      }
+      return placeholder(`<a href="${escapeHtml(loginUrl)}" target="_blank" style="${BUTTON_STYLE}">${escapeHtml(token.label)}</a>`);
     })
     .join("")
-    // Bold after escaping: ** never appears in escaped output or in the
-    // generated link markup, so this only ever wraps admin-typed text.
-    .replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>");
+    .replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(\d+)/g, (_, index: string) => fragments[Number(index)] ?? "");
 
   return html
     .split(/\n\s*\n/)

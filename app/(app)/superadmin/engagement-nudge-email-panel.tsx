@@ -28,6 +28,7 @@ import {
   NUDGE_SUBJECT_MAX,
   NUDGE_TEMPLATE_KEY,
   NUDGE_VARIABLES,
+  nudgeContentUsesCredentials,
   nudgeTextHasLink,
   validateNudgeContent,
   type NudgeContent,
@@ -137,6 +138,7 @@ export default function EngagementNudgeEmailPanel({ kind, companies }: { kind: N
 
   const contentError = validateNudgeContent(content);
   const missingLink = !nudgeTextHasLink(content.body);
+  const usesCredentials = nudgeContentUsesCredentials(content);
   const isDefaultContent =
     content.subject === NUDGE_DEFAULT_CONTENT[kind].subject && content.body === NUDGE_DEFAULT_CONTENT[kind].body;
 
@@ -353,6 +355,7 @@ export default function EngagementNudgeEmailPanel({ kind, companies }: { kind: N
                         {!cohortId && <th className="px-3 py-2">Batch</th>}
                         {kind === "opened_no_action" && <th className="px-3 py-2 text-right">Opens</th>}
                         {kind === "opened_no_action" && <th className="px-3 py-2 text-right">Last opened</th>}
+                        {usesCredentials && <th className="px-3 py-2 text-right">Password</th>}
                         <th className="px-3 py-2 text-right">Last nudged</th>
                       </tr>
                     </thead>
@@ -378,6 +381,17 @@ export default function EngagementNudgeEmailPanel({ kind, companies }: { kind: N
                           )}
                           {kind === "opened_no_action" && (
                             <td className="px-3 py-2 text-right text-xs text-slate-600">{formatDate(recipient.lastOpenedAt)}</td>
+                          )}
+                          {usesCredentials && (
+                            <td className="px-3 py-2 text-right text-xs">
+                              {recipient.hasStoredPassword ? (
+                                <span className="font-semibold text-emerald-700">Stored</span>
+                              ) : (
+                                <span className="font-semibold text-amber-700" title="Their email will say: Use your existing password">
+                                  Not stored
+                                </span>
+                              )}
+                            </td>
                           )}
                           <td className="px-3 py-2 text-right text-xs text-slate-600">{formatDate(recipient.lastNudgedAt)}</td>
                         </tr>
@@ -501,6 +515,11 @@ export default function EngagementNudgeEmailPanel({ kind, companies }: { kind: N
                   </button>
                 </div>
                 <p className="mb-2 text-xs text-slate-500">Subject: {preview?.subject}</p>
+                {usesCredentials && (
+                  <p className="mb-2 text-xs text-slate-500">
+                    Passwords are hidden here; each participant&apos;s real password is filled in when the email is sent.
+                  </p>
+                )}
                 <iframe
                   title={`${copy.title} email preview`}
                   srcDoc={preview?.html ?? ""}
@@ -536,7 +555,8 @@ export default function EngagementNudgeEmailPanel({ kind, companies }: { kind: N
               {(cc.trim() || bcc.trim()) && (
                 <p className="mt-2 rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-800">
                   Each participant gets their own email, so CC/BCC addresses receive one copy per participant ({selectedCount}{" "}
-                  total). Every copy includes that participant&apos;s auto-login link.
+                  total). Every copy includes that participant&apos;s auto-login link
+                  {usesCredentials ? <strong> and their login ID and password</strong> : null}.
                 </p>
               )}
               <button

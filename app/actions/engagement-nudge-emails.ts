@@ -5,7 +5,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isResendConfigured } from "@/lib/resend";
 import { sendTemplateToUsers } from "@/lib/email-send";
 import {
+  NUDGE_APP_URL,
+  NUDGE_PASSWORD_FALLBACK,
   NUDGE_TEMPLATE_KEY,
+  nudgeContentUsesCredentials,
   validateNudgeContent,
   type NudgeContent,
   type NudgeKind,
@@ -199,6 +202,8 @@ export type NudgeRecipient = {
   openedCount?: number;
   /** When this same nudge was last sent to them, if ever. */
   lastNudgedAt: string | null;
+  /** Whether a login password is stored for them (user_credential_delivery). */
+  hasStoredPassword: boolean;
 };
 
 type MatchRow = { cohortId: string; lastOpenedAt?: string; openedCount?: number };
@@ -343,6 +348,16 @@ async function buildAudience(kind: NudgeKind, companyId: string, cohortId: strin
     }
   }
 
+  const storedPasswordIds = new Set<string>();
+  for (let i = 0; i < matchedIds.length; i += PAGE_SIZE) {
+    const { data: credentialRows, error: credentialError } = await admin
+      .from("user_credential_delivery")
+      .select("user_id")
+      .in("user_id", matchedIds.slice(i, i + PAGE_SIZE));
+    if (credentialError) throw new Error(credentialError.message);
+    for (const row of credentialRows ?? []) storedPasswordIds.add(row.user_id as string);
+  }
+
   const labelById = new Map(scope.batches.map((batch) => [batch.id, batch.label]));
 
   const recipients: NudgeRecipient[] = [...matches.entries()]
@@ -356,6 +371,7 @@ async function buildAudience(kind: NudgeKind, companyId: string, cohortId: strin
       lastOpenedAt: match.lastOpenedAt,
       openedCount: match.openedCount,
       lastNudgedAt: lastNudgedById.get(userId) ?? null,
+      hasStoredPassword: storedPasswordIds.has(userId),
     }))
     .sort((a, b) =>
       kind === "opened_no_action"
@@ -369,7 +385,16 @@ async function buildAudience(kind: NudgeKind, companyId: string, cohortId: strin
 export type NudgeAudience = {
   recipients: NudgeRecipient[];
   /** Variable values for the live preview — the first matching participant. */
-  sample: { full_name: string; first_name: string; company_name?: string; batch_name?: string };
+  sample: {
+    full_name: string;
+    first_name: string;
+    company_name?: string;
+    batch_name?: string;
+    app_link: string;
+    login_email: string;
+    /** Masked — real passwords are only ever filled in server-side at send time. */
+    password: string;
+  };
 };
 
 /** Who currently matches the nudge, plus sample values for the preview. */
@@ -395,6 +420,9 @@ export async function getNudgeAudience(
           first_name: fullName.split(/\s+/)[0] || "there",
           company_name: companyName,
           batch_name: cohortId ? batches[0]?.label : first?.batchLabel,
+          app_link: NUDGE_APP_URL,
+          login_email: first?.email ?? "participant@company.com",
+          password: first && !first.hasStoredPassword ? NUDGE_PASSWORD_FALLBACK : "••••••••",
         },
       },
     };
@@ -439,6 +467,26 @@ export async function sendNudgeEmail(
 
     const targetById = new Map(targets.map((target) => [target.userId, target]));
 
+    // Plaintext passwords are only read when the email actually uses them.
+    const credentialsById = new Map<string, { email: string; password: string }>();
+    if (nudgeContentUsesCredentials(content)) {
+      const admin = createAdminClient();
+      const targetIds = targets.map((target) => target.userId);
+      for (let i = 0; i < targetIds.length; i += PAGE_SIZE) {
+        const { data: credentialRows, error: credentialError } = await admin
+          .from("user_credential_delivery")
+          .select("user_id, email, plaintext_password")
+          .in("user_id", targetIds.slice(i, i + PAGE_SIZE));
+        if (credentialError) return { error: credentialError.message };
+        for (const row of credentialRows ?? []) {
+          credentialsById.set(row.user_id as string, {
+            email: row.email as string,
+            password: row.plaintext_password as string,
+          });
+        }
+      }
+    }
+
     const results = await sendTemplateToUsers({
       userIds: targets.map((target) => target.userId),
       templateId: NUDGE_TEMPLATE_KEY[kind],
@@ -456,6 +504,9 @@ export async function sendNudgeEmail(
       getPerUserTemplateData: async (id) => ({
         batch_name: targetById.get(id)?.batchLabel,
         full_name: targetById.get(id)?.fullName ?? "there",
+        app_link: NUDGE_APP_URL,
+        login_email: credentialsById.get(id)?.email ?? targetById.get(id)?.email ?? undefined,
+        password: credentialsById.get(id)?.password ?? NUDGE_PASSWORD_FALLBACK,
       }),
       cc,
       bcc,

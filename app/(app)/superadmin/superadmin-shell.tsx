@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Building2,
   GraduationCap,
+  LayoutDashboard,
   Library,
   Mail,
   RefreshCw,
@@ -15,8 +16,14 @@ import {
   Users,
 } from "lucide-react";
 import { LogoutButton } from "../logout-button";
+import {
+  SuperadminCompanyProvider,
+  SuperadminCompanySelector,
+  type SuperadminCompany,
+} from "./superadmin-company-context";
 
 const NAV_ITEMS = [
+  { href: "/superadmin/batch-overview", label: "Batch overview", description: "Health of every batch", icon: LayoutDashboard },
   { href: "/superadmin", label: "Companies", description: "Organisation directory", icon: Building2, exact: true },
   { href: "/superadmin/users", label: "Users", description: "Access and roles", icon: Users },
   { href: "/superadmin/content-library", label: "Content", description: "Learning library", icon: Library },
@@ -30,10 +37,12 @@ export default function SuperadminShell({
   children,
   displayName,
   email,
+  companies,
 }: {
   children: React.ReactNode;
   displayName: string;
   email: string;
+  companies: SuperadminCompany[];
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -52,9 +61,10 @@ export default function SuperadminShell({
   }
 
   return (
+    <SuperadminCompanyProvider companies={companies}>
     <div className="superadmin-shell">
       <aside className="superadmin-sidebar">
-        <Link href="/superadmin" className="superadmin-brand" onClick={() => pathname !== "/superadmin" && setNavigating(true)}>
+        <Link href="/superadmin/batch-overview" className="superadmin-brand" onClick={() => pathname !== "/superadmin/batch-overview" && setNavigating(true)}>
           <span><ShieldCheck size={20} /></span>
           <div><strong>Nudgeable</strong><small>Superadmin console</small></div>
         </Link>
@@ -91,13 +101,17 @@ export default function SuperadminShell({
             <span>Administration</span>
             <strong>{current?.label ?? "Superadmin"}</strong>
           </div>
-          <button type="button" onClick={refresh} disabled={busy} className="superadmin-refresh">
-            <RefreshCw size={15} className={refreshing ? "spin" : ""} />
-            <span>{refreshing ? "Refreshing" : "Refresh data"}</span>
-          </button>
+          <div className="superadmin-topbar-actions">
+            <SuperadminCompanySelector />
+            <button type="button" onClick={refresh} disabled={busy} className="superadmin-refresh">
+              <RefreshCw size={15} className={refreshing ? "spin" : ""} />
+              <span>{refreshing ? "Refreshing" : "Refresh data"}</span>
+            </button>
+          </div>
         </header>
         <main className="superadmin-content" aria-busy={busy}>{children}</main>
       </section>
     </div>
+    </SuperadminCompanyProvider>
   );
 }

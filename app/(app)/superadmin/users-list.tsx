@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, CheckSquare, Square, Loader2, Pencil, Trash2, Building2, CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
 import {
@@ -9,6 +9,7 @@ import {
   deleteUsersBySuperadmin,
 } from "@/app/actions/superadmin";
 import { sendWelcomeEmails, type SendEmailResult } from "@/app/actions/email-campaign";
+import { useSuperadminCompany } from "./superadmin-company-context";
 
 type User = {
   id: string;
@@ -46,9 +47,12 @@ export default function UsersList({
 
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Company filter
+  // Company filter — driven by the console-wide selector in the top bar;
+  // "All companies" there can be narrowed to users with no company here.
   const UNASSIGNED = "__unassigned__";
-  const [companyFilter, setCompanyFilter] = useState<string>("");
+  const { companyId: globalCompanyId } = useSuperadminCompany();
+  const [unassignedOnly, setUnassignedOnly] = useState(false);
+  const companyFilter = globalCompanyId || (unassignedOnly ? UNASSIGNED : "");
 
   // Batch filter — options are scoped to the selected company, since a batch
   // name like "Batch 1" is reused across companies and would be ambiguous
@@ -86,6 +90,14 @@ export default function UsersList({
 
   // Selection state (shared by bulk delete and welcome email actions)
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+
+  // A new company scope invalidates the batch filter, selection and page.
+  useEffect(() => {
+    setBatchFilter("");
+    setSelectedUserIds(new Set());
+    setPage(1);
+  }, [companyFilter]);
+
   const [sendingEmails, setSendingEmails] = useState(false);
   const [emailResults, setEmailResults] = useState<SendEmailResult[] | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -234,28 +246,17 @@ export default function UsersList({
     <div className="overflow-x-auto">
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 p-4 bg-slate-50 border-b-2 border-black">
-        <label className="flex items-center gap-2 text-xs font-bold uppercase text-slate-600">
-          <Building2 size={15} />
-          Company
-        </label>
-        <select
-          value={companyFilter}
-          onChange={(e) => {
-            setCompanyFilter(e.target.value);
-            setBatchFilter("");
-            setSelectedUserIds(new Set());
-            setPage(1);
-          }}
-          className="px-3 py-1.5 border-2 border-black rounded-lg text-xs font-bold bg-white"
-        >
-          <option value="">All companies</option>
-          <option value={UNASSIGNED}>Unassigned</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        {!globalCompanyId && (
+          <label className="flex items-center gap-2 text-xs font-bold uppercase text-slate-600">
+            <input
+              type="checkbox"
+              checked={unassignedOnly}
+              onChange={(e) => setUnassignedOnly(e.target.checked)}
+            />
+            <Building2 size={15} />
+            No company only
+          </label>
+        )}
         <label className="flex items-center gap-2 text-xs font-bold uppercase text-slate-600">
           <CalendarRange size={15} />
           Batch

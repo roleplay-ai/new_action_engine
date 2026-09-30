@@ -37,6 +37,9 @@ interface AdminContextType {
   userCompanyId: string | null;
   selectedCompanyId: string | null;
   setSelectedCompanyId: (id: string | null) => void;
+  /** True when the company is chosen outside this context (the superadmin
+   * console's top-bar selector), so the built-in company switcher hides. */
+  companyControlled: boolean;
   effectiveCompanyId: string | null;
   selectedCohortId: string | null;
   setSelectedCohortId: (id: string | null) => void;
@@ -86,6 +89,9 @@ interface AdminContextProviderProps {
   companies: Company[];
   role: string;
   companyId: string | null;
+  /** When provided, the selected company is owned by the caller (the
+   * superadmin console's top-bar selector) instead of this context. */
+  controlledCompanyId?: string | null;
 }
 
 export function AdminContextProvider({
@@ -93,8 +99,11 @@ export function AdminContextProvider({
   companies,
   role,
   companyId,
+  controlledCompanyId,
 }: AdminContextProviderProps) {
-  const [selectedCompanyId, setSelectedCompanyIdState] = useState<string | null>(null);
+  const companyControlled = controlledCompanyId !== undefined;
+  const [uncontrolledCompanyId, setSelectedCompanyIdState] = useState<string | null>(null);
+  const selectedCompanyId = companyControlled ? controlledCompanyId : uncontrolledCompanyId;
   const [selectedCohortId, setSelectedCohortIdState] = useState<string | null>(null);
   const [viewReady, setViewReady] = useState(true);
   const selectedCompanyIdRef = useRef<string | null>(null);
@@ -107,7 +116,7 @@ export function AdminContextProvider({
     const storedCompany = sessionStorage.getItem(COMPANY_STORAGE_KEY);
     const storedCohort = sessionStorage.getItem(COHORT_STORAGE_KEY);
     const wasConfirmed = sessionStorage.getItem(CONFIRMED_STORAGE_KEY) === "1";
-    if (role === "superadmin") {
+    if (role === "superadmin" && !companyControlled) {
       const nextCompany =
         storedCompany && companies.some((company) => company.id === storedCompany)
           ? storedCompany
@@ -124,7 +133,19 @@ export function AdminContextProvider({
     } else if (storedCohort) {
       sessionStorage.removeItem(COHORT_STORAGE_KEY);
     }
-  }, [role, companies]);
+  }, [role, companies, companyControlled]);
+
+  // A controlled company change invalidates the picked batch, exactly like
+  // setSelectedCompanyId does for the built-in switcher.
+  const previousControlledRef = useRef(controlledCompanyId);
+  useEffect(() => {
+    if (!companyControlled || previousControlledRef.current === controlledCompanyId) return;
+    previousControlledRef.current = controlledCompanyId;
+    setSelectedCohortIdState(null);
+    setViewReady(true);
+    sessionStorage.removeItem(COHORT_STORAGE_KEY);
+    sessionStorage.removeItem(CONFIRMED_STORAGE_KEY);
+  }, [companyControlled, controlledCompanyId]);
 
   const setSelectedCompanyId = useCallback((id: string | null) => {
     if (selectedCompanyIdRef.current === id) return;
@@ -161,6 +182,7 @@ export function AdminContextProvider({
         userCompanyId: companyId,
         selectedCompanyId,
         setSelectedCompanyId,
+        companyControlled,
         effectiveCompanyId,
         selectedCohortId,
         setSelectedCohortId,
@@ -174,10 +196,10 @@ export function AdminContextProvider({
 }
 
 export function CompanySelector() {
-  const { companies, role, selectedCompanyId, setSelectedCompanyId } =
+  const { companies, role, selectedCompanyId, setSelectedCompanyId, companyControlled } =
     useAdminContext();
 
-  if (role !== "superadmin" || companies.length === 0) {
+  if (role !== "superadmin" || companies.length === 0 || companyControlled) {
     return null;
   }
 
@@ -203,10 +225,10 @@ export function CompanySelector() {
 }
 
 export function AdminContextBar() {
-  const { companies, role, effectiveCompanyId, selectedCohortId, setSelectedCohortId } =
+  const { companies, role, effectiveCompanyId, selectedCohortId, setSelectedCohortId, companyControlled } =
     useAdminContext();
 
-  const showCompany = role === "superadmin" && companies.length > 0;
+  const showCompany = role === "superadmin" && companies.length > 0 && !companyControlled;
   if (!showCompany && !effectiveCompanyId) return null;
 
   return (

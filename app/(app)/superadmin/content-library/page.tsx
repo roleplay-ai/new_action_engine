@@ -20,7 +20,6 @@ export default async function ContentLibraryPage() {
   if (profile?.role !== "superadmin" && !isSuperadminEmail) redirect("/");
 
   const { items } = await listContentItems();
-  const { data: companies } = await supabase.from("companies").select("id, name").order("name");
   const contentItems = items ?? [];
 
   return (
@@ -47,7 +46,7 @@ export default async function ContentLibraryPage() {
         )}
       </section>
 
-      <section><div className="superadmin-section-heading standalone"><div><h2>Assign to a batch</h2><p>Choose an organisation, batch, and active learning items.</p></div></div><AssignContentPanel companies={companies ?? []} items={contentItems} /></section>
+      <section><div className="superadmin-section-heading standalone"><div><h2>Assign to a batch</h2><p>Choose a batch of the selected company, and active learning items.</p></div></div><AssignContentPanel items={contentItems} /></section>
     </div>
   );
 }

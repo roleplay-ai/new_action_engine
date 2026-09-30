@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Building2,
   CalendarRange,
   EyeOff,
   Link2,
@@ -15,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { BatchSelector } from "@/components/admin/BatchSelector";
+import { useSuperadminCompany } from "./superadmin-company-context";
 import {
   getNudgeAudience,
   sendNudgeEmail,
@@ -36,7 +36,6 @@ import {
 } from "@/lib/nudge-email-content";
 import { NudgeTextEditor, type NudgeTextEditorHandle } from "./nudge-text-editor";
 
-type Company = { id: string; name: string; slug: string | null };
 
 const COPY: Record<
   NudgeKind,
@@ -105,10 +104,11 @@ function formatDate(value: string | null | undefined) {
   return new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
 }
 
-export default function EngagementNudgeEmailPanel({ kind, companies }: { kind: NudgeKind; companies: Company[] }) {
+export default function EngagementNudgeEmailPanel({ kind }: { kind: NudgeKind }) {
   const copy = COPY[kind];
   const Icon = copy.icon;
-  const [companyId, setCompanyId] = useState<string | null>(companies[0]?.id ?? null);
+  // Company comes from the console-wide selector in the top bar.
+  const companyId = useSuperadminCompany().companyId || null;
   const [cohortId, setCohortId] = useState<string | null>(null);
   const [windowValue, setWindowValue] = useState("7");
   const [audience, setAudience] = useState<NudgeAudience | null>(null);
@@ -264,24 +264,6 @@ export default function EngagementNudgeEmailPanel({ kind, companies }: { kind: N
         </div>
 
         <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-          {companies.length > 0 && (
-            <label className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2">
-              <Building2 size={15} className="text-slate-500" />
-              <select
-                value={companyId ?? ""}
-                onChange={(event) => setCompanyId(event.target.value || null)}
-                className="cursor-pointer bg-transparent text-sm font-semibold text-slate-800 outline-none"
-                aria-label="Company"
-              >
-                <option value="">Select company…</option>
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {company.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
           {companyId && <BatchSelector companyId={companyId} value={cohortId} onChange={setCohortId} />}
           {kind === "opened_no_action" && (
             <label className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2">
@@ -329,7 +311,7 @@ export default function EngagementNudgeEmailPanel({ kind, companies }: { kind: N
         )}
 
         {!companyId ? (
-          <p className="px-4 pb-4 text-sm italic text-slate-500">Select a company to find matching participants.</p>
+          <p className="px-4 pb-4 text-sm italic text-slate-500">Select a company in the top bar to find matching participants.</p>
         ) : loading && !audience ? (
           <div className="flex items-center gap-2 px-4 pb-4 text-sm text-slate-500">
             <Loader2 size={16} className="animate-spin" />

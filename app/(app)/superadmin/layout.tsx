@@ -29,8 +29,11 @@ export default async function SuperadminLayout({
 
   const displayName = profile?.full_name || user.email?.split("@")[0] || "Superadmin";
 
+  // Feeds the console-wide company selector in the top bar.
+  const { data: companies } = await supabase.from("companies").select("id, name, slug").order("name");
+
   return (
-    <SuperadminShell displayName={displayName} email={user.email ?? "Superadmin"}>
+    <SuperadminShell displayName={displayName} email={user.email ?? "Superadmin"} companies={companies ?? []}>
       {children}
     </SuperadminShell>
   );

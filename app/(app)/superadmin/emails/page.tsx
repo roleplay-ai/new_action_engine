@@ -34,8 +34,6 @@ export default async function SuperadminEmailsPage() {
   const users = Array.isArray(usersResult) ? usersResult : [];
   const usersError = !Array.isArray(usersResult) ? usersResult.error : null;
 
-  const { data: companies } = await supabase.from("companies").select("id, name, slug").order("name");
-
   return (
     <div className="superadmin-page">
       <div className="superadmin-page-heading"><div><h1>Emails &amp; reminders</h1><p>Review upcoming participant reminders, send them immediately, and manage secure access and the Friday recap.</p></div></div>
@@ -56,9 +54,9 @@ export default async function SuperadminEmailsPage() {
         reminders={<ActionReminderQueuePanel alwaysExpanded />}
         welcome={<WelcomeEmailPanel users={users} />}
         recap={<WeeklyRecapQueuePanel alwaysExpanded />}
-        leaderboard={<TeamLeaderboardEmailPanel companies={companies ?? []} />}
-        openedNoAction={<EngagementNudgeEmailPanel kind="opened_no_action" companies={companies ?? []} />}
-        noPlan={<EngagementNudgeEmailPanel kind="no_plan" companies={companies ?? []} />}
+        leaderboard={<TeamLeaderboardEmailPanel />}
+        openedNoAction={<EngagementNudgeEmailPanel kind="opened_no_action" />}
+        noPlan={<EngagementNudgeEmailPanel kind="no_plan" />}
         history={<ActionReminderLogsPanel alwaysExpanded />}
       />
     </div>

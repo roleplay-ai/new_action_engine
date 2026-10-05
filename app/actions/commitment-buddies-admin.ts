@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { planBuddyPairing } from "@/lib/buddy-pairing";
 
 /** One cohort member's manual buddy pairing state, for the batch admin's
  * mapping screen. `buddyId` is who this member currently sees (their
@@ -126,7 +127,7 @@ export async function listCommitmentBuddyRoster(cohortId: string): Promise<{
  * members, in the order provided: member[0] sees member[1], member[1] sees
  * member[2], ... and the last member sees member[0] — closing the loop. Two
  * members is a normal mutual pair; three or more is a cycle (e.g. A->B->C->A).
- * Never auto-generated — always an explicit admin/superadmin action. */
+ * The superadmin's manual edit on top of autoPairCommitmentBuddies' result. */
 export async function saveCommitmentBuddyCircle(
   cohortId: string,
   orderedUserIds: string[]
@@ -166,6 +167,58 @@ export async function saveCommitmentBuddyCircle(
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to save buddy pairing" };
+  }
+}
+
+/** Automatically pairs everyone in the batch who doesn't have a complete
+ * pair/cycle yet (see lib/buddy-pairing.ts for the rules). Runs when the
+ * admin saves the batch's Participant list. Complete groups — including any
+ * a superadmin made by hand — are kept; a superadmin can still edit the
+ * result manually afterwards with saveCommitmentBuddyCircle. */
+export async function autoPairCommitmentBuddies(cohortId: string): Promise<{ error?: string; paired?: number }> {
+  try {
+    const { userId: actorId } = await requireCohortManager(cohortId);
+    const admin = createAdminClient();
+
+    const [{ data: members, error: membersError }, { data: assignments, error: assignmentsError }] = await Promise.all([
+      admin.from("cohort_members").select("user_id").eq("cohort_id", cohortId),
+      admin.from("commitment_buddy_assignments").select("user_id, buddy_user_id").eq("cohort_id", cohortId),
+    ]);
+    if (membersError) return { error: membersError.message };
+    if (assignmentsError) return { error: assignmentsError.message };
+
+    const plan = planBuddyPairing(
+      ((members ?? []) as { user_id: string }[]).map((row) => row.user_id),
+      ((assignments ?? []) as { user_id: string; buddy_user_id: string }[]).map((row) => ({ userId: row.user_id, buddyId: row.buddy_user_id }))
+    );
+
+    if (plan.removeFor.length) {
+      const { error } = await admin
+        .from("commitment_buddy_assignments")
+        .delete()
+        .eq("cohort_id", cohortId)
+        .in("user_id", plan.removeFor);
+      if (error) return { error: error.message };
+    }
+    if (plan.upsert.length) {
+      const { error } = await admin.from("commitment_buddy_assignments").upsert(
+        plan.upsert.map((edge) => ({
+          cohort_id: cohortId,
+          user_id: edge.userId,
+          buddy_user_id: edge.buddyId,
+          revealed_at: null,
+          created_by: actorId,
+        })),
+        { onConflict: "cohort_id,user_id" }
+      );
+      if (error) return { error: error.message };
+    }
+
+    revalidatePath("/superadmin/cohorts");
+    revalidatePath("/actions");
+    return { paired: plan.upsert.length };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to pair buddies" };
   }
 }
 

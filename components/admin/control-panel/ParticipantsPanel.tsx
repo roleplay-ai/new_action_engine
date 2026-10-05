@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Search, Users } from "lucide-react";
 import { addMembersToCohort, getCohortDetail, getCompanyUsers, removeMembersFromCohort } from "@/app/actions/cohorts";
+import { autoPairCommitmentBuddies } from "@/app/actions/commitment-buddies-admin";
 import type { CohortMember } from "@/lib/types";
 import {
   batchLabel,
@@ -150,10 +151,14 @@ export function ParticipantsPanel() {
     const removing = [...toRemove];
     const added = adding.length ? await addMembersToCohort(cohortId!, adding) : {};
     const removed = !added.error && removing.length ? await removeMembersFromCohort(cohortId!, removing) : {};
+    // Everyone without a complete buddy pair (new people, or whose buddy was
+    // just removed) is paired automatically; existing pairs are kept.
+    const paired = !added.error && !removed.error ? await autoPairCommitmentBuddies(cohortId!) : {};
     setSaving(false);
     const failure = added.error || removed.error;
     if (failure) setError(`Some changes could not be saved: ${failure}`);
-    else show("Participant list saved.");
+    else if (paired.error) setError(`Participant list saved, but buddies could not be paired: ${paired.error}`);
+    else show(paired.paired ? "Participant list saved. Buddies paired." : "Participant list saved.");
     await load();
   }
 

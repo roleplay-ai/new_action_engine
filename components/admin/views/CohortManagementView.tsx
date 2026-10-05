@@ -1780,7 +1780,7 @@ function CohortDetailPanel({
             <div className="cohort-admin-panel-head">
               <div>
                 <h3>Commitment buddy mapping</h3>
-                <p>Manually pair members so each sees the other&apos;s Commitment Score — nothing here is paired automatically.</p>
+                <p>Pairs are made automatically when the admin saves the participant list (pairs of two, plus one three-person cycle when the count is odd). You can change any pairing here.</p>
               </div>
               <span>{buddyRoster.filter((member) => member.buddyId).length}/{buddyRoster.length} paired</span>
             </div>

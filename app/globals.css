@@ -286,6 +286,43 @@
   animation: spin .8s linear infinite;
 }
 
+.superadmin-topbar-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.superadmin-company-select {
+  min-width: 0;
+  min-height: 35px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 4px 0 11px;
+  border: 1px solid #dedadf;
+  border-radius: 10px;
+  color: #8f888f;
+  background: #fff;
+}
+
+.superadmin-company-select:focus-within {
+  border-color: #c9a000;
+}
+
+.superadmin-company-select select {
+  min-width: 0;
+  max-width: 240px;
+  padding: 6px 4px;
+  border: 0;
+  outline: none;
+  color: #29252b;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
 .superadmin-progress {
   height: 3px;
   position: fixed;
@@ -1099,6 +1136,10 @@
 
   .superadmin-refresh>span {
     display: none;
+  }
+
+  .superadmin-company-select select {
+    max-width: 150px;
   }
 }
 

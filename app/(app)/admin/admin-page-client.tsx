@@ -39,6 +39,8 @@ interface AdminPageClientProps {
   role: string;
   companyId: string | null;
   view: ViewType;
+  /** See AdminContextProvider — set by the superadmin console's top-bar selector. */
+  controlledCompanyId?: string | null;
 }
 
 function AdminContent({ view }: { view: ViewType }) {
@@ -82,13 +84,19 @@ export function AdminPageClient({
   role,
   companyId,
   view,
+  controlledCompanyId,
 }: AdminPageClientProps) {
   const existing = useOptionalAdminContext();
   const content = <AdminContent view={view} />;
   if (existing) return content;
 
   return (
-    <AdminContextProvider companies={companies} role={role} companyId={companyId}>
+    <AdminContextProvider
+      companies={companies}
+      role={role}
+      companyId={companyId}
+      controlledCompanyId={controlledCompanyId}
+    >
       <div className="max-w-7xl mx-auto w-full space-y-4">
         <AdminContextBar />
         <NoCompanyWarning />

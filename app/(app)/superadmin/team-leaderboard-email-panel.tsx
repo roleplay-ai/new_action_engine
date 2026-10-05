@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Building2, Loader2, Send, Trophy, X } from "lucide-react";
+import { Loader2, Send, Trophy, X } from "lucide-react";
 import { BatchSelector } from "@/components/admin/BatchSelector";
+import { useSuperadminCompany } from "./superadmin-company-context";
 import {
   getTeamLeaderboardPreview,
   sendTeamLeaderboardEmail,
   type TeamLeaderboardPreview,
 } from "@/app/actions/team-leaderboard-email";
 
-type Company = { id: string; name: string; slug: string | null };
 
-export default function TeamLeaderboardEmailPanel({ companies }: { companies: Company[] }) {
-  const [companyId, setCompanyId] = useState<string | null>(companies[0]?.id ?? null);
+export default function TeamLeaderboardEmailPanel() {
+  // Company comes from the console-wide selector in the top bar.
+  const companyId = useSuperadminCompany().companyId || null;
   const [cohortId, setCohortId] = useState<string | null>(null);
   const [preview, setPreview] = useState<TeamLeaderboardPreview | null>(null);
   const [loading, setLoading] = useState(false);
@@ -97,24 +98,6 @@ export default function TeamLeaderboardEmailPanel({ companies }: { companies: Co
         </div>
 
         <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-          {companies.length > 0 && (
-            <label className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2">
-              <Building2 size={15} className="text-slate-500" />
-              <select
-                value={companyId ?? ""}
-                onChange={(event) => setCompanyId(event.target.value || null)}
-                className="cursor-pointer bg-transparent text-sm font-semibold text-slate-800 outline-none"
-                aria-label="Company"
-              >
-                <option value="">Select company…</option>
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {company.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
           {companyId && <BatchSelector companyId={companyId} value={cohortId} onChange={setCohortId} />}
         </div>
 
@@ -134,7 +117,7 @@ export default function TeamLeaderboardEmailPanel({ companies }: { companies: Co
         )}
 
         {!cohortId ? (
-          <p className="px-4 pb-4 text-sm italic text-slate-500">Select a company and batch to load its leaderboard.</p>
+          <p className="px-4 pb-4 text-sm italic text-slate-500">{companyId ? "Select a batch to load its leaderboard." : "Select a company in the top bar, then a batch, to load its leaderboard."}</p>
         ) : loading ? (
           <div className="flex items-center gap-2 px-4 pb-4 text-sm text-slate-500">
             <Loader2 size={16} className="animate-spin" />

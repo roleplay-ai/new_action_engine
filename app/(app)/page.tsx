@@ -19,7 +19,7 @@ export default async function HomePage() {
 
   // Redirect by role; treat known superadmin email as superadmin even if profile not yet synced
   const effectiveRole = profile?.role === "superadmin" || isSuperadminEmail ? "superadmin" : profile?.role;
-  if (effectiveRole === "superadmin") redirect("/superadmin");
+  if (effectiveRole === "superadmin") redirect("/superadmin/batch-overview");
   if (effectiveRole === "admin") redirect("/admin");
   if (effectiveRole === "trainer") redirect("/trainer");
 

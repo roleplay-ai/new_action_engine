@@ -5,18 +5,13 @@ import { Loader2 } from "lucide-react";
 import { listCohorts } from "@/app/actions/cohorts";
 import { assignContentToCohort } from "@/app/actions/prepare-content";
 import type { PrepareContentItem } from "@/lib/types";
+import { SelectCompanyPrompt, useSuperadminCompany } from "../superadmin-company-context";
 
-type Company = { id: string; name: string };
 type CohortOption = { id: string; name: string };
 
-export default function AssignContentPanel({
-  companies,
-  items,
-}: {
-  companies: Company[];
-  items: PrepareContentItem[];
-}) {
-  const [companyId, setCompanyId] = useState(companies[0]?.id ?? "");
+export default function AssignContentPanel({ items }: { items: PrepareContentItem[] }) {
+  // Company comes from the console-wide selector in the top bar.
+  const { companies, companyId } = useSuperadminCompany();
   const [cohorts, setCohorts] = useState<CohortOption[]>([]);
   const [cohortId, setCohortId] = useState("");
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
@@ -26,7 +21,11 @@ export default function AssignContentPanel({
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!companyId) return;
+    if (!companyId) {
+      setCohorts([]);
+      setCohortId("");
+      return;
+    }
     let cancelled = false;
     setCohortsLoading(true);
     setError(null);
@@ -84,20 +83,13 @@ export default function AssignContentPanel({
     return <p className="text-sm text-slate-500">Create a company first.</p>;
   }
 
+  if (!companyId) {
+    return <SelectCompanyPrompt message="Choose a company in the top bar to assign content to one of its batches." />;
+  }
+
   return (
     <div className="superadmin-assignment-card">
       <div className="flex flex-col sm:flex-row gap-3">
-        <select
-          value={companyId}
-          onChange={(e) => setCompanyId(e.target.value)}
-          className="flex-1 px-3 py-2 border-2 border-black rounded-lg text-sm font-semibold"
-        >
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
         <select
           value={cohortId}
           onChange={(e) => setCohortId(e.target.value)}

@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSuperadminCompany } from "./superadmin-company-context";
 import {
   CheckCircle2,
   CheckSquare,
@@ -67,8 +68,16 @@ export default function WelcomeEmailPanel({
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [companyId, setCompanyId] = useState("all");
+  // Company comes from the console-wide selector in the top bar; "All
+  // companies" there can be narrowed to users with no company here.
+  const { companyId: globalCompanyId } = useSuperadminCompany();
+  const [unassignedOnly, setUnassignedOnly] = useState(false);
+  const companyId = globalCompanyId || (unassignedOnly ? "unassigned" : "all");
   const [batchId, setBatchId] = useState("all");
+
+  useEffect(() => {
+    setBatchId("all");
+  }, [companyId]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,17 +91,6 @@ export default function WelcomeEmailPanel({
     () => participantUsers.filter(isWelcomeReady),
     [participantUsers]
   );
-  const companies = useMemo(() => {
-    const companyMap = new Map<string, string>();
-    for (const user of participantUsers) {
-      if (user.company_id && user.company_name) {
-        companyMap.set(user.company_id, user.company_name);
-      }
-    }
-    return Array.from(companyMap, ([id, name]) => ({ id, name })).sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
-  }, [participantUsers]);
 
   // Batch options are scoped to the selected company (a batch name like
   // "Batch 1" is reused across companies, so listing every batch when "All
@@ -240,23 +238,16 @@ export default function WelcomeEmailPanel({
             className="w-full !pl-9"
           />
         </label>
-        <select
-          value={companyId}
-          onChange={(event) => {
-            setCompanyId(event.target.value);
-            setBatchId("all");
-          }}
-          aria-label="Filter by company"
-          className="min-w-[170px]"
-        >
-          <option value="all">All companies</option>
-          <option value="unassigned">Unassigned</option>
-          {companies.map((company) => (
-            <option key={company.id} value={company.id}>
-              {company.name}
-            </option>
-          ))}
-        </select>
+        {!globalCompanyId && (
+          <label className="flex items-center gap-2 whitespace-nowrap text-sm font-semibold text-slate-600">
+            <input
+              type="checkbox"
+              checked={unassignedOnly}
+              onChange={(event) => setUnassignedOnly(event.target.checked)}
+            />
+            No company only
+          </label>
+        )}
         <select
           value={batchId}
           onChange={(event) => setBatchId(event.target.value)}

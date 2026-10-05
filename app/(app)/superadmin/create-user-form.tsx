@@ -4,11 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createUser } from "@/app/actions/superadmin";
 import { Loader2, Plus, X } from "lucide-react";
+import { useSuperadminCompany } from "./superadmin-company-context";
 
 type Company = { id: string; name: string };
 
 export default function CreateUserForm({ companies }: { companies: Company[] }) {
   const router = useRouter();
+  const { companyId: globalCompanyId } = useSuperadminCompany();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,7 +51,11 @@ export default function CreateUserForm({ companies }: { companies: Company[] }) 
   if (!open) {
     return (
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          // Default the new user to the company selected in the top bar.
+          setCompanyId(globalCompanyId);
+          setOpen(true);
+        }}
         className="superadmin-primary-action"
       >
         <Plus size={16} /> Create User

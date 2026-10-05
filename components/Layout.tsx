@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEngine } from "@/lib/store";
 import { ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ArrowLeft } from "lucide-react";
 import { LogoutButton } from "@/app/(app)/logout-button";
@@ -25,7 +25,6 @@ function formatCommitmentScore(value: number) {
 const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   const { profile, isLoading, cohort, cohorts, refetch, personalPlanState, userActions, allActions } = useEngine();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const [switchingCohort, setSwitchingCohort] = useState(false);
   const [commitmentScore, setCommitmentScore] = useState<{
@@ -54,20 +53,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   const activePath = pendingHref || pathname || "";
   const isActive = (href: string) => activePath.startsWith(href);
   const showLoader = isLoading || contentLoading;
-  // The RcplWorkspace design (navy/gold shell, "Workspace" topbar label, phase
-  // picker) is shared by every company — see RcplWorkspace.tsx. Each batch's
-  // picker is built from its own seeded cohort.programPhases (including
-  // Surge's, which is just seeded data in the same shape — see migration
-  // 070_cohort_program_phases.sql).
-  const rcplPhases = (cohort?.programPhases ?? []).map((phase) => ({
-    id: phase.id,
-    label: phase.label,
-    title: phase.focus || phase.title,
-    window: phase.window,
-  }));
-  const rcplPhase = searchParams.get("phase") ?? cohort?.currentPhaseId ?? rcplPhases[0]?.id ?? "1";
-  const currentRcplPhase = rcplPhases.find((phase) => phase.id === rcplPhase) ?? rcplPhases[0] ?? null;
-
   async function switchCohort(cohortId: string) {
     if (!cohortId || cohortId === cohort?.id || switchingCohort) return;
     setSwitchingCohort(true);
@@ -120,49 +105,19 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             <span><strong>{cohort?.companyName || "Your company"}</strong></span>
           </Link>
 
-          {currentRcplPhase && pathname.startsWith("/journey") && (
-            <details className="rcpl-sidebar-phase-picker">
-              <summary>
-                <span><small>Current phase</small><strong>{currentRcplPhase.label} · {currentRcplPhase.title}</strong></span>
-                <ChevronDown size={15} />
-              </summary>
-              <div>
-                {rcplPhases.map((phase) => (
-                  <Link key={phase.id} href={`/journey?phase=${phase.id}`} className={phase.id === rcplPhase ? "active" : ""}>
-                    <strong>{phase.label} · {phase.title}</strong><small>{phase.window}</small>
-                  </Link>
-                ))}
-              </div>
-            </details>
-          )}
-
-          <nav className="participant-nav" aria-label="Participant navigation">
-            {navItems.map((item) => (
-              <Link key={item.href} href={item.href} className={isActive(item.href) ? "active" : ""} onClick={() => beginNavigation(item.href)}>
-                <span className="participant-nav-icon"><item.icon size={17} strokeWidth={2.3} /></span>
-                {item.label}
-                {item.href === "/actions" && pendingValidationCount > 0 && (
-                  <span className="participant-nav-badge" aria-label={`${pendingValidationCount} actions pending validation`}>{pendingValidationCount}</span>
-                )}
-              </Link>
-            ))}
-          </nav>
-        </div>
-
-        <div>
-          {role !== "user" && cohorts.length > 0 && (() => {
+          {cohorts.length > 0 && (() => {
             const currentOption = cohorts.find((option) => option.id === cohort?.id) ?? cohorts[0];
             return (
               <details className="rcpl-sidebar-batch-picker">
                 <summary>
                   <span>
-                    <small>Switch Batch</small>
-                    <strong>
+                    <small>{switchingCohort ? "Switching…" : "Current batch"}</small>
+                    <strong title={`${currentOption.batchName}${currentOption.moduleName ? ` — ${currentOption.moduleName}` : ""}`}>
                       {currentOption.batchName}
                       {currentOption.moduleName ? ` — ${currentOption.moduleName}` : ""}
                     </strong>
                   </span>
-                  <ChevronDown size={15} />
+                  <ChevronDown size={16} />
                 </summary>
                 <div>
                   {cohorts.map((option) => (
@@ -188,6 +143,20 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             );
           })()}
 
+          <nav className="participant-nav" aria-label="Participant navigation">
+            {navItems.map((item) => (
+              <Link key={item.href} href={item.href} className={isActive(item.href) ? "active" : ""} onClick={() => beginNavigation(item.href)}>
+                <span className="participant-nav-icon"><item.icon size={17} strokeWidth={2.3} /></span>
+                {item.label}
+                {item.href === "/actions" && pendingValidationCount > 0 && (
+                  <span className="participant-nav-badge" aria-label={`${pendingValidationCount} actions pending validation`}>{pendingValidationCount}</span>
+                )}
+              </Link>
+            ))}
+          </nav>
+        </div>
+
+        <div>
           {role !== "user" && (
             <Link
               href="/admin"
@@ -246,11 +215,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             )}
 
             <div className="participant-topbar-actions">
-              {role === "user" && cohorts.length > 0 && <label className="participant-cohort-switcher participant-batch-switcher">
-                <select aria-label="View module" value={cohort?.id ?? ""} disabled={switchingCohort} onChange={(event) => void switchCohort(event.target.value)}>
-                  {cohorts.map((option) => <option key={option.id} value={option.id}>{option.moduleName || option.batchName}{option.isCurrent ? " · Current" : " · Earlier"}</option>)}
-                </select>
-              </label>}
               <Link href="/wallet" className="participant-points-pill" title="Commitment score" onClick={() => beginNavigation("/wallet")}>
                 {commitmentLabel}
                 <small>Commitment Score</small>

@@ -107,6 +107,24 @@ export async function getCohortMessages(cohortId: string): Promise<{
   }
 }
 
+/** How many messages the batch conversation has (for the admin Control panel card). */
+export async function getCohortMessageCount(cohortId: string): Promise<{ error?: string; count?: number }> {
+  try {
+    const access = await getChatAccess(cohortId);
+    if ("error" in access) return { error: access.error };
+
+    const admin = createAdminClient();
+    const { count, error } = await admin
+      .from("cohort_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("cohort_id", cohortId);
+    if (error) return { error: error.message };
+    return { count: count ?? 0 };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not count messages" };
+  }
+}
+
 export async function sendCohortMessage(cohortId: string, message: string): Promise<{
   error?: string;
   message?: CohortMessage;

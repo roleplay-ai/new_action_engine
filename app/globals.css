@@ -19137,6 +19137,7 @@ textarea.commitment-buddy-contact-selectable {
   font-size: 0.78rem;
   flex: none;
 }
+.cp-avatar--content { border-radius: 10px; background: #FFF6D6; color: #8A6A00; }
 .cp-person {
   display: flex;
   align-items: center;

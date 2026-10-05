@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, FileSpreadsheet, Search, Shuffle, Users } from "lucide-react";
+import { Check, FileSpreadsheet, Search, Users } from "lucide-react";
 import { getCohortDetail } from "@/app/actions/cohorts";
 import {
   assignMembersTag,
@@ -19,7 +19,6 @@ import {
   CpPageHeader,
   CpSaveBar,
   initials,
-  useConfirm,
   useControlPanelBatch,
   useReportViewReady,
   useToast,
@@ -61,7 +60,6 @@ export function TeamAssignPanel() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
-  const { confirm, dialog } = useConfirm();
   const { show, toast } = useToast();
 
   const load = useCallback(async () => {
@@ -137,26 +135,6 @@ export function TeamAssignPanel() {
     setTicked(new Set());
   }
 
-  function shareEqually() {
-    const unassigned = sortedMembers.filter((member) => !teamOf(member));
-    confirm({
-      title: "Share people equally?",
-      body: <>{unassigned.length} {unassigned.length === 1 ? "person has" : "people have"} no team. They will be spread evenly across the {slots.length} teams. Nothing is saved until you press “Save changes”.</>,
-      confirmLabel: "Yes, share equally",
-      onConfirm: () => {
-        const counts = new Map(slots.map((slot) => [slot.tag.id, countIn(slot)]));
-        const plan: Record<string, string> = {};
-        for (const member of unassigned) {
-          const smallest = [...slots].sort((a, b) => (counts.get(a.tag.id)! - counts.get(b.tag.id)!) || a.number - b.number)[0];
-          counts.set(smallest.tag.id, counts.get(smallest.tag.id)! + 1);
-          plan[member.id] = smallest.tag.id;
-        }
-        setPendingTeams((current) => ({ ...current, ...plan }));
-        setFilter("all");
-      },
-    });
-  }
-
   function applyRename(slot: TeamSlot, value: string) {
     const wanted = value.trim() || slot.tag.name;
     const clash = slots.some((other) => other.tag.id !== slot.tag.id && nameOf(other).toLowerCase() === wanted.toLowerCase());
@@ -224,7 +202,6 @@ export function TeamAssignPanel() {
               <span>{withoutTeam} {withoutTeam === 1 ? "person doesn’t" : "people don’t"} have a team yet.</span>
               <span className="cp-banner-actions">
                 <button type="button" className="cp-btn cp-btn--small" onClick={() => setFilter("none")}>Show them</button>
-                <button type="button" className="cp-btn cp-btn--secondary cp-btn--small" disabled={saving} onClick={shareEqually}><Shuffle size={14} /> Share equally</button>
               </span>
             </div>
           ) : (
@@ -405,7 +382,6 @@ export function TeamAssignPanel() {
         onSave={() => void save()}
         onDiscard={() => { setPendingTeams({}); setPendingNames({}); setRenamingId(null); setTicked(new Set()); }}
       />
-      {dialog}
       {toast}
     </section>
   );

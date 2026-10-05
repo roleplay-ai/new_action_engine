@@ -288,7 +288,7 @@ export default function PlanClient({ initialTrainingText, embedded = false }: { 
 
     {!showInitialSetup && !editingSetup && !isPlanActive && !hasDraft && <div className="plan-summary-card"><div className="plan-summary-icon"><Sparkles size={24} /></div><div><span className="participant-eyebrow">{cohort?.name ?? "Your batch"}</span><h2>{heading}</h2><p>{summary}</p></div></div>}
 
-    {canBuildPlan && hasArchivedPlans && <div className="journey-card plan-history-notice"><strong>Your earlier batch plans are safely archived.</strong><p>Use the batch switcher above whenever you want to revisit earlier actions and complete any that remain.</p></div>}
+    {canBuildPlan && hasArchivedPlans && <div className="journey-card plan-history-notice"><strong>Your earlier batch plans are safely archived.</strong><p>Use the batch switcher in the sidebar whenever you want to revisit earlier actions and complete any that remain.</p></div>}
 
     {generationJob && <div className="journey-card plan-generation-status" role="status"><GenerationStatus job={generationJob} /></div>}
     {hasDraft && generationError && !generationJob && <div className="journey-card plan-generation-error" role="alert"><div><X size={18} /><span><strong>Generation paused</strong><small>{generationError}</small></span></div><button type="button" onClick={openPlanSetup}>Try again</button></div>}

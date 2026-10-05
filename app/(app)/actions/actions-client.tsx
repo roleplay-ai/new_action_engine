@@ -834,7 +834,7 @@ export default function ActionsClient() {
                       </div>
                     </div>
                     {planIsArchived
-                      ? <div className="plan-action-controls plan-action-controls--compact"><button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>Do this action</button></div>
+                      ? <div className="plan-action-controls plan-action-controls--compact"><button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>Mark as done</button></div>
                       : <button type="button" className="plan-action-edit-button" disabled={busy} onClick={() => openUpcomingEdit(action)} aria-label={`Edit ${action.title}`} title="Edit action"><Pencil size={13} /></button>}
                   </article>;
                 })}
@@ -897,7 +897,7 @@ export default function ActionsClient() {
         const isComplete = archivedActionIsComplete(action.status);
         return <article key={action.id}>
           <div className="actions-archive-copy"><div className="actions-archive-meta"><span>{action.cohortName}</span><em>{archivedStatusLabel(action.status)}</em></div><strong>{action.title}</strong><p>{action.how}</p><small><Clock3 size={12} /> {action.timeEstimate} · Archived {formatDate(action.archivedAt)}</small>{action.reflection && <blockquote>{action.reflection}</blockquote>}</div>
-          {isComplete ? <CheckCircle2 className="actions-archive-complete" size={21} aria-label="Completed" /> : <button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>{action.status === "failed" || action.status === "skipped" ? "Try again" : "Do this action"}</button>}
+          {isComplete ? <CheckCircle2 className="actions-archive-complete" size={21} aria-label="Completed" /> : <button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>{action.status === "failed" || action.status === "skipped" ? "Try again" : "Mark as done"}</button>}
         </article>;
       })}
     </div></section>}

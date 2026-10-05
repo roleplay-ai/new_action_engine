@@ -2,8 +2,8 @@
 
 import React, { createContext, useContext, useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Building2, Layers } from "lucide-react";
-import { BatchSelector, useBatchOptions } from "@/components/admin/BatchSelector";
+import { Building2 } from "lucide-react";
+import { BatchModuleSelects, BatchSelector, useBatchOptions } from "@/components/admin/BatchSelector";
 import PageLoader from "@/components/PageLoader";
 
 const COMPANY_STORAGE_KEY = "nudgeable:admin:companyId";
@@ -232,7 +232,7 @@ export function AdminContextBar() {
   if (!showCompany && !effectiveCompanyId) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center justify-end gap-3">
       <CompanySelector />
       {effectiveCompanyId && (
         <BatchSelector
@@ -327,7 +327,7 @@ export function BatchPickerGate({ children }: { children: React.ReactNode }) {
             Select a batch to continue
           </h3>
           <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-            Pick the batch and module you want to review — its data loads in the background and shows once it&apos;s ready.
+            Which batch do you want to work on? You can change it any time from the top right corner.
           </p>
         </div>
 
@@ -360,30 +360,14 @@ export function BatchPickerGate({ children }: { children: React.ReactNode }) {
           )}
 
           {draftCompanyId && (
-            <label className="block space-y-1">
-              <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
-                Batch / Module
-              </span>
-              <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ border: "1px solid var(--color-border)" }}>
-                <Layers size={15} strokeWidth={2} style={{ color: "var(--color-text-muted)" }} />
-                <select
-                  value={draftCohortId ?? ""}
-                  disabled={loading}
-                  onChange={(e) => setDraftCohortId(e.target.value || null)}
-                  className="w-full text-sm font-semibold bg-transparent outline-none cursor-pointer disabled:cursor-wait"
-                  style={{ color: "var(--color-text-primary)" }}
-                >
-                  <option value="" disabled>
-                    {loading ? "Loading batches…" : "Select a batch…"}
-                  </option>
-                  {options.map((opt) => (
-                    <option key={opt.cohortId} value={opt.cohortId}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </label>
+            <BatchModuleSelects
+              idPrefix="gate"
+              options={options}
+              loading={loading}
+              value={draftCohortId}
+              onChange={setDraftCohortId}
+              stacked
+            />
           )}
         </div>
 
@@ -394,7 +378,7 @@ export function BatchPickerGate({ children }: { children: React.ReactNode }) {
           className="w-full rounded-xl py-2.5 text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: "var(--bright-amber)", color: "var(--color-text-primary)" }}
         >
-          View dashboard
+          Continue
         </button>
       </div>
     </div>,

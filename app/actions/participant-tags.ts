@@ -304,13 +304,24 @@ export async function getCohortTeamNameOverrides(cohortId: string): Promise<{ er
 }
 
 /** Set (or clear, with a blank or unchanged name) this batch's own
- * display-name override for a shared team. Superadmin only — the underlying
- * tag can be shared across other companies' batches, so a plain company admin
- * isn't allowed to change how it's labelled even just for their own batch. */
+ * display-name override for a shared team. Superadmin, or the company admin
+ * of that batch — the override only ever applies to this one cohort, so the
+ * shared tag's name everywhere else is untouched (see migration 079). */
 export async function setCohortTeamName(cohortId: string, tagId: string, displayName: string): Promise<{ error?: string }> {
   try {
-    await ensureSuperadmin();
     const supabase = await createClient();
+    const {
+      data: { user: caller },
+    } = await supabase.auth.getUser();
+    if (!caller) return { error: "Not authenticated" };
+    const isSuperadminEmail = caller.email?.toLowerCase() === SUPERADMIN_EMAIL;
+    const { data: profile } = await supabase.from("profiles").select("role, company_id").eq("id", caller.id).single();
+    if (profile?.role !== "superadmin" && !isSuperadminEmail) {
+      const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).maybeSingle();
+      if (profile?.role !== "admin" || !cohort || cohort.company_id !== profile.company_id) {
+        return { error: "You do not have access to this batch" };
+      }
+    }
 
     const { data: tag, error: tagError } = await supabase.from("participant_tags").select("name").eq("id", tagId).single();
     if (tagError || !tag) return { error: "Team not found" };
@@ -337,6 +348,46 @@ export async function setCohortTeamName(cohortId: string, tagId: string, display
 
     revalidatePath("/admin");
     revalidatePath("/journey");
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+/** assignMemberTag for several participants of one cohort at once — the
+ * admin Team assign screen's "tick several, put them in a team" action. */
+export async function assignMembersTag(cohortId: string, userIds: string[], tagId: string | null): Promise<{ error?: string }> {
+  if (userIds.length === 0) return {};
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "Not authenticated" };
+
+    const { data: profile } = await supabase.from("profiles").select("role, company_id").eq("id", user.id).single();
+    if (profile?.role !== "superadmin" && profile?.role !== "admin" && profile?.role !== "trainer") {
+      throw new Error("Forbidden: admin, superadmin or trainer only");
+    }
+
+    if (profile?.role === "admin") {
+      const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).maybeSingle();
+      if (!cohort || cohort.company_id !== profile.company_id) {
+        return { error: "You do not have access to this batch" };
+      }
+    }
+
+    const { error } = await supabase
+      .from("cohort_members")
+      .update({ tag_id: tagId })
+      .eq("cohort_id", cohortId)
+      .in("user_id", userIds);
+    if (error) return { error: error.message };
+
+    revalidatePath("/admin");
+    revalidatePath("/superadmin/tags");
+    revalidatePath("/journey");
+    revalidatePath("/trainer/members");
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed" };

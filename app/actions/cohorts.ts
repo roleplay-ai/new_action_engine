@@ -125,7 +125,7 @@ async function getAdminContext(): Promise<{
  * to zero rows via the regular client — authorization is already enforced by
  * getAdminContext() above, so bypassing RLS here is safe. */
 export async function getCompanyUsers(companyId: string): Promise<
-  { error?: string; users?: { id: string; full_name: string | null; email: string | null }[] }> {
+  { error?: string; users?: { id: string; full_name: string | null; email: string | null; current_cohort_id: string | null }[] }> {
   try {
     const { companyId: myCompanyId, role } = await getAdminContext();
     if (role === "admin" && myCompanyId !== companyId) return { error: "Access denied" };
@@ -136,7 +136,7 @@ export async function getCompanyUsers(companyId: string): Promise<
     const admin = createAdminClient();
     const { data: profiles, error } = await admin
       .from("profiles")
-      .select("id, full_name, email")
+      .select("id, full_name, email, current_cohort_id")
       .eq("company_id", companyId)
       .eq("role", "user");
     if (error) return { error: error.message };
@@ -146,6 +146,7 @@ export async function getCompanyUsers(companyId: string): Promise<
         id: p.id,
         full_name: p.full_name,
         email: p.email ?? null,
+        current_cohort_id: p.current_cohort_id ?? null,
       })),
     };
   } catch (e) {
@@ -358,6 +359,34 @@ export async function addCohortDate(cohortId: string, date: string): Promise<{ e
     revalidatePath("/admin");
     revalidatePath("/journey");
     return { id: data.id };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+/** Move one training date to a different day. cohort_dates has no UPDATE
+ * policy (see 058_cohort_multiple_dates.sql), so this inserts the new day
+ * and then deletes the old row — both of which the admin policies allow. */
+export async function updateCohortDate(cohortId: string, dateId: string, date: string): Promise<{ error?: string }> {
+  try {
+    const { supabase, userId, companyId, role } = await getAdminContext();
+    if (role === "admin") {
+      const { data: cohort } = await supabase.from("cohorts").select("company_id").eq("id", cohortId).single();
+      if (!cohort || cohort.company_id !== companyId) return { error: "Batch not found or access denied" };
+    }
+    if (!date) return { error: "Date is required" };
+
+    const { error: insertError } = await supabase
+      .from("cohort_dates")
+      .insert({ cohort_id: cohortId, event_date: date, created_by: userId });
+    if (insertError) return { error: insertError.message };
+
+    const { error: deleteError } = await supabase.from("cohort_dates").delete().eq("id", dateId).eq("cohort_id", cohortId);
+    if (deleteError) return { error: deleteError.message };
+
+    revalidatePath("/admin");
+    revalidatePath("/journey");
+    return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed" };
   }

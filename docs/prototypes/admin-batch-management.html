@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Batch Management – Admin Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FFFDF5; --dark:#221D23; --ink:#221D23; --ink-2:#4A4047; --ink-3:#6B616F;
+  --yellow:#FFCE00; --yellow-soft:#FFF4BF;
+  --line:rgba(34,29,35,.12); --line-2:rgba(34,29,35,.3);
+  --ok:#0A6632; --ok-bg:#DDF5E6; --warn:#8A4B00; --warn-bg:#FFEACB; --bad:#A31D1D;
+  /* Each team has ONE colour that is used everywhere that team appears */
+  --t1:#1D4ED8; --t2:#15803D; --t3:#7E22CE; --t4:#C2410C; --t5:#0E7490;
+}
+html{font-size:15px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;line-height:1.45}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid #1D4ED8;outline-offset:2px;border-radius:6px}
+h1,h2,h3,p{margin:0}
+
+/* Sidebar — same as the current admin */
+.app{display:grid;grid-template-columns:15.5rem 1fr;min-height:100vh}
+.side{background:var(--dark);color:#fff;padding:1rem .75rem;display:flex;flex-direction:column;gap:.75rem;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:.6rem;padding:.2rem .5rem .9rem;border-bottom:1px solid rgba(255,255,255,.12)}
+.brand img{height:1.9rem;filter:brightness(0) invert(1)}
+.brand small{color:#cfc8d2;font-size:.72rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;display:block;line-height:1.1}
+.brand strong{font-size:.95rem}
+.nav{display:flex;flex-direction:column;gap:.25rem}
+.nav button{display:flex;align-items:center;gap:.7rem;min-height:2.7rem;padding:.45rem .8rem;border:0;border-radius:9px;background:transparent;color:#e8e3ea;font-size:.95rem;font-weight:600;text-align:left;cursor:pointer;width:100%}
+.nav button:hover{background:rgba(255,255,255,.09)}
+.nav button.child{padding-left:2.5rem;font-weight:500}
+.nav button[aria-current="page"]{background:var(--yellow);color:var(--dark);font-weight:700}
+.nav svg,.side-foot svg{width:1.15rem;height:1.15rem;flex:none}
+.nav .chev{margin-left:auto;width:.9rem;height:.9rem;opacity:.7}
+.side-foot{margin-top:auto;border-top:1px solid rgba(255,255,255,.12);padding-top:.75rem;display:flex;align-items:center;gap:.6rem;font-size:.85rem;color:#cfc8d2}
+.side-foot strong{display:block;color:#fff;font-size:.9rem}
+.side-foot button{margin-left:auto;background:transparent;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;min-width:2.2rem;min-height:2.2rem;display:grid;place-items:center;cursor:pointer}
+
+.main{min-width:0;padding:1.5rem 2rem 3rem;width:100%}
+.top2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;align-items:stretch}
+.top2 .step{margin-bottom:0}
+.picker{grid-template-columns:1fr!important}
+.title h1{font-size:1.5rem;font-weight:800;letter-spacing:-.01em}
+.title p{color:var(--ink-2);margin:.15rem 0 1.2rem}
+
+/* Buttons & inputs */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;min-height:2.6rem;padding:.4rem 1rem;border-radius:10px;border:2px solid var(--dark);background:var(--yellow);color:var(--dark);font-weight:700;font-size:.95rem;cursor:pointer;white-space:nowrap}
+.btn:hover{filter:brightness(.95)}
+.btn svg{width:1.05rem;height:1.05rem;flex:none}
+.btn.secondary{background:#fff;border-color:var(--line-2)}
+.btn.secondary:hover{border-color:var(--dark)}
+.btn.small{min-height:2.2rem;padding:.2rem .75rem;font-size:.85rem}
+.btn.danger{background:#fff;border-color:var(--bad);color:var(--bad)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.input,.select{min-height:2.6rem;border:1px solid var(--line-2);border-radius:10px;padding:.35rem .8rem;background:#fff;width:100%}
+.select{font-weight:600;cursor:pointer;padding-right:2rem}
+.hint{color:var(--ink-3);font-size:.85rem}
+.avatar{width:2.2rem;height:2.2rem;border-radius:50%;background:var(--yellow);display:grid;place-items:center;font-weight:700;font-size:.8rem;flex:none}
+.empty{padding:1.4rem 1rem;text-align:center;color:var(--ink-2);border:1px dashed var(--line-2);border-radius:10px;background:#fffefa}
+.empty strong{display:block;color:var(--ink);margin-bottom:.15rem}
+
+/* The three steps */
+.step{background:#fff;border:1px solid var(--line);border-radius:14px;padding:1.1rem 1.3rem;margin-bottom:1rem}
+.step-head{display:flex;align-items:center;gap:.8rem;margin-bottom:.9rem;flex-wrap:wrap}
+.num{width:2rem;height:2rem;border-radius:50%;background:var(--yellow);border:2px solid var(--dark);display:grid;place-items:center;font-weight:800;flex:none}
+.step-head h2{font-size:1.1rem;font-weight:800}
+.step-head .why{color:var(--ink-3);font-size:.85rem;flex-basis:100%;margin:-.55rem 0 0 2.8rem}
+.step-head .right{margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap}
+
+/* Step 1 */
+.picker{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.picker label{display:block;font-weight:700;font-size:.85rem;margin-bottom:.3rem}
+.chosen{margin-top:.8rem;padding:.55rem .8rem;border-radius:10px;background:var(--yellow-soft);font-size:.9rem}
+
+/* Step 2 — dates */
+.dates{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;border:1px solid var(--line-2);border-radius:99px;background:#fff;padding:.15rem .25rem .15rem .85rem;font-weight:600;font-size:.9rem}
+.chip.next{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+.chip.past{color:var(--ink-3);background:#f6f2e8}
+.chip .tag{font-weight:700;font-size:.72rem;margin-left:.4rem;text-transform:uppercase;letter-spacing:.03em}
+.chip button{height:1.9rem;border:0;background:transparent;border-radius:99px;cursor:pointer;font-weight:600;font-size:.8rem;color:inherit;padding:0 .55rem;text-decoration:underline}
+.chip button:hover{background:rgba(34,29,35,.08)}
+.chip.editing{padding:.2rem .3rem;gap:.3rem;border-color:var(--dark)}
+.chip.editing input{border:1px solid var(--line-2);border-radius:8px;min-height:2rem;padding:0 .5rem}
+.date-add{display:flex;gap:.4rem;align-items:center;margin-left:auto}
+.date-add input{min-height:2.2rem;border:1px solid var(--line-2);border-radius:8px;padding:0 .5rem}
+
+/* Step 3 — status banner */
+.banner{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;padding:.7rem 1rem;border-radius:10px;margin-bottom:1rem;font-weight:600}
+.banner.todo{background:var(--warn-bg);border:1px solid #e9b970;color:var(--warn)}
+.banner.done{background:var(--ok-bg);border:1px solid #8fd3a8;color:var(--ok)}
+.banner .btns{margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap}
+
+/* Team cards — one per colour */
+.teams{display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem;margin-bottom:1.1rem}
+.team{--c:var(--t1);border:2px solid var(--c);border-radius:12px;background:color-mix(in srgb,var(--c) 7%,#fff);padding:.6rem .7rem;display:flex;flex-direction:column;gap:.15rem;min-width:0;position:relative}
+.team.on{background:color-mix(in srgb,var(--c) 18%,#fff);box-shadow:0 0 0 3px var(--c)}
+.team .nm{font-weight:800;font-size:.95rem;color:var(--c);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.team .orig{font-size:.72rem;color:var(--ink-3);margin-top:-.15rem}
+.team .ct{font-size:.85rem;color:var(--ink-2)}
+.team .acts{display:flex;gap:.3rem;margin-top:.35rem}
+.team .acts button{flex:1;min-height:2rem;border-radius:8px;border:1px solid var(--c);background:#fff;color:var(--c);font-weight:700;font-size:.78rem;cursor:pointer;padding:0 .3rem}
+.team .acts button:hover{background:var(--c);color:#fff}
+.team .input{min-height:2.2rem;padding:.2rem .5rem;margin-top:.15rem}
+.team .err{color:var(--bad);font-size:.75rem}
+.team .reset{background:none;border:0;color:var(--ink-2);text-decoration:underline;cursor:pointer;font-size:.75rem;padding:0;text-align:left}
+.c1,.seg button.c1{--c:var(--t1)}.c2,.seg button.c2{--c:var(--t2)}.c3,.seg button.c3{--c:var(--t3)}.c4,.seg button.c4{--c:var(--t4)}.c5,.seg button.c5{--c:var(--t5)}
+
+/* People */
+.filterbar{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:.7rem}
+.search{position:relative;flex:1;min-width:12rem}
+.search svg{position:absolute;left:.8rem;top:50%;transform:translateY(-50%);width:1.05rem;height:1.05rem;color:var(--ink-3)}
+.search .input{padding-left:2.4rem}
+.listhead{display:flex;gap:.8rem;align-items:center;padding:.3rem .8rem;font-size:.8rem;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em}
+.listhead .sp{flex:1}
+.list{display:flex;flex-direction:column;gap:.4rem}
+.person{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;padding:.5rem .8rem;border:1px solid var(--line);border-radius:10px;background:#fff}
+.person.checked{background:var(--yellow-soft);border-color:var(--dark)}
+.person .id{display:flex;align-items:center;gap:.7rem;flex:1 1 15rem;min-width:0}
+.person .who strong{display:block;font-size:.95rem;line-height:1.2}
+.person .who span{font-size:.8rem;color:var(--ink-3);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chk{width:1.2rem;height:1.2rem;accent-color:var(--dark);flex:none;cursor:pointer}
+.seg{display:flex;gap:.3rem;flex-wrap:wrap}
+/* team buttons: coloured outline in the team colour; filled when chosen */
+.seg button{--c:var(--ink-3);min-width:5rem;max-width:7.5rem;min-height:2.3rem;padding:0 .6rem;border-radius:8px;border:2px solid var(--c);background:color-mix(in srgb,var(--c) 6%,#fff);color:var(--c);font-weight:700;font-size:.82rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg button:hover{background:color-mix(in srgb,var(--c) 18%,#fff)}
+.seg button.on{background:var(--c);color:#fff}
+.seg .none{min-width:3.4rem;--c:#8a8090;font-weight:600}
+.seg .none.on{--c:var(--warn)}
+.rm{background:none;border:0;color:var(--ink-3);text-decoration:underline;cursor:pointer;font-size:.8rem;padding:.4rem}
+.rm:hover{color:var(--bad)}
+.bulk{position:sticky;top:.5rem;z-index:5;background:var(--dark);color:#fff;border-radius:12px;padding:.7rem .9rem;margin-bottom:.7rem;display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
+.bulk strong{margin-right:auto;font-size:.92rem}
+.bulk .seg button{background:var(--c);color:#fff;border-color:#fff}
+.bulk .seg .none{background:transparent}
+
+/* Dialog + toast */
+dialog{border:2px solid var(--dark);border-radius:16px;padding:0;max-width:32rem;width:calc(100% - 2rem);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+dialog.wide{max-width:36rem}
+dialog::backdrop{background:rgba(34,29,35,.6)}
+.dlg{padding:1.3rem}
+.dlg h2{font-size:1.2rem;font-weight:800;margin-bottom:.3rem}
+.dlg .body{color:var(--ink-2);margin-bottom:.8rem}
+.dlg .acts{display:flex;gap:.6rem;justify-content:flex-end;flex-wrap:wrap;margin-top:1rem}
+.note{background:var(--yellow-soft);border:1px solid var(--yellow);border-radius:10px;padding:.55rem .8rem;font-size:.85rem;margin-bottom:.8rem}
+.pick{max-height:16rem;overflow:auto;display:flex;flex-direction:column;gap:.4rem;margin:.7rem 0}
+.pick label{display:flex;align-items:center;gap:.7rem;padding:.45rem .7rem;border:1px solid var(--line);border-radius:10px;cursor:pointer;background:#fff}
+.pick label.checked{background:var(--yellow-soft);border-color:var(--dark)}
+.pick small{display:block;color:var(--ink-3);font-size:.78rem}
+.toast{position:fixed;left:50%;bottom:1.2rem;transform:translateX(-50%);z-index:50;background:var(--dark);color:#fff;border-radius:12px;padding:.7rem .8rem .7rem 1.1rem;display:flex;gap:.8rem;align-items:center;font-weight:600;box-shadow:0 10px 40px rgba(0,0,0,.35);max-width:calc(100% - 2rem)}
+.toast[hidden]{display:none}
+.toast .btn{min-height:2.2rem;font-size:.85rem;padding:.1rem .8rem}
+.toast .x{background:transparent;border:0;color:#fff;cursor:pointer;min-width:2rem;min-height:2rem;font-size:1.1rem}
+.protonote{font-size:.8rem;color:var(--ink-3);margin-top:1.2rem;text-align:center}
+
+@media (max-width:1100px){.teams{grid-template-columns:repeat(3,1fr)}.top2{grid-template-columns:1fr}}
+@media (max-width:860px){.app{grid-template-columns:1fr}.side{position:static;height:auto}.nav{display:grid;grid-template-columns:1fr 1fr}.nav button.child{padding-left:.8rem}.main{padding:1rem}.picker{grid-template-columns:1fr}.date-add{margin-left:0}}
+@media (max-width:520px){.teams{grid-template-columns:repeat(2,1fr)}.nav{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><img src="../../public/NudgeableBlack.png" alt="" onerror="this.style.display='none'"><div><strong>Nudgeable</strong><small>Admin</small></div></div>
+    <nav class="nav" aria-label="Admin menu">
+      <button data-stub="Dashboard"><span data-i="dash"></span>Dashboard</button>
+      <button data-stub="Control Panel"><span data-i="gear"></span>Control Panel<span class="chev" data-i="down"></span></button>
+      <button class="child" aria-current="page">Batch Management</button>
+      <button class="child" data-stub="Content Management">Content Management</button>
+      <button data-stub="Conversations"><span data-i="chat"></span>Conversations</button>
+      <button data-stub="Announcements"><span data-i="mega"></span>Announcements</button>
+    </nav>
+    <div class="side-foot"><div><strong>Ramesh Kulkarni</strong>Admin · Acme Learning</div><button data-stub="Log out" aria-label="Log out"><span data-i="out"></span></button></div>
+  </aside>
+  <main class="main" id="page"></main>
+</div>
+<dialog id="dlg"><div class="dlg" id="dlgBox"></div></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+const IC={
+  dash:'<rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  chat:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  mega:'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>',
+  out:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
+  down:'<polyline points="6 9 12 15 18 9"/>',
+  check:'<polyline points="20 6 9 17 4 12"/>',
+  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  search:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  sheet:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>',
+  shuffle:'<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>',
+  undo:'<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>'
+};
+const icon=(n)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
+const esc=(s)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=(s,r=document)=>r.querySelector(s);
+document.querySelectorAll('[data-i]').forEach(e=>e.innerHTML=icon(e.dataset.i));
+
+/* ═════════ Sample data. In the real app a batch = batchName + moduleName. ═════════ */
+const TEAMS=[1,2,3,4,5];
+const people=[['Priya Sharma','priya.sharma'],['Arjun Mehta','arjun.mehta'],['Kavita Rao','kavita.rao'],['Suresh Nair','suresh.nair'],['Meera Pillai','meera.pillai'],['Rohit Verma','rohit.verma'],['Anita Desai','anita.desai'],['Vikram Singh','vikram.singh'],['Deepa Menon','deepa.menon'],['Sanjay Gupta','sanjay.gupta'],['Neha Kapoor','neha.kapoor'],['Rahul Joshi','rahul.joshi'],['Lakshmi Iyer','lakshmi.iyer'],['Manoj Kumar','manoj.kumar'],['Sunita Patil','sunita.patil'],['Amit Choudhury','amit.choudhury'],['Pooja Bansal','pooja.bansal'],['Harish Reddy','harish.reddy'],['Divya Krishnan','divya.krishnan'],['Naveen Das','naveen.das']]
+ .map(([name,e],i)=>({id:'p'+(i+1),name,email:e+'@acme.example',cohort:null,team:null}));
+const cohorts=[
+  {id:'c1',batch:'Leadership Batch – Oct 2026',module:'Communication skills',dates:['2026-10-12','2026-10-26','2026-11-09'],names:{2:'Eagles'}},
+  {id:'c2',batch:'Leadership Batch – Oct 2026',module:'Giving feedback',dates:['2026-11-23'],names:{}},
+  {id:'c3',batch:'Leadership Batch – Oct 2026',module:'Strategic thinking',dates:[],names:{}},
+  {id:'c4',batch:'Sales Excellence – Nov 2026',module:'Negotiation',dates:['2026-11-16','2026-11-30'],names:{}},
+  {id:'c5',batch:'Sales Excellence – Nov 2026',module:'Customer conversations',dates:['2026-12-07'],names:{}},
+  {id:'c6',batch:'Frontline Managers – Sep 2026',module:'',dates:['2026-09-14','2026-10-05','2026-10-19'],names:{}}
+];
+[[1,'c1',1],[2,'c1',2],[3,'c1',1],[4,'c1',3],[5,'c1',4],[6,'c1',null],[7,'c1',5],[8,'c1',null],[9,'c1',2],[10,'c1',3],[11,'c1',null],[12,'c1',null],[13,'c2',1],[14,'c2',null],[15,'c4',2],[16,'c4',null],[17,'c4',3],[18,'c6',1]].forEach(([n,c,t])=>{const p=people[n-1];p.cohort=c;p.team=t});
+const TODAY='2026-10-03';
+
+const ui={batch:'Leadership Batch – Oct 2026',cohortId:'c1',filter:'all',q:'',sel:new Set(),editDate:null,renaming:null,renameErr:'',addSel:new Set(),addQ:'',addTeam:''};
+let undoSnap=null;
+const batchNames=[...new Set(cohorts.map(c=>c.batch))];
+const modulesOf=(b)=>cohorts.filter(c=>c.batch===b);
+const cur=()=>cohorts.find(c=>c.id===ui.cohortId)||null;
+const members=(c=cur())=>people.filter(p=>p.cohort===c.id);
+const teamName=(c,t)=>c.names[t]||('Team '+t);
+const teamCount=(c,t)=>members(c).filter(p=>p.team===t).length;
+const initials=(n)=>n.split(' ').map(w=>w[0]).slice(0,2).join('');
+const cohortLabel=(c)=>c.module?`${c.batch} — ${c.module}`:c.batch;
+const fmt=(d)=>new Intl.DateTimeFormat('en',{day:'numeric',month:'short',year:'numeric'}).format(new Date(d+'T00:00:00'));
+const matchQ=(p,q)=>!q||(p.name+' '+p.email).toLowerCase().includes(q.toLowerCase());
+const inFilter=(p)=>ui.filter==='all'||(ui.filter==='none'?!p.team:p.team===ui.filter);
+const snap=()=>{undoSnap=JSON.stringify({people,cohorts})};
+function restore(){const s=JSON.parse(undoSnap);s.people.forEach((p,i)=>Object.assign(people[i],p));s.cohorts.forEach((c,i)=>{cohorts[i].dates=c.dates;cohorts[i].names=c.names})}
+const resetView=()=>{ui.filter='all';ui.q='';ui.sel.clear();ui.renaming=null;ui.editDate=null};
+
+/* ═════════ Render ═════════ */
+function render(){
+  const a=document.activeElement,aid=a&&a.id,pos=a&&a.selectionStart;
+  $('#page').innerHTML=view();
+  if(aid){const el=document.getElementById(aid);if(el){el.focus();try{el.setSelectionRange(pos,pos)}catch(e){}}}
+}
+const stepHead=(n,title,why,right='')=>`<div class="step-head"><span class="num">${n}</span><h2>${title}</h2>${right?`<div class="right">${right}</div>`:''}<p class="why">${why}</p></div>`;
+
+function view(){
+  const c=cur(), mods=modulesOf(ui.batch);
+  const step1=`<section class="step">${stepHead(1,'Choose the batch and module','Pick from the two lists. Everything below changes to match your choice.')}
+    <div class="picker">
+      <div><label for="selBatch">Batch</label><select class="select" id="selBatch">${batchNames.map(b=>`<option ${b===ui.batch?'selected':''}>${esc(b)}</option>`).join('')}</select></div>
+      <div><label for="selModule">Module</label>
+        ${mods.length===1&&!mods[0].module?`<select class="select" id="selModule" disabled><option>This batch has no modules</option></select>`
+        :`<select class="select" id="selModule"><option value="" ${c?'':'selected'} disabled>Choose a module…</option>${mods.map(m=>`<option value="${m.id}" ${m.id===ui.cohortId?'selected':''}>${esc(m.module)}</option>`).join('')}</select>`}</div></div>
+    <div class="chosen">${c?`You are managing: <strong>${esc(cohortLabel(c))}</strong>`:'Now choose a module from the second list.'}</div></section>`;
+  const head=`<div class="title"><h1>Batch management</h1><p>Acme Learning</p></div>`;
+  if(!c) return head+step1;
+  return head+`<div class="top2">${step1}${datesStep(c)}</div>`+peopleStep(c)+`<p class="protonote">Prototype · sample data only · nothing is saved</p>`;
+}
+
+function datesStep(c){
+  const sorted=[...c.dates].sort(), next=sorted.find(d=>d>=TODAY);
+  const chips=sorted.map(d=>ui.editDate===d
+    ?`<span class="chip editing"><input type="date" id="editDateInput" value="${d}" aria-label="New date"><button class="btn small" data-act="saveDate">Save</button><button class="btn secondary small" data-act="cancelDate">Cancel</button></span>`
+    :`<span class="chip ${d===next?'next':d<TODAY?'past':''}">${fmt(d)}${d===next?'<span class="tag">Next</span>':d<TODAY?'<span class="tag">Done</span>':''}<button data-editdate="${d}" aria-label="Change date ${fmt(d)}">Change</button><button data-deldate="${d}" aria-label="Remove date ${fmt(d)}">Remove</button></span>`).join('');
+  return `<section class="step">${stepHead(2,'Session dates','These are the days this batch meets. You can change, remove or add dates.')}
+    <div class="dates">${chips||'<span class="hint">No dates yet — add the first one.</span>'}
+    <form class="date-add" data-form="adddate"><input type="date" id="newDate" aria-label="New date to add"><button class="btn secondary small" type="submit">${icon('plus')} Add date</button></form></div></section>`;
+}
+
+function peopleStep(c){
+  const ms=members(c), noTeam=ms.filter(p=>!p.team).length;
+  const banner=!ms.length?'':noTeam
+    ?`<div class="banner todo"><span>${noTeam} ${noTeam===1?'person doesn’t':'people don’t'} have a team yet.</span><span class="btns"><button class="btn small" data-filter="none">Show them</button><button class="btn secondary small" data-act="split">${icon('shuffle')} Share equally</button></span></div>`
+    :`<div class="banner done">${icon('check')} Everyone has a team.</div>`;
+
+  const cards=TEAMS.map(t=>ui.renaming===t
+    ?`<div class="team c${t} on"><span class="nm">Rename Team ${t}</span><input class="input" id="renameInput" maxlength="60" value="${esc(c.names[t]||'')}" placeholder="Team ${t}" aria-label="New name for Team ${t}">${ui.renameErr?`<span class="err">${esc(ui.renameErr)}</span>`:''}<div class="acts"><button data-act="saveRename">Save</button><button data-act="cancelRename">Cancel</button></div>${c.names[t]?`<button class="reset" data-act="resetRename">Use “Team ${t}” again</button>`:''}</div>`
+    :`<div class="team c${t} ${ui.filter===t?'on':''}"><span class="nm" title="${esc(teamName(c,t))}">${esc(teamName(c,t))}</span>${c.names[t]?`<span class="orig">Team ${t}</span>`:''}<span class="ct">${teamCount(c,t)} ${teamCount(c,t)===1?'person':'people'}</span>
+      <div class="acts"><button data-filter="${t}">${ui.filter===t?'Showing':'Show'}</button><button data-rename="${t}">Rename</button></div></div>`).join('');
+
+  const shown=ms.filter(p=>matchQ(p,ui.q)&&inFilter(p));
+  const selected=[...ui.sel].filter(id=>ms.some(p=>p.id===id));
+  const seg=(p)=>TEAMS.map(t=>`<button class="c${t} ${p.team===t?'on':''}" data-set="${p.id}:${t}" aria-pressed="${p.team===t}" title="${esc(teamName(c,t))}" aria-label="Put ${esc(p.name)} in ${esc(teamName(c,t))}">${esc(teamName(c,t))}</button>`).join('')
+    +`<button class="none ${p.team?'':'on'}" data-set="${p.id}:0" aria-pressed="${!p.team}" aria-label="Put ${esc(p.name)} in no team">None</button>`;
+  const bulk=selected.length?`<div class="bulk" role="region" aria-label="Move ticked people"><strong>${selected.length} ticked — put them in:</strong><div class="seg">${TEAMS.map(t=>`<button class="c${t}" data-bulk="${t}">${esc(teamName(c,t))}</button>`).join('')}<button class="none" data-bulk="0">None</button></div><button class="btn secondary small" data-act="untick">Untick</button></div>`:'';
+  const allTicked=shown.length&&shown.every(p=>ui.sel.has(p.id));
+  const filterNote=ui.filter!=='all'?`<span class="hint">Showing only <strong>${ui.filter==='none'?'people without a team':esc(teamName(c,ui.filter))}</strong></span><button class="btn secondary small" data-filter="all">Show everyone</button>`:'';
+  const rows=shown.length?shown.map(p=>`<div class="person ${ui.sel.has(p.id)?'checked':''}">
+      <label class="id"><input type="checkbox" class="chk" data-sel="${p.id}" ${ui.sel.has(p.id)?'checked':''} aria-label="Tick ${esc(p.name)}"><span class="avatar">${initials(p.name)}</span><span class="who"><strong>${esc(p.name)}</strong><span>${esc(p.email)}</span></span></label>
+      <div class="seg" role="group" aria-label="Team for ${esc(p.name)}">${seg(p)}</div><button class="rm" data-remove="${p.id}" aria-label="Remove ${esc(p.name)} from batch">Remove</button></div>`).join('')
+    :`<div class="empty">${ms.length?'<strong>No one to show</strong>Try a different search or team.':'<strong>No one is in this batch yet</strong>Press “Add people” to choose from your company.'}</div>`;
+
+  return `<section class="step">${stepHead(3,'People and teams','Add people to this batch, then press a coloured team button next to each name.',
+      `<button class="btn secondary" data-act="export" ${ms.length?'':'disabled'}>${icon('sheet')} Export Excel</button><button class="btn" data-act="openAdd">${icon('plus')} Add people</button>`)}
+    ${banner}
+    <div class="teams">${cards}</div>
+    ${ms.length?`<div class="filterbar"><div class="search">${icon('search')}<input class="input" id="q" type="search" placeholder="Search by name" value="${esc(ui.q)}" aria-label="Search people"></div>${filterNote}</div>
+    ${bulk}
+    <div class="listhead"><label style="display:flex;gap:.8rem;align-items:center;cursor:pointer;flex:1"><input type="checkbox" class="chk" data-act="tickAll" ${allTicked?'checked':''} aria-label="Tick everyone shown"> ${ms.length} people · tick several to move them together</label><span style="padding-right:2.6rem">Team</span></div>`:''}
+    <div class="list">${rows}</div></section>`;
+}
+
+/* ═════════ Dialog + toast ═════════ */
+let tt;
+function toast(msg,undo){const t=$('#toast');t.innerHTML=`<span>${msg}</span>${undo?`<button class="btn" data-act="undo">${icon('undo')} Undo</button>`:''}<button class="x" data-act="closeToast" aria-label="Close">✕</button>`;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,undo?10000:5000)}
+function ask({title,body,yes,danger,onYes}){const d=$('#dlg');d.className='';$('#dlgBox').innerHTML=`<h2>${title}</h2><div class="body">${body}</div><div class="acts"><button class="btn secondary" id="dlgNo">Cancel</button><button class="btn ${danger?'danger':''}" id="dlgYes">${yes}</button></div>`;$('#dlgYes').onclick=()=>{d.close();onYes&&onYes()};$('#dlgNo').onclick=()=>d.close();d.showModal()}
+function assign(ids,team){const c=cur();snap();ids.forEach(id=>people.find(p=>p.id===id).team=team||null);ui.sel.clear();
+  const who=ids.length===1?people.find(p=>p.id===ids[0]).name:`${ids.length} people`;
+  toast(team?`${esc(who)} is now in ${esc(teamName(c,team))}`:`${esc(who)}: no team`,true);render()}
+
+function openAdd(){
+  const c=cur(),avail=people.filter(p=>p.cohort!==c.id&&matchQ(p,ui.addQ)),all=people.filter(p=>p.cohort!==c.id);
+  const d=$('#dlg');d.className='wide';
+  $('#dlgBox').innerHTML=`<h2>Add people to this batch</h2><div class="body" style="margin-bottom:.5rem">${esc(cohortLabel(c))}</div>
+    <div class="note">If someone is already in another batch, adding them here moves them. Their unfinished earlier plan is archived.</div>
+    <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="input" id="addQ" type="search" placeholder="Search by name" value="${esc(ui.addQ)}" aria-label="Search people"></div>
+    <div class="pick">${avail.length?avail.map(p=>`<label class="${ui.addSel.has(p.id)?'checked':''}"><input type="checkbox" class="chk" data-addsel="${p.id}" ${ui.addSel.has(p.id)?'checked':''}><span class="avatar">${initials(p.name)}</span><span><strong style="font-size:.92rem">${esc(p.name)}</strong><small>${p.cohort?'Now in '+esc(cohortLabel(cohorts.find(x=>x.id===p.cohort))):esc(p.email)}</small></span></label>`).join(''):`<div class="empty">${all.length?'No one matches your search.':'Everyone is already in this batch.'}</div>`}</div>
+    <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap"><label for="addTeam" style="font-weight:600;font-size:.88rem">Team for these people:</label>
+      <select class="select" id="addTeam" style="width:auto;min-width:11rem"><option value="">Decide later</option>${TEAMS.map(t=>`<option value="${t}" ${String(ui.addTeam)===String(t)?'selected':''}>${esc(teamName(c,t))}</option>`).join('')}</select></div>
+    <div class="acts"><button class="btn secondary" data-act="closeAdd">Cancel</button><button class="btn" data-act="confirmAdd" ${ui.addSel.size?'':'disabled'}>${icon('plus')} Add ${ui.addSel.size||''} ${ui.addSel.size===1?'person':'people'}</button></div>`;
+  if(!d.open) d.showModal();
+}
+
+/* ═════════ Events ═════════ */
+document.addEventListener('click',(e)=>{
+  const b=e.target.closest('button'); if(!b||b.disabled) return; const d=b.dataset;
+  if(d.stub) return toast(`${d.stub} is not part of this prototype — it stays as it is today.`);
+  if(d.filter){const f=d.filter==='all'||d.filter==='none'?d.filter:+d.filter;ui.filter=(ui.filter===f&&f!=='all')?'all':f;return render()}
+  if(d.set){const [id,t]=d.set.split(':');return assign([id],+t)}
+  if(d.bulk) return assign([...ui.sel],+d.bulk);
+  if(d.rename){ui.renaming=+d.rename;ui.renameErr='';render();const i=$('#renameInput');i&&i.focus();return}
+  if(d.editdate){ui.editDate=d.editdate;return render()}
+  const c=cur();
+  if(d.deldate) return ask({title:'Remove this date?',body:`${fmt(d.deldate)} will be removed from <strong>${esc(cohortLabel(c))}</strong>.`,yes:'Yes, remove',danger:true,onYes(){snap();c.dates=c.dates.filter(x=>x!==d.deldate);toast('Date removed.',true);render()}});
+  if(d.remove){const p=people.find(x=>x.id===d.remove);return ask({title:`Remove ${esc(p.name)}?`,body:`They will no longer be in <strong>${esc(cohortLabel(c))}</strong>. You can add them again later.`,yes:'Yes, remove',danger:true,onYes(){snap();p.cohort=null;p.team=null;ui.sel.delete(p.id);toast(`${esc(p.name)} removed.`,true);render()}})}
+  switch(d.act){
+    case 'saveDate':{const v=$('#editDateInput').value;if(!v)return;if(v!==ui.editDate&&c.dates.includes(v))return toast('That date is already in the list.');snap();c.dates=c.dates.map(x=>x===ui.editDate?v:x);ui.editDate=null;toast('Date changed.',true);return render()}
+    case 'cancelDate':ui.editDate=null;return render();
+    case 'saveRename':{const t=ui.renaming,v=$('#renameInput').value.trim();
+      if(TEAMS.some(x=>x!==t&&teamName(c,x).toLowerCase()===(v||'Team '+t).toLowerCase())){ui.renameErr='That name is already used.';return render()}
+      snap();if(!v||v==='Team '+t)delete c.names[t];else c.names[t]=v;ui.renaming=null;ui.renameErr='';toast(`Team ${t} is now called “${esc(teamName(c,t))}”`,true);return render()}
+    case 'resetRename':snap();delete c.names[ui.renaming];ui.renaming=null;ui.renameErr='';toast('Name reset.',true);return render();
+    case 'cancelRename':ui.renaming=null;ui.renameErr='';return render();
+    case 'untick':ui.sel.clear();return render();
+    case 'split':{const ids=members(c).filter(p=>!p.team).map(p=>p.id);return ask({title:'Share people equally?',body:`${ids.length} ${ids.length===1?'person has':'people have'} no team. They will be spread evenly across the five teams. You can still change anyone afterwards.`,yes:'Yes, share equally',onYes(){snap();ids.forEach(id=>{const t=TEAMS.slice().sort((a,b)=>teamCount(c,a)-teamCount(c,b)||a-b)[0];people.find(p=>p.id===id).team=t});ui.filter='all';toast('Done — everyone now has a team.',true);render()}})}
+    case 'export':return toast(`Excel downloaded: ${esc(cohortLabel(c))} members.xlsx`);
+    case 'openAdd':ui.addSel.clear();ui.addQ='';ui.addTeam='';return openAdd();
+    case 'closeAdd':return $('#dlg').close();
+    case 'confirmAdd':{const ids=[...ui.addSel],t=+ui.addTeam||null;snap();ids.forEach(id=>{const p=people.find(x=>x.id===id);p.cohort=c.id;p.team=t});$('#dlg').close();ui.addSel.clear();toast(`${ids.length} ${ids.length===1?'person':'people'} added${t?` to ${esc(teamName(c,t))}`:''}.`,true);return render()}
+    case 'undo':if(undoSnap){restore();$('#toast').hidden=true;render();toast('Last change undone.')}return;
+    case 'closeToast':$('#toast').hidden=true;return;
+  }
+});
+document.addEventListener('change',(e)=>{
+  const t=e.target;
+  if(t.id==='selBatch'){ui.batch=t.value;const m=modulesOf(ui.batch);ui.cohortId=(m.length===1)?m[0].id:null;resetView();return render()}
+  if(t.id==='selModule'){ui.cohortId=t.value;resetView();return render()}
+  if(t.dataset.sel){t.checked?ui.sel.add(t.dataset.sel):ui.sel.delete(t.dataset.sel);return render()}
+  if(t.dataset.act==='tickAll'){const c=cur();members(c).filter(p=>matchQ(p,ui.q)&&inFilter(p)).forEach(p=>t.checked?ui.sel.add(p.id):ui.sel.delete(p.id));return render()}
+  if(t.dataset.addsel){t.checked?ui.addSel.add(t.dataset.addsel):ui.addSel.delete(t.dataset.addsel);return openAdd()}
+  if(t.id==='addTeam'){ui.addTeam=t.value}
+});
+document.addEventListener('input',(e)=>{
+  if(e.target.id==='q'){ui.q=e.target.value;render()}
+  if(e.target.id==='addQ'){ui.addQ=e.target.value;openAdd();const i=$('#addQ');i.focus();i.setSelectionRange(i.value.length,i.value.length)}
+});
+document.addEventListener('submit',(e)=>{
+  if(e.target.dataset.form==='adddate'){e.preventDefault();const v=$('#newDate').value,c=cur();if(!v)return;
+    if(c.dates.includes(v))return toast('That date is already in the list.');snap();c.dates.push(v);toast(`${fmt(v)} added.`,true);render()}
+});
+document.addEventListener('keydown',(e)=>{
+  if(e.target.id==='renameInput'&&e.key==='Enter'){e.preventDefault();$('[data-act="saveRename"]').click()}
+  if(e.target.id==='renameInput'&&e.key==='Escape'){$('[data-act="cancelRename"]').click()}
+});
+
+const qs=new URLSearchParams(location.search);
+if(qs.get('rename')) ui.renaming=+qs.get('rename');
+if(qs.get('batch')){ui.batch=batchNames[+qs.get('batch')];ui.cohortId=null}
+if(qs.get('filter')) ui.filter=qs.get('filter')==='none'?'none':+qs.get('filter');
+render();
+if(qs.get('tick')){['p1','p2'].forEach(id=>ui.sel.add(id));render()}
+</script>
+</body>
+</html>

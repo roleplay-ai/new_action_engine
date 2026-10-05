@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Control Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FFFDF5; --dark:#221D23; --ink:#221D23; --ink-2:#4A4047; --ink-3:#6B616F;
+  --yellow:#FFCE00; --yellow-soft:#FFF4BF;
+  --line:rgba(34,29,35,.12); --line-2:rgba(34,29,35,.3);
+  --ok:#0A6632; --ok-bg:#DDF5E6; --warn:#8A4B00; --warn-bg:#FFEACB; --bad:#A31D1D;
+  --t1:#1D4ED8; --t2:#15803D; --t3:#7E22CE; --t4:#C2410C; --t5:#0E7490;
+  color-scheme:light;
+}
+html{font-size:15px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid #1D4ED8;outline-offset:2px;border-radius:6px}
+h1,h2,h3,p{margin:0}
+
+/* ── Shell ── */
+.app{display:grid;grid-template-columns:15.5rem 1fr;min-height:100vh}
+.side{background:var(--dark);color:#fff;padding:1rem .75rem;display:flex;flex-direction:column;gap:.75rem;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:.6rem;padding:.2rem .5rem .9rem;border-bottom:1px solid rgba(255,255,255,.12)}
+.brand img{height:1.9rem;filter:brightness(0) invert(1)}
+.brand small{color:#cfc8d2;font-size:.72rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;display:block;line-height:1.1}
+.brand strong{font-size:.95rem}
+.nav{display:flex;flex-direction:column;gap:.3rem}
+.nav button{display:flex;align-items:center;gap:.75rem;min-height:3rem;padding:.5rem .85rem;border:0;border-radius:10px;background:transparent;color:#e8e3ea;font-size:1rem;font-weight:600;text-align:left;cursor:pointer;width:100%}
+.nav button:hover{background:rgba(255,255,255,.09)}
+.nav button[aria-current="page"]{background:var(--yellow);color:var(--dark);font-weight:700}
+.nav svg,.side-foot svg{width:1.25rem;height:1.25rem;flex:none}
+.side-foot{margin-top:auto;border-top:1px solid rgba(255,255,255,.12);padding-top:.75rem;display:flex;align-items:center;gap:.6rem;font-size:.85rem;color:#cfc8d2}
+.side-foot strong{display:block;color:#fff;font-size:.9rem}
+.side-foot button{margin-left:auto;background:transparent;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;min-width:2.2rem;min-height:2.2rem;display:grid;place-items:center;cursor:pointer}
+.main{min-width:0;display:flex;flex-direction:column}
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.7rem 2rem;background:#fff;border-bottom:1px solid var(--line)}
+.crumb{font-weight:700;font-size:.95rem;color:var(--ink-2);min-width:0}
+.crumb span{color:var(--ink-3);font-weight:500}
+.bsel{display:flex;align-items:flex-end;gap:.6rem;flex-wrap:wrap;background:var(--yellow-soft);border:1px solid var(--yellow);border-radius:12px;padding:.4rem .6rem}
+.bsel label{display:block;font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2);margin:0 0 .1rem .2rem}
+.bsel .select{min-height:2.3rem;min-width:11rem;width:auto;font-size:.88rem}
+.page{padding:1.5rem 2rem 3rem;width:100%;min-width:0}
+
+/* ── Common ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;min-height:2.6rem;padding:.4rem 1rem;border-radius:10px;border:2px solid var(--dark);background:var(--yellow);color:var(--dark);font-weight:700;font-size:.95rem;cursor:pointer;white-space:nowrap}
+.btn:hover{filter:brightness(.95)}
+.btn svg{width:1.05rem;height:1.05rem;flex:none}
+.btn.secondary{background:#fff;border-color:var(--line-2)}
+.btn.secondary:hover{border-color:var(--dark)}
+.btn.small{min-height:2.2rem;padding:.2rem .75rem;font-size:.85rem}
+.btn.danger{background:#fff;border-color:var(--bad);color:var(--bad)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.input,.select{min-height:2.6rem;border:1px solid var(--line-2);border-radius:10px;padding:.35rem .8rem;background:#fff;width:100%}
+.select{font-weight:600;cursor:pointer;padding-right:2rem}
+textarea.input{min-height:7rem;resize:vertical;padding:.7rem .9rem}
+.hint{color:var(--ink-3);font-size:.85rem}
+.avatar{width:2.2rem;height:2.2rem;border-radius:50%;background:var(--yellow);display:grid;place-items:center;font-weight:700;font-size:.8rem;flex:none}
+.empty{padding:1.6rem 1rem;text-align:center;color:var(--ink-2);border:1px dashed var(--line-2);border-radius:10px;background:#fffefa}
+.empty strong{display:block;color:var(--ink);margin-bottom:.15rem}
+.empty .btn{margin-top:.8rem}
+.pill{display:inline-flex;align-items:center;gap:.3rem;padding:.1rem .6rem;border-radius:99px;font-weight:600;font-size:.78rem;white-space:nowrap}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}.pill.warn{background:var(--warn-bg);color:var(--warn)}.pill.grey{background:#efeae0;color:var(--ink-2)}
+.pill.team{color:#fff}
+.t1bg{background:var(--t1)!important}.t2bg{background:var(--t2)!important}.t3bg{background:var(--t3)!important}.t4bg{background:var(--t4)!important}.t5bg{background:var(--t5)!important}
+.chk{width:1.2rem;height:1.2rem;accent-color:var(--dark);flex:none;cursor:pointer}
+.search{position:relative;flex:1;min-width:11rem}
+.search svg{position:absolute;left:.8rem;top:50%;transform:translateY(-50%);width:1.05rem;height:1.05rem;color:var(--ink-3)}
+.search .input{padding-left:2.4rem}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:1.1rem 1.3rem}
+.card-head{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;margin-bottom:.9rem}
+.card-head h2{font-size:1.1rem;font-weight:800}
+.card-head .grow{margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap}
+
+/* Page heading */
+.back{display:inline-flex;align-items:center;gap:.4rem;border:0;background:none;color:var(--ink-2);font-weight:700;font-size:.9rem;cursor:pointer;padding:.3rem .5rem .3rem 0;margin-bottom:.4rem}
+.back:hover{color:var(--ink);text-decoration:underline}
+.back svg{width:1rem;height:1rem}
+.ph{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:1.2rem}
+.ph h1{font-size:1.5rem;font-weight:800;letter-spacing:-.01em}
+.ph p{color:var(--ink-2);margin-top:.15rem}
+.ph .right{display:flex;gap:.5rem;flex-wrap:wrap}
+
+/* ── Control panel cards ── */
+.cp{display:grid;grid-template-columns:repeat(auto-fill,minmax(19rem,1fr));gap:1rem}
+.cp-card{--c:#2563EB;display:flex;flex-direction:column;gap:.55rem;text-align:left;padding:1.2rem;background:#fff;border:1px solid var(--line);border-radius:14px;cursor:pointer;min-height:11rem}
+.cp-card:hover{border-color:var(--c);box-shadow:0 0 0 2px var(--c)}
+.cp-card .ic{width:2.8rem;height:2.8rem;border-radius:12px;background:color-mix(in srgb,var(--c) 14%,#fff);color:var(--c);display:grid;place-items:center}
+.cp-card .ic svg{width:1.45rem;height:1.45rem}
+.cp-card h3{font-size:1.1rem;font-weight:800}
+.cp-card p{color:var(--ink-2);font-size:.9rem}
+.cp-card .foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding-top:.3rem}
+.cp-card .go{color:var(--c);font-weight:700;font-size:.88rem;display:flex;align-items:center;gap:.3rem}
+.cp-card .go svg{width:1rem;height:1rem}
+
+/* ── Dashboard ── */
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(13rem,1fr));gap:.8rem;margin-bottom:1rem}
+.stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:1rem 1.2rem}
+.stat span{font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
+.stat b{display:block;font-size:2rem;line-height:1.15;font-weight:800;margin-top:.2rem;font-variant-numeric:tabular-nums}
+.stat small{color:var(--ink-3);font-size:.85rem;font-weight:500}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.88rem;font-variant-numeric:tabular-nums}
+th{text-align:left;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);padding:.5rem .7rem;border-bottom:1px solid var(--line)}
+td{padding:.55rem .7rem;border-bottom:1px solid var(--line)}
+th.n,td.n{text-align:right}
+.note-top{font-size:.85rem;color:var(--ink-2);background:#f6f2e8;border-radius:10px;padding:.5rem .8rem;margin-bottom:1rem}
+
+/* ── Training dates ── */
+.narrow{max-width:none}
+.daterow{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;padding:.7rem .9rem;border:1px solid var(--line);border-radius:12px;background:#fff}
+.daterow .d{flex:1 1 12rem}
+.daterow .d strong{display:block;font-size:1rem}
+.daterow .d span{font-size:.82rem;color:var(--ink-3)}
+.daterow.next{border-color:var(--ok);background:var(--ok-bg)}
+.daterow.past{background:#f6f2e8;color:var(--ink-3)}
+.daterow input[type=date]{min-height:2.3rem;border:1px solid var(--line-2);border-radius:8px;padding:0 .5rem}
+.addrow{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--line)}
+.addrow label{font-weight:700}
+.addrow input{min-height:2.6rem;border:1px solid var(--line-2);border-radius:10px;padding:0 .7rem}
+.list{display:flex;flex-direction:column;gap:.45rem}
+
+/* ── Participants ── */
+.two{display:grid;grid-template-columns:1fr 1.15fr;gap:1rem;align-items:start}
+.prow{display:flex;align-items:center;gap:.8rem;padding:.5rem .8rem;border:1px solid var(--line);border-radius:10px;background:#fff;min-width:0}
+.prow.checked{background:var(--yellow-soft);border-color:var(--dark)}
+.prow.in{background:#f8faf6}
+.prow label{display:flex;align-items:center;gap:.7rem;flex:1;min-width:0;cursor:pointer}
+.prow.in label{cursor:default}
+.who strong{display:block;font-size:.95rem;line-height:1.2}
+.who span{font-size:.8rem;color:var(--ink-3);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scroll{max-height:32rem;overflow:auto;padding-right:.2rem}
+.rm{background:none;border:0;color:var(--ink-3);text-decoration:underline;cursor:pointer;font-size:.8rem;padding:.4rem}
+.rm:hover{color:var(--bad)}
+.addbar{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;margin-top:.8rem;padding-top:.8rem;border-top:1px solid var(--line)}
+
+/* ── Teams ── */
+.banner{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;padding:.7rem 1rem;border-radius:10px;margin-bottom:1rem;font-weight:600}
+.banner.todo{background:var(--warn-bg);border:1px solid #e9b970;color:var(--warn)}
+.banner.done{background:var(--ok-bg);border:1px solid #8fd3a8;color:var(--ok)}
+.banner .btns{margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap}
+.teams{display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem;margin-bottom:1.1rem}
+.team{--c:var(--t1);border:2px solid var(--c);border-radius:12px;background:color-mix(in srgb,var(--c) 7%,#fff);padding:.6rem .7rem;display:flex;flex-direction:column;gap:.15rem;min-width:0}
+.team.on{background:color-mix(in srgb,var(--c) 18%,#fff);box-shadow:0 0 0 3px var(--c)}
+.team .nm{font-weight:800;font-size:.95rem;color:var(--c);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.team .orig{font-size:.72rem;color:var(--ink-3);margin-top:-.15rem}
+.team .ct{font-size:.85rem;color:var(--ink-2)}
+.team .acts{display:flex;gap:.3rem;margin-top:.35rem}
+.team .acts button{flex:1;min-height:2rem;border-radius:8px;border:1px solid var(--c);background:#fff;color:var(--c);font-weight:700;font-size:.78rem;cursor:pointer;padding:0 .3rem}
+.team .acts button:hover{background:var(--c);color:#fff}
+.team .input{min-height:2.2rem;padding:.2rem .5rem;margin-top:.15rem}
+.team .err{color:var(--bad);font-size:.75rem}
+.team .reset{background:none;border:0;color:var(--ink-2);text-decoration:underline;cursor:pointer;font-size:.75rem;padding:0;text-align:left}
+.c1,.seg button.c1{--c:var(--t1)}.c2,.seg button.c2{--c:var(--t2)}.c3,.seg button.c3{--c:var(--t3)}.c4,.seg button.c4{--c:var(--t4)}.c5,.seg button.c5{--c:var(--t5)}
+.filterbar{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:.7rem}
+.listhead{display:flex;gap:.8rem;align-items:center;padding:.3rem .8rem;font-size:.8rem;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em}
+.person{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;padding:.5rem .8rem;border:1px solid var(--line);border-radius:10px;background:#fff}
+.person.checked{background:var(--yellow-soft);border-color:var(--dark)}
+.person .id{display:flex;align-items:center;gap:.7rem;flex:1 1 15rem;min-width:0;cursor:pointer}
+.seg{display:flex;gap:.3rem;flex-wrap:wrap}
+.seg button{--c:var(--ink-3);min-width:5rem;max-width:7.5rem;min-height:2.3rem;padding:0 .6rem;border-radius:8px;border:2px solid var(--c);background:color-mix(in srgb,var(--c) 6%,#fff);color:var(--c);font-weight:700;font-size:.82rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg button:hover{background:color-mix(in srgb,var(--c) 18%,#fff)}
+.seg button.on{background:var(--c);color:#fff}
+.seg .none{min-width:3.4rem;--c:#8a8090;font-weight:600}
+.seg .none.on{--c:var(--warn)}
+.bulk{position:sticky;top:4.6rem;z-index:5;background:var(--dark);color:#fff;border-radius:12px;padding:.7rem .9rem;margin-bottom:.7rem;display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
+.bulk strong{margin-right:auto;font-size:.92rem}
+.bulk .seg button{background:var(--c);color:#fff;border-color:#fff}
+.bulk .seg .none{background:transparent}
+
+/* ── Chat / notices / content ── */
+.chat{display:flex;flex-direction:column;gap:.7rem;height:26rem;overflow:auto;padding:.3rem;margin-bottom:.8rem}
+.msg{max-width:min(36rem,85%);padding:.6rem .9rem;border-radius:14px;background:#f1ece1}
+.msg.me{align-self:flex-end;background:var(--yellow)}
+.msg b{font-size:.8rem;display:block;margin-bottom:.1rem}
+.msg small{display:block;color:var(--ink-3);font-size:.72rem;margin-top:.15rem}
+.composer{display:flex;gap:.6rem}
+.notice{padding:.8rem 1rem;border:1px solid var(--line);border-radius:12px;background:#fff;display:flex;gap:1rem;align-items:flex-start}
+.notice p{flex:1;white-space:pre-wrap}
+.notice small{display:block;color:var(--ink-3);margin-top:.2rem}
+.chips{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.9rem}
+.chips button{min-height:2.2rem;padding:0 .9rem;border-radius:99px;border:1px solid var(--line-2);background:#fff;font-weight:600;cursor:pointer}
+.chips button[aria-pressed="true"]{background:var(--dark);color:#fff;border-color:var(--dark)}
+.item{display:flex;align-items:center;gap:.9rem;padding:.7rem .9rem;border:1px solid var(--line);border-radius:12px;background:#fff;flex-wrap:wrap}
+.item .tp{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-radius:8px;padding:.25rem .55rem;min-width:4.6rem;text-align:center;color:#fff}
+.tp.video{background:#1D4ED8}.tp.quiz{background:#7E22CE}.tp.preread{background:#0E7490}
+.item .info{flex:1 1 14rem;min-width:0}.item .info strong{display:block}.item .info span{font-size:.85rem;color:var(--ink-3)}
+
+/* ── Dialogs + toast ── */
+dialog{border:2px solid var(--dark);border-radius:16px;padding:0;max-width:32rem;width:calc(100% - 2rem);box-shadow:0 20px 60px rgba(0,0,0,.35);background:#fff;color:var(--ink)}
+dialog::backdrop{background:rgba(34,29,35,.65)}
+.dlg{padding:1.4rem}
+.dlg h2{font-size:1.25rem;font-weight:800;margin-bottom:.3rem}
+.dlg .body{color:var(--ink-2);margin-bottom:1rem}
+.dlg .acts{display:flex;gap:.6rem;justify-content:flex-end;flex-wrap:wrap;margin-top:1.1rem}
+.dlg label.f{display:block;font-weight:700;font-size:.85rem;margin:.7rem 0 .3rem}
+.toast{position:fixed;left:50%;bottom:1.2rem;transform:translateX(-50%);z-index:50;background:var(--dark);color:#fff;border-radius:12px;padding:.7rem .8rem .7rem 1.1rem;display:flex;gap:.8rem;align-items:center;font-weight:600;box-shadow:0 10px 40px rgba(0,0,0,.35);max-width:calc(100% - 2rem)}
+.toast[hidden]{display:none}
+.toast .btn{min-height:2.2rem;font-size:.85rem;padding:.1rem .8rem}
+.toast .x{background:transparent;border:0;color:#fff;cursor:pointer;min-width:2rem;min-height:2rem;font-size:1.1rem}
+.protonote{font-size:.8rem;color:var(--ink-3);margin-top:1.5rem;text-align:center}
+
+@media (max-width:1100px){.two{grid-template-columns:1fr}.teams{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:860px){.app{grid-template-columns:1fr}.side{position:static;height:auto}.nav{display:grid;grid-template-columns:1fr 1fr}.top{position:static;padding:.7rem 1rem}.page{padding:1rem}.bulk{top:.5rem}}
+@media (max-width:520px){.teams{grid-template-columns:repeat(2,1fr)}.nav{grid-template-columns:1fr}.bsel .select{min-width:100%}.bsel>div{flex:1 1 100%}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><img src="../../public/NudgeableBlack.png" alt="" onerror="this.style.display='none'"><div><strong>Nudgeable</strong><small>Admin</small></div></div>
+    <nav class="nav" aria-label="Admin menu" id="nav"></nav>
+    <div class="side-foot"><div><strong>Ramesh Kulkarni</strong>Admin · Acme Learning</div><button id="logout" aria-label="Log out" title="Log out (prototype: shows the login popup again)"></button></div>
+  </aside>
+  <div class="main">
+    <header class="top" id="top"></header>
+    <main class="page" id="page" tabindex="-1"></main>
+  </div>
+</div>
+
+<dialog id="login" aria-labelledby="loginTitle"><div class="dlg" id="loginBox"></div></dialog>
+<dialog id="dlg"><div class="dlg" id="dlgBox"></div></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+const IC={
+  dash:'<rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  cal:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  team:'<circle cx="12" cy="7" r="3"/><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M10 9.5 6.5 14.5M14 9.5l3.5 5"/>',
+  chat:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  mega:'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>',
+  book:'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+  out:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
+  arrow:'<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
+  back:'<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+  check:'<polyline points="20 6 9 17 4 12"/>',
+  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  search:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  sheet:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>',
+  shuffle:'<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>',
+  undo:'<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>',
+  send:'<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>'
+};
+const icon=(n)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
+const esc=(s)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=(s,r=document)=>r.querySelector(s);
+
+/* ═════════ Sample data (a batch = batch name + module name in the real app) ═════════ */
+const TEAMS=[1,2,3,4,5];
+const people=[['Priya Sharma','priya.sharma'],['Arjun Mehta','arjun.mehta'],['Kavita Rao','kavita.rao'],['Suresh Nair','suresh.nair'],['Meera Pillai','meera.pillai'],['Rohit Verma','rohit.verma'],['Anita Desai','anita.desai'],['Vikram Singh','vikram.singh'],['Deepa Menon','deepa.menon'],['Sanjay Gupta','sanjay.gupta'],['Neha Kapoor','neha.kapoor'],['Rahul Joshi','rahul.joshi'],['Lakshmi Iyer','lakshmi.iyer'],['Manoj Kumar','manoj.kumar'],['Sunita Patil','sunita.patil'],['Amit Choudhury','amit.choudhury'],['Pooja Bansal','pooja.bansal'],['Harish Reddy','harish.reddy'],['Divya Krishnan','divya.krishnan'],['Naveen Das','naveen.das']]
+ .map(([name,e],i)=>({id:'p'+(i+1),name,email:e+'@acme.example',cohort:null,team:null}));
+const cohorts=[
+  {id:'c1',batch:'Leadership Batch – Oct 2026',module:'Communication skills',dates:['2026-10-12','2026-10-26','2026-11-09'],names:{2:'Eagles'}},
+  {id:'c2',batch:'Leadership Batch – Oct 2026',module:'Giving feedback',dates:['2026-11-23'],names:{}},
+  {id:'c3',batch:'Leadership Batch – Oct 2026',module:'Strategic thinking',dates:[],names:{}},
+  {id:'c4',batch:'Sales Excellence – Nov 2026',module:'Negotiation',dates:['2026-11-16','2026-11-30'],names:{}},
+  {id:'c5',batch:'Sales Excellence – Nov 2026',module:'Customer conversations',dates:['2026-12-07'],names:{}},
+  {id:'c6',batch:'Frontline Managers – Sep 2026',module:'',dates:['2026-09-14','2026-10-05','2026-10-19'],names:{}}
+];
+[[1,'c1',1],[2,'c1',2],[3,'c1',1],[4,'c1',3],[5,'c1',4],[6,'c1',null],[7,'c1',5],[8,'c1',null],[9,'c1',2],[10,'c1',3],[11,'c1',null],[12,'c1',null],[13,'c2',1],[14,'c2',null],[15,'c4',2],[16,'c4',null],[17,'c4',3],[18,'c6',1]].forEach(([n,c,t])=>{const p=people[n-1];p.cohort=c;p.team=t});
+const notices={c1:[{id:1,text:'Welcome to the Communication skills module. Please log in and read your first action before 12 October.',when:'1 Oct'},{id:2,text:'Session 1 will be held in Conference Room B at 10:00 am.',when:'3 Oct'}]};
+const chat={c1:[{who:'Priya Sharma',text:'Good morning! Is the first session in person?',when:'Yesterday, 9:10 am'},{who:'Arjun Mehta',text:'Same question from me. Also, will the slides be shared in advance?',when:'Yesterday, 9:42 am'},{who:'Ramesh Kulkarni',me:true,text:'Yes, it is in person. Slides will be shared on the morning of the session.',when:'Yesterday, 11:05 am'},{who:'Kavita Rao',text:'Thank you, that helps.',when:'Yesterday, 11:20 am'}]};
+const library=[
+  {id:'l1',type:'video',title:'Leading with clarity',desc:'12 min · how to state a goal so nobody has to guess.'},
+  {id:'l2',type:'video',title:'Giving feedback that helps',desc:'9 min · a simple structure for difficult conversations.'},
+  {id:'l3',type:'video',title:'Running better meetings',desc:'14 min · agendas, timing and clear follow-ups.'},
+  {id:'l4',type:'quiz',title:'Communication styles quiz',desc:'8 questions · find your natural style.'},
+  {id:'l5',type:'quiz',title:'Feedback check-in quiz',desc:'6 questions · test what you took from the video.'},
+  {id:'l6',type:'preread',title:'The listening ladder',desc:'4 page reading before Session 1.'},
+  {id:'l7',type:'preread',title:'Meeting design checklist',desc:'1 page checklist you can print.'},
+  {id:'l8',type:'preread',title:'Coaching conversations guide',desc:'6 page reading for Session 3.'}
+];
+const TYPE={video:'Video',quiz:'Quiz',preread:'Pre-read'};
+const TODAY='2026-10-05';
+
+/* ═════════ State ═════════ */
+const ui={page:'dash',batch:null,cohortId:null,filter:'all',q:'',sel:new Set(),editDate:null,renaming:null,renameErr:'',pq:'',psel:new Set(),ctype:'all',noticeDraft:'',chatDraft:'',loginBatch:'',loginCohort:''};
+let undoSnap=null;
+const batchNames=[...new Set(cohorts.map(c=>c.batch))];
+const modulesOf=(b)=>cohorts.filter(c=>c.batch===b);
+const cur=()=>cohorts.find(c=>c.id===ui.cohortId)||null;
+const members=(c=cur())=>people.filter(p=>p.cohort===c.id);
+const teamName=(c,t)=>c.names[t]||('Team '+t);
+const teamCount=(c,t)=>members(c).filter(p=>p.team===t).length;
+const initials=(n)=>n.split(' ').map(w=>w[0]).slice(0,2).join('');
+const cohortLabel=(c)=>c.module?`${c.batch} — ${c.module}`:c.batch;
+const fmt=(d)=>new Intl.DateTimeFormat('en',{day:'numeric',month:'short',year:'numeric'}).format(new Date(d+'T00:00:00'));
+const fmtLong=(d)=>new Intl.DateTimeFormat('en',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date(d+'T00:00:00'));
+const matchQ=(p,q)=>!q||(p.name+' '+p.email).toLowerCase().includes(q.toLowerCase());
+const inFilter=(p)=>ui.filter==='all'||(ui.filter==='none'?!p.team:p.team===ui.filter);
+const snap=()=>{undoSnap=JSON.stringify({people,cohorts,notices})};
+function restore(){const s=JSON.parse(undoSnap);s.people.forEach((p,i)=>Object.assign(people[i],p));s.cohorts.forEach((c,i)=>{cohorts[i].dates=c.dates;cohorts[i].names=c.names});Object.keys(notices).forEach(k=>delete notices[k]);Object.assign(notices,s.notices)}
+const resetView=()=>{ui.filter='all';ui.q='';ui.sel.clear();ui.psel.clear();ui.pq='';ui.renaming=null;ui.editDate=null};
+const modOptions=(b,selected)=>{const m=modulesOf(b);return m.length===1&&!m[0].module?`<option>No modules in this batch</option>`:`<option value="" ${selected?'':'selected'} disabled>Choose a module…</option>${m.map(x=>`<option value="${x.id}" ${x.id===selected?'selected':''}>${esc(x.module)}</option>`).join('')}`};
+
+/* ═════════ Shell: nav, top bar ═════════ */
+$('#logout').innerHTML=icon('out');
+const PAGE_TITLES={dash:'Dashboard',panel:'Control panel',dates:'Add training dates',people:'Participant list',teams:'Team assign',chat:'Conversations',notices:'Announcements',content:'Content management'};
+function renderShell(){
+  const inPanel=ui.page!=='dash';
+  $('#nav').innerHTML=`<button data-go="dash" ${!inPanel?'aria-current="page"':''}>${icon('dash')}Dashboard</button><button data-go="panel" ${inPanel?'aria-current="page"':''}>${icon('gear')}Control Panel</button>`;
+  const sub=ui.page==='dash'||ui.page==='panel'?'':` <span>›</span> ${PAGE_TITLES[ui.page]}`;
+  const mods=ui.batch?modulesOf(ui.batch):[];
+  $('#top').innerHTML=`<div class="crumb">${ui.page==='dash'?'Dashboard':'Control panel'}${sub}</div>
+    <div class="bsel" role="group" aria-label="Current batch">
+      <div><label for="selBatch">Batch</label><select class="select" id="selBatch">${ui.batch?'':'<option selected disabled>Choose a batch…</option>'}${batchNames.map(b=>`<option ${b===ui.batch?'selected':''}>${esc(b)}</option>`).join('')}</select></div>
+      <div><label for="selModule">Module</label><select class="select" id="selModule" ${mods.length===1&&!mods[0].module?'disabled':''}>${modOptions(ui.batch,ui.cohortId)}</select></div></div>`;
+}
+
+/* ═════════ Pages ═════════ */
+function render(){
+  const a=document.activeElement,aid=a&&a.id,pos=a&&a.selectionStart;
+  renderShell();
+  $('#page').innerHTML=view();
+  if(aid){const el=document.getElementById(aid);if(el){el.focus();try{el.setSelectionRange(pos,pos)}catch(e){}}}
+}
+const sub=(title,desc,right='')=>`<button class="back" data-go="panel">${icon('back')} Control panel</button><div class="ph"><div><h1>${title}</h1><p>${desc}</p></div>${right?`<div class="right">${right}</div>`:''}</div>`;
+const needBatch=()=>`<div class="empty"><strong>Choose a module</strong>${esc(ui.batch||'This batch')} has more than one module. Pick one from the Module list at the top right.</div>`;
+
+function view(){
+  if(!ui.batch) return '';
+  const c=cur();
+  if(ui.page==='content') return pageContent();
+  if(!c) return (ui.page==='panel'||ui.page==='dash'?'':'')+needBatch();
+  return ({dash:pageDash,panel:pagePanel,dates:pageDates,people:pagePeople,teams:pageTeams,chat:pageChat,notices:pageNotices})[ui.page](c);
+}
+
+/* Dashboard — stays as it is today, shown here so the whole panel can be seen */
+function pageDash(c){
+  const ms=members(c), n=(p)=>+p.id.slice(1);
+  const rows=ms.map(p=>{const k=n(p),planned=2+k%5,validated=Math.min(planned,k%4+1),score=40+(k*7)%60;return{p,planned,sent:planned,validated,score}}).sort((a,b)=>b.score-a.score);
+  const activated=rows.length,avg=rows.length?Math.round(rows.reduce((s,r)=>s+r.score,0)/rows.length):0,val=rows.reduce((s,r)=>s+r.validated,0),pend=rows.reduce((s,r)=>s+(r.planned-r.validated),0);
+  const stat=(l,v,s)=>`<div class="stat"><span>${l}</span><b>${v}${s?` <small>${s}</small>`:''}</b></div>`;
+  return `<div class="ph"><div><h1>Dashboard</h1><p>Real-time organizational behavior insights for ${esc(cohortLabel(c))}</p></div></div>
+    <div class="note-top">The Dashboard stays exactly as it is today. It is shown here only so you can see the whole admin panel.</div>
+    <div class="stats">${stat('Activated action plan',activated,'of '+ms.length)}${stat('Batch avg commitment',avg+'%')}${stat('Validated actions',val)}${stat('Mail opened',ms.length?Math.round(ms.length*.83):0,'of '+ms.length)}${stat('Pending validation',pend)}</div>
+    <section class="card"><div class="card-head"><h2>Leaderboard</h2></div>
+    ${rows.length?`<div class="tablewrap"><table><thead><tr><th>#</th><th>Name</th><th>Team</th><th class="n">Planned actions</th><th class="n">Actions sent</th><th class="n">Validated actions</th><th class="n">Commitment score</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td><strong>${esc(r.p.name)}</strong></td><td>${r.p.team?`<span class="pill team t${r.p.team}bg">${esc(teamName(c,r.p.team))}</span>`:'<span class="hint">—</span>'}</td><td class="n">${r.planned}</td><td class="n">${r.sent}</td><td class="n">${r.validated}</td><td class="n"><strong>${r.score}%</strong></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty"><strong>No members yet</strong>Add people to this batch from the Control panel.</div>'}</section>`;
+}
+
+/* Control panel — six small feature cards */
+function pagePanel(c){
+  const ms=members(c),noTeam=ms.filter(p=>!p.team).length,sorted=[...c.dates].sort(),next=sorted.find(d=>d>=TODAY),nt=(notices[c.id]||[]).length,msgs=(chat[c.id]||[]).length;
+  const cards=[
+    ['dates','cal','#2563EB','Add training dates','Add, change or remove the training days for this batch.',c.dates.length?`<span class="pill ${next?'ok':'grey'}">${c.dates.length} ${c.dates.length===1?'date':'dates'}${next?' · next '+fmt(next):''}</span>`:'<span class="pill warn">No dates yet</span>'],
+    ['people','users','#16A34A','Participant list','Choose who from your company is part of this batch.',`<span class="pill ${ms.length?'ok':'warn'}">${ms.length} in batch</span>`],
+    ['teams','team','#7E22CE','Team assign','Put each person in one of five teams. Rename teams here.',!ms.length?'<span class="pill grey">Add people first</span>':noTeam?`<span class="pill warn">${noTeam} need a team</span>`:'<span class="pill ok">Everyone has a team</span>'],
+    ['chat','chat','#0E7490','Conversations','Read and join the conversation of this batch.',`<span class="pill grey">${msgs} ${msgs===1?'message':'messages'}</span>`],
+    ['notices','mega','#C2410C','Announcements','Post a notice on the batch notice board.',`<span class="pill grey">${nt} posted</span>`],
+    ['content','book','#8A6A00','Content management','Browse the learning content library of your company.',`<span class="pill grey">${library.length} items</span>`]
+  ];
+  return `<div class="ph"><div><h1>Control panel</h1><p>Choose what you want to do for <strong>${esc(cohortLabel(c))}</strong>.</p></div></div>
+    <div class="cp">${cards.map(([go,ic,col,t,d,st])=>`<button class="cp-card" style="--c:${col}" data-go="${go}"><span class="ic">${icon(ic)}</span><h3>${t}</h3><p>${d}</p><span class="foot">${st}<span class="go">Open ${icon('arrow')}</span></span></button>`).join('')}</div>`;
+}
+
+/* Add training dates — dates only, nothing else */
+function pageDates(c){
+  const sorted=[...c.dates].sort(),next=sorted.find(d=>d>=TODAY);
+  const rows=sorted.map(d=>ui.editDate===d
+    ?`<div class="daterow"><div class="d"><strong>Change date</strong><span>Pick the new day</span></div><input type="date" id="editDateInput" value="${d}" aria-label="New date"><button class="btn small" data-act="saveDate">Save</button><button class="btn secondary small" data-act="cancelDate">Cancel</button></div>`
+    :`<div class="daterow ${d===next?'next':d<TODAY?'past':''}"><div class="d"><strong>${fmtLong(d)}</strong><span>${d===next?'Next training day':d<TODAY?'Done':'Upcoming'}</span></div><button class="btn secondary small" data-editdate="${d}">Change</button><button class="btn danger small" data-deldate="${d}">Remove</button></div>`).join('');
+  return sub('Add training dates',`Training days for <strong>${esc(cohortLabel(c))}</strong>.`)+
+    `<section class="card narrow"><div class="card-head"><h2>Training dates</h2><span class="pill grey">${c.dates.length}</span></div>
+      <div class="list">${rows||'<div class="empty"><strong>No training dates yet</strong>Add the first date below.</div>'}</div>
+      <form class="addrow" data-form="adddate"><label for="newDate">Add a date</label><input type="date" id="newDate"><button class="btn" type="submit">${icon('plus')} Add date</button></form></section>`;
+}
+
+/* Participant list — this batch on the left, all company people on the right */
+function pagePeople(c){
+  const ms=members(c);
+  const all=people.filter(p=>matchQ(p,ui.pq)).sort((a,b)=>(a.cohort===c.id)-(b.cohort===c.id));
+  const sel=[...ui.psel].filter(id=>!people.find(p=>p.id===id).cohort||people.find(p=>p.id===id).cohort!==c.id);
+  const status=(p)=>p.cohort===c.id?'<span class="pill ok">In this batch</span>':p.cohort?`<span class="pill warn" title="${esc(cohortLabel(cohorts.find(x=>x.id===p.cohort)))}">In another batch</span>`:'<span class="pill grey">Not in a batch</span>';
+  const left=`<section class="card"><div class="card-head"><h2>In this batch</h2><span class="pill ok">${ms.length}</span></div>
+    ${ms.length?`<div class="list scroll">${ms.map(p=>`<div class="prow"><span class="avatar">${initials(p.name)}</span><span class="who" style="flex:1;min-width:0"><strong>${esc(p.name)}</strong><span>${esc(p.email)}</span></span><button class="rm" data-remove="${p.id}" aria-label="Remove ${esc(p.name)}">Remove</button></div>`).join('')}</div>`:'<div class="empty"><strong>No one yet</strong>Tick people on the right, then press “Add to batch”.</div>'}</section>`;
+  const right=`<section class="card"><div class="card-head"><h2>All people in your company</h2><span class="pill grey">${people.length}</span></div>
+    <div class="filterbar"><div class="search">${icon('search')}<input class="input" id="pq" type="search" placeholder="Search by name" value="${esc(ui.pq)}" aria-label="Search people"></div><button class="btn secondary small" data-act="tickFree">Tick everyone not in this batch</button></div>
+    <div class="list scroll">${all.length?all.map(p=>{const inB=p.cohort===c.id;return `<div class="prow ${inB?'in':''} ${ui.psel.has(p.id)?'checked':''}"><label><input type="checkbox" class="chk" data-psel="${p.id}" ${inB?'disabled':''} ${ui.psel.has(p.id)?'checked':''} aria-label="Tick ${esc(p.name)}"><span class="avatar">${initials(p.name)}</span><span class="who"><strong>${esc(p.name)}</strong><span>${p.cohort&&!inB?'Now in '+esc(cohortLabel(cohorts.find(x=>x.id===p.cohort))):esc(p.email)}</span></span></label>${status(p)}</div>`}).join(''):'<div class="empty">No one matches your search.</div>'}</div>
+    <div class="addbar"><span class="hint">${sel.length?`<strong>${sel.length}</strong> ticked`:'Tick the people you want to add.'}</span><span style="margin-left:auto"></span><button class="btn" data-act="addSel" ${sel.length?'':'disabled'}>${icon('plus')} Add ${sel.length||''} to batch</button></div></section>`;
+  return sub('Participant list to the batch',`Choose who from your company is part of <strong>${esc(cohortLabel(c))}</strong>.`)+`<div class="two">${left}${right}</div>`;
+}
+
+/* Team assign — the UI from the earlier prototype */
+function pageTeams(c){
+  const ms=members(c),noTeam=ms.filter(p=>!p.team).length;
+  const right=`<button class="btn secondary" data-act="export" ${ms.length?'':'disabled'}>${icon('sheet')} Export Excel</button>`;
+  const head=sub('Team assign',`Give everyone in <strong>${esc(cohortLabel(c))}</strong> a team.`,right);
+  if(!ms.length) return head+`<div class="card"><div class="empty"><strong>No one is in this batch yet</strong>Add people first, then come back to choose their teams.<br><button class="btn" data-go="people">${icon('users')} Go to participant list</button></div></div>`;
+  const banner=noTeam?`<div class="banner todo"><span>${noTeam} ${noTeam===1?'person doesn’t':'people don’t'} have a team yet.</span><span class="btns"><button class="btn small" data-filter="none">Show them</button><button class="btn secondary small" data-act="split">${icon('shuffle')} Share equally</button></span></div>`:`<div class="banner done">${icon('check')} Everyone has a team.</div>`;
+  const cards=TEAMS.map(t=>ui.renaming===t
+    ?`<div class="team c${t} on"><span class="nm">Rename Team ${t}</span><input class="input" id="renameInput" maxlength="60" value="${esc(c.names[t]||'')}" placeholder="Team ${t}" aria-label="New name for Team ${t}">${ui.renameErr?`<span class="err">${esc(ui.renameErr)}</span>`:''}<div class="acts"><button data-act="saveRename">Save</button><button data-act="cancelRename">Cancel</button></div>${c.names[t]?`<button class="reset" data-act="resetRename">Use “Team ${t}” again</button>`:''}</div>`
+    :`<div class="team c${t} ${ui.filter===t?'on':''}"><span class="nm" title="${esc(teamName(c,t))}">${esc(teamName(c,t))}</span>${c.names[t]?`<span class="orig">Team ${t}</span>`:''}<span class="ct">${teamCount(c,t)} ${teamCount(c,t)===1?'person':'people'}</span><div class="acts"><button data-filter="${t}">${ui.filter===t?'Showing':'Show'}</button><button data-rename="${t}">Rename</button></div></div>`).join('');
+  const shown=ms.filter(p=>matchQ(p,ui.q)&&inFilter(p));
+  const selected=[...ui.sel].filter(id=>ms.some(p=>p.id===id));
+  const seg=(p)=>TEAMS.map(t=>`<button class="c${t} ${p.team===t?'on':''}" data-set="${p.id}:${t}" aria-pressed="${p.team===t}" title="${esc(teamName(c,t))}" aria-label="Put ${esc(p.name)} in ${esc(teamName(c,t))}">${esc(teamName(c,t))}</button>`).join('')+`<button class="none ${p.team?'':'on'}" data-set="${p.id}:0" aria-pressed="${!p.team}" aria-label="Put ${esc(p.name)} in no team">None</button>`;
+  const bulk=selected.length?`<div class="bulk" role="region" aria-label="Move ticked people"><strong>${selected.length} ticked — put them in:</strong><div class="seg">${TEAMS.map(t=>`<button class="c${t}" data-bulk="${t}">${esc(teamName(c,t))}</button>`).join('')}<button class="none" data-bulk="0">None</button></div><button class="btn secondary small" data-act="untick">Untick</button></div>`:'';
+  const allTicked=shown.length&&shown.every(p=>ui.sel.has(p.id));
+  const filterNote=ui.filter!=='all'?`<span class="hint">Showing only <strong>${ui.filter==='none'?'people without a team':esc(teamName(c,ui.filter))}</strong></span><button class="btn secondary small" data-filter="all">Show everyone</button>`:'';
+  const rows=shown.length?shown.map(p=>`<div class="person ${ui.sel.has(p.id)?'checked':''}"><label class="id"><input type="checkbox" class="chk" data-sel="${p.id}" ${ui.sel.has(p.id)?'checked':''} aria-label="Tick ${esc(p.name)}"><span class="avatar">${initials(p.name)}</span><span class="who"><strong>${esc(p.name)}</strong><span>${esc(p.email)}</span></span></label><div class="seg" role="group" aria-label="Team for ${esc(p.name)}">${seg(p)}</div></div>`).join(''):'<div class="empty"><strong>No one to show</strong>Try a different search or team.</div>';
+  return head+`<section class="card">${banner}<div class="teams">${cards}</div>
+    <div class="filterbar"><div class="search">${icon('search')}<input class="input" id="q" type="search" placeholder="Search by name" value="${esc(ui.q)}" aria-label="Search people"></div>${filterNote}</div>${bulk}
+    <div class="listhead"><label style="display:flex;gap:.8rem;align-items:center;cursor:pointer;flex:1"><input type="checkbox" class="chk" data-act="tickAll" ${allTicked?'checked':''} aria-label="Tick everyone shown"> ${ms.length} people · tick several to move them together</label><span style="padding-right:.4rem">Team</span></div>
+    <div class="list">${rows}</div></section>`;
+}
+
+/* Conversations — the batch's group chat */
+function pageChat(c){
+  const msgs=chat[c.id]||[];
+  return sub('Conversations',`The group conversation for <strong>${esc(cohortLabel(c))}</strong>. Everyone in the batch can see it.`)+
+    `<section class="card"><div class="card-head"><h2>Batch conversation</h2><span class="pill grey">${members(c).length} members</span></div>
+    <div class="chat" id="chatBox">${msgs.length?msgs.map(m=>`<div class="msg ${m.me?'me':''}"><b>${esc(m.who)}</b>${esc(m.text)}<small>${esc(m.when)}</small></div>`).join(''):'<div class="empty" style="margin:auto"><strong>No messages yet</strong>Write the first message below.</div>'}</div>
+    <form class="composer" data-form="chat"><input class="input" id="chatInput" placeholder="Write a message to the batch" value="${esc(ui.chatDraft)}" aria-label="Message"><button class="btn" type="submit">${icon('send')} Send</button></form></section>`;
+}
+
+/* Announcements — the batch notice board */
+function pageNotices(c){
+  const list=notices[c.id]||[];
+  return sub('Announcements',`Post a notice for <strong>${esc(cohortLabel(c))}</strong>. It appears on the batch notice board.`)+
+    `<div class="two" style="grid-template-columns:1fr 1fr"><section class="card"><div class="card-head"><h2>Write an announcement</h2></div>
+      <textarea class="input" id="noticeText" placeholder="Type your announcement here" aria-label="Announcement text">${esc(ui.noticeDraft)}</textarea>
+      <div class="addbar" style="border:0;margin-top:.4rem;padding-top:0"><span class="hint">Seen by everyone in this batch.</span><span style="margin-left:auto"></span><button class="btn" data-act="postNotice">${icon('send')} Post announcement</button></div></section>
+    <section class="card"><div class="card-head"><h2>Posted announcements</h2><span class="pill grey">${list.length}</span></div>
+      <div class="list">${list.length?[...list].reverse().map(n=>`<div class="notice"><div style="flex:1"><p>${esc(n.text)}</p><small>${esc(n.when)}</small></div><button class="btn danger small" data-delnotice="${n.id}">Delete</button></div>`).join(''):'<div class="empty"><strong>Nothing posted yet</strong>Your announcements will appear here.</div>'}</div></section></div>`;
+}
+
+/* Content management — view-only library for admins */
+function pageContent(){
+  const items=library.filter(i=>ui.ctype==='all'||i.type===ui.ctype);
+  return sub('Content management','The learning content library of your company. You can look at everything here. The super admin adds and edits content.')+
+    `<section class="card"><div class="chips" role="group" aria-label="Filter by type">${['all','video','quiz','preread'].map(t=>`<button data-ctype="${t}" aria-pressed="${ui.ctype===t}">${t==='all'?'All ('+library.length+')':TYPE[t]+' ('+library.filter(i=>i.type===t).length+')'}</button>`).join('')}</div>
+    <div class="list">${items.map(i=>`<div class="item"><span class="tp ${i.type}">${TYPE[i.type]}</span><div class="info"><strong>${esc(i.title)}</strong><span>${esc(i.desc)}</span></div><button class="btn secondary small" data-preview="${i.id}">Preview</button></div>`).join('')}</div></section>`;
+}
+
+/* ═════════ Dialogs + toast ═════════ */
+let tt;
+function toast(msg,undo){const t=$('#toast');t.innerHTML=`<span>${msg}</span>${undo?`<button class="btn" data-act="undo">${icon('undo')} Undo</button>`:''}<button class="x" data-act="closeToast" aria-label="Close">✕</button>`;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,undo?10000:5000)}
+function ask({title,body,yes,danger,onYes,noLabel='Cancel'}){const d=$('#dlg');$('#dlgBox').innerHTML=`<h2>${title}</h2><div class="body">${body}</div><div class="acts">${noLabel?`<button class="btn secondary" id="dlgNo">${noLabel}</button>`:''}<button class="btn ${danger?'danger':''}" id="dlgYes">${yes}</button></div>`;$('#dlgYes').onclick=()=>{d.close();onYes&&onYes()};const n=$('#dlgNo');if(n)n.onclick=()=>d.close();d.showModal()}
+function assign(ids,team){const c=cur();snap();ids.forEach(id=>people.find(p=>p.id===id).team=team||null);ui.sel.clear();const who=ids.length===1?people.find(p=>p.id===ids[0]).name:`${ids.length} people`;toast(team?`${esc(who)} is now in ${esc(teamName(c,team))}`:`${esc(who)}: no team`,true);render()}
+
+/* Login popup: shown first; the batch must be chosen before continuing */
+function openLogin(){
+  const d=$('#login');ui.loginBatch=ui.loginBatch||batchNames[0];
+  const mods=modulesOf(ui.loginBatch),single=mods.length===1&&!mods[0].module;
+  if(single) ui.loginCohort=mods[0].id; else if(!mods.some(m=>m.id===ui.loginCohort)) ui.loginCohort='';
+  $('#loginBox').innerHTML=`<h2 id="loginTitle">Welcome back, Ramesh</h2><div class="body">Which batch do you want to work on? You can change it any time from the top right corner.</div>
+    <label class="f" for="lgBatch">Batch</label><select class="select" id="lgBatch">${batchNames.map(b=>`<option ${b===ui.loginBatch?'selected':''}>${esc(b)}</option>`).join('')}</select>
+    <label class="f" for="lgModule">Module</label><select class="select" id="lgModule" ${single?'disabled':''}>${modOptions(ui.loginBatch,ui.loginCohort)}</select>
+    <div class="acts"><button class="btn" id="lgGo" ${ui.loginCohort?'':'disabled'}>Continue ${icon('arrow')}</button></div>`;
+  if(!d.open) d.showModal();
+}
+$('#login').addEventListener('cancel',e=>e.preventDefault());
+
+/* ═════════ Events ═════════ */
+document.addEventListener('click',(e)=>{
+  const b=e.target.closest('button'); if(!b||b.disabled) return; const d=b.dataset;
+  if(b.id==='lgGo'){ui.batch=ui.loginBatch;ui.cohortId=ui.loginCohort;$('#login').close();resetView();ui.page='dash';render();return toast(`You are working on ${esc(cohortLabel(cur()))}`)}
+  if(b.id==='logout'){ui.batch=null;ui.cohortId=null;ui.loginCohort='';return openLogin()}
+  if(d.go){ui.page=d.go;resetView();render();window.scrollTo({top:0});return}
+  if(d.ctype){ui.ctype=d.ctype;return render()}
+  if(d.preview){const i=library.find(x=>x.id===d.preview);return ask({title:esc(i.title),body:`<span class="pill grey">${TYPE[i.type]}</span><p style="margin-top:.6rem">${esc(i.desc)}</p><p class="hint" style="margin-top:.6rem">In the real app the video, quiz or reading opens here.</p>`,yes:'Close',noLabel:''})}
+  if(d.filter){const f=d.filter==='all'||d.filter==='none'?d.filter:+d.filter;ui.filter=(ui.filter===f&&f!=='all')?'all':f;return render()}
+  if(d.set){const [id,t]=d.set.split(':');return assign([id],+t)}
+  if(d.bulk) return assign([...ui.sel],+d.bulk);
+  if(d.rename){ui.renaming=+d.rename;ui.renameErr='';render();const i=$('#renameInput');i&&i.focus();return}
+  if(d.editdate){ui.editDate=d.editdate;return render()}
+  const c=cur();
+  if(d.deldate) return ask({title:'Remove this date?',body:`${fmtLong(d.deldate)} will be removed from <strong>${esc(cohortLabel(c))}</strong>.`,yes:'Yes, remove',danger:true,onYes(){snap();c.dates=c.dates.filter(x=>x!==d.deldate);toast('Date removed.',true);render()}});
+  if(d.remove){const p=people.find(x=>x.id===d.remove);return ask({title:`Remove ${esc(p.name)}?`,body:`They will no longer be in <strong>${esc(cohortLabel(c))}</strong>. You can add them again later.`,yes:'Yes, remove',danger:true,onYes(){snap();p.cohort=null;p.team=null;toast(`${esc(p.name)} removed.`,true);render()}})}
+  if(d.delnotice) return ask({title:'Delete this announcement?',body:'It will be removed from the notice board.',yes:'Yes, delete',danger:true,onYes(){snap();notices[c.id]=notices[c.id].filter(n=>n.id!==+d.delnotice);toast('Announcement deleted.',true);render()}});
+  switch(d.act){
+    case 'saveDate':{const v=$('#editDateInput').value;if(!v)return;if(v!==ui.editDate&&c.dates.includes(v))return toast('That date is already in the list.');snap();c.dates=c.dates.map(x=>x===ui.editDate?v:x);ui.editDate=null;toast('Date changed.',true);return render()}
+    case 'cancelDate':ui.editDate=null;return render();
+    case 'saveRename':{const t=ui.renaming,v=$('#renameInput').value.trim();
+      if(TEAMS.some(x=>x!==t&&teamName(c,x).toLowerCase()===(v||'Team '+t).toLowerCase())){ui.renameErr='That name is already used.';return render()}
+      snap();if(!v||v==='Team '+t)delete c.names[t];else c.names[t]=v;ui.renaming=null;ui.renameErr='';toast(`Team ${t} is now called “${esc(teamName(c,t))}”`,true);return render()}
+    case 'resetRename':snap();delete c.names[ui.renaming];ui.renaming=null;ui.renameErr='';toast('Name reset.',true);return render();
+    case 'cancelRename':ui.renaming=null;ui.renameErr='';return render();
+    case 'untick':ui.sel.clear();return render();
+    case 'tickFree':people.filter(p=>p.cohort!==c.id&&matchQ(p,ui.pq)).forEach(p=>ui.psel.add(p.id));return render();
+    case 'addSel':{const ids=[...ui.psel].filter(id=>people.find(p=>p.id===id).cohort!==c.id);const moving=ids.filter(id=>people.find(p=>p.id===id).cohort);
+      const go=()=>{snap();ids.forEach(id=>{const p=people.find(x=>x.id===id);p.cohort=c.id;p.team=null});ui.psel.clear();toast(`${ids.length} ${ids.length===1?'person':'people'} added to the batch.`,true);render()};
+      return moving.length?ask({title:'Move people to this batch?',body:`${moving.length} of the people you ticked ${moving.length===1?'is':'are'} in another batch. Adding ${moving.length===1?'them':'them'} here moves them, and their unfinished earlier plan is archived.`,yes:'Yes, add them',onYes:go}):go()}
+    case 'split':{const ids=members(c).filter(p=>!p.team).map(p=>p.id);return ask({title:'Share people equally?',body:`${ids.length} ${ids.length===1?'person has':'people have'} no team. They will be spread evenly across the five teams. You can still change anyone afterwards.`,yes:'Yes, share equally',onYes(){snap();ids.forEach(id=>{const t=TEAMS.slice().sort((a,b)=>teamCount(c,a)-teamCount(c,b)||a-b)[0];people.find(p=>p.id===id).team=t});ui.filter='all';toast('Done — everyone now has a team.',true);render()}})}
+    case 'export':return toast(`Excel downloaded: ${esc(cohortLabel(c))} members.xlsx`);
+    case 'postNotice':{const t=($('#noticeText').value||'').trim();if(!t)return toast('Write something first.');snap();(notices[c.id]=notices[c.id]||[]).push({id:Date.now(),text:t,when:'Just now'});ui.noticeDraft='';toast('Announcement posted.',true);return render()}
+    case 'undo':if(undoSnap){restore();$('#toast').hidden=true;render();toast('Last change undone.')}return;
+    case 'closeToast':$('#toast').hidden=true;return;
+  }
+});
+document.addEventListener('change',(e)=>{
+  const t=e.target;
+  if(t.id==='lgBatch'){ui.loginBatch=t.value;ui.loginCohort='';return openLogin()}
+  if(t.id==='lgModule'){ui.loginCohort=t.value;return openLogin()}
+  if(t.id==='selBatch'){ui.batch=t.value;const m=modulesOf(ui.batch);ui.cohortId=m.length===1?m[0].id:null;resetView();return render()}
+  if(t.id==='selModule'){ui.cohortId=t.value;resetView();return render()}
+  if(t.dataset.sel){t.checked?ui.sel.add(t.dataset.sel):ui.sel.delete(t.dataset.sel);return render()}
+  if(t.dataset.psel){t.checked?ui.psel.add(t.dataset.psel):ui.psel.delete(t.dataset.psel);return render()}
+  if(t.dataset.act==='tickAll'){members(cur()).filter(p=>matchQ(p,ui.q)&&inFilter(p)).forEach(p=>t.checked?ui.sel.add(p.id):ui.sel.delete(p.id));return render()}
+});
+document.addEventListener('input',(e)=>{
+  const id=e.target.id;
+  if(id==='q'){ui.q=e.target.value;render()}
+  if(id==='pq'){ui.pq=e.target.value;render()}
+  if(id==='noticeText') ui.noticeDraft=e.target.value;
+  if(id==='chatInput') ui.chatDraft=e.target.value;
+});
+document.addEventListener('submit',(e)=>{
+  e.preventDefault();const f=e.target.dataset.form,c=cur();
+  if(f==='adddate'){const v=$('#newDate').value;if(!v)return;if(c.dates.includes(v))return toast('That date is already in the list.');snap();c.dates.push(v);toast(`${fmt(v)} added.`,true);render()}
+  if(f==='chat'){const t=$('#chatInput').value.trim();if(!t)return;(chat[c.id]=chat[c.id]||[]).push({who:'Ramesh Kulkarni',me:true,text:t,when:'Just now'});ui.chatDraft='';render();const b=$('#chatBox');b.scrollTop=b.scrollHeight;$('#chatInput').focus()}
+});
+document.addEventListener('keydown',(e)=>{
+  if(e.target.id==='renameInput'&&e.key==='Enter'){e.preventDefault();$('[data-act="saveRename"]').click()}
+  if(e.target.id==='renameInput'&&e.key==='Escape'){$('[data-act="cancelRename"]').click()}
+});
+
+/* Start: the login popup appears first. (?demo=… lets a screenshot skip it.) */
+const qs=new URLSearchParams(location.search);
+if(qs.get('demo')){ui.batch=batchNames[0];ui.cohortId='c1';ui.page=qs.get('demo');if(qs.get('rename'))ui.renaming=+qs.get('rename');render()}
+else{render();openLogin()}
+</script>
+</body>
+</html>

@@ -16,7 +16,7 @@ function initials(value: string) {
   return words.map((word) => word[0]?.toUpperCase()).join("") || "B";
 }
 
-function NoticesWorkspace({ cohortId }: { cohortId: string }) {
+export function NoticesWorkspace({ cohortId }: { cohortId: string }) {
   const [notices, setNotices] = useState<CohortNotice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

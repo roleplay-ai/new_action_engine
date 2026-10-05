@@ -62,6 +62,9 @@ async function resolveScopedUserIds(admin: Admin, companyId: string, cohortId: s
 export interface BatchOption {
   cohortId: string;
   label: string;
+  /** The two halves of `label`, for the separate Batch and Module dropdowns. */
+  batchName: string;
+  moduleName: string | null;
 }
 
 /** Feeds the Dashboard's batch/module selector — one option per batch (labeled with its
@@ -83,6 +86,8 @@ export async function getBatchOptions(companyId?: string): Promise<{ options: Ba
     const options: BatchOption[] = (cohorts ?? []).map((c: { id: string; batch_name: string; module_name: string | null }) => ({
       cohortId: c.id,
       label: c.module_name ? `${c.batch_name} — ${c.module_name}` : c.batch_name,
+      batchName: c.batch_name,
+      moduleName: c.module_name,
     }));
 
     return { options };

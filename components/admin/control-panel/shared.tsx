@@ -20,10 +20,13 @@ export function useControlPanelBatch() {
 /** Tells BatchPickerGate this page has finished loading, so its loading
  * screen comes down (see viewReady in AdminContext). */
 export function useReportViewReady(ready: boolean) {
-  const { setViewReady } = useAdminContext();
+  const { viewReady, setViewReady } = useAdminContext();
+  // Picking a batch in the top bar flips viewReady to false (see
+  // setSelectedCohortId). Re-check against it too: a page that is already
+  // ready for the new batch must say so again, or the loading screen stays up.
   useEffect(() => {
-    setViewReady(ready);
-  }, [ready, setViewReady]);
+    if (viewReady !== ready) setViewReady(ready);
+  }, [ready, viewReady, setViewReady]);
   useEffect(() => () => setViewReady(true), [setViewReady]);
 }
 

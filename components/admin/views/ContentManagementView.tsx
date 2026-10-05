@@ -13,21 +13,24 @@ import {
   deleteContentItem,
   getContentItemDetail,
 } from "@/app/actions/prepare-content";
+import PdfEmbedFrame from "@/components/prepare/PdfEmbedFrame";
 import type { PrepareContentItem, PrepareContentType } from "@/lib/types";
 import { VideoUploadField } from "@/components/admin/content/VideoUploadField";
 
 interface ContentManagementViewProps {
   companyId: string | null;
   role: string;
+  /** Heading above the list; the admin Control panel calls it "Training content". */
+  title?: string;
 }
 
-const TYPE_META: Record<PrepareContentType, { label: string; icon: typeof PlayCircle }> = {
+export const TYPE_META: Record<PrepareContentType, { label: string; icon: typeof PlayCircle }> = {
   video: { label: "Video", icon: PlayCircle },
   quiz: { label: "Quiz", icon: HelpCircle },
   preread: { label: "Pre-read", icon: FileText },
 };
 
-export function ContentManagementView({ role }: ContentManagementViewProps) {
+export function ContentManagementView({ role, title = "Content Management" }: ContentManagementViewProps) {
   // Both admin and superadmin can fully author the (global) content library —
   // this view only ever renders for one of those two roles (route-gated in
   // app/(app)/admin/layout.tsx), so canManage is always true in practice.
@@ -106,7 +109,7 @@ export function ContentManagementView({ role }: ContentManagementViewProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold" style={{ color: "var(--color-text-primary)" }}>
-          Content Management
+          {title}
         </h2>
         {canManage && (
           <button onClick={() => setCreating((v) => !v)} className="btn btn--sm btn--primary">
@@ -220,7 +223,12 @@ export function ContentManagementView({ role }: ContentManagementViewProps) {
   );
 }
 
-function ContentPreviewModal({
+/** Same PDF check the participant Prepare page uses (see prepare-client.tsx). */
+function isPdfUrl(url: string) {
+  return /\.pdf(?:$|[?#])/i.test(url);
+}
+
+export function ContentPreviewModal({
   loading,
   error,
   item,
@@ -231,6 +239,7 @@ function ContentPreviewModal({
   item: PrepareContentItem | null;
   onClose: () => void;
 }) {
+  const pdfUrl = item?.type === "preread" && item.prereadUrl && isPdfUrl(item.prereadUrl) ? item.prereadUrl : null;
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -238,7 +247,7 @@ function ContentPreviewModal({
       onClick={onClose}
     >
       <div
-        className="card w-full max-w-lg max-h-[85vh] overflow-y-auto space-y-3"
+        className={`card w-full ${pdfUrl ? "max-w-4xl" : "max-w-lg"} max-h-[90vh] overflow-y-auto space-y-3`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -273,9 +282,14 @@ function ContentPreviewModal({
 
             {item.type === "preread" && (
               <div className="space-y-2">
+                {pdfUrl && (
+                  <div className="content-preview-pdf">
+                    <PdfEmbedFrame url={pdfUrl} title={`${item.title} PDF preview`} />
+                  </div>
+                )}
                 {item.prereadUrl && (
-                  <a href={item.prereadUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold" style={{ color: "var(--dodger-blue)" }}>
-                    {item.prereadUrl}
+                  <a href={item.prereadUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold break-all" style={{ color: "var(--dodger-blue)" }}>
+                    {pdfUrl ? "Open the PDF in a new tab" : item.prereadUrl}
                   </a>
                 )}
                 {item.prereadBody && (
@@ -326,7 +340,7 @@ function emptyQuestion(): DraftQuestion {
   };
 }
 
-function CreateContentForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
+export function CreateContentForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
   const [type, setType] = useState<PrepareContentType>("video");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");

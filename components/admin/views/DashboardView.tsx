@@ -455,11 +455,12 @@ export function DashboardView({ companyId }: DashboardViewProps) {
               <div className="p-6 text-center text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>No members in scope yet</div>
             ) : (
               <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-                <table className="w-full text-left border-collapse table-fixed min-w-[1180px] text-xs">
+                <table className="w-full text-left border-collapse table-fixed min-w-[1380px] text-xs">
                   <thead className="sticky top-0 z-10">
                     <tr style={{ background: "var(--color-bg-dark)", color: "var(--white)" }}>
-                      <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "24%" }}>Rank / Name</th>
-                      <th className="px-2 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "12%" }}>Buddy</th>
+                      <th className="px-3 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "18%" }}>Rank / Name</th>
+                      <th className="px-2 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "16%" }}>Email</th>
+                      <th className="px-2 py-3 text-xs font-semibold" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", width: "10%" }}>Buddy</th>
                       <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "8%" }}>Either mail opened</th>
                       <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "8%" }}>Planned actions</th>
                       <th className="px-2 py-3 text-xs font-semibold text-center" style={{ width: "8%" }}>Actions sent</th>
@@ -481,6 +482,11 @@ export function DashboardView({ companyId }: DashboardViewProps) {
                             </div>
                             <span className="text-xs font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>{user.name}</span>
                           </div>
+                        </td>
+                        <td className="px-2 py-2.5" style={{ borderRight: "1px solid var(--color-border)" }}>
+                          <span className="text-xs font-medium truncate block" style={{ color: "var(--color-text-secondary)" }} title={user.email ?? undefined}>
+                            {user.email ?? "—"}
+                          </span>
                         </td>
                         <td className="px-2 py-2.5" style={{ borderRight: "1px solid var(--color-border)" }}>
                           <span className="text-xs font-medium truncate block" style={{ color: "var(--color-text-muted)" }}>

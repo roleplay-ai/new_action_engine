@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import InstallAppButton from "@/components/InstallAppButton";
+import { clearAdminBatchSelection } from "@/components/admin/AdminContext";
 
 const JOURNEY_STEPS = [
   {
@@ -73,6 +74,9 @@ export default function LoginPage() {
       }
       return;
     }
+    // A fresh login always starts at the admin batch + module pop-out, even
+    // if this tab still remembers a batch from an earlier session.
+    clearAdminBatchSelection();
     window.location.href = "/";
   }
 

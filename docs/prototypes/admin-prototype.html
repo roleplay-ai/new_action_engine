@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nudgeable Admin – Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ───────── Tokens (taken from the Nudgeable design rulebook) ───────── */
+:root{
+  --bg:#FFFDF5; --surface:#FFFFFF; --dark:#221D23; --ink:#221D23; --ink-2:#4A4047; --ink-3:#6B616F;
+  --yellow:#FFCE00; --yellow-soft:#FFF4BF; --yellow-ink:#7A5F00;
+  --line:rgba(34,29,35,.16); --line-strong:rgba(34,29,35,.45);
+  --ok:#0A6632; --ok-bg:#DDF5E6; --warn:#8A4B00; --warn-bg:#FFE9C7; --bad:#A31D1D;
+  --t1:#1D4ED8; --t2:#15803D; --t3:#7E22CE; --t4:#C2410C; --t5:#0E7490;
+  --radius:16px; --tap:3.4rem;
+}
+html{font-size:18px}
+html[data-size="large"]{font-size:21px}
+html[data-size="xlarge"]{font-size:24px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;line-height:1.5}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:4px solid #1D4ED8;outline-offset:3px;border-radius:8px}
+h1,h2,h3,p{margin:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ───────── Layout ───────── */
+.app{display:grid;grid-template-columns:19rem 1fr;min-height:100vh}
+.side{background:var(--dark);color:#fff;padding:1.2rem 1rem;display:flex;flex-direction:column;gap:1rem;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:.7rem;padding:.3rem .5rem 1rem;border-bottom:1px solid rgba(255,255,255,.14)}
+.brand img{height:2.2rem;filter:brightness(0) invert(1)}
+.brand small{color:#cfc8d2;font-size:.8rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;display:block}
+.nav{display:flex;flex-direction:column;gap:.45rem}
+.nav button{display:flex;align-items:center;gap:.9rem;min-height:4rem;padding:.6rem .9rem;border:2px solid transparent;border-radius:14px;background:transparent;color:#fff;font-size:1.12rem;font-weight:700;text-align:left;cursor:pointer}
+.nav button:hover{background:rgba(255,255,255,.1)}
+.nav button[aria-current="page"]{background:var(--yellow);color:var(--dark)}
+.nav svg{width:1.7rem;height:1.7rem;flex:none}
+.nav .badge{margin-left:auto;background:#fff;color:var(--dark);border-radius:99px;min-width:1.7rem;height:1.7rem;display:grid;place-items:center;font-size:.9rem;padding:0 .4rem}
+.nav button[aria-current="page"] .badge{background:var(--dark);color:#fff}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:.5rem}
+.side-foot button{display:flex;align-items:center;gap:.8rem;min-height:3.4rem;padding:.5rem .9rem;border-radius:14px;border:2px solid rgba(255,255,255,.35);background:transparent;color:#fff;font-weight:700;cursor:pointer;font-size:1rem}
+.side-foot button:hover{background:rgba(255,255,255,.1)}
+.side-foot svg{width:1.4rem;height:1.4rem}
+.who{padding:.7rem .5rem 0;color:#cfc8d2;font-size:.9rem}
+.who strong{color:#fff;display:block;font-size:1rem}
+
+.main{min-width:0;display:flex;flex-direction:column}
+.top{display:flex;flex-wrap:wrap;gap:1rem 1.5rem;align-items:center;justify-content:space-between;padding:1rem 2rem;background:var(--surface);border-bottom:2px solid var(--line)}
+.top label{font-weight:700;font-size:.95rem;color:var(--ink-2);display:block;margin-bottom:.15rem}
+.batchsel select{min-height:var(--tap);font-size:1.1rem;font-weight:700;padding:.4rem 2.6rem .4rem 1rem;border:3px solid var(--dark);border-radius:14px;background:var(--yellow-soft);cursor:pointer;max-width:100%}
+.sizer{display:flex;align-items:center;gap:.5rem}
+.sizer span{font-weight:700;font-size:.95rem;color:var(--ink-2)}
+.sizer button{min-width:3.2rem;min-height:3.2rem;border:2px solid var(--line-strong);border-radius:12px;background:#fff;font-weight:800;cursor:pointer}
+.sizer button[aria-pressed="true"]{background:var(--dark);color:#fff;border-color:var(--dark)}
+.content{padding:2rem;max-width:78rem;width:100%}
+.page-head{margin-bottom:1.5rem}
+.page-head h1{font-size:2.1rem;line-height:1.2;font-weight:800;letter-spacing:-.01em}
+.page-head p{font-size:1.15rem;color:var(--ink-2);margin-top:.35rem;max-width:50rem}
+
+/* ───────── Reusable pieces ───────── */
+.card{background:var(--surface);border:2px solid var(--line);border-radius:var(--radius);padding:1.4rem}
+.card h2{font-size:1.4rem;font-weight:800;margin-bottom:.3rem}
+.card .sub{color:var(--ink-2);margin-bottom:1rem}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.6rem;min-height:var(--tap);padding:.6rem 1.5rem;border-radius:14px;border:3px solid var(--dark);background:var(--yellow);color:var(--dark);font-weight:800;font-size:1.1rem;cursor:pointer;text-align:center}
+.btn:hover{filter:brightness(.95)}
+.btn svg{width:1.4rem;height:1.4rem;flex:none}
+.btn.secondary{background:#fff}
+.btn.danger{background:#fff;border-color:var(--bad);color:var(--bad)}
+.btn.small{min-height:2.9rem;padding:.3rem 1rem;font-size:1rem;border-width:2px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.hint{color:var(--ink-3);font-size:.95rem}
+.pill{display:inline-flex;align-items:center;gap:.4rem;padding:.2rem .8rem;border-radius:99px;font-weight:700;font-size:.9rem;white-space:nowrap}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.team{color:#fff}
+.t1bg{background:var(--t1)!important}.t2bg{background:var(--t2)!important}.t3bg{background:var(--t3)!important}.t4bg{background:var(--t4)!important}.t5bg{background:var(--t5)!important}
+.avatar{width:3rem;height:3rem;border-radius:50%;background:var(--yellow);color:var(--dark);display:grid;place-items:center;font-weight:800;flex:none}
+.field{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1.2rem}
+.field>label,.field>legend{font-weight:800;font-size:1.1rem}
+.input{min-height:var(--tap);border:2px solid var(--line-strong);border-radius:12px;padding:.5rem 1rem;background:#fff;width:100%;font-size:1.05rem}
+textarea.input{min-height:9rem;resize:vertical}
+.search{position:relative;margin-bottom:1rem}
+.search svg{position:absolute;left:1rem;top:50%;transform:translateY(-50%);width:1.4rem;height:1.4rem;color:var(--ink-3)}
+.search input{padding-left:3.1rem}
+.banner{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;background:var(--yellow-soft);border:2px solid var(--yellow);border-radius:var(--radius);padding:1rem 1.3rem;margin-bottom:1.5rem;font-size:1.1rem}
+.banner strong{font-weight:800}
+.banner .btn{margin-left:auto}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start}
+.empty{padding:2rem 1rem;text-align:center;color:var(--ink-2);font-size:1.1rem;border:2px dashed var(--line-strong);border-radius:14px}
+
+/* ───────── Home ───────── */
+.tasks{display:flex;flex-direction:column;gap:.8rem;margin-bottom:2rem}
+.task{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;background:var(--surface);border:2px solid var(--line);border-left:8px solid var(--yellow);border-radius:var(--radius);padding:1rem 1.3rem}
+.task p{font-size:1.15rem;font-weight:600;flex:1;min-width:14rem}
+.task.done{border-left-color:var(--t2)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(19rem,1fr));gap:1.2rem}
+.tile{display:flex;flex-direction:column;gap:.7rem;text-align:left;padding:1.5rem;background:var(--surface);border:3px solid var(--line);border-radius:20px;cursor:pointer;min-height:12rem}
+.tile:hover{border-color:var(--dark);box-shadow:0 6px 0 var(--dark);transform:translateY(-2px)}
+.tile .ic{width:3.6rem;height:3.6rem;border-radius:16px;background:var(--yellow);display:grid;place-items:center}
+.tile .ic svg{width:2rem;height:2rem}
+.tile h3{font-size:1.4rem;font-weight:800}
+.tile p{color:var(--ink-2);font-size:1.05rem}
+.tile .go{margin-top:auto;font-weight:800;display:flex;align-items:center;gap:.5rem}
+.tile .go svg{width:1.3rem;height:1.3rem}
+
+/* ───────── Steps (People & Teams) ───────── */
+.steps{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
+.step{display:flex;align-items:center;gap:1rem;min-height:5rem;padding:.8rem 1.2rem;border:3px solid var(--line);border-radius:18px;background:#fff;cursor:pointer;text-align:left;font-size:1.2rem;font-weight:800}
+.step .n{width:2.8rem;height:2.8rem;border-radius:50%;background:var(--line);display:grid;place-items:center;font-weight:800;flex:none}
+.step small{display:block;font-weight:500;color:var(--ink-2);font-size:.95rem}
+.step[aria-selected="true"]{border-color:var(--dark);background:var(--yellow-soft)}
+.step[aria-selected="true"] .n{background:var(--dark);color:#fff}
+.step .pill{margin-left:auto}
+.list{display:flex;flex-direction:column;gap:.6rem}
+.row{display:flex;align-items:center;gap:1rem;min-height:4.4rem;padding:.6rem 1rem;border:2px solid var(--line);border-radius:14px;background:#fff}
+.row.pick{cursor:pointer}
+.row.pick:hover{border-color:var(--dark)}
+.row.checked{background:var(--yellow-soft);border-color:var(--dark)}
+.row .who2{flex:1;min-width:0}
+.row .who2 strong{display:block;font-size:1.12rem}
+.row .who2>span:not(.pill){color:var(--ink-3);font-size:.95rem}
+.chk{width:1.9rem;height:1.9rem;accent-color:var(--dark);flex:none;cursor:pointer}
+.sticky-act{position:sticky;bottom:0;background:linear-gradient(transparent,#fff 25%);padding-top:1.2rem;margin-top:.8rem;display:flex;flex-wrap:wrap;gap:.8rem;align-items:center}
+
+.teamtiles{display:grid;grid-template-columns:repeat(7,1fr);gap:.6rem;margin-bottom:1.3rem}
+.ttile{border:3px solid var(--line);border-radius:16px;background:#fff;padding:.8rem;text-align:center;cursor:pointer;min-height:5.6rem;display:flex;flex-direction:column;justify-content:center;gap:.1rem}
+.ttile strong{font-size:1.15rem}
+.ttile span{font-size:.95rem;color:var(--ink-2)}
+.ttile .bar{height:.6rem;border-radius:99px;margin:0 auto .4rem;width:60%}
+.ttile[aria-pressed="true"]{border-color:var(--dark);background:var(--yellow-soft);box-shadow:0 4px 0 var(--dark)}
+.toolbar{display:flex;flex-wrap:wrap;gap:.8rem;align-items:center;justify-content:space-between;margin-bottom:1rem}
+.toolbar .search{flex:1;min-width:15rem;margin:0}
+.rowteam{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;padding:.7rem 1rem;border:2px solid var(--line);border-radius:14px;background:#fff}
+.rowteam.checked{background:var(--yellow-soft);border-color:var(--dark)}
+.rowteam .who2{flex:1 1 14rem;min-width:0}
+.rowteam .who2 strong{display:block;font-size:1.12rem}
+.rowteam .who2 span{font-size:.95rem}
+.tbtns{display:flex;gap:.45rem;flex-wrap:wrap}
+.tb{min-width:5.3rem;min-height:3.3rem;padding:0 .8rem;border-radius:12px;border:3px solid var(--line-strong);background:#fff;font-weight:800;font-size:1rem;cursor:pointer}
+.tb:hover{border-color:var(--dark)}
+.tb.on{color:#fff;border-color:var(--dark)}
+.tb.clear{min-width:3.3rem;color:var(--ink-3)}
+.bulk{position:sticky;top:.6rem;z-index:5;background:var(--dark);color:#fff;border-radius:18px;padding:1rem 1.2rem;margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:.8rem;align-items:center}
+.bulk strong{font-size:1.15rem;margin-right:auto}
+.bulk .tb{border-color:#fff;color:#fff;border-width:3px}
+.bulk .tb:hover{filter:brightness(1.15)}
+
+/* ───────── Progress ───────── */
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:1rem;margin-bottom:1.5rem}
+.stat{background:#fff;border:2px solid var(--line);border-radius:var(--radius);padding:1.2rem}
+.stat b{display:block;font-size:2.6rem;line-height:1.1;font-weight:800}
+.stat span{font-size:1.05rem;color:var(--ink-2)}
+.lb{display:flex;flex-direction:column;gap:.9rem}
+.lbrow{display:grid;grid-template-columns:7rem 1fr 6rem;gap:1rem;align-items:center;font-weight:700}
+.lbtrack{height:2rem;border-radius:99px;background:#efeae0;overflow:hidden}
+.lbfill{height:100%;border-radius:99px;min-width:.4rem}
+
+/* ───────── Messages / content ───────── */
+.chat{display:grid;grid-template-columns:20rem 1fr;gap:1.5rem}
+.thread{display:flex;gap:.8rem;align-items:center;padding:.9rem;border:2px solid var(--line);border-radius:14px;background:#fff;cursor:pointer;text-align:left;width:100%;min-height:4.6rem}
+.thread[aria-current="true"]{border-color:var(--dark);background:var(--yellow-soft)}
+.thread strong{display:block}.thread span{color:var(--ink-3);font-size:.9rem}
+.msgs{display:flex;flex-direction:column;gap:.8rem;margin-bottom:1.2rem}
+.msg{max-width:80%;padding:.9rem 1.1rem;border-radius:16px;background:#f1ece1;font-size:1.05rem}
+.msg.me{align-self:flex-end;background:var(--yellow)}
+.msg small{display:block;color:var(--ink-3);margin-top:.2rem}
+.weeks{display:flex;flex-direction:column;gap:.8rem}
+.week{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;padding:1rem 1.2rem;background:#fff;border:2px solid var(--line);border-radius:14px}
+.week .n{width:3.4rem;height:3.4rem;border-radius:14px;background:var(--dark);color:#fff;display:grid;place-items:center;font-weight:800;flex:none;text-align:center;line-height:1.05;font-size:.8rem}
+.week .n b{font-size:1.3rem;display:block}
+.week .info{flex:1;min-width:12rem}.week .info strong{font-size:1.1rem;display:block}.week .info span{color:var(--ink-2)}
+.radio{display:flex;gap:.8rem;align-items:center;min-height:var(--tap);padding:.5rem 1rem;border:2px solid var(--line);border-radius:12px;background:#fff;cursor:pointer;font-weight:600}
+.radio input{width:1.7rem;height:1.7rem;accent-color:var(--dark)}
+.radio:has(input:checked){border-color:var(--dark);background:var(--yellow-soft)}
+
+/* ───────── Dialog + toast ───────── */
+dialog{border:3px solid var(--dark);border-radius:22px;padding:0;max-width:34rem;width:calc(100% - 2rem);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(34,29,35,.65)}
+.dlg{padding:1.8rem}
+.dlg h2{font-size:1.6rem;font-weight:800;margin-bottom:.6rem}
+.dlg .body{font-size:1.15rem;color:var(--ink-2);margin-bottom:1.5rem}
+.dlg .acts{display:flex;gap:.8rem;flex-wrap:wrap}
+.dlg .acts .btn{flex:1}
+.toast{position:fixed;left:50%;bottom:1.5rem;transform:translateX(-50%);z-index:50;background:var(--dark);color:#fff;border-radius:18px;padding:1rem 1.2rem 1rem 1.5rem;display:flex;gap:1rem;align-items:center;font-size:1.15rem;font-weight:600;box-shadow:0 10px 40px rgba(0,0,0,.35);max-width:calc(100% - 2rem)}
+.toast[hidden]{display:none}
+.toast svg{width:1.6rem;height:1.6rem;color:var(--yellow);flex:none}
+.toast .btn{min-height:2.8rem;font-size:1rem;border-width:2px;padding:.2rem 1rem}
+.toast .x{background:transparent;border:0;color:#fff;cursor:pointer;min-width:2.8rem;min-height:2.8rem;font-size:1.4rem}
+
+/* ───────── Narrow screens / tablets ───────── */
+@media (max-width:1100px){
+  .grid2,.chat{grid-template-columns:1fr}
+  .teamtiles{grid-template-columns:repeat(4,1fr)}
+}
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}
+  .side{position:static;height:auto}
+  .nav{display:grid;grid-template-columns:1fr 1fr}
+  .side-foot{flex-direction:row;flex-wrap:wrap}.side-foot button{flex:1}
+  .top,.content{padding:1rem}
+  .steps{grid-template-columns:1fr}
+  .lbrow{grid-template-columns:5.5rem 1fr 4.5rem}
+}
+@media (max-width:520px){.nav{grid-template-columns:1fr}.teamtiles{grid-template-columns:repeat(2,1fr)}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;transform:none!important}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <img src="../../public/NudgeableBlack.png" alt="" onerror="this.style.display='none'">
+      <div><strong>Nudgeable</strong><small>Admin</small></div>
+    </div>
+    <nav class="nav" id="nav" aria-label="Main menu"></nav>
+    <div class="side-foot">
+      <button type="button" id="helpBtn"><span data-icon="help"></span> Need help?</button>
+      <button type="button" id="logoutBtn"><span data-icon="logout"></span> Log out</button>
+      <div class="who"><strong>Ramesh Kulkarni</strong>Admin · Acme Learning</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <div class="batchsel">
+        <label for="batchSelect">You are working on this batch:</label>
+        <select id="batchSelect"></select>
+      </div>
+      <div class="sizer" role="group" aria-label="Text size">
+        <span>Text size:</span>
+        <button type="button" data-size="normal" style="font-size:.95rem" aria-label="Normal text">A</button>
+        <button type="button" data-size="large" style="font-size:1.2rem" aria-label="Large text">A</button>
+        <button type="button" data-size="xlarge" style="font-size:1.5rem" aria-label="Extra large text">A</button>
+      </div>
+    </header>
+    <main class="content" id="page" tabindex="-1"></main>
+  </div>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlgTitle"><div class="dlg"><h2 id="dlgTitle"></h2><div class="body" id="dlgBody"></div><div class="acts" id="dlgActs"></div></div></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+/* ═════════ Icons (inline so the file works offline) ═════════ */
+const ICONS={
+  home:'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+  users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  chart:'<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+  megaphone:'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>',
+  chat:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  book:'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+  help:'<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
+  check:'<polyline points="20 6 9 17 4 12"/>',
+  search:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  arrow:'<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
+  undo:'<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>',
+  send:'<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+  shuffle:'<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>',
+  phone:'<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  mail:'<path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><polyline points="22 6 12 13 2 6"/>'
+};
+const icon=(n)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+const esc=(s)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=(s,r=document)=>r.querySelector(s);
+
+/* ═════════ Sample data (stands in for what the database would give us) ═════════ */
+const TEAMS=[1,2,3,4,5];
+const batches=[
+  {id:'b1',name:'Leadership Batch – Oct 2026'},
+  {id:'b2',name:'Sales Excellence – Nov 2026'}
+];
+const people=[
+  ['Priya Sharma','Regional Manager'],['Arjun Mehta','Sales Lead'],['Kavita Rao','HR Business Partner'],['Suresh Nair','Operations Head'],
+  ['Meera Pillai','Finance Controller'],['Rohit Verma','Team Lead – North'],['Anita Desai','Marketing Manager'],['Vikram Singh','Plant Manager'],
+  ['Deepa Menon','Quality Head'],['Sanjay Gupta','Area Manager'],['Neha Kapoor','Product Manager'],['Rahul Joshi','Team Lead – West'],
+  ['Lakshmi Iyer','Training Manager'],['Manoj Kumar','Logistics Lead'],['Sunita Patil','Customer Care Head'],['Amit Choudhury','IT Manager'],
+  ['Pooja Bansal','Procurement Lead'],['Harish Reddy','Branch Manager'],['Divya Krishnan','Admin Manager'],['Naveen Das','Sales Lead – South']
+].map(([name,title],i)=>({id:'p'+(i+1),name,title,email:name.toLowerCase().replace(/ /g,'.')+'@acme.example',
+  actions:(i*7)%15, lastSeen:[0,1,0,2,9,0,3,12,1,0,5,8,0,2,1,0,4,10,0,1][i]}));
+/* membership[batchId][personId] = team number, or null when in the batch but not yet in a team */
+const membership={
+  b1:{p1:1,p2:2,p3:1,p4:3,p5:4,p6:null,p7:5,p8:null,p9:2,p10:3,p11:null,p12:null},
+  b2:{p13:1,p14:null,p15:2}
+};
+const announcements=[
+  {title:'Welcome to the batch!',to:'Whole batch',text:'We are glad to have everyone on board. Please log in and read your first action.',when:'2 Oct'},
+  {title:'Week 2 content is now open',to:'Whole batch',text:'The new learning videos are ready. Please finish them before Friday.',when:'9 Oct'}
+];
+const threads=[
+  {id:1,who:'Priya Sharma',msgs:[{me:false,t:'Good morning! Can I move my action review to Friday?',w:'Today, 9:10'}]},
+  {id:2,who:'Rohit Verma',msgs:[{me:false,t:'I could not open the Week 2 video on my phone.',w:'Yesterday'},{me:true,t:'Thank you Rohit, please try again now. We have fixed it.',w:'Yesterday'}]},
+  {id:3,who:'Anita Desai',msgs:[{me:false,t:'Thank you for the reminder, I have finished my actions.',w:'Mon'}]}
+];
+const weeks=[
+  {n:1,title:'Leading with clarity',desc:'Video · Reading · 1 action',status:'open'},
+  {n:2,title:'Giving feedback that helps',desc:'Video · Reading · 2 actions',status:'open'},
+  {n:3,title:'Running better meetings',desc:'Video · Reading · 1 action',status:'soon',date:'23 Oct'},
+  {n:4,title:'Building your team',desc:'Video · Reading · 2 actions',status:'soon',date:'30 Oct'}
+];
+
+/* ═════════ App state ═════════ */
+const ui={page:'home',batch:'b1',step:1,add:new Set(),sel:new Set(),filter:'all',q1:'',q2:'',thread:1,audience:'all',audTeam:1};
+let undoSnapshot=null;
+const pById=(id)=>people.find(p=>p.id===id);
+const mem=()=>membership[ui.batch];
+const inBatch=()=>people.filter(p=>p.id in mem());
+const outBatch=()=>people.filter(p=>!(p.id in mem()));
+const noTeam=()=>inBatch().filter(p=>mem()[p.id]==null);
+const teamCount=(t)=>inBatch().filter(p=>mem()[p.id]===t).length;
+const initials=(n)=>n.split(' ').map(w=>w[0]).slice(0,2).join('');
+const teamPill=(t)=>t?`<span class="pill team t${t}bg">Team ${t}</span>`:`<span class="pill warn">No team yet</span>`;
+const batchName=()=>batches.find(b=>b.id===ui.batch).name;
+const matches=(p,q)=>!q||(p.name+' '+p.title).toLowerCase().includes(q.toLowerCase());
+
+/* ═════════ Pages ═════════ */
+const PAGES={
+  home:{label:'Home',icon:'home',render:pageHome},
+  people:{label:'People & Teams',icon:'users',render:pagePeople},
+  progress:{label:'How is my batch doing?',icon:'chart',render:pageProgress},
+  announce:{label:'Announcements',icon:'megaphone',render:pageAnnounce},
+  messages:{label:'Messages',icon:'chat',render:pageMessages},
+  content:{label:'Learning content',icon:'book',render:pageContent}
+};
+
+function head(title,sub){return `<div class="page-head"><h1>${title}</h1><p>${sub}</p></div>`}
+
+function pageHome(){
+  const n=noTeam().length, free=outBatch().length;
+  const tasks=[];
+  if(free) tasks.push(`<div class="task"><p>${free} ${free===1?'person from your company is':'people from your company are'} not in this batch yet.</p><button class="btn" data-go="people" data-step="1">Add them ${icon('arrow')}</button></div>`);
+  if(n) tasks.push(`<div class="task"><p>${n} ${n===1?'person still needs':'people still need'} a team.</p><button class="btn" data-go="people" data-step="2">Choose teams ${icon('arrow')}</button></div>`);
+  if(!tasks.length) tasks.push(`<div class="task done"><p>Everything is up to date. Nothing needs your attention right now. 🎉</p></div>`);
+  const tiles=[
+    ['people','users','People & Teams','Add people to your batch and put each person into one of five teams.'],
+    ['progress','chart','How is my batch doing?','See who is active, which team is leading, and who may need a reminder.'],
+    ['announce','megaphone','Announcements','Write a message that everyone in the batch (or one team) will see.'],
+    ['messages','chat','Messages','Read and reply to messages from your participants.'],
+    ['content','book','Learning content','See what has been unlocked each week and what is coming next.']
+  ].map(([go,ic,t,d])=>`<button class="tile" data-go="${go}"><span class="ic">${icon(ic)}</span><h3>${t}</h3><p>${d}</p><span class="go">Open ${icon('arrow')}</span></button>`).join('');
+  return head('Good morning, Ramesh 👋',`Here is what is happening in <strong>${esc(batchName())}</strong>.`)+
+    `<h2 style="font-size:1.4rem;font-weight:800;margin-bottom:.8rem">Things to do</h2><div class="tasks">${tasks.join('')}</div>`+
+    `<h2 style="font-size:1.4rem;font-weight:800;margin-bottom:.8rem">What would you like to do?</h2><div class="tiles">${tiles}</div>`;
+}
+
+function pagePeople(){
+  const n=noTeam().length;
+  const steps=`<div class="steps" role="tablist" aria-label="Steps">
+    <button class="step" role="tab" data-step-go="1" aria-selected="${ui.step===1}"><span class="n">1</span><span>Add people to the batch<small>Pick who takes part</small></span><span class="pill ok">${inBatch().length} in batch</span></button>
+    <button class="step" role="tab" data-step-go="2" aria-selected="${ui.step===2}"><span class="n">2</span><span>Put people in teams<small>Choose Team 1 to Team 5</small></span>${n?`<span class="pill warn">${n} need a team</span>`:`<span class="pill ok">All done ✓</span>`}</button>
+  </div>`;
+  return head('People & Teams','Two easy steps: first choose who is in this batch, then give each person a team.')+steps+(ui.step===1?stepAdd():stepTeams());
+}
+
+function stepAdd(){
+  const free=outBatch().filter(p=>matches(p,ui.q1));
+  const chosen=[...ui.add].filter(id=>!(id in mem())).length;
+  const left=`<section class="card"><h2>People not in this batch yet (${outBatch().length})</h2><p class="sub">Tick the box next to each person you want to add.</p>
+    <div class="search">${icon('search')}<input class="input" id="q1" type="search" placeholder="Search by name…" value="${esc(ui.q1)}" aria-label="Search people"></div>
+    ${free.length?`<div class="list">${free.map(p=>`<label class="row pick ${ui.add.has(p.id)?'checked':''}"><input class="chk" type="checkbox" data-add="${p.id}" ${ui.add.has(p.id)?'checked':''}><span class="avatar">${initials(p.name)}</span><span class="who2"><strong>${esc(p.name)}</strong><span>${esc(p.title)}</span></span></label>`).join('')}</div>`
+      :`<div class="empty">${outBatch().length?'Nobody matches your search.':'Everyone in your company is already in this batch. 🎉'}</div>`}
+    <div class="sticky-act">
+      ${free.length?`<button class="btn secondary small" data-act="addAll">Tick everyone shown</button>`:''}
+      <button class="btn" data-act="addSelected" ${chosen?'':'disabled'}>${icon('plus')} Add ${chosen||''} ${chosen===1?'person':'people'} to batch</button>
+      ${chosen?'':'<span class="hint">Tick at least one person first.</span>'}
+    </div></section>`;
+  const mine=inBatch();
+  const right=`<section class="card"><h2>Already in this batch (${mine.length})</h2><p class="sub">These people can see the batch when they log in.</p>
+    ${mine.length?`<div class="list">${mine.map(p=>`<div class="row"><span class="avatar">${initials(p.name)}</span><span class="who2"><strong>${esc(p.name)}</strong>${teamPill(mem()[p.id])}</span><button class="btn danger small" data-remove="${p.id}">Remove</button></div>`).join('')}</div>`:`<div class="empty">Nobody has been added yet.<br>Start by ticking people on the left.</div>`}
+    <div class="sticky-act"><button class="btn" data-step-go="2" ${mine.length?'':'disabled'}>Next: put people in teams ${icon('arrow')}</button></div>
+  </section>`;
+  return `<div class="grid2">${left}${right}</div>`;
+}
+
+function stepTeams(){
+  const all=inBatch();
+  if(!all.length) return `<div class="card"><div class="empty">There is nobody in this batch yet.<br><br><button class="btn" data-step-go="1">${icon('plus')} Go back and add people</button></div></div>`;
+  const nt=noTeam().length;
+  const tileHtml=[
+    `<button class="ttile" data-filter="all" aria-pressed="${ui.filter==='all'}"><strong>Everyone</strong><span>${all.length} people</span></button>`,
+    `<button class="ttile" data-filter="none" aria-pressed="${ui.filter==='none'}"><strong style="color:${nt?'var(--warn)':'var(--ok)'}">No team yet</strong><span>${nt} ${nt===1?'person':'people'}</span></button>`,
+    ...TEAMS.map(t=>`<button class="ttile" data-filter="${t}" aria-pressed="${ui.filter===t}"><div class="bar t${t}bg"></div><strong>Team ${t}</strong><span>${teamCount(t)} ${teamCount(t)===1?'person':'people'}</span></button>`)
+  ].join('');
+  const shown=all.filter(p=>matches(p,ui.q2)&&(ui.filter==='all'||(ui.filter==='none'?mem()[p.id]==null:mem()[p.id]===ui.filter)));
+  const selected=[...ui.sel].filter(id=>id in mem());
+  const bulk=selected.length?`<div class="bulk" role="region" aria-label="Move selected people"><strong>${selected.length} ${selected.length===1?'person':'people'} ticked — put them in:</strong>${TEAMS.map(t=>`<button class="tb t${t}bg" data-bulk="${t}">Team ${t}</button>`).join('')}<button class="tb" style="background:transparent" data-bulk="none">Clear team</button><button class="tb" style="background:transparent" data-act="untick">Untick all</button></div>`:'';
+  const rows=shown.length?shown.map(p=>{
+    const t=mem()[p.id],ck=ui.sel.has(p.id);
+    return `<div class="rowteam ${ck?'checked':''}"><label style="display:flex;align-items:center;gap:1rem;flex:1 1 14rem;min-width:0;cursor:pointer"><input class="chk" type="checkbox" data-sel="${p.id}" ${ck?'checked':''} aria-label="Tick ${esc(p.name)}"><span class="avatar">${initials(p.name)}</span><span class="who2"><strong>${esc(p.name)}</strong>${teamPill(t)}</span></label>
+      <div class="tbtns" role="group" aria-label="Choose team for ${esc(p.name)}">${TEAMS.map(x=>`<button class="tb ${t===x?`on t${x}bg`:''}" data-set="${p.id}:${x}" aria-pressed="${t===x}" aria-label="Put ${esc(p.name)} in Team ${x}">Team ${x}</button>`).join('')}<button class="tb clear" data-set="${p.id}:none" aria-label="Remove ${esc(p.name)} from team" ${t?'':'disabled style="opacity:.35;cursor:default"'}>✕</button></div></div>`;
+  }).join(''):`<div class="empty">No one to show here.${ui.filter!=='all'?'<br><br><button class="btn secondary" data-filter="all">Show everyone</button>':''}</div>`;
+  return `<div class="card"><h2>Who is in which team?</h2><p class="sub">Press a <strong>Team</strong> button next to a name to put that person in the team. To move many people at once, tick their boxes first.</p>
+    <div class="teamtiles">${tileHtml}</div>
+    <div class="toolbar"><div class="search">${icon('search')}<input class="input" id="q2" type="search" placeholder="Search by name…" value="${esc(ui.q2)}" aria-label="Search people"></div>
+      <button class="btn secondary" data-act="tickShown">Tick everyone shown</button>
+      <button class="btn secondary" data-act="split" ${nt?'':'disabled'}>${icon('shuffle')} Share ${nt||''} unassigned equally</button></div>
+    ${bulk}<div class="list">${rows}</div></div>`;
+}
+
+function pageProgress(){
+  const m=inBatch(), active=m.filter(p=>p.lastSeen<=7), quiet=m.filter(p=>p.lastSeen>7);
+  const totalActions=m.reduce((s,p)=>s+p.actions,0);
+  const pts=TEAMS.map(t=>({t,n:teamCount(t),pts:m.filter(p=>mem()[p.id]===t).reduce((s,p)=>s+p.actions,0)})).filter(x=>x.n);
+  const max=Math.max(1,...pts.map(x=>x.pts));
+  const lb=pts.length?pts.sort((a,b)=>b.pts-a.pts).map((x,i)=>`<div class="lbrow"><span>${i===0?'🏆 ':''}Team ${x.t}</span><div class="lbtrack"><div class="lbfill t${x.t}bg" style="width:${Math.max(4,x.pts/max*100)}%"></div></div><span>${x.pts} actions</span></div>`).join(''):`<div class="empty">Put people into teams to see the team scores.</div>`;
+  return head('How is my batch doing?','A simple picture of how active everyone has been this week.')+
+    `<div class="stats"><div class="stat"><b>${active.length} of ${m.length}</b><span>people used the app this week</span></div><div class="stat"><b>${totalActions}</b><span>actions completed so far</span></div><div class="stat"><b>${quiet.length}</b><span>people have been quiet for over a week</span></div></div>
+    <div class="grid2"><section class="card"><h2>Team scores</h2><p class="sub">Each completed action adds one point to the team.</p><div class="lb">${lb}</div></section>
+    <section class="card"><h2>People who may need a friendly reminder</h2><p class="sub">They have not opened the app for more than a week.</p>
+      ${quiet.length?`<div class="list">${quiet.map(p=>`<div class="row"><span class="avatar">${initials(p.name)}</span><span class="who2"><strong>${esc(p.name)}</strong><span>Last seen ${p.lastSeen} days ago</span></span><button class="btn small" data-remind="${p.id}">Remind</button></div>`).join('')}</div><div class="sticky-act"><button class="btn" data-remind="all">${icon('send')} Remind all ${quiet.length}</button></div>`:`<div class="empty">Everyone has been active. Well done! 🎉</div>`}
+    </section></div>`;
+}
+
+function pageAnnounce(){
+  const n=inBatch().length, tn=teamCount(ui.audTeam);
+  const past=announcements.slice().reverse().map(a=>`<div class="row" style="align-items:flex-start;flex-direction:column;gap:.2rem"><strong style="font-size:1.12rem">${esc(a.title)}</strong><span class="hint">To: ${esc(a.to)} · ${esc(a.when)}</span><span>${esc(a.text)}</span></div>`).join('');
+  return head('Announcements','Write a message. People will see it as soon as they open the app.')+
+    `<div class="grid2"><section class="card"><h2>Write a new announcement</h2><p class="sub">&nbsp;</p>
+      <fieldset class="field" style="border:0;padding:0;margin:0 0 1.2rem"><legend style="padding:0;margin-bottom:.4rem">Who should see it?</legend>
+        <label class="radio"><input type="radio" name="aud" value="all" ${ui.audience==='all'?'checked':''}> Everyone in the batch (${n} people)</label>
+        <label class="radio" style="margin-top:.5rem"><input type="radio" name="aud" value="team" ${ui.audience==='team'?'checked':''}> Only one team
+          <select id="audTeam" class="input" style="width:auto;min-height:2.8rem;margin-left:auto" aria-label="Which team">${TEAMS.map(t=>`<option value="${t}" ${ui.audTeam===t?'selected':''}>Team ${t} (${teamCount(t)})</option>`).join('')}</select></label></fieldset>
+      <div class="field"><label for="annTitle">Heading</label><input id="annTitle" class="input" placeholder="For example: Week 3 starts on Monday"></div>
+      <div class="field"><label for="annText">Your message</label><textarea id="annText" class="input" placeholder="Type your message here…"></textarea></div>
+      <button class="btn" data-act="sendAnn">${icon('send')} Send announcement</button></section>
+    <section class="card"><h2>Earlier announcements</h2><p class="sub">Messages you have already sent to this batch.</p><div class="list">${past}</div></section></div>`;
+}
+
+function pageMessages(){
+  const th=threads.find(t=>t.id===ui.thread);
+  return head('Messages','Participants can write to you here. Pick a name to read and reply.')+
+    `<div class="chat"><section class="card"><h2 style="margin-bottom:.8rem">Conversations</h2><div class="list">${threads.map(t=>`<button class="thread" data-thread="${t.id}" aria-current="${t.id===ui.thread}"><span class="avatar">${initials(t.who)}</span><span><strong>${esc(t.who)}</strong><span>${esc(t.msgs[t.msgs.length-1].t.slice(0,34))}…</span></span></button>`).join('')}</div></section>
+    <section class="card"><h2 style="margin-bottom:1rem">${esc(th.who)}</h2><div class="msgs">${th.msgs.map(m=>`<div class="msg ${m.me?'me':''}">${esc(m.t)}<small>${esc(m.w)}</small></div>`).join('')}</div>
+      <div class="field"><label for="reply">Your reply</label><textarea id="reply" class="input" style="min-height:6rem" placeholder="Type your reply here…"></textarea></div>
+      <button class="btn" data-act="reply">${icon('send')} Send reply</button></section></div>`;
+}
+
+function pageContent(){
+  return head('Learning content','What your batch can see each week. This list is set up for you — nothing to change here.')+
+    `<div class="weeks">${weeks.map(w=>`<div class="week"><span class="n"><span>Week<b>${w.n}</b></span></span><span class="info"><strong>${w.title}</strong><span>${w.desc}</span></span>${w.status==='open'?'<span class="pill ok">✓ Open now</span>':`<span class="pill warn">Opens ${w.date}</span>`}</div>`).join('')}</div>`;
+}
+
+/* ═════════ Rendering ═════════ */
+function renderNav(){
+  $('#nav').innerHTML=Object.entries(PAGES).map(([k,p])=>{
+    const badge=k==='people'&&noTeam().length?`<span class="badge" aria-label="${noTeam().length} need a team">${noTeam().length}</span>`:'';
+    return `<button type="button" data-go="${k}" ${ui.page===k?'aria-current="page"':''}>${icon(p.icon)}<span>${p.label}</span>${badge}</button>`;
+  }).join('');
+}
+function render(){
+  const a=document.activeElement, aid=a&&a.id, pos=a&&a.selectionStart;
+  renderNav();
+  $('#page').innerHTML=PAGES[ui.page].render();
+  if(aid){const el=document.getElementById(aid); if(el){el.focus(); try{el.setSelectionRange(pos,pos)}catch(e){}}}
+}
+function go(page,step){
+  ui.page=page; if(step) ui.step=step;
+  render(); window.scrollTo({top:0}); $('#page').focus({preventScroll:true});
+}
+
+/* ═════════ Helpers: toast + dialog ═════════ */
+let toastTimer;
+function toast(msg,undo){
+  const t=$('#toast');
+  t.innerHTML=`${icon('check')}<span>${msg}</span>${undo?`<button class="btn" data-act="undo">${icon('undo')} Undo</button>`:''}<button class="x" data-act="closeToast" aria-label="Close message">✕</button>`;
+  t.hidden=false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.hidden=true,undo?12000:7000);
+}
+function ask({title,body,yes,no='Cancel',danger,onYes}){
+  const d=$('#dlg'); $('#dlgTitle').textContent=title; $('#dlgBody').innerHTML=body;
+  $('#dlgActs').innerHTML=`<button class="btn ${danger?'danger':''}" id="dlgYes">${yes}</button>${no?`<button class="btn secondary" id="dlgNo">${no}</button>`:''}`;
+  $('#dlgYes').onclick=()=>{d.close(); onYes&&onYes()}; const n=$('#dlgNo'); if(n) n.onclick=()=>d.close();
+  d.showModal();
+}
+function snapshot(){undoSnapshot=JSON.stringify(membership)}
+function setTeam(id,t){mem()[id]=t}
+
+/* ═════════ Actions ═════════ */
+function assign(ids,team,label){
+  snapshot(); ids.forEach(id=>setTeam(id,team));
+  const who=ids.length===1?pById(ids[0]).name:`${ids.length} people`;
+  toast(team?`${who} ${ids.length===1?'is':'are'} now in Team ${team}.`:`${who} ${ids.length===1?'was':'were'} taken out of the team.`,true);
+  ui.sel.clear(); render();
+}
+function splitEvenly(){
+  const ids=noTeam().map(p=>p.id);
+  ask({title:'Share people equally?',body:`${ids.length} ${ids.length===1?'person has':'people have'} no team. We will spread them evenly across Teams 1 to 5. You can still change anyone afterwards.`,yes:'Yes, share them equally',onYes(){
+    snapshot();
+    ids.forEach(id=>{const t=TEAMS.slice().sort((a,b)=>teamCount(a)-teamCount(b)||a-b)[0]; setTeam(id,t)});
+    toast(`Done. ${ids.length} ${ids.length===1?'person was':'people were'} placed in teams.`,true); render();
+  }});
+}
+
+document.addEventListener('click',(e)=>{
+  const b=e.target.closest('button'); if(!b) return;
+  const d=b.dataset;
+  if(d.go){ui.page=d.go; if(d.step) ui.step=+d.step; return go(d.go)}
+  if(d.stepGo){ui.step=+d.stepGo; return render()}
+  if(d.size){setSize(d.size); return}
+  if(d.filter){ui.filter=d.filter==='all'||d.filter==='none'?d.filter:+d.filter; return render()}
+  if(d.set){const [id,t]=d.set.split(':'); if(b.disabled) return; return assign([id],t==='none'?null:+t)}
+  if(d.bulk){return assign([...ui.sel],d.bulk==='none'?null:+d.bulk)}
+  if(d.remove){const p=pById(d.remove); return ask({title:`Remove ${p.name}?`,body:`${esc(p.name)} will no longer be part of <strong>${esc(batchName())}</strong>. You can add them again at any time.`,yes:'Yes, remove',danger:true,onYes(){snapshot(); delete mem()[p.id]; ui.sel.delete(p.id); toast(`${p.name} was removed from the batch.`,true); render()}})}
+  if(d.thread){ui.thread=+d.thread; return render()}
+  if(d.remind){const ids=d.remind==='all'?inBatch().filter(p=>p.lastSeen>7).map(p=>p.id):[d.remind];
+    return toast(ids.length===1?`Reminder sent to ${pById(ids[0]).name}.`:`Reminder sent to ${ids.length} people.`)}
+  switch(d.act){
+    case 'addAll': outBatch().filter(p=>matches(p,ui.q1)).forEach(p=>ui.add.add(p.id)); return render();
+    case 'addSelected':{const ids=[...ui.add].filter(id=>!(id in mem())); if(!ids.length) return;
+      snapshot(); ids.forEach(id=>mem()[id]=null); ui.add.clear();
+      toast(`${ids.length} ${ids.length===1?'person was':'people were'} added to the batch. Next, choose their teams.`,true); return render()}
+    case 'tickShown':{const q=ui.q2,f=ui.filter; inBatch().filter(p=>matches(p,q)&&(f==='all'||(f==='none'?mem()[p.id]==null:mem()[p.id]===f))).forEach(p=>ui.sel.add(p.id)); return render()}
+    case 'untick': ui.sel.clear(); return render();
+    case 'split': return splitEvenly();
+    case 'undo': if(undoSnapshot){const s=JSON.parse(undoSnapshot); Object.keys(membership).forEach(k=>membership[k]=s[k]); $('#toast').hidden=true; render(); toast('Done. Your last change was undone.')} return;
+    case 'closeToast': $('#toast').hidden=true; return;
+    case 'sendAnn':{
+      const title=$('#annTitle').value.trim(), text=$('#annText').value.trim();
+      if(!title||!text) return ask({title:'Please fill in both boxes',body:'Write a heading and a message, then press <strong>Send announcement</strong> again.',yes:'OK, got it',no:''});
+      const to=ui.audience==='all'?`Whole batch (${inBatch().length})`:`Team ${ui.audTeam} (${teamCount(ui.audTeam)})`;
+      return ask({title:'Send this announcement?',body:`<strong>${esc(title)}</strong><br>It will be sent to: <strong>${to}</strong>.`,yes:'Yes, send it',onYes(){announcements.push({title,to,text,when:'Today'}); toast('Your announcement has been sent.'); render()}})}
+    case 'reply':{const el=$('#reply'),t=el.value.trim(); if(!t) return el.focus();
+      threads.find(x=>x.id===ui.thread).msgs.push({me:true,t,w:'Just now'}); toast('Your reply has been sent.'); return render()}
+  }
+});
+
+document.addEventListener('change',(e)=>{
+  const t=e.target;
+  if(t.dataset.add){t.checked?ui.add.add(t.dataset.add):ui.add.delete(t.dataset.add); return render()}
+  if(t.dataset.sel){t.checked?ui.sel.add(t.dataset.sel):ui.sel.delete(t.dataset.sel); return render()}
+  if(t.name==='aud'){ui.audience=t.value; return}
+  if(t.id==='audTeam'){ui.audTeam=+t.value; ui.audience='team'; return render()}
+});
+document.addEventListener('input',(e)=>{
+  if(e.target.id==='q1'){ui.q1=e.target.value; render()}
+  if(e.target.id==='q2'){ui.q2=e.target.value; render()}
+});
+
+/* ═════════ Top bar, sidebar footer, text size ═════════ */
+function setSize(s){
+  document.documentElement.dataset.size=s==='normal'?'':s;
+  document.querySelectorAll('[data-size]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.size===s));
+  try{localStorage.setItem('adminTextSize',s)}catch(e){}
+}
+$('#batchSelect').innerHTML=batches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+$('#batchSelect').addEventListener('change',(e)=>{ui.batch=e.target.value; ui.add.clear(); ui.sel.clear(); ui.filter='all'; render(); toast(`Now showing: ${batchName()}`)});
+$('#helpBtn').onclick=()=>ask({title:'Need help?',yes:'Close',no:'',body:`<p style="margin-bottom:1rem">We are happy to help. You can reach the Nudgeable support team here:</p>
+  <p style="display:flex;gap:.7rem;align-items:center;margin-bottom:.6rem"><span style="width:1.5rem;height:1.5rem;display:inline-block">${icon('phone')}</span><strong>+91 00000 00000</strong> <span class="hint">(Mon–Fri, 9am–6pm)</span></p>
+  <p style="display:flex;gap:.7rem;align-items:center"><span style="width:1.5rem;height:1.5rem;display:inline-block">${icon('mail')}</span><strong>support@nudgeable.example</strong></p>`});
+$('#logoutBtn').onclick=()=>ask({title:'Log out?',body:'You will need to sign in again next time.',yes:'Yes, log out',onYes(){toast('This is a prototype, so you stay logged in.')}});
+let saved='normal'; try{saved=localStorage.getItem('adminTextSize')||'normal'}catch(e){}
+setSize(saved);
+document.querySelectorAll('[data-icon]').forEach(el=>el.innerHTML=icon(el.dataset.icon));
+/* Optional deep links for sharing a specific screen: admin-prototype.html?page=people&step=2 */
+const qs=new URLSearchParams(location.search);
+if(PAGES[qs.get('page')]) ui.page=qs.get('page');
+if(qs.get('step')) ui.step=+qs.get('step');
+if(qs.get('size')) setSize(qs.get('size'));
+render();
+</script>
+</body>
+</html>

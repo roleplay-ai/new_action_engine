@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarClock,
   CheckSquare,
@@ -18,6 +18,10 @@ import {
   getUpcomingWeeklyRecap,
   type UpcomingWeeklyRecap,
 } from "@/app/actions/action-reminders";
+import EmailQueueFilters, {
+  filterQueueEntries,
+  getBatchOptions,
+} from "./email-queue-filters";
 
 function formatIstTime(isoValue: string) {
   return new Date(isoValue).toLocaleString("en-IN", {
@@ -140,6 +144,8 @@ export default function WeeklyRecapQueuePanel({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const [batchId, setBatchId] = useState("");
+  const [search, setSearch] = useState("");
 
   async function loadRecaps() {
     setLoading(true);
@@ -168,7 +174,15 @@ export default function WeeklyRecapQueuePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelExpanded]);
 
-  const sendableRecaps = recaps.filter((recap) => recap.canSend);
+  const batchOptions = useMemo(() => getBatchOptions(recaps), [recaps]);
+  const visibleRecaps = useMemo(
+    () => filterQueueEntries(recaps, batchId, search),
+    [recaps, batchId, search]
+  );
+  const sendableRecaps = visibleRecaps.filter((recap) => recap.canSend);
+  const visibleSelectedIds = sendableRecaps
+    .map((recap) => recap.subscriptionId)
+    .filter((id) => selectedIds.has(id));
   const allSelected =
     sendableRecaps.length > 0 && sendableRecaps.every((recap) => selectedIds.has(recap.subscriptionId));
 
@@ -182,7 +196,14 @@ export default function WeeklyRecapQueuePanel({
   }
 
   function toggleAll() {
-    setSelectedIds(allSelected ? new Set() : new Set(sendableRecaps.map((recap) => recap.subscriptionId)));
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      for (const recap of sendableRecaps) {
+        if (allSelected) next.delete(recap.subscriptionId);
+        else next.add(recap.subscriptionId);
+      }
+      return next;
+    });
   }
 
   async function sendSelectedNow() {
@@ -190,7 +211,7 @@ export default function WeeklyRecapQueuePanel({
     setError(null);
     setResult(null);
     try {
-      const response = await bulkSendWeeklyRecap(Array.from(selectedIds));
+      const response = await bulkSendWeeklyRecap(visibleSelectedIds);
       if ("error" in response) {
         setError(response.error);
         return;
@@ -279,8 +300,18 @@ export default function WeeklyRecapQueuePanel({
           )}
 
           <div className="p-4">
+            {recaps.length > 0 && (
+              <EmailQueueFilters
+                batches={batchOptions}
+                batchId={batchId}
+                onBatchChange={setBatchId}
+                search={search}
+                onSearchChange={setSearch}
+              />
+            )}
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-semibold text-slate-600">
+                {visibleRecaps.length !== recaps.length ? `${visibleRecaps.length} of ` : ""}
                 {recaps.length} participant{recaps.length === 1 ? "" : "s"}
                 {recaps[0] ? ` · Next ${formatIstTime(recaps[0].scheduledFor)}` : ""}
               </p>
@@ -298,12 +329,12 @@ export default function WeeklyRecapQueuePanel({
                   <button
                     type="button"
                     onClick={sendSelectedNow}
-                    disabled={sending || selectedIds.size === 0}
+                    disabled={sending || visibleSelectedIds.length === 0}
                     className="flex items-center gap-1.5 rounded-lg border-2 border-black bg-black px-3 py-2 text-xs font-bold uppercase text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {sending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
                     Bulk send now
-                    {selectedIds.size ? ` (${selectedIds.size})` : ""}
+                    {visibleSelectedIds.length ? ` (${visibleSelectedIds.length})` : ""}
                   </button>
                 </div>
               )}
@@ -318,9 +349,13 @@ export default function WeeklyRecapQueuePanel({
               <p className="py-3 text-sm italic text-slate-500">
                 No participants currently have email reminders enabled.
               </p>
+            ) : visibleRecaps.length === 0 ? (
+              <p className="py-3 text-sm italic text-slate-500">
+                No members match the current search or batch filter.
+              </p>
             ) : (
               <div className="space-y-3">
-                {recaps.map((recap) => (
+                {visibleRecaps.map((recap) => (
                   <RecapRow
                     key={recap.subscriptionId}
                     recap={recap}

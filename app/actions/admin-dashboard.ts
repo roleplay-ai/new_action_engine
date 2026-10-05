@@ -62,6 +62,9 @@ async function resolveScopedUserIds(admin: Admin, companyId: string, cohortId: s
 export interface BatchOption {
   cohortId: string;
   label: string;
+  /** The two halves of `label`, for the separate Batch and Module dropdowns. */
+  batchName: string;
+  moduleName: string | null;
 }
 
 /** Feeds the Dashboard's batch/module selector — one option per batch (labeled with its
@@ -83,6 +86,8 @@ export async function getBatchOptions(companyId?: string): Promise<{ options: Ba
     const options: BatchOption[] = (cohorts ?? []).map((c: { id: string; batch_name: string; module_name: string | null }) => ({
       cohortId: c.id,
       label: c.module_name ? `${c.batch_name} — ${c.module_name}` : c.batch_name,
+      batchName: c.batch_name,
+      moduleName: c.module_name,
     }));
 
     return { options };
@@ -247,6 +252,7 @@ export async function getCommitmentScoreBuckets(
 export interface DashboardLeaderboardEntry {
   id: string;
   name: string;
+  email: string | null;
   /** Commitment buddy display name in scope (null when unpaired). */
   buddyName: string | null;
   commitmentPoints: number;
@@ -328,9 +334,12 @@ export async function getDashboardLeaderboard(
     if (!userIds.length) return { entries: [] };
     const userIdSet = new Set(userIds);
 
-    const { data: profiles } = await admin.from("profiles").select("id, full_name").in("id", userIds);
+    const { data: profiles } = await admin.from("profiles").select("id, full_name, email").in("id", userIds);
     const nameById = new Map(
       (profiles ?? []).map((p: { id: string; full_name: string | null }) => [p.id, p.full_name?.trim() || "User"])
+    );
+    const emailById = new Map(
+      (profiles ?? []).map((p: { id: string; email: string | null }) => [p.id, p.email ?? null])
     );
 
     const cohortIds = await resolveCohortIds(admin, resolvedCompanyId, cohortId ?? null);
@@ -394,6 +403,7 @@ export async function getDashboardLeaderboard(
       return {
         id,
         name: nameById.get(id) ?? "User",
+        email: emailById.get(id) ?? null,
         buddyName: buddyByUser.get(id) ?? null,
         commitmentPoints: c?.points ?? 0,
         commitmentMaximum: c?.maximum ?? 0,

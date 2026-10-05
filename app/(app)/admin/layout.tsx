@@ -40,6 +40,7 @@ export default async function AdminLayout({
             companies={companies ?? []}
             role={profile?.role ?? "user"}
             companyId={profile?.company_id ?? null}
+            userId={user.id}
           >
             {children}
           </AdminShell>

@@ -11,8 +11,6 @@ import {
   ChevronDown,
   ChevronRight,
   LogOut,
-  MessageSquareText,
-  Megaphone,
   ArrowLeft,
 } from "lucide-react";
 
@@ -32,25 +30,12 @@ const navItems: NavItem[] = [
     href: "/admin",
   },
   {
+    // Every batch task (dates, participants, teams, conversations,
+    // announcements, content) is a card on this one page.
     id: "control-panel",
     label: "Control Panel",
     icon: Settings2,
-    children: [
-      { id: "cohort-management", label: "Batch Management", href: "/admin/control-panel/cohorts" },
-      { id: "content-management", label: "Content Management", href: "/admin/control-panel/content" },
-    ],
-  },
-  {
-    id: "conversations",
-    label: "Conversations",
-    icon: MessageSquareText,
-    href: "/admin/conversations",
-  },
-  {
-    id: "notices",
-    label: "Announcements",
-    icon: Megaphone,
-    href: "/admin/notices",
+    href: "/admin/control-panel",
   },
 ];
 

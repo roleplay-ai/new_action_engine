@@ -108,9 +108,14 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
 
           {cohorts.length > 0 && (() => {
             const currentOption = cohorts.find((option) => option.id === cohort?.id) ?? cohorts[0];
+            // Nothing to switch to with a single batch, so the picker becomes a static label.
+            const canSwitch = cohorts.length > 1;
             return (
-              <details className="rcpl-sidebar-batch-picker">
-                <summary>
+              <details className={`rcpl-sidebar-batch-picker${canSwitch ? "" : " rcpl-sidebar-batch-picker--static"}`}>
+                <summary
+                  onClick={canSwitch ? undefined : (event) => event.preventDefault()}
+                  tabIndex={canSwitch ? undefined : -1}
+                >
                   <span>
                     <small>{switchingCohort ? "Switching…" : "Current view"}</small>
                     <strong title={`${currentOption.batchName}${currentOption.moduleName ? ` — ${currentOption.moduleName}` : ""}`}>
@@ -119,9 +124,9 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
                     </strong>
                     {viewingEarlierBatch && <em className="rcpl-batch-picker-tag">Old module</em>}
                   </span>
-                  <ChevronDown size={16} />
+                  {canSwitch && <ChevronDown size={16} />}
                 </summary>
-                <div>
+                {canSwitch && <div>
                   {cohorts.map((option) => (
                     <button
                       type="button"
@@ -143,7 +148,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
                       {option.id === cohort?.id && <Check size={14} strokeWidth={2.6} aria-label="Viewing" />}
                     </button>
                   ))}
-                </div>
+                </div>}
               </details>
             );
           })()}

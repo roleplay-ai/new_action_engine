@@ -6143,6 +6143,16 @@ input[type="range"] {
   transform: translateY(-1px);
 }
 
+.participant-shell--rcpl .rcpl-sidebar-batch-picker--static summary {
+  grid-template-columns: minmax(0, 1fr);
+  cursor: default;
+}
+
+.participant-shell--rcpl .rcpl-sidebar-batch-picker--static summary:hover {
+  box-shadow: 0 6px 18px rgba(231, 185, 77, .28), inset 0 0 0 1px rgba(255, 255, 255, .25);
+  transform: none;
+}
+
 .participant-shell--rcpl .rcpl-sidebar-batch-picker summary::-webkit-details-marker {
   display: none;
 }

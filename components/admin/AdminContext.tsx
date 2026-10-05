@@ -14,6 +14,9 @@ const COHORT_STORAGE_KEY = "nudgeable:admin:cohortId";
 // it was left over from before this confirmation step existed, so it's
 // ignored on restore instead of silently skipping the pop-out.
 const CONFIRMED_STORAGE_KEY = "nudgeable:admin:batchConfirmed";
+// Who confirmed the remembered batch. A remembered batch only counts for that
+// same user, so anyone else signing in on this tab still gets the pop-out.
+const OWNER_STORAGE_KEY = "nudgeable:admin:batchOwner";
 
 /** Clears the remembered company/batch selection so the next login always
  * lands back on the BatchPickerGate pop-out instead of silently reusing
@@ -23,6 +26,7 @@ export function clearAdminBatchSelection() {
   sessionStorage.removeItem(COMPANY_STORAGE_KEY);
   sessionStorage.removeItem(COHORT_STORAGE_KEY);
   sessionStorage.removeItem(CONFIRMED_STORAGE_KEY);
+  sessionStorage.removeItem(OWNER_STORAGE_KEY);
 }
 
 interface Company {
@@ -92,6 +96,8 @@ interface AdminContextProviderProps {
   /** When provided, the selected company is owned by the caller (the
    * superadmin console's top-bar selector) instead of this context. */
   controlledCompanyId?: string | null;
+  /** The signed-in user — a remembered batch is only restored for them. */
+  userId?: string | null;
 }
 
 export function AdminContextProvider({
@@ -100,6 +106,7 @@ export function AdminContextProvider({
   role,
   companyId,
   controlledCompanyId,
+  userId,
 }: AdminContextProviderProps) {
   const companyControlled = controlledCompanyId !== undefined;
   const [uncontrolledCompanyId, setSelectedCompanyIdState] = useState<string | null>(null);
@@ -115,7 +122,9 @@ export function AdminContextProvider({
     hydratedRef.current = true;
     const storedCompany = sessionStorage.getItem(COMPANY_STORAGE_KEY);
     const storedCohort = sessionStorage.getItem(COHORT_STORAGE_KEY);
-    const wasConfirmed = sessionStorage.getItem(CONFIRMED_STORAGE_KEY) === "1";
+    const storedOwner = sessionStorage.getItem(OWNER_STORAGE_KEY);
+    const wasConfirmed =
+      sessionStorage.getItem(CONFIRMED_STORAGE_KEY) === "1" && (!userId || storedOwner === userId);
     if (role === "superadmin" && !companyControlled) {
       const nextCompany =
         storedCompany && companies.some((company) => company.id === storedCompany)
@@ -133,7 +142,7 @@ export function AdminContextProvider({
     } else if (storedCohort) {
       sessionStorage.removeItem(COHORT_STORAGE_KEY);
     }
-  }, [role, companies, companyControlled]);
+  }, [role, companies, companyControlled, userId]);
 
   // A controlled company change invalidates the picked batch, exactly like
   // setSelectedCompanyId does for the built-in switcher.
@@ -168,9 +177,10 @@ export function AdminContextProvider({
     // Only ever called from an explicit user action (the picker pop-out or
     // the top-bar switcher), so it's safe to mark this as confirmed.
     sessionStorage.setItem(CONFIRMED_STORAGE_KEY, "1");
+    if (userId) sessionStorage.setItem(OWNER_STORAGE_KEY, userId);
     if (id) sessionStorage.setItem(COHORT_STORAGE_KEY, id);
     else sessionStorage.removeItem(COHORT_STORAGE_KEY);
-  }, []);
+  }, [userId]);
 
   const effectiveCompanyId = role === "superadmin" ? selectedCompanyId : companyId;
 
@@ -391,9 +401,10 @@ export function AdminShell({
   companies,
   role,
   companyId,
+  userId,
 }: AdminContextProviderProps) {
   return (
-    <AdminContextProvider companies={companies} role={role} companyId={companyId}>
+    <AdminContextProvider companies={companies} role={role} companyId={companyId} userId={userId}>
       <div className="max-w-7xl mx-auto w-full space-y-4">
         <AdminContextBar />
         <NoCompanyWarning />

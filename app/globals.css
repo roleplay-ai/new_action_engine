@@ -19348,3 +19348,7 @@ div.cp-person { cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   .cp-spin { animation: none; }
 }
+
+/* Admin content preview: show uploaded PDF pre-reads inline. */
+.content-preview-pdf { height: 70vh; border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; background: #f4f1ea; }
+.content-preview-pdf iframe { width: 100%; height: 100%; border: 0; }

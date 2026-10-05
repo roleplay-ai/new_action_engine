@@ -13,6 +13,7 @@ import {
   deleteContentItem,
   getContentItemDetail,
 } from "@/app/actions/prepare-content";
+import PdfEmbedFrame from "@/components/prepare/PdfEmbedFrame";
 import type { PrepareContentItem, PrepareContentType } from "@/lib/types";
 import { VideoUploadField } from "@/components/admin/content/VideoUploadField";
 
@@ -220,6 +221,11 @@ export function ContentManagementView({ role }: ContentManagementViewProps) {
   );
 }
 
+/** Same PDF check the participant Prepare page uses (see prepare-client.tsx). */
+function isPdfUrl(url: string) {
+  return /\.pdf(?:$|[?#])/i.test(url);
+}
+
 function ContentPreviewModal({
   loading,
   error,
@@ -231,6 +237,7 @@ function ContentPreviewModal({
   item: PrepareContentItem | null;
   onClose: () => void;
 }) {
+  const pdfUrl = item?.type === "preread" && item.prereadUrl && isPdfUrl(item.prereadUrl) ? item.prereadUrl : null;
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -238,7 +245,7 @@ function ContentPreviewModal({
       onClick={onClose}
     >
       <div
-        className="card w-full max-w-lg max-h-[85vh] overflow-y-auto space-y-3"
+        className={`card w-full ${pdfUrl ? "max-w-4xl" : "max-w-lg"} max-h-[90vh] overflow-y-auto space-y-3`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -273,9 +280,14 @@ function ContentPreviewModal({
 
             {item.type === "preread" && (
               <div className="space-y-2">
+                {pdfUrl && (
+                  <div className="content-preview-pdf">
+                    <PdfEmbedFrame url={pdfUrl} title={`${item.title} PDF preview`} />
+                  </div>
+                )}
                 {item.prereadUrl && (
-                  <a href={item.prereadUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold" style={{ color: "var(--dodger-blue)" }}>
-                    {item.prereadUrl}
+                  <a href={item.prereadUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold break-all" style={{ color: "var(--dodger-blue)" }}>
+                    {pdfUrl ? "Open the PDF in a new tab" : item.prereadUrl}
                   </a>
                 )}
                 {item.prereadBody && (

@@ -1493,7 +1493,7 @@ input[type="range"] {
   margin-top: 32px;
 }
 
-.rcpl-sidebar-phase-picker+.participant-nav {
+.rcpl-sidebar-batch-picker+.participant-nav {
   margin-top: 18px;
 }
 
@@ -6157,121 +6157,9 @@ input[type="range"] {
   border-color: var(--rcpl-line);
 }
 
-.participant-shell--rcpl .rcpl-sidebar-phase-picker {
-  position: relative;
-  margin: 24px 0 18px;
-  color: #fff;
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker summary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  padding: 11px 12px;
-  border: 1px solid var(--rcpl-gold);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, .07);
-  cursor: pointer;
-  list-style: none;
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker summary::-webkit-details-marker {
-  display: none;
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker summary>span {
-  min-width: 0;
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker summary small {
-  display: block;
-  margin-bottom: 5px;
-  color: var(--rcpl-gold);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker summary strong {
-  display: block;
-  overflow: hidden;
-  color: var(--rcpl-gold);
-  font-size: 11px;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker[open] summary svg {
-  transform: rotate(180deg);
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker>div {
-  position: absolute;
-  z-index: 20;
-  left: 0;
-  right: 0;
-  top: calc(100% + 5px);
-  display: grid;
-  gap: 3px;
-  max-height: 260px;
-  overflow-y: auto;
-  padding: 5px;
-  border: 1px solid var(--rcpl-gold);
-  border-radius: 9px;
-  background: var(--rcpl-navy-900);
-  box-shadow: 0 14px 30px rgba(0, 0, 0, .35);
-  scrollbar-width: thin;
-  scrollbar-color: var(--rcpl-gold) transparent;
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker>div::-webkit-scrollbar {
-  width: 4px;
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker>div::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker>div::-webkit-scrollbar-thumb {
-  background: var(--rcpl-gold);
-  border-radius: 999px;
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker>div a {
-  display: grid;
-  gap: 2px;
-  padding: 9px 10px;
-  border-radius: 7px;
-  color: rgba(255, 255, 255, .66);
-  text-decoration: none;
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker>div a:hover,
-.participant-shell--rcpl .rcpl-sidebar-phase-picker>div a.active {
-  color: #fff;
-  background: rgba(231, 185, 77, .16);
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker>div a.active strong {
-  color: var(--rcpl-gold);
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker>div strong {
-  font-size: 10px;
-  line-height: 1.35;
-}
-
-.participant-shell--rcpl .rcpl-sidebar-phase-picker>div small {
-  color: rgba(255, 255, 255, .5);
-  font-size: 9px;
-}
-
 .participant-shell--rcpl .rcpl-sidebar-batch-picker {
   position: relative;
-  margin: 0 0 8px;
+  margin: 24px 0 18px;
   color: #fff;
 }
 
@@ -6280,12 +6168,30 @@ input[type="range"] {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 11px 12px;
+  padding: 13px 14px;
   border: 1px solid var(--rcpl-gold);
-  border-radius: 9px;
-  background: rgba(255, 206, 0, .10);
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--rcpl-gold), #f3cf7a);
+  box-shadow: 0 6px 18px rgba(231, 185, 77, .28), inset 0 0 0 1px rgba(255, 255, 255, .25);
+  color: var(--rcpl-navy-900);
   cursor: pointer;
   list-style: none;
+  transition: box-shadow .18s ease, transform .18s ease;
+}
+
+.participant-shell--rcpl .rcpl-sidebar-batch-picker summary:hover {
+  box-shadow: 0 8px 22px rgba(231, 185, 77, .4), inset 0 0 0 1px rgba(255, 255, 255, .35);
+  transform: translateY(-1px);
+}
+
+.participant-shell--rcpl .rcpl-sidebar-batch-picker--static summary {
+  grid-template-columns: minmax(0, 1fr);
+  cursor: default;
+}
+
+.participant-shell--rcpl .rcpl-sidebar-batch-picker--static summary:hover {
+  box-shadow: 0 6px 18px rgba(231, 185, 77, .28), inset 0 0 0 1px rgba(255, 255, 255, .25);
+  transform: none;
 }
 
 .participant-shell--rcpl .rcpl-sidebar-batch-picker summary::-webkit-details-marker {
@@ -6297,28 +6203,40 @@ input[type="range"] {
 }
 
 .participant-shell--rcpl .rcpl-sidebar-batch-picker summary small {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-bottom: 5px;
-  color: rgba(255, 206, 0, .75);
+  color: rgba(11, 27, 51, .72);
   font-size: 9px;
   font-weight: 800;
   letter-spacing: .14em;
   text-transform: uppercase;
 }
 
+.participant-shell--rcpl .rcpl-sidebar-batch-picker summary small::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #1f9d55;
+  box-shadow: 0 0 0 3px rgba(31, 157, 85, .22);
+}
+
 .participant-shell--rcpl .rcpl-sidebar-batch-picker summary strong {
   display: block;
   overflow: hidden;
-  color: var(--rcpl-gold);
-  font-size: 11px;
-  line-height: 1.35;
+  color: var(--rcpl-navy-900);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .participant-shell--rcpl .rcpl-sidebar-batch-picker summary svg {
   flex: 0 0 auto;
-  color: rgba(255, 206, 0, .75);
+  color: var(--rcpl-navy-900);
   transition: transform .18s ease;
 }
 
@@ -6326,23 +6244,55 @@ input[type="range"] {
   transform: rotate(180deg);
 }
 
+.participant-shell--rcpl .rcpl-sidebar-batch-picker summary .rcpl-batch-picker-tag {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 7px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(58, 71, 92, .14);
+  color: #3a475c;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Dropdown panel: a light popover so it reads as a menu, not part of the navy sidebar. */
 .participant-shell--rcpl .rcpl-sidebar-batch-picker>div {
   position: absolute;
   z-index: 20;
   left: 0;
   right: 0;
-  top: calc(100% + 5px);
+  top: calc(100% + 8px);
   display: grid;
-  gap: 3px;
-  max-height: 260px;
+  gap: 2px;
+  max-height: 280px;
   overflow-y: auto;
-  padding: 5px;
-  border: 1px solid var(--rcpl-gold);
-  border-radius: 9px;
-  background: var(--rcpl-navy-900);
-  box-shadow: 0 14px 30px rgba(0, 0, 0, .35);
+  padding: 6px;
+  border: 1px solid #d9dee7;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(4, 12, 28, .45), 0 2px 6px rgba(4, 12, 28, .2);
+  color: var(--rcpl-navy-900);
   scrollbar-width: thin;
-  scrollbar-color: var(--rcpl-gold) transparent;
+  scrollbar-color: #c3cad6 transparent;
+  animation: rcpl-batch-menu-in .14s ease-out;
+}
+
+@keyframes rcpl-batch-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .participant-shell--rcpl .rcpl-sidebar-batch-picker>div::-webkit-scrollbar {
@@ -6354,23 +6304,32 @@ input[type="range"] {
 }
 
 .participant-shell--rcpl .rcpl-sidebar-batch-picker>div::-webkit-scrollbar-thumb {
-  background: var(--rcpl-gold);
+  background: #c3cad6;
   border-radius: 999px;
 }
 
 .participant-shell--rcpl .rcpl-sidebar-batch-picker>div button {
   width: 100%;
   display: grid;
-  gap: 2px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
   padding: 9px 10px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
-  color: rgba(255, 255, 255, .66);
+  color: var(--rcpl-navy-900);
   font-family: inherit;
   text-align: left;
   text-decoration: none;
   cursor: pointer;
+  transition: background .12s ease;
+}
+
+.participant-shell--rcpl .rcpl-sidebar-batch-picker>div button>span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
 }
 
 .participant-shell--rcpl .rcpl-sidebar-batch-picker>div button:disabled {
@@ -6378,24 +6337,59 @@ input[type="range"] {
   opacity: .6;
 }
 
-.participant-shell--rcpl .rcpl-sidebar-batch-picker>div button:hover:not(:disabled),
-.participant-shell--rcpl .rcpl-sidebar-batch-picker>div button.active {
-  color: #fff;
-  background: rgba(231, 185, 77, .16);
+.participant-shell--rcpl .rcpl-sidebar-batch-picker>div button:hover:not(:disabled) {
+  background: #f1f4f8;
 }
 
-.participant-shell--rcpl .rcpl-sidebar-batch-picker>div button.active strong {
-  color: var(--rcpl-gold);
+.participant-shell--rcpl .rcpl-sidebar-batch-picker>div button.active {
+  background: #fdf6e3;
+}
+
+.participant-shell--rcpl .rcpl-sidebar-batch-picker>div button>svg {
+  color: #b8861c;
 }
 
 .participant-shell--rcpl .rcpl-sidebar-batch-picker>div strong {
-  font-size: 10px;
+  color: var(--rcpl-navy-900);
+  font-size: 11px;
+  font-weight: 700;
   line-height: 1.35;
 }
 
 .participant-shell--rcpl .rcpl-sidebar-batch-picker>div small {
-  color: rgba(255, 255, 255, .5);
+  justify-self: start;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #eef1f5;
+  color: #5b6779;
   font-size: 9px;
+  font-weight: 700;
+}
+
+.participant-shell--rcpl .rcpl-sidebar-batch-picker>div small.is-current {
+  background: #e3f4ea;
+  color: #1a7f46;
+}
+
+/* Viewing an earlier batch: wash out the sidebar and picker so it's clearly not the live batch. */
+.participant-shell--rcpl.participant-shell--earlier-batch .rcpl-sidebar-batch-picker summary {
+  border-color: #c9cfd9;
+  background: linear-gradient(135deg, #dde2ea, #eef1f5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .18), inset 0 0 0 1px rgba(255, 255, 255, .4);
+}
+
+.participant-shell--rcpl.participant-shell--earlier-batch .rcpl-sidebar-batch-picker summary:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .24), inset 0 0 0 1px rgba(255, 255, 255, .5);
+}
+
+.participant-shell--rcpl.participant-shell--earlier-batch .rcpl-sidebar-batch-picker summary small::before {
+  background: #d08a1a;
+  box-shadow: 0 0 0 3px rgba(208, 138, 26, .22);
+}
+
+.participant-shell--rcpl.participant-shell--earlier-batch .rcpl-sidebar-batch-picker summary strong,
+.participant-shell--rcpl.participant-shell--earlier-batch .rcpl-sidebar-batch-picker summary svg {
+  color: #3a475c;
 }
 
 .rcpl-workspace {
@@ -12948,7 +12942,7 @@ input[type="range"] {
     margin-top: 32px;
   }
 
-  .participant-shell--sidebar .rcpl-sidebar-phase-picker+.participant-nav {
+  .participant-shell--sidebar .rcpl-sidebar-batch-picker+.participant-nav {
     margin-top: 18px;
   }
 
@@ -14400,8 +14394,25 @@ input[type="range"] {
   width: 100%;
   max-width: none;
   margin: 16px 0 0;
-  border: 2px solid #e1b900;
-  background: #fff9d9;
+  border: 2px solid #1f9d55;
+  background: #e8f7ee;
+}
+
+.unified-plan-page .plan-freeze-bar--primary .journey-primary-button {
+  color: #fff;
+  background: #1f9d55;
+  border-color: #1f9d55;
+}
+
+.unified-plan-page .plan-freeze-bar--primary .journey-primary-button:hover:not(:disabled) {
+  background: #178046;
+  border-color: #178046;
+}
+
+.unified-plan-page .plan-freeze-bar--primary .journey-secondary-button {
+  color: #146c3b;
+  background: #fff;
+  border-color: #1f9d55;
 }
 
 .unified-plan-page .plan-freeze-bar>div>svg {
@@ -19386,3 +19397,25 @@ div.cp-person { cursor: default; }
 .cp-pill--move { background: #FFEACB; color: #8A4B00; max-width: 19rem; }
 .cp-pill-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cp-pill--move svg { flex: none; }
+
+/* Earlier-batch hero: same washed-out slate as the sidebar so old modules read as archived. */
+.participant-shell--earlier-batch .rcpl-program-hero {
+  background: radial-gradient(760px 300px at 78% 0%, #52668a 0%, transparent 62%), #3a4c6a;
+  box-shadow: none;
+}
+
+.participant-shell--earlier-batch .rcpl-program-copy>small {
+  color: #e9d6a6;
+}
+
+.participant-shell--earlier-batch .rcpl-program-journey {
+  border-color: rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .07);
+}
+
+/* Earlier-batch sidebar tint — placed last so it beats the RCPL shell overrides above. */
+@media (min-width: 941px) {
+  .participant-shell--sidebar.participant-shell--rcpl.participant-shell--earlier-batch .participant-sidebar {
+    background: #3a4c6a;
+  }
+}

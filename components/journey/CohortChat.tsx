@@ -50,7 +50,7 @@ export default function CohortChat({ cohortId, variant = "default" }: { cohortId
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<"connecting" | "live" | "offline">("connecting");
-  const endRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const refreshInFlight = useRef(false);
   const refreshQueued = useRef(false);
   const currentUserIdRef = useRef<string | null>(null);
@@ -189,7 +189,10 @@ export default function CohortChat({ cohortId, variant = "default" }: { cohortId
   }, [connectionState, loadMessages]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: loading ? "auto" : "smooth", block: "nearest" });
+    // Scroll only the message list — scrollIntoView would also scroll the page
+    // and pull the participant away from the top of Home on load / batch switch.
+    const list = messagesRef.current;
+    list?.scrollTo({ top: list.scrollHeight, behavior: loading ? "auto" : "smooth" });
   }, [newestMessageId, loading]);
 
   async function handleSubmit(event?: FormEvent) {
@@ -236,7 +239,7 @@ export default function CohortChat({ cohortId, variant = "default" }: { cohortId
         <span className={connectionState}><i />{connectionState === "live" ? "Live" : connectionState === "connecting" ? "Connecting" : "Offline"}</span>
       </div>
 
-      <div className="journey-chat-messages" aria-live="polite" aria-label="Batch messages">
+      <div ref={messagesRef} className="journey-chat-messages" aria-live="polite" aria-label="Batch messages">
         {loading && <div className="journey-chat-state"><LoaderCircle className="journey-chat-spinner" size={22} /> Loading conversation…</div>}
         {!loading && error && messages.length === 0 && <div className="journey-chat-state error">{error}</div>}
         {!loading && !error && messages.length === 0 && <div className="journey-chat-state"><MessageCircle size={24} /><strong>Start the conversation</strong><small>Ask a question, share an insight, or check in with your batch.</small></div>}
@@ -253,7 +256,6 @@ export default function CohortChat({ cohortId, variant = "default" }: { cohortId
             </div>
           </div>;
         })}
-        <div ref={endRef} />
       </div>
 
       <form className="journey-chat-composer" onSubmit={handleSubmit}>

@@ -18922,6 +18922,21 @@ textarea.commitment-buddy-contact-selectable {
   gap: 8px;
 }
 
+/* Earlier-batch hero: same washed-out slate as the sidebar so old modules read as archived. */
+.participant-shell--earlier-batch .rcpl-program-hero {
+  background: radial-gradient(760px 300px at 78% 0%, #52668a 0%, transparent 62%), #3a4c6a;
+  box-shadow: none;
+}
+
+.participant-shell--earlier-batch .rcpl-program-copy>small {
+  color: #e9d6a6;
+}
+
+.participant-shell--earlier-batch .rcpl-program-journey {
+  border-color: rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .07);
+}
+
 /* Earlier-batch sidebar tint — placed last so it beats the RCPL shell overrides above. */
 @media (min-width: 941px) {
   .participant-shell--sidebar.participant-shell--rcpl.participant-shell--earlier-batch .participant-sidebar {

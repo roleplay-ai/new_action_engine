@@ -61,6 +61,8 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
     if (!result.error) {
       await refetch({ syncPoints: false });
       router.refresh();
+      // Land at the top of the page (top bar + company logo) on the new batch.
+      window.scrollTo(0, 0);
     }
     setSwitchingCohort(false);
   }

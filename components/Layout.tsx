@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEngine } from "@/lib/store";
-import { ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ArrowLeft } from "lucide-react";
+import { Check, ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ArrowLeft } from "lucide-react";
 import { LogoutButton } from "@/app/(app)/logout-button";
 import PageLoader from "@/components/PageLoader";
 import { usePageLoadingControls } from "@/components/PageLoadingProvider";
@@ -53,6 +53,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   const activePath = pendingHref || pathname || "";
   const isActive = (href: string) => activePath.startsWith(href);
   const showLoader = isLoading || contentLoading;
+  const viewingEarlierBatch = Boolean(cohort && cohorts.find((option) => option.id === cohort.id)?.isCurrent === false);
   async function switchCohort(cohortId: string) {
     if (!cohortId || cohortId === cohort?.id || switchingCohort) return;
     setSwitchingCohort(true);
@@ -91,7 +92,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
     : "—";
 
   return (
-    <div className="participant-shell participant-shell--sidebar participant-shell--rcpl">
+    <div className={`participant-shell participant-shell--sidebar participant-shell--rcpl${viewingEarlierBatch ? " participant-shell--earlier-batch" : ""}`}>
       <aside className="participant-sidebar">
         <div>
           <Link href="/journey" className="participant-brand" onClick={() => beginNavigation("/journey")}>
@@ -111,11 +112,12 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
               <details className="rcpl-sidebar-batch-picker">
                 <summary>
                   <span>
-                    <small>{switchingCohort ? "Switching…" : "Current batch"}</small>
+                    <small>{switchingCohort ? "Switching…" : "Current view"}</small>
                     <strong title={`${currentOption.batchName}${currentOption.moduleName ? ` — ${currentOption.moduleName}` : ""}`}>
                       {currentOption.batchName}
                       {currentOption.moduleName ? ` — ${currentOption.moduleName}` : ""}
                     </strong>
+                    {viewingEarlierBatch && <em className="rcpl-batch-picker-tag">Old module</em>}
                   </span>
                   <ChevronDown size={16} />
                 </summary>
@@ -131,11 +133,14 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
                         event.currentTarget.closest("details")?.removeAttribute("open");
                       }}
                     >
-                      <strong>
-                        {option.batchName}
-                        {option.moduleName ? ` — ${option.moduleName}` : ""}
-                      </strong>
-                      <small>{option.isCurrent ? "Current" : "Earlier"}</small>
+                      <span>
+                        <strong>
+                          {option.batchName}
+                          {option.moduleName ? ` — ${option.moduleName}` : ""}
+                        </strong>
+                        <small className={option.isCurrent ? "is-current" : undefined}>{option.isCurrent ? "Current module" : "Old module"}</small>
+                      </span>
+                      {option.id === cohort?.id && <Check size={14} strokeWidth={2.6} aria-label="Viewing" />}
                     </button>
                   ))}
                 </div>
@@ -210,7 +215,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
 
             {cohort?.batchName && (
               <div className="participant-topbar-center">
-                <span className="participant-module-badge" title="Current batch">{cohort.batchName}</span>
+                <span className="participant-module-badge" title="Current view">{cohort.batchName}</span>
               </div>
             )}
 

@@ -20,6 +20,8 @@ import { VideoUploadField } from "@/components/admin/content/VideoUploadField";
 interface ContentManagementViewProps {
   companyId: string | null;
   role: string;
+  /** Heading above the list; the admin Control panel calls it "Training content". */
+  title?: string;
 }
 
 const TYPE_META: Record<PrepareContentType, { label: string; icon: typeof PlayCircle }> = {
@@ -28,7 +30,7 @@ const TYPE_META: Record<PrepareContentType, { label: string; icon: typeof PlayCi
   preread: { label: "Pre-read", icon: FileText },
 };
 
-export function ContentManagementView({ role }: ContentManagementViewProps) {
+export function ContentManagementView({ role, title = "Content Management" }: ContentManagementViewProps) {
   // Both admin and superadmin can fully author the (global) content library —
   // this view only ever renders for one of those two roles (route-gated in
   // app/(app)/admin/layout.tsx), so canManage is always true in practice.
@@ -107,7 +109,7 @@ export function ContentManagementView({ role }: ContentManagementViewProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold" style={{ color: "var(--color-text-primary)" }}>
-          Content Management
+          {title}
         </h2>
         {canManage && (
           <button onClick={() => setCreating((v) => !v)} className="btn btn--sm btn--primary">

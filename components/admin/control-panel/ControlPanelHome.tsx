@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, BookOpen, CalendarDays, Megaphone, MessageSquareText, Network, Users } from "lucide-react";
+import { BookOpen, CalendarDays, Megaphone, MessageSquareText, Network, Users } from "lucide-react";
 import { getCohortDetail } from "@/app/actions/cohorts";
 import { getCohortNotices } from "@/app/actions/cohort-notices";
 import { nextUpcomingCohortDate } from "@/lib/cohort-dates";
@@ -51,6 +51,14 @@ export function ControlPanelHome() {
   // Each card's chip states what needs attention before the card is opened.
   const cards: { href: string; title: string; text: string; color: string; Icon: typeof Users; status: React.ReactNode }[] = [
     {
+      href: "/admin/control-panel/participants",
+      title: "Participant list",
+      text: "Choose who from your company is part of this batch.",
+      color: "#16A34A",
+      Icon: Users,
+      status: !summary ? null : <span className={`cp-pill ${summary.members ? "cp-pill--ok" : "cp-pill--warn"}`}>{summary.members} in batch</span>,
+    },
+    {
       href: "/admin/control-panel/dates",
       title: "Add training dates",
       text: "Add, change or remove the training days for this batch.",
@@ -59,14 +67,6 @@ export function ControlPanelHome() {
       status: !summary ? null : summary.dates.length === 0
         ? <span className="cp-pill cp-pill--warn">No dates yet</span>
         : <span className={`cp-pill ${next ? "cp-pill--ok" : ""}`}>{summary.dates.length} {summary.dates.length === 1 ? "date" : "dates"}{next ? ` · next ${formatDate(next)}` : ""}</span>,
-    },
-    {
-      href: "/admin/control-panel/participants",
-      title: "Participant list",
-      text: "Choose who from your company is part of this batch.",
-      color: "#16A34A",
-      Icon: Users,
-      status: !summary ? null : <span className={`cp-pill ${summary.members ? "cp-pill--ok" : "cp-pill--warn"}`}>{summary.members} in batch</span>,
     },
     {
       href: "/admin/control-panel/teams",
@@ -81,12 +81,12 @@ export function ControlPanelHome() {
           : <span className="cp-pill cp-pill--ok">Everyone has a team</span>,
     },
     {
-      href: "/admin/control-panel/conversations",
-      title: "Conversations",
-      text: "Read and join the group conversation of this batch.",
-      color: "#0E7490",
-      Icon: MessageSquareText,
-      status: <span className="cp-pill">Batch group chat</span>,
+      href: "/admin/control-panel/content",
+      title: "Training content",
+      text: "Videos, quizzes and pre-reads in your training library.",
+      color: "#8A6A00",
+      Icon: BookOpen,
+      status: <span className="cp-pill">Training library</span>,
     },
     {
       href: "/admin/control-panel/announcements",
@@ -97,12 +97,12 @@ export function ControlPanelHome() {
       status: !summary ? null : <span className="cp-pill">{summary.notices} posted</span>,
     },
     {
-      href: "/admin/control-panel/content",
-      title: "Content management",
-      text: "Videos, quizzes and pre-reads in your content library.",
-      color: "#8A6A00",
-      Icon: BookOpen,
-      status: <span className="cp-pill">Content library</span>,
+      href: "/admin/control-panel/conversations",
+      title: "Conversations",
+      text: "Read and join the group conversation of this batch.",
+      color: "#0E7490",
+      Icon: MessageSquareText,
+      status: <span className="cp-pill">Batch group chat</span>,
     },
   ];
 
@@ -126,7 +126,6 @@ export function ControlPanelHome() {
             <p>{text}</p>
             <span className="cp-card-foot">
               {status ?? <span className="cp-pill cp-pill--ghost">{cohortId ? "…" : "No batch chosen"}</span>}
-              <span className="cp-card-go">Open <ArrowRight size={15} /></span>
             </span>
           </Link>
         ))}

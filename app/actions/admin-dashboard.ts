@@ -252,6 +252,7 @@ export async function getCommitmentScoreBuckets(
 export interface DashboardLeaderboardEntry {
   id: string;
   name: string;
+  email: string | null;
   /** Commitment buddy display name in scope (null when unpaired). */
   buddyName: string | null;
   commitmentPoints: number;
@@ -333,9 +334,12 @@ export async function getDashboardLeaderboard(
     if (!userIds.length) return { entries: [] };
     const userIdSet = new Set(userIds);
 
-    const { data: profiles } = await admin.from("profiles").select("id, full_name").in("id", userIds);
+    const { data: profiles } = await admin.from("profiles").select("id, full_name, email").in("id", userIds);
     const nameById = new Map(
       (profiles ?? []).map((p: { id: string; full_name: string | null }) => [p.id, p.full_name?.trim() || "User"])
+    );
+    const emailById = new Map(
+      (profiles ?? []).map((p: { id: string; email: string | null }) => [p.id, p.email ?? null])
     );
 
     const cohortIds = await resolveCohortIds(admin, resolvedCompanyId, cohortId ?? null);
@@ -399,6 +403,7 @@ export async function getDashboardLeaderboard(
       return {
         id,
         name: nameById.get(id) ?? "User",
+        email: emailById.get(id) ?? null,
         buddyName: buddyByUser.get(id) ?? null,
         commitmentPoints: c?.points ?? 0,
         commitmentMaximum: c?.maximum ?? 0,

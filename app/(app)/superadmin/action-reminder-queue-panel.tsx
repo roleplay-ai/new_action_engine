@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarClock,
   CheckSquare,
@@ -18,6 +18,10 @@ import {
   getUpcomingActionReminders,
   type UpcomingActionReminder,
 } from "@/app/actions/action-reminders";
+import EmailQueueFilters, {
+  filterQueueEntries,
+  getBatchOptions,
+} from "./email-queue-filters";
 
 function formatIstTime(isoValue: string) {
   return new Date(isoValue).toLocaleString("en-IN", {
@@ -157,6 +161,8 @@ export default function ActionReminderQueuePanel({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const [batchId, setBatchId] = useState("");
+  const [search, setSearch] = useState("");
 
   async function loadReminders() {
     setLoading(true);
@@ -190,7 +196,15 @@ export default function ActionReminderQueuePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelExpanded]);
 
-  const sendableReminders = reminders.filter((reminder) => reminder.canSend);
+  const batchOptions = useMemo(() => getBatchOptions(reminders), [reminders]);
+  const visibleReminders = useMemo(
+    () => filterQueueEntries(reminders, batchId, search),
+    [reminders, batchId, search]
+  );
+  const sendableReminders = visibleReminders.filter((reminder) => reminder.canSend);
+  const visibleSelectedIds = sendableReminders
+    .map((reminder) => reminder.subscriptionId)
+    .filter((id) => selectedIds.has(id));
   const allSelected =
     sendableReminders.length > 0 &&
     sendableReminders.every((reminder) =>
@@ -207,13 +221,14 @@ export default function ActionReminderQueuePanel({
   }
 
   function toggleAll() {
-    setSelectedIds(
-      allSelected
-        ? new Set()
-        : new Set(
-            sendableReminders.map((reminder) => reminder.subscriptionId)
-          )
-    );
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      for (const reminder of sendableReminders) {
+        if (allSelected) next.delete(reminder.subscriptionId);
+        else next.add(reminder.subscriptionId);
+      }
+      return next;
+    });
   }
 
   async function sendSelectedNow() {
@@ -222,7 +237,7 @@ export default function ActionReminderQueuePanel({
     setResult(null);
     try {
       const response = await bulkSendUpcomingActionReminders(
-        Array.from(selectedIds)
+        visibleSelectedIds
       );
       if ("error" in response) {
         setError(response.error);
@@ -321,8 +336,20 @@ export default function ActionReminderQueuePanel({
           )}
 
           <div className="p-4">
+            {reminders.length > 0 && (
+              <EmailQueueFilters
+                batches={batchOptions}
+                batchId={batchId}
+                onBatchChange={setBatchId}
+                search={search}
+                onSearchChange={setSearch}
+              />
+            )}
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-semibold text-slate-600">
+                {visibleReminders.length !== reminders.length
+                  ? `${visibleReminders.length} of `
+                  : ""}
                 {reminders.length} upcoming user reminder
                 {reminders.length === 1 ? "" : "s"}
                 {reminders[0]
@@ -347,7 +374,7 @@ export default function ActionReminderQueuePanel({
                   <button
                     type="button"
                     onClick={sendSelectedNow}
-                    disabled={sending || selectedIds.size === 0}
+                    disabled={sending || visibleSelectedIds.length === 0}
                     className="flex items-center gap-1.5 rounded-lg border-2 border-black bg-black px-3 py-2 text-xs font-bold uppercase text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {sending ? (
@@ -356,7 +383,7 @@ export default function ActionReminderQueuePanel({
                       <Send size={13} />
                     )}
                     Bulk send now
-                    {selectedIds.size ? ` (${selectedIds.size})` : ""}
+                    {visibleSelectedIds.length ? ` (${visibleSelectedIds.length})` : ""}
                   </button>
                 </div>
               )}
@@ -371,9 +398,13 @@ export default function ActionReminderQueuePanel({
               <p className="py-3 text-sm italic text-slate-500">
                 No users currently have an upcoming email reminder enabled.
               </p>
+            ) : visibleReminders.length === 0 ? (
+              <p className="py-3 text-sm italic text-slate-500">
+                No members match the current search or batch filter.
+              </p>
             ) : (
               <div className="space-y-3">
-                {reminders.map((reminder) => (
+                {visibleReminders.map((reminder) => (
                   <ReminderRow
                     key={reminder.subscriptionId}
                     reminder={reminder}

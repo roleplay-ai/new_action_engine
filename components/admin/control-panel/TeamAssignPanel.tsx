@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, FileSpreadsheet, Loader2, Search, Shuffle, Users } from "lucide-react";
+import { Check, FileSpreadsheet, Search, Shuffle, Users } from "lucide-react";
 import { getCohortDetail } from "@/app/actions/cohorts";
 import {
   assignMembersTag,
@@ -12,7 +12,19 @@ import {
 } from "@/app/actions/participant-tags";
 import { exportCohortMembersExcel } from "@/lib/export-cohort-members";
 import type { CohortMember, ParticipantTag } from "@/lib/types";
-import { batchLabel, CpError, CpNeedBatch, CpPageHeader, initials, useConfirm, useControlPanelBatch, useReportViewReady, useToast } from "./shared";
+import {
+  batchLabel,
+  CpError,
+  CpNeedBatch,
+  CpPageHeader,
+  CpSaveBar,
+  initials,
+  useConfirm,
+  useControlPanelBatch,
+  useReportViewReady,
+  useToast,
+  useUnsavedGuard,
+} from "./shared";
 
 /** One colour per team slot, used on its card and on every button for it. */
 const TEAM_COLORS = ["#1D4ED8", "#15803D", "#7E22CE", "#C2410C", "#0E7490", "#BE185D", "#4D7C0F", "#92400E"];
@@ -36,10 +48,13 @@ export function TeamAssignPanel() {
   const { cohortId, option, loading: optionsLoading } = useControlPanelBatch();
   const [members, setMembers] = useState<CohortMember[]>([]);
   const [slots, setSlots] = useState<TeamSlot[]>([]);
-  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [savedNames, setSavedNames] = useState<Record<string, string>>({});
+  // The draft: team changes per person (tag id, or null for no team) and new team names.
+  const [pendingTeams, setPendingTeams] = useState<Record<string, string | null>>({});
+  const [pendingNames, setPendingNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [ticked, setTicked] = useState<Set<string>>(new Set());
@@ -62,7 +77,9 @@ export function TeamAssignPanel() {
     if (firstError) setError(firstError);
     setMembers(detail.members ?? []);
     setSlots(teamSlotsFrom(tags.tags ?? []));
-    setOverrides(names.overrides ?? {});
+    setSavedNames(names.overrides ?? {});
+    setPendingTeams({});
+    setPendingNames({});
     setLoading(false);
   }, [cohortId]);
 
@@ -74,22 +91,21 @@ export function TeamAssignPanel() {
     void load();
   }, [load]);
 
+  const savedNameOf = useCallback((slot: TeamSlot) => savedNames[slot.tag.id] ?? slot.tag.name, [savedNames]);
+  const nameOf = useCallback((slot: TeamSlot) => pendingNames[slot.tag.id] ?? savedNameOf(slot), [pendingNames, savedNameOf]);
+  const teamOf = useCallback(
+    (member: CohortMember): string | null => (member.id in pendingTeams ? pendingTeams[member.id] : member.tag?.id ?? null),
+    [pendingTeams]
+  );
+
+  const changedPeople = members.filter((member) => member.id in pendingTeams && pendingTeams[member.id] !== (member.tag?.id ?? null));
+  const changedNames = slots.filter((slot) => slot.tag.id in pendingNames && pendingNames[slot.tag.id] !== savedNameOf(slot));
+  const changes = changedPeople.length + changedNames.length;
+  useUnsavedGuard(changes > 0);
   useReportViewReady(!optionsLoading && !loading);
 
-  const nameOf = useCallback((slot: TeamSlot) => overrides[slot.tag.id] ?? slot.tag.name, [overrides]);
   const slotById = useMemo(() => new Map(slots.map((slot) => [slot.tag.id, slot])), [slots]);
   const sortedMembers = useMemo(() => [...members].sort((a, b) => (a.fullName ?? "").localeCompare(b.fullName ?? "")), [members]);
-  const withoutTeam = members.filter((member) => !member.tag).length;
-  const countIn = (slot: TeamSlot) => members.filter((member) => member.tag?.id === slot.tag.id).length;
-  const visible = sortedMembers.filter((member) => {
-    const needle = query.trim().toLowerCase();
-    if (needle && !`${member.fullName ?? ""} ${member.email ?? ""}`.toLowerCase().includes(needle)) return false;
-    if (filter === "all") return true;
-    if (filter === "none") return !member.tag;
-    return member.tag?.id === filter;
-  });
-  const tickedVisible = [...ticked].filter((id) => members.some((member) => member.id === id));
-  const allVisibleTicked = visible.length > 0 && visible.every((member) => ticked.has(member.id));
 
   if (!cohortId || !option) {
     return (
@@ -100,74 +116,82 @@ export function TeamAssignPanel() {
     );
   }
 
-  /** Optimistic: the buttons change colour straight away; a failed save puts them back. */
-  async function assign(userIds: string[], slot: TeamSlot | null) {
-    if (userIds.length === 0) return;
-    const previous = members;
-    setMembers((current) => current.map((member) => (userIds.includes(member.id) ? { ...member, tag: slot ? slot.tag : null } : member)));
+  const withoutTeam = members.filter((member) => !teamOf(member)).length;
+  const countIn = (slot: TeamSlot) => members.filter((member) => teamOf(member) === slot.tag.id).length;
+  const visible = sortedMembers.filter((member) => {
+    const needle = query.trim().toLowerCase();
+    if (needle && !`${member.fullName ?? ""} ${member.email ?? ""}`.toLowerCase().includes(needle)) return false;
+    if (filter === "all") return true;
+    if (filter === "none") return !teamOf(member);
+    return teamOf(member) === filter;
+  });
+  const tickedVisible = [...ticked].filter((id) => members.some((member) => member.id === id));
+  const allVisibleTicked = visible.length > 0 && visible.every((member) => ticked.has(member.id));
+
+  function setTeams(userIds: string[], tagId: string | null) {
+    setPendingTeams((current) => {
+      const next = { ...current };
+      for (const id of userIds) next[id] = tagId;
+      return next;
+    });
     setTicked(new Set());
-    setBusy(true);
-    const result = await assignMembersTag(cohortId!, userIds, slot ? slot.tag.id : null);
-    setBusy(false);
-    if (result.error) {
-      setMembers(previous);
-      setError(result.error);
-      return;
-    }
-    const who = userIds.length === 1 ? members.find((member) => member.id === userIds[0])?.fullName || "1 person" : `${userIds.length} people`;
-    show(slot ? `${who} is now in ${nameOf(slot)}.` : `${who} no longer has a team.`);
   }
 
   function shareEqually() {
-    const unassigned = sortedMembers.filter((member) => !member.tag);
+    const unassigned = sortedMembers.filter((member) => !teamOf(member));
     confirm({
       title: "Share people equally?",
-      body: <>{unassigned.length} {unassigned.length === 1 ? "person has" : "people have"} no team. They will be spread evenly across the {slots.length} teams. You can still change anyone afterwards.</>,
+      body: <>{unassigned.length} {unassigned.length === 1 ? "person has" : "people have"} no team. They will be spread evenly across the {slots.length} teams. Nothing is saved until you press “Save changes”.</>,
       confirmLabel: "Yes, share equally",
-      onConfirm: async () => {
+      onConfirm: () => {
         const counts = new Map(slots.map((slot) => [slot.tag.id, countIn(slot)]));
-        const plan = new Map<string, string[]>();
+        const plan: Record<string, string> = {};
         for (const member of unassigned) {
           const smallest = [...slots].sort((a, b) => (counts.get(a.tag.id)! - counts.get(b.tag.id)!) || a.number - b.number)[0];
           counts.set(smallest.tag.id, counts.get(smallest.tag.id)! + 1);
-          plan.set(smallest.tag.id, [...(plan.get(smallest.tag.id) ?? []), member.id]);
+          plan[member.id] = smallest.tag.id;
         }
-        setBusy(true);
-        const results = await Promise.all([...plan].map(([tagId, ids]) => assignMembersTag(cohortId!, ids, tagId)));
-        setBusy(false);
-        const failed = results.find((result) => result.error);
-        if (failed) setError(failed.error!);
-        else show("Done — everyone now has a team.");
+        setPendingTeams((current) => ({ ...current, ...plan }));
         setFilter("all");
-        await load();
       },
     });
   }
 
-  async function saveRename(slot: TeamSlot, value: string) {
+  function applyRename(slot: TeamSlot, value: string) {
     const wanted = value.trim() || slot.tag.name;
     const clash = slots.some((other) => other.tag.id !== slot.tag.id && nameOf(other).toLowerCase() === wanted.toLowerCase());
     if (clash) return setRenameError("Another team in this batch already uses that name.");
-    setBusy(true);
-    const result = await setCohortTeamName(cohortId!, slot.tag.id, wanted);
-    setBusy(false);
-    if (result.error) return setRenameError(result.error);
-    setOverrides((current) => {
-      const next = { ...current };
-      if (wanted === slot.tag.name) delete next[slot.tag.id];
-      else next[slot.tag.id] = wanted;
-      return next;
-    });
+    setPendingNames((current) => ({ ...current, [slot.tag.id]: wanted }));
     setRenamingId(null);
-    show(`${slot.tag.name} is now called “${wanted}” in this batch.`);
+  }
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    // One call per destination team, then one per renamed team.
+    const groups = new Map<string, string[]>();
+    for (const member of changedPeople) {
+      const key = pendingTeams[member.id] ?? "";
+      groups.set(key, [...(groups.get(key) ?? []), member.id]);
+    }
+    const results = await Promise.all([
+      ...[...groups].map(([tagId, ids]) => assignMembersTag(cohortId!, ids, tagId || null)),
+      ...changedNames.map((slot) => setCohortTeamName(cohortId!, slot.tag.id, pendingNames[slot.tag.id])),
+    ]);
+    setSaving(false);
+    const failed = results.find((result) => result.error);
+    if (failed) setError(`Some changes could not be saved: ${failed.error}`);
+    else show("Teams saved.");
+    await load();
   }
 
   const exportButton = (
     <button
       type="button"
       className="cp-btn cp-btn--secondary"
-      disabled={members.length === 0}
-      onClick={() => void exportCohortMembersExcel({ members, teamNameOverrides: overrides, batchName: option.batchName, moduleName: option.moduleName })}
+      disabled={members.length === 0 || changes > 0}
+      title={changes > 0 ? "Save your changes first" : "Download the saved teams as an Excel sheet"}
+      onClick={() => void exportCohortMembersExcel({ members, teamNameOverrides: savedNames, batchName: option.batchName, moduleName: option.moduleName })}
     >
       <FileSpreadsheet size={16} /> Export Excel
     </button>
@@ -200,16 +224,17 @@ export function TeamAssignPanel() {
               <span>{withoutTeam} {withoutTeam === 1 ? "person doesn’t" : "people don’t"} have a team yet.</span>
               <span className="cp-banner-actions">
                 <button type="button" className="cp-btn cp-btn--small" onClick={() => setFilter("none")}>Show them</button>
-                <button type="button" className="cp-btn cp-btn--secondary cp-btn--small" disabled={busy} onClick={shareEqually}><Shuffle size={14} /> Share equally</button>
+                <button type="button" className="cp-btn cp-btn--secondary cp-btn--small" disabled={saving} onClick={shareEqually}><Shuffle size={14} /> Share equally</button>
               </span>
             </div>
           ) : (
-            <div className="cp-banner cp-banner--done"><Check size={16} /> Everyone has a team.</div>
+            <div className="cp-banner cp-banner--done"><Check size={16} /> Everyone has a team{changes ? " (once you save)" : ""}.</div>
           )}
 
           <div className="cp-teams" style={{ "--cp-team-cols": Math.min(slots.length, 5) } as React.CSSProperties}>
             {slots.map((slot) => {
-              const renamed = Boolean(overrides[slot.tag.id]);
+              const renamed = nameOf(slot) !== slot.tag.name;
+              const nameChanged = changedNames.includes(slot);
               const style = { "--cp-c": slot.color } as React.CSSProperties;
               if (renamingId === slot.tag.id) {
                 return (
@@ -219,7 +244,7 @@ export function TeamAssignPanel() {
                     style={style}
                     onSubmit={(event) => {
                       event.preventDefault();
-                      void saveRename(slot, renameValue);
+                      applyRename(slot, renameValue);
                     }}
                   >
                     <span className="cp-team-name">Rename {slot.tag.name}</span>
@@ -235,11 +260,11 @@ export function TeamAssignPanel() {
                     />
                     {renameError && <span className="cp-team-error">{renameError}</span>}
                     <span className="cp-team-actions">
-                      <button type="submit" disabled={busy}>Save</button>
+                      <button type="submit">Done</button>
                       <button type="button" onClick={() => setRenamingId(null)}>Cancel</button>
                     </span>
                     {renamed && (
-                      <button type="button" className="cp-team-reset" onClick={() => void saveRename(slot, slot.tag.name)}>
+                      <button type="button" className="cp-team-reset" onClick={() => applyRename(slot, slot.tag.name)}>
                         Use “{slot.tag.name}” again
                       </button>
                     )}
@@ -249,11 +274,13 @@ export function TeamAssignPanel() {
               return (
                 <div key={slot.tag.id} className={`cp-team${filter === slot.tag.id ? " cp-team--on" : ""}`} style={style}>
                   <span className="cp-team-name" title={nameOf(slot)}>{nameOf(slot)}</span>
-                  {renamed && <span className="cp-team-orig">{slot.tag.name}</span>}
+                  {(renamed || nameChanged) && (
+                    <span className="cp-team-orig">{slot.tag.name}{nameChanged ? " · new name not saved" : ""}</span>
+                  )}
                   <span className="cp-team-count">{countIn(slot)} {countIn(slot) === 1 ? "person" : "people"}</span>
                   <span className="cp-team-actions">
-                    <button type="button" onClick={() => setFilter(filter === slot.tag.id ? "all" : slot.tag.id)}>{filter === slot.tag.id ? "Showing" : "Show"}</button>
-                    <button type="button" onClick={() => { setRenamingId(slot.tag.id); setRenameValue(overrides[slot.tag.id] ?? ""); setRenameError(null); }}>Rename</button>
+                    <button type="button" onClick={() => setFilter(filter === slot.tag.id ? "all" : slot.tag.id)}>{filter === slot.tag.id ? "Clear filter" : "Filter"}</button>
+                    <button type="button" onClick={() => { setRenamingId(slot.tag.id); setRenameValue(renamed ? nameOf(slot) : ""); setRenameError(null); }}>Rename</button>
                   </span>
                 </div>
               );
@@ -278,11 +305,11 @@ export function TeamAssignPanel() {
               <strong>{tickedVisible.length} ticked — put them in:</strong>
               <span className="cp-seg">
                 {slots.map((slot) => (
-                  <button key={slot.tag.id} type="button" className="cp-seg-btn cp-seg-btn--fill" style={{ "--cp-c": slot.color } as React.CSSProperties} disabled={busy} onClick={() => void assign(tickedVisible, slot)}>
+                  <button key={slot.tag.id} type="button" className="cp-seg-btn cp-seg-btn--fill" style={{ "--cp-c": slot.color } as React.CSSProperties} disabled={saving} onClick={() => setTeams(tickedVisible, slot.tag.id)}>
                     {nameOf(slot)}
                   </button>
                 ))}
-                <button type="button" className="cp-seg-btn cp-seg-btn--none" disabled={busy} onClick={() => void assign(tickedVisible, null)}>None</button>
+                <button type="button" className="cp-seg-btn cp-seg-btn--none" disabled={saving} onClick={() => setTeams(tickedVisible, null)}>None</button>
               </span>
               <button type="button" className="cp-btn cp-btn--secondary cp-btn--small" onClick={() => setTicked(new Set())}>Untick</button>
             </div>
@@ -310,11 +337,13 @@ export function TeamAssignPanel() {
           <div className="cp-list">
             {visible.length === 0 && <div className="cp-empty"><strong>No one to show</strong><span>Try a different search or team.</span></div>}
             {visible.map((member) => {
-              const current = member.tag ? slotById.get(member.tag.id) ?? null : null;
-              const otherTeam = member.tag && !current ? overrides[member.tag.id] ?? member.tag.name : null;
+              const teamId = teamOf(member);
+              const current = teamId ? slotById.get(teamId) ?? null : null;
+              const otherTeam = teamId && !current && member.tag ? savedNames[member.tag.id] ?? member.tag.name : null;
+              const changed = changedPeople.includes(member);
               const checked = ticked.has(member.id);
               return (
-                <div key={member.id} className={`cp-member${checked ? " cp-member--checked" : ""}`}>
+                <div key={member.id} className={`cp-member${checked ? " cp-member--checked" : ""}${changed ? " cp-member--pending" : ""}`}>
                   <label className="cp-member-id">
                     <input
                       type="checkbox"
@@ -333,7 +362,7 @@ export function TeamAssignPanel() {
                     <span className="cp-avatar">{initials(member.fullName)}</span>
                     <span className="cp-person-copy">
                       <strong>{member.fullName || "Unnamed user"}</strong>
-                      <span>{otherTeam ? `Other team: ${otherTeam}` : member.email}</span>
+                      <span>{changed ? "Team changed — not saved yet" : otherTeam ? `Other team: ${otherTeam}` : member.email}</span>
                     </span>
                   </label>
                   <span className="cp-seg" role="group" aria-label={`Team for ${member.fullName || "participant"}`}>
@@ -347,8 +376,8 @@ export function TeamAssignPanel() {
                           style={{ "--cp-c": slot.color } as React.CSSProperties}
                           aria-pressed={on}
                           title={nameOf(slot)}
-                          disabled={busy}
-                          onClick={() => !on && void assign([member.id], slot)}
+                          disabled={saving}
+                          onClick={() => !on && setTeams([member.id], slot.tag.id)}
                         >
                           {nameOf(slot)}
                         </button>
@@ -356,10 +385,10 @@ export function TeamAssignPanel() {
                     })}
                     <button
                       type="button"
-                      className={`cp-seg-btn cp-seg-btn--none${!member.tag ? " cp-seg-btn--on" : ""}`}
-                      aria-pressed={!member.tag}
-                      disabled={busy}
-                      onClick={() => member.tag && void assign([member.id], null)}
+                      className={`cp-seg-btn cp-seg-btn--none${!teamId ? " cp-seg-btn--on" : ""}`}
+                      aria-pressed={!teamId}
+                      disabled={saving}
+                      onClick={() => teamId && setTeams([member.id], null)}
                     >
                       None
                     </button>
@@ -368,9 +397,14 @@ export function TeamAssignPanel() {
               );
             })}
           </div>
-          {busy && <div className="cp-saving"><Loader2 size={14} className="cp-spin" /> Saving…</div>}
         </div>
       )}
+      <CpSaveBar
+        changes={changes}
+        saving={saving}
+        onSave={() => void save()}
+        onDiscard={() => { setPendingTeams({}); setPendingNames({}); setRenamingId(null); setTicked(new Set()); }}
+      />
       {dialog}
       {toast}
     </section>

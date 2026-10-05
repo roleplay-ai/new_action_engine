@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Layers, X } from "lucide-react";
+import { ArrowLeft, Check, Layers, Loader2, X } from "lucide-react";
+import { setUnsavedChanges, UNSAVED_CHANGES_MESSAGE } from "@/lib/unsaved-changes";
 import { useAdminContext } from "@/components/admin/AdminContext";
 import { useBatchOptions, type BatchOption } from "@/components/admin/BatchSelector";
 
@@ -115,6 +116,70 @@ export function useConfirm() {
     </div>
   ) : null;
   return { confirm: setRequest, dialog };
+}
+
+/** While `dirty`, warns before the admin closes the tab, follows a link, or
+ * switches batch (see confirmDiscardUnsaved in BatchSelector). */
+export function useUnsavedGuard(dirty: boolean) {
+  useEffect(() => {
+    setUnsavedChanges(dirty);
+    if (!dirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    // Capture phase, so it runs before Next's <Link> handles the click.
+    const onClick = (event: MouseEvent) => {
+      const link = (event.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!link || link.target === "_blank" || link.hasAttribute("download")) return;
+      if (!window.confirm(UNSAVED_CHANGES_MESSAGE)) {
+        event.preventDefault();
+        event.stopPropagation();
+      } else {
+        setUnsavedChanges(false);
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    document.addEventListener("click", onClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      document.removeEventListener("click", onClick, true);
+    };
+  }, [dirty]);
+  useEffect(() => () => setUnsavedChanges(false), []);
+}
+
+/** Sticky bar at the bottom of an editing card: nothing is saved until "Save changes". */
+export function CpSaveBar({
+  changes,
+  saving,
+  onSave,
+  onDiscard,
+}: {
+  changes: number;
+  saving: boolean;
+  onSave: () => void;
+  onDiscard: () => void;
+}) {
+  return (
+    <div className={`cp-savebar${changes ? " cp-savebar--dirty" : ""}`} role="region" aria-label="Save changes">
+      <span>
+        {saving
+          ? "Saving your changes…"
+          : changes
+            ? <><strong>{changes}</strong> {changes === 1 ? "change is" : "changes are"} not saved yet.</>
+            : "All changes are saved."}
+      </span>
+      <span className="cp-savebar-actions">
+        <button type="button" className="cp-btn cp-btn--secondary" disabled={!changes || saving} onClick={onDiscard}>
+          Discard changes
+        </button>
+        <button type="button" className="cp-btn" disabled={!changes || saving} onClick={onSave}>
+          {saving ? <Loader2 size={15} className="cp-spin" /> : <Check size={15} />} Save changes
+        </button>
+      </span>
+    </div>
+  );
 }
 
 /** A short message at the bottom of the screen after each change. */

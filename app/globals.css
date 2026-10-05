@@ -19157,14 +19157,17 @@ div.cp-person { cursor: default; }
 .cp-add-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; flex-wrap: wrap; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid var(--color-border); }
 
 /* Home cards */
-.cp-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; }
+/* Always three cards per row on wide screens, so each card stays large. */
+.cp-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; }
+@media (max-width: 1100px) { .cp-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .cp-cards { grid-template-columns: minmax(0, 1fr); } }
 .cp-card {
   --cp-c: #2563EB;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  min-height: 11rem;
-  padding: 1.2rem;
+  min-height: 13rem;
+  padding: 1.5rem;
   background: #fff;
   border: 1px solid var(--color-border);
   border-radius: 14px;
@@ -19352,3 +19355,33 @@ div.cp-person { cursor: default; }
 /* Admin content preview: show uploaded PDF pre-reads inline. */
 .content-preview-pdf { height: 70vh; border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; background: #f4f1ea; }
 .content-preview-pdf iframe { width: 100%; height: 100%; border: 0; }
+
+/* Control panel: draft changes + "Save changes" bar */
+.cp-savebar {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: #fff;
+  color: var(--color-text-secondary);
+  box-shadow: 0 6px 24px rgba(34, 29, 35, 0.12);
+}
+.cp-savebar--dirty { border: 2px solid var(--bright-amber); background: #FFF8D6; color: var(--color-text-primary); }
+.cp-savebar-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.cp-toast { bottom: 6rem; }
+.cp-date-row--pending, .cp-member--pending, .cp-person--new { border-color: var(--bright-amber); box-shadow: inset 4px 0 0 var(--bright-amber); }
+.cp-date-row--removed, .cp-person--removing { background: #f6f2e8; color: var(--color-text-muted); border-style: dashed; }
+.cp-date-row--removed strong, .cp-person--removing strong { text-decoration: line-through; }
+
+/* Participant list: current batch, and "other batch -> this batch" while a move is pending */
+.cp-pill--batch { background: #EEF2FF; color: #3730A3; max-width: 15rem; }
+.cp-pill--move { background: #FFEACB; color: #8A4B00; max-width: 19rem; }
+.cp-pill-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-pill--move svg { flex: none; }

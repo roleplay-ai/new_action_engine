@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { fetchAdminJson, isAbortError } from "@/lib/admin-fetch";
+import { confirmDiscardUnsaved } from "@/lib/unsaved-changes";
 
 interface BatchSelectorProps {
   companyId: string | null;
@@ -84,6 +85,8 @@ export function BatchModuleSelects({
   const noModules = modules.length === 1 && !modules[0].moduleName;
 
   function pickBatch(next: string) {
+    // The select is controlled, so returning here snaps it back to the old batch.
+    if (!confirmDiscardUnsaved()) return;
     if (!next) {
       setDraftBatch(null);
       onChange(null);
@@ -126,7 +129,7 @@ export function BatchModuleSelects({
           className={selectClass}
           value={noModules ? modules[0].cohortId : moduleValue}
           disabled={loading || !draftBatch || noModules}
-          onChange={(event) => event.target.value && onChange(event.target.value)}
+          onChange={(event) => event.target.value && confirmDiscardUnsaved() && onChange(event.target.value)}
         >
           {!draftBatch ? (
             <option value="">{allowAll ? "All modules" : "Choose a batch first"}</option>

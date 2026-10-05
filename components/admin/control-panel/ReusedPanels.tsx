@@ -47,15 +47,15 @@ export function AnnouncementsPanel() {
   );
 }
 
-/** The company content library, unchanged from the old Content Management page. */
+/** The company training content library (formerly "Content management"). */
 export function ContentPanel() {
   const { companyId, role } = useControlPanelBatch();
   useReportViewReady(true);
   return (
     <section className="cp-page">
-      <CpPageHeader title="Content management" description="Videos, quizzes and pre-reads in your content library." />
+      <CpPageHeader title="Training content" description="Videos, quizzes and pre-reads in your training library." />
       <div className="cp-panel">
-        <ContentManagementView companyId={companyId} role={role} />
+        <ContentManagementView companyId={companyId} role={role} title="Training content" />
       </div>
     </section>
   );

@@ -1,41 +1,45 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
+import { BatchModuleSelects, useBatchOptions, type BatchOption } from "@/components/admin/BatchSelector";
+import { useSuperadminCompany } from "./superadmin-company-context";
 
 type FilterableEntry = {
   cohortId: string;
-  cohortName: string;
-  batchName: string | null;
   fullName: string | null;
   email: string;
 };
 
-export type BatchOption = { id: string; label: string };
+/** The batch + module filter for an email queue, scoped to the company
+ * chosen in the top bar. `scope` is the set of batch-modules whose
+ * participants may show: the picked one, else every one of the company's,
+ * or null (no filter) while no company is chosen. */
+export function useQueueBatchFilter() {
+  const companyId = useSuperadminCompany().companyId || null;
+  const { options, loading } = useBatchOptions(companyId);
+  const [batchId, setBatchId] = useState<string | null>(null);
 
-function batchLabel(entry: FilterableEntry) {
-  return entry.batchName && entry.batchName !== entry.cohortName
-    ? `${entry.cohortName} · ${entry.batchName}`
-    : entry.cohortName;
-}
+  // A batch picked under one company means nothing once the company changes.
+  useEffect(() => {
+    setBatchId(null);
+  }, [companyId]);
 
-export function getBatchOptions(entries: FilterableEntry[]): BatchOption[] {
-  const options = new Map<string, string>();
-  for (const entry of entries) {
-    if (!options.has(entry.cohortId)) options.set(entry.cohortId, batchLabel(entry));
-  }
-  return Array.from(options, ([id, label]) => ({ id, label })).sort((a, b) =>
-    a.label.localeCompare(b.label)
+  const scope = useMemo(
+    () => (batchId ? new Set([batchId]) : companyId ? new Set(options.map((option) => option.cohortId)) : null),
+    [batchId, companyId, options]
   );
+  return { companyId, options, loading, batchId, setBatchId, scope };
 }
 
 export function filterQueueEntries<T extends FilterableEntry>(
   entries: T[],
-  batchId: string,
+  scope: Set<string> | null,
   search: string
 ): T[] {
   const query = search.trim().toLowerCase();
   return entries.filter((entry) => {
-    if (batchId && entry.cohortId !== batchId) return false;
+    if (scope && !scope.has(entry.cohortId)) return false;
     if (!query) return true;
     return (
       (entry.fullName ?? "").toLowerCase().includes(query) ||
@@ -45,20 +49,26 @@ export function filterQueueEntries<T extends FilterableEntry>(
 }
 
 export default function EmailQueueFilters({
+  idPrefix,
+  companyId,
   batches,
+  batchesLoading,
   batchId,
   onBatchChange,
   search,
   onSearchChange,
 }: {
+  idPrefix: string;
+  companyId: string | null;
   batches: BatchOption[];
-  batchId: string;
-  onBatchChange: (batchId: string) => void;
+  batchesLoading: boolean;
+  batchId: string | null;
+  onBatchChange: (batchId: string | null) => void;
   search: string;
   onSearchChange: (search: string) => void;
 }) {
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-2">
+    <div className="mb-3 flex flex-wrap items-end gap-2">
       <label className="relative min-w-[220px] flex-1">
         <Search
           size={14}
@@ -83,19 +93,18 @@ export default function EmailQueueFilters({
           </button>
         )}
       </label>
-      <select
-        value={batchId}
-        onChange={(event) => onBatchChange(event.target.value)}
-        aria-label="Filter by batch"
-        className="min-w-[200px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-slate-500"
-      >
-        <option value="">All batches</option>
-        {batches.map((batch) => (
-          <option key={batch.id} value={batch.id}>
-            {batch.label}
-          </option>
-        ))}
-      </select>
+      {companyId ? (
+        <BatchModuleSelects
+          idPrefix={idPrefix}
+          options={batches}
+          loading={batchesLoading}
+          value={batchId}
+          onChange={onBatchChange}
+          allowAll
+        />
+      ) : (
+        <span className="text-xs font-semibold text-slate-500">Choose a company in the top bar to filter by batch and module.</span>
+      )}
     </div>
   );
 }

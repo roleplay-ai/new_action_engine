@@ -2,9 +2,9 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEngine } from "@/lib/store";
-import { ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ArrowLeft } from "lucide-react";
+import { Check, ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ArrowLeft } from "lucide-react";
 import { LogoutButton } from "@/app/(app)/logout-button";
 import PageLoader from "@/components/PageLoader";
 import { usePageLoadingControls } from "@/components/PageLoadingProvider";
@@ -25,7 +25,6 @@ function formatCommitmentScore(value: number) {
 const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   const { profile, isLoading, cohort, cohorts, refetch, personalPlanState, userActions, allActions } = useEngine();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const [switchingCohort, setSwitchingCohort] = useState(false);
   const [commitmentScore, setCommitmentScore] = useState<{
@@ -54,20 +53,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   const activePath = pendingHref || pathname || "";
   const isActive = (href: string) => activePath.startsWith(href);
   const showLoader = isLoading || contentLoading;
-  // The RcplWorkspace design (navy/gold shell, "Workspace" topbar label, phase
-  // picker) is shared by every company — see RcplWorkspace.tsx. Each batch's
-  // picker is built from its own seeded cohort.programPhases (including
-  // Surge's, which is just seeded data in the same shape — see migration
-  // 070_cohort_program_phases.sql).
-  const rcplPhases = (cohort?.programPhases ?? []).map((phase) => ({
-    id: phase.id,
-    label: phase.label,
-    title: phase.focus || phase.title,
-    window: phase.window,
-  }));
-  const rcplPhase = searchParams.get("phase") ?? cohort?.currentPhaseId ?? rcplPhases[0]?.id ?? "1";
-  const currentRcplPhase = rcplPhases.find((phase) => phase.id === rcplPhase) ?? rcplPhases[0] ?? null;
-
+  const viewingEarlierBatch = Boolean(cohort && cohorts.find((option) => option.id === cohort.id)?.isCurrent === false);
   async function switchCohort(cohortId: string) {
     if (!cohortId || cohortId === cohort?.id || switchingCohort) return;
     setSwitchingCohort(true);
@@ -75,6 +61,8 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
     if (!result.error) {
       await refetch({ syncPoints: false });
       router.refresh();
+      // Land at the top of the page (top bar + company logo) on the new batch.
+      window.scrollTo(0, 0);
     }
     setSwitchingCohort(false);
   }
@@ -106,7 +94,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
     : "—";
 
   return (
-    <div className="participant-shell participant-shell--sidebar participant-shell--rcpl">
+    <div className={`participant-shell participant-shell--sidebar participant-shell--rcpl${viewingEarlierBatch ? " participant-shell--earlier-batch" : ""}`}>
       <aside className="participant-sidebar">
         <div>
           <Link href="/journey" className="participant-brand" onClick={() => beginNavigation("/journey")}>
@@ -120,21 +108,52 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             <span><strong>{cohort?.companyName || "Your company"}</strong></span>
           </Link>
 
-          {currentRcplPhase && pathname.startsWith("/journey") && (
-            <details className="rcpl-sidebar-phase-picker">
-              <summary>
-                <span><small>Current phase</small><strong>{currentRcplPhase.label} · {currentRcplPhase.title}</strong></span>
-                <ChevronDown size={15} />
-              </summary>
-              <div>
-                {rcplPhases.map((phase) => (
-                  <Link key={phase.id} href={`/journey?phase=${phase.id}`} className={phase.id === rcplPhase ? "active" : ""}>
-                    <strong>{phase.label} · {phase.title}</strong><small>{phase.window}</small>
-                  </Link>
-                ))}
-              </div>
-            </details>
-          )}
+          {cohorts.length > 0 && (() => {
+            const currentOption = cohorts.find((option) => option.id === cohort?.id) ?? cohorts[0];
+            // Nothing to switch to with a single batch, so the picker becomes a static label.
+            const canSwitch = cohorts.length > 1;
+            return (
+              <details className={`rcpl-sidebar-batch-picker${canSwitch ? "" : " rcpl-sidebar-batch-picker--static"}`}>
+                <summary
+                  onClick={canSwitch ? undefined : (event) => event.preventDefault()}
+                  tabIndex={canSwitch ? undefined : -1}
+                >
+                  <span>
+                    <small>{switchingCohort ? "Switching…" : "Current view"}</small>
+                    <strong title={`${currentOption.batchName}${currentOption.moduleName ? ` — ${currentOption.moduleName}` : ""}`}>
+                      {currentOption.batchName}
+                      {currentOption.moduleName ? ` — ${currentOption.moduleName}` : ""}
+                    </strong>
+                    {viewingEarlierBatch && <em className="rcpl-batch-picker-tag">Old module</em>}
+                  </span>
+                  {canSwitch && <ChevronDown size={16} />}
+                </summary>
+                {canSwitch && <div>
+                  {cohorts.map((option) => (
+                    <button
+                      type="button"
+                      key={option.id}
+                      disabled={switchingCohort}
+                      className={option.id === cohort?.id ? "active" : undefined}
+                      onClick={(event) => {
+                        void switchCohort(option.id);
+                        event.currentTarget.closest("details")?.removeAttribute("open");
+                      }}
+                    >
+                      <span>
+                        <strong>
+                          {option.batchName}
+                          {option.moduleName ? ` — ${option.moduleName}` : ""}
+                        </strong>
+                        <small className={option.isCurrent ? "is-current" : undefined}>{option.isCurrent ? "Current module" : "Old module"}</small>
+                      </span>
+                      {option.id === cohort?.id && <Check size={14} strokeWidth={2.6} aria-label="Viewing" />}
+                    </button>
+                  ))}
+                </div>}
+              </details>
+            );
+          })()}
 
           <nav className="participant-nav" aria-label="Participant navigation">
             {navItems.map((item) => (
@@ -150,44 +169,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
         </div>
 
         <div>
-          {role !== "user" && cohorts.length > 0 && (() => {
-            const currentOption = cohorts.find((option) => option.id === cohort?.id) ?? cohorts[0];
-            return (
-              <details className="rcpl-sidebar-batch-picker">
-                <summary>
-                  <span>
-                    <small>Switch Batch</small>
-                    <strong>
-                      {currentOption.batchName}
-                      {currentOption.moduleName ? ` — ${currentOption.moduleName}` : ""}
-                    </strong>
-                  </span>
-                  <ChevronDown size={15} />
-                </summary>
-                <div>
-                  {cohorts.map((option) => (
-                    <button
-                      type="button"
-                      key={option.id}
-                      disabled={switchingCohort}
-                      className={option.id === cohort?.id ? "active" : undefined}
-                      onClick={(event) => {
-                        void switchCohort(option.id);
-                        event.currentTarget.closest("details")?.removeAttribute("open");
-                      }}
-                    >
-                      <strong>
-                        {option.batchName}
-                        {option.moduleName ? ` — ${option.moduleName}` : ""}
-                      </strong>
-                      <small>{option.isCurrent ? "Current" : "Earlier"}</small>
-                    </button>
-                  ))}
-                </div>
-              </details>
-            );
-          })()}
-
           {role !== "user" && (
             <Link
               href="/admin"
@@ -241,16 +222,11 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
 
             {cohort?.batchName && (
               <div className="participant-topbar-center">
-                <span className="participant-module-badge" title="Current batch">{cohort.batchName}</span>
+                <span className="participant-module-badge" title="Current view">{cohort.batchName}</span>
               </div>
             )}
 
             <div className="participant-topbar-actions">
-              {role === "user" && cohorts.length > 0 && <label className="participant-cohort-switcher participant-batch-switcher">
-                <select aria-label="View module" value={cohort?.id ?? ""} disabled={switchingCohort} onChange={(event) => void switchCohort(event.target.value)}>
-                  {cohorts.map((option) => <option key={option.id} value={option.id}>{option.moduleName || option.batchName}{option.isCurrent ? " · Current" : " · Earlier"}</option>)}
-                </select>
-              </label>}
               <Link href="/wallet" className="participant-points-pill" title="Commitment score" onClick={() => beginNavigation("/wallet")}>
                 {commitmentLabel}
                 <small>Commitment Score</small>

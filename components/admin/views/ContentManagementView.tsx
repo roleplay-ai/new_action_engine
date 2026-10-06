@@ -24,7 +24,7 @@ interface ContentManagementViewProps {
   title?: string;
 }
 
-const TYPE_META: Record<PrepareContentType, { label: string; icon: typeof PlayCircle }> = {
+export const TYPE_META: Record<PrepareContentType, { label: string; icon: typeof PlayCircle }> = {
   video: { label: "Video", icon: PlayCircle },
   quiz: { label: "Quiz", icon: HelpCircle },
   preread: { label: "Pre-read", icon: FileText },
@@ -228,7 +228,7 @@ function isPdfUrl(url: string) {
   return /\.pdf(?:$|[?#])/i.test(url);
 }
 
-function ContentPreviewModal({
+export function ContentPreviewModal({
   loading,
   error,
   item,
@@ -340,7 +340,7 @@ function emptyQuestion(): DraftQuestion {
   };
 }
 
-function CreateContentForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
+export function CreateContentForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
   const [type, setType] = useState<PrepareContentType>("video");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");

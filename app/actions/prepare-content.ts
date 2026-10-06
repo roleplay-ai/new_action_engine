@@ -513,3 +513,70 @@ export async function listCohortContent(cohortId: string): Promise<{ error?: str
     return { error: e instanceof Error ? e.message : "Failed" };
   }
 }
+
+export type CompanyContentItem = PrepareContentItem & {
+  /** This company's batches the item is assigned to. */
+  cohortIds: string[];
+};
+
+/** The company's training content: every item assigned to one of its batches
+ * or authored by one of its admins, with the batches each is assigned to.
+ * Used by the admin Control panel to show and edit a batch's content. */
+export async function listCompanyContent(companyId: string | null): Promise<{ error?: string; items?: CompanyContentItem[] }> {
+  try {
+    const { supabase, role, companyId: myCompanyId } = await getAdminContext();
+    const targetCompanyId = role === "admin" ? myCompanyId : companyId;
+    if (!targetCompanyId) return { items: [] };
+
+    const [{ data: cohorts, error: cohortsError }, { data: authors }] = await Promise.all([
+      supabase.from("cohorts").select("id").eq("company_id", targetCompanyId),
+      supabase.from("profiles").select("id").eq("company_id", targetCompanyId).eq("role", "admin"),
+    ]);
+    if (cohortsError) return { error: cohortsError.message };
+    const cohortIds = (cohorts ?? []).map((c: { id: string }) => c.id);
+    const authorIds = (authors ?? []).map((p: { id: string }) => p.id);
+
+    const assignedTo = new Map<string, string[]>();
+    if (cohortIds.length) {
+      const { data: assignments, error } = await supabase
+        .from("cohort_prepare_assignments")
+        .select("cohort_id, content_item_id")
+        .in("cohort_id", cohortIds);
+      if (error) return { error: error.message };
+      for (const a of (assignments ?? []) as { cohort_id: string; content_item_id: string }[]) {
+        assignedTo.set(a.content_item_id, [...(assignedTo.get(a.content_item_id) ?? []), a.cohort_id]);
+      }
+    }
+
+    const filters = [
+      assignedTo.size ? `id.in.(${[...assignedTo.keys()].join(",")})` : null,
+      authorIds.length ? `created_by.in.(${authorIds.join(",")})` : null,
+    ].filter(Boolean);
+    if (!filters.length) return { items: [] };
+
+    const { data, error } = await supabase
+      .from("prepare_content_items")
+      .select("id, type, title, description, badge_label, is_active, video_url, video_duration_seconds, preread_url, preread_body")
+      .or(filters.join(","))
+      .order("created_at", { ascending: false });
+    if (error) return { error: error.message };
+
+    return {
+      items: (data ?? []).map((row) => ({
+        id: row.id,
+        type: row.type as PrepareContentType,
+        title: row.title,
+        description: row.description,
+        badgeLabel: row.badge_label,
+        isActive: row.is_active,
+        videoUrl: row.video_url,
+        videoDurationSeconds: row.video_duration_seconds,
+        prereadUrl: row.preread_url,
+        prereadBody: row.preread_body,
+        cohortIds: assignedTo.get(row.id) ?? [],
+      })),
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}

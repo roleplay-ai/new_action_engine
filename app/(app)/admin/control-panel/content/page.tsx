@@ -1,4 +1,4 @@
-import { ContentPanel } from "@/components/admin/control-panel/ReusedPanels";
+import { ContentPanel } from "@/components/admin/control-panel/ContentPanel";
 
 export default function ContentManagementPage() {
   return <ContentPanel />;

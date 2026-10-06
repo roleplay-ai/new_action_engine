@@ -44,8 +44,8 @@ const COPY: Record<
   opened_no_action: {
     title: "Opened, but no action",
     description:
-      "Participants who opened a reminder or Friday recap in the chosen window but completed zero actions in that same window. Everyone matching is pre-selected — untick anyone you want to leave out.",
-    empty: "Nobody matches — everyone who opened an email in this window has also completed an action.",
+      "Participants who opened a reminder or Friday recap in the chosen window and have validated zero actions in this batch so far (none marked Done, ever). Everyone matching is pre-selected — untick anyone you want to leave out.",
+    empty: "Nobody matches — everyone who opened an email in this window has validated at least one action.",
     linkLabel: "UPDATE MY ACTIONS",
     linkTarget: "their actions page",
     icon: MailOpen,

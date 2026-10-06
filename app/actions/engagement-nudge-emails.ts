@@ -214,8 +214,7 @@ async function findOpenedNoAction(
   cohortIds: string[],
   windowDays: NudgeWindowDays
 ): Promise<Map<string, MatchRow>> {
-  const windowStart = windowDays ? new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000) : null;
-  const windowStartMs = windowStart?.getTime() ?? 0;
+  const windowStartMs = windowDays ? Date.now() - windowDays * 24 * 60 * 60 * 1000 : 0;
 
   const logs = await selectAllPages<{
     user_id: string | null;
@@ -257,19 +256,22 @@ async function findOpenedNoAction(
   }
   if (!opens.size) return new Map();
 
+  // "No action" means zero validated (status = 'success') actions in that
+  // batch ever — the window only limits when they opened an email. The email
+  // tells them they haven't marked any as Done yet, so that must be true.
   const openedUserIds = [...new Set([...opens.keys()].map((key) => key.split(":")[0]))];
   const acted = new Set<string>();
   for (let i = 0; i < openedUserIds.length; i += 200) {
-    const completions = await selectAllPages<{ user_id: string; cohort_id: string | null }>((from, to) => {
-      let query = admin
+    const completions = await selectAllPages<{ user_id: string; cohort_id: string | null }>((from, to) =>
+      admin
         .from("user_actions")
         .select("user_id, cohort_id")
         .in("user_id", openedUserIds.slice(i, i + 200))
         .in("cohort_id", cohortIds)
-        .eq("status", "success");
-      if (windowStart) query = query.gte("completed_at", windowStart.toISOString());
-      return query.order("id").range(from, to);
-    });
+        .eq("status", "success")
+        .order("id")
+        .range(from, to)
+    );
     for (const completion of completions) {
       if (completion.cohort_id) acted.add(`${completion.user_id}:${completion.cohort_id}`);
     }

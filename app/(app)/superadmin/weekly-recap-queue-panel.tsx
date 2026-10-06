@@ -20,7 +20,7 @@ import {
 } from "@/app/actions/action-reminders";
 import EmailQueueFilters, {
   filterQueueEntries,
-  getBatchOptions,
+  useQueueBatchFilter,
 } from "./email-queue-filters";
 
 function formatIstTime(isoValue: string) {
@@ -144,7 +144,7 @@ export default function WeeklyRecapQueuePanel({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
-  const [batchId, setBatchId] = useState("");
+  const batchFilter = useQueueBatchFilter();
   const [search, setSearch] = useState("");
 
   async function loadRecaps() {
@@ -174,10 +174,9 @@ export default function WeeklyRecapQueuePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelExpanded]);
 
-  const batchOptions = useMemo(() => getBatchOptions(recaps), [recaps]);
   const visibleRecaps = useMemo(
-    () => filterQueueEntries(recaps, batchId, search),
-    [recaps, batchId, search]
+    () => filterQueueEntries(recaps, batchFilter.scope, search),
+    [recaps, batchFilter.scope, search]
   );
   const sendableRecaps = visibleRecaps.filter((recap) => recap.canSend);
   const visibleSelectedIds = sendableRecaps
@@ -302,9 +301,12 @@ export default function WeeklyRecapQueuePanel({
           <div className="p-4">
             {recaps.length > 0 && (
               <EmailQueueFilters
-                batches={batchOptions}
-                batchId={batchId}
-                onBatchChange={setBatchId}
+                idPrefix="recap-queue"
+                companyId={batchFilter.companyId}
+                batches={batchFilter.options}
+                batchesLoading={batchFilter.loading}
+                batchId={batchFilter.batchId}
+                onBatchChange={batchFilter.setBatchId}
                 search={search}
                 onSearchChange={setSearch}
               />

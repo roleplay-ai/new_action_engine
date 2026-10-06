@@ -5,10 +5,12 @@ import Link from "next/link";
 import { BookOpen, CalendarDays, Megaphone, MessageSquareText, Network, Users } from "lucide-react";
 import { getCohortDetail } from "@/app/actions/cohorts";
 import { getCohortNotices } from "@/app/actions/cohort-notices";
+import { getCohortMessageCount } from "@/app/actions/cohort-chat";
+import { listCohortContent } from "@/app/actions/prepare-content";
 import { nextUpcomingCohortDate } from "@/lib/cohort-dates";
 import { batchLabel, useControlPanelBatch, useReportViewReady } from "./shared";
 
-type Summary = { dates: string[]; members: number; withoutTeam: number; notices: number };
+type Summary = { dates: string[]; members: number; withoutTeam: number; notices: number; content: number; messages: number };
 
 function formatDate(date: string) {
   return new Intl.DateTimeFormat("en", { day: "numeric", month: "short" }).format(new Date(`${date}T00:00:00`));
@@ -26,8 +28,8 @@ export function ControlPanelHome() {
     }
     let cancelled = false;
     setLoading(true);
-    void Promise.all([getCohortDetail(cohortId), getCohortNotices(cohortId)])
-      .then(([detail, notices]) => {
+    void Promise.all([getCohortDetail(cohortId), getCohortNotices(cohortId), listCohortContent(cohortId), getCohortMessageCount(cohortId)])
+      .then(([detail, notices, content, chat]) => {
         if (cancelled) return;
         const members = detail.members ?? [];
         setSummary({
@@ -35,6 +37,8 @@ export function ControlPanelHome() {
           members: members.length,
           withoutTeam: members.filter((member) => !member.tag).length,
           notices: notices.notices?.length ?? 0,
+          content: content.items?.length ?? 0,
+          messages: chat.count ?? 0,
         });
       })
       .finally(() => {
@@ -83,10 +87,12 @@ export function ControlPanelHome() {
     {
       href: "/admin/control-panel/content",
       title: "Training content",
-      text: "Videos, quizzes and pre-reads in your training library.",
+      text: "Choose which videos, quizzes and pre-reads this batch gets.",
       color: "#8A6A00",
       Icon: BookOpen,
-      status: <span className="cp-pill">Training library</span>,
+      status: !summary ? null : summary.content
+        ? <span className="cp-pill cp-pill--ok">{summary.content} assigned</span>
+        : <span className="cp-pill cp-pill--warn">No content yet</span>,
     },
     {
       href: "/admin/control-panel/announcements",
@@ -102,7 +108,7 @@ export function ControlPanelHome() {
       text: "Read and join the group conversation of this batch.",
       color: "#0E7490",
       Icon: MessageSquareText,
-      status: <span className="cp-pill">Batch group chat</span>,
+      status: !summary ? null : <span className="cp-pill">{summary.messages} {summary.messages <= 1 ? "message" : "messages"}</span>,
     },
   ];
 

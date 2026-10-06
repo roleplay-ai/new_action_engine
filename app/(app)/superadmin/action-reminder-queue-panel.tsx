@@ -20,7 +20,7 @@ import {
 } from "@/app/actions/action-reminders";
 import EmailQueueFilters, {
   filterQueueEntries,
-  getBatchOptions,
+  useQueueBatchFilter,
 } from "./email-queue-filters";
 
 function formatIstTime(isoValue: string) {
@@ -161,7 +161,7 @@ export default function ActionReminderQueuePanel({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
-  const [batchId, setBatchId] = useState("");
+  const batchFilter = useQueueBatchFilter();
   const [search, setSearch] = useState("");
 
   async function loadReminders() {
@@ -196,10 +196,9 @@ export default function ActionReminderQueuePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelExpanded]);
 
-  const batchOptions = useMemo(() => getBatchOptions(reminders), [reminders]);
   const visibleReminders = useMemo(
-    () => filterQueueEntries(reminders, batchId, search),
-    [reminders, batchId, search]
+    () => filterQueueEntries(reminders, batchFilter.scope, search),
+    [reminders, batchFilter.scope, search]
   );
   const sendableReminders = visibleReminders.filter((reminder) => reminder.canSend);
   const visibleSelectedIds = sendableReminders
@@ -338,9 +337,12 @@ export default function ActionReminderQueuePanel({
           <div className="p-4">
             {reminders.length > 0 && (
               <EmailQueueFilters
-                batches={batchOptions}
-                batchId={batchId}
-                onBatchChange={setBatchId}
+                idPrefix="reminder-queue"
+                companyId={batchFilter.companyId}
+                batches={batchFilter.options}
+                batchesLoading={batchFilter.loading}
+                batchId={batchFilter.batchId}
+                onBatchChange={batchFilter.setBatchId}
                 search={search}
                 onSearchChange={setSearch}
               />

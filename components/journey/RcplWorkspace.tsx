@@ -268,15 +268,9 @@ export default function RcplWorkspace({
           <h2>{heroTitle}</h2>
           <p>{heroDescription}</p>
           <div className="rcpl-hero-meta">
-            {phase && phase.days.length > 0 ? (
-              // Show the selected module's own run dates rather than the
-              // cohort's overall session-date list — these are free-text day
-              // labels from the agenda JSON (e.g. "Thu 20 Aug"), not the ISO
-              // cohort_dates used for the countdown below.
-              phase.days.map((day) => (
-                <span key={day.name}><CalendarDays size={14} />{day.date}</span>
-              ))
-            ) : sessionDates.length === 0 ? (
+            {/* Dates come only from the admin-set cohort dates; the agenda
+                carries no dates, just "Day 1", "Day 2", etc. */}
+            {sessionDates.length === 0 ? (
               <span><CalendarDays size={14} />Date to be announced</span>
             ) : (
               sessionDates.map((date) => (
@@ -334,7 +328,6 @@ export default function RcplWorkspace({
             <section className="rcpl-card rcpl-agenda" id="rcpl-agenda">
               <header>
                 <div><h3>{phase.title}</h3>{phase.subtitle && <p>{phase.subtitle}</p>}</div>
-                {!isDefaultJourney && phase.window && <strong className="rcpl-agenda-window">{phase.window}</strong>}
               </header>
               {/* {(phase.focus || phase.summary) && (
                 <div className="rcpl-agenda-focus"><div>{phase.focus && <strong>{phase.focus}</strong>}{phase.summary && <p>{phase.summary}</p>}</div></div>
@@ -342,7 +335,7 @@ export default function RcplWorkspace({
               <div className="rcpl-agenda-days">
                 {phase.days.map((day) => (
                   <div className="rcpl-agenda-day" key={day.name}>
-                    <small>{day.date}</small><h4>{day.name}</h4>
+                    <h4>{day.name}</h4>
                     <ol>{day.blocks.map((block) => <li key={`${day.name}-${block.time}`}><span>{block.time}</span><strong>{block.name}</strong></li>)}</ol>
                   </div>
                 ))}

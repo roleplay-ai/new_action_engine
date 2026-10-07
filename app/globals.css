@@ -4457,7 +4457,7 @@ input[type="range"] {
   }
 }
 
-/* ── Page loader (searching magnifier + blur) ── */
+/* ── Page loader (animated Nudgie + blur) ── */
 .page-loader {
   /* Margin (not just inset) still offsets a fixed box, so this can't inherit
      a stray margin-top from an ancestor's Tailwind `space-y-*` sibling rule —
@@ -4495,231 +4495,20 @@ input[type="range"] {
   gap: 18px;
 }
 
-/* Searching magnifier: a large, genuinely transparent lens sweeps right-to-
-   left over a row of files, a thin rail underneath grounding the motion.
-   Each file sits still and colorless until the lens is directly over it —
-   at that exact moment (and only then, per pageLoaderChipMagnify's timing,
-   delayed per-chip to match pageLoaderScan's own dwell stops) that same
-   file grows and turns amber in place, then fades right back down. No
-   duplicate row, no clip-path — position and timing alone keep it locked to
-   whatever the lens is actually over. Replaces the old bouncing-dots loader. */
-.page-loader__scan {
+/* Default centerpiece: animated Nudgie on a white card. */
+.page-loader__nudgie {
+  width: min(60vw, 200px);
+  aspect-ratio: 1;
+  padding: 10px;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+}
+
+.page-loader__nudgie img {
   display: block;
-  width: min(94vw, 380px);
-  height: auto;
-  overflow: visible;
-}
-
-.page-loader__rail {
-  stroke: rgba(255, 255, 255, 0.16);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-dasharray: 0.5 11;
-}
-
-.page-loader__chip-base {
-  fill: rgba(255, 255, 255, 0.08);
-  stroke: rgba(255, 255, 255, 0.20);
-  stroke-width: 1.2;
-}
-
-/* Crossfades opposite page-loader__chip-magnify below, same delay/duration on both — the plain
-   icon disappears for exactly the window the amber one is visible, so they never double up. */
-.page-loader__chip-neutral {
-  animation-name: pageLoaderChipNeutralFade;
-  animation-timing-function: ease-out;
-  animation-iteration-count: infinite;
-}
-
-.page-loader__chip-magnify {
-  opacity: 0;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation-name: pageLoaderChipMagnify;
-  animation-timing-function: ease-out;
-  animation-iteration-count: infinite;
-}
-
-.page-loader__scanner {
-  animation-name: pageLoaderScan;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-}
-
-.page-loader__lens {
-  fill: rgba(255, 255, 255, 0.06);
-  stroke: #221D23;
-  stroke-width: 5;
-}
-
-.page-loader__lens-inner {
-  fill: none;
-  stroke: #FFCE00;
-  stroke-width: 2;
-  opacity: 0.85;
-}
-
-.page-loader__handle,
-.page-loader__handle-tip {
-  stroke: #221D23;
-}
-
-.page-loader__handle {
-  stroke-width: 7;
-  stroke-linecap: round;
-}
-
-.page-loader__handle-tip {
-  fill: #FFCE00;
-  stroke-width: 0;
-}
-
-@keyframes pageLoaderScan {
-  0% {
-    transform: translate(298px, 54px) scale(0.7);
-    opacity: 0;
-  }
-
-  4% {
-    transform: translate(298px, 54px) scale(1);
-    opacity: 1;
-  }
-
-  10% {
-    transform: translate(298px, 54px) scale(1.1);
-  }
-
-  17% {
-    transform: translate(254px, 54px) scale(1);
-  }
-
-  24% {
-    transform: translate(254px, 54px) scale(1.1);
-  }
-
-  31% {
-    transform: translate(210px, 54px) scale(1);
-  }
-
-  38% {
-    transform: translate(210px, 54px) scale(1.1);
-  }
-
-  45% {
-    transform: translate(166px, 54px) scale(1);
-  }
-
-  52% {
-    transform: translate(166px, 54px) scale(1.1);
-  }
-
-  59% {
-    transform: translate(122px, 54px) scale(1);
-  }
-
-  66% {
-    transform: translate(122px, 54px) scale(1.1);
-  }
-
-  73% {
-    transform: translate(78px, 54px) scale(1);
-  }
-
-  80% {
-    transform: translate(78px, 54px) scale(1.1);
-  }
-
-  87% {
-    transform: translate(34px, 54px) scale(1);
-  }
-
-  94% {
-    transform: translate(34px, 54px) scale(1.1);
-  }
-
-  98% {
-    transform: translate(34px, 54px) scale(1);
-    opacity: 1;
-  }
-
-  100% {
-    transform: translate(34px, 54px) scale(0.7);
-    opacity: 0;
-  }
-}
-
-/* The file directly under the lens grows to ~2x and turns amber, right in its own spot, then
-   fades back to its plain resting state. This ramps up over its first 7% — matching how long
-   pageLoaderScan's lens itself takes to grow from "arrived" to "peak" while parked on a chip — so
-   the file and the lens visibly grow together and hit full size at the same instant (that instant
-   is what SCAN_CHIP_DELAYS + 7% of SCAN_DURATION works out to, in PageLoader.tsx). Past that, the
-   lens starts travelling away, so the file settles back down over the next ~13%. */
-@keyframes pageLoaderChipMagnify {
-  0% {
-    opacity: 0.3;
-    transform: scale(1.15);
-    filter: drop-shadow(0 0 2px rgba(255, 206, 0, 0.25));
-  }
-
-  7%,
-  11% {
-    opacity: 1;
-    transform: scale(1.9);
-    filter: drop-shadow(0 0 8px rgba(255, 206, 0, 0.6));
-  }
-
-  16% {
-    opacity: 0.3;
-    transform: scale(1.1);
-    filter: drop-shadow(0 0 0 rgba(255, 206, 0, 0));
-  }
-
-  20%,
-  100% {
-    opacity: 0;
-    transform: scale(0.6);
-    filter: drop-shadow(0 0 0 rgba(255, 206, 0, 0));
-  }
-}
-
-/* Inverse of pageLoaderChipMagnify above — plain icon dims as the amber one ramps up, fully
-   hidden by the time it peaks (7%–11%), then fades back in as the amber one fades out. */
-@keyframes pageLoaderChipNeutralFade {
-  0% {
-    opacity: 0.6;
-  }
-
-  7%,
-  11% {
-    opacity: 0;
-  }
-
-  16% {
-    opacity: 0.4;
-  }
-
-  20%,
-  100% {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .page-loader__scanner {
-    animation: none;
-    transform: translate(166px, 54px) scale(1);
-    opacity: 1;
-  }
-
-  .page-loader__chip-neutral {
-    animation: none;
-    opacity: 1;
-  }
-
-  .page-loader__chip-magnify {
-    animation: none;
-    opacity: 0;
-  }
+  width: 100%;
+  height: 100%;
 }
 
 .page-loader__bucket {

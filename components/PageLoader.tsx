@@ -1,7 +1,7 @@
 import React from "react";
 
 type PageLoaderProps = {
-  /** Optional status text under the scan row */
+  /** Optional status text under the animation */
   label?: string;
   /** Optional second line under the label — lighter weight, for a short explanatory note (e.g. an expected wait time) */
   sublabel?: string;
@@ -13,90 +13,20 @@ type PageLoaderProps = {
    */
   variant?: "main" | "admin" | "fullscreen";
   /**
-   * Swaps the default scan row for a themed visual:
-   * - default: magnifier searching through a row of files
+   * Which animation to show:
+   * - default: Nudgie checking a stack of documents
    * - wallet: coins dropping into the Commitment Points bucket
    */
   theme?: "default" | "wallet";
 };
 
-// Chip centers (x) for the file row, right to left — the magnifier travels this same order. Each
-// delay is set to when pageLoaderScan's own lens *arrives* at that chip (its "arrive" keyframe,
-// 7% of SCAN_DURATION before its "peak" one) — not when it peaks — because pageLoaderChipMagnify
-// now ramps up over that same 7% window, so the file grows in step with the lens's own dwell-pulse
-// and both reach full size at the same instant, instead of the file popping only once the lens has
-// already finished growing.
-const SCAN_DURATION = 4.9;
-const SCAN_CHIP_X = [34, 78, 122, 166, 210, 254, 298];
-const SCAN_CHIP_DELAYS = [4.27, 3.58, 2.89, 2.21, 1.52, 0.84, 0.15];
-const SCAN_CENTER_Y = 54;
-
-/** File/document glyph — folded corner, three text lines (last one short, like real body copy).
- * "neutral" is the plain resting look; "magnify" is the same glyph, amber, used only as the
- * transient overlay that grows in place (see SearchScanLoader) — never a separate/generic icon. */
-function FileGlyph({ tone }: { tone: "neutral" | "magnify" }) {
-  const stroke = tone === "neutral" ? "rgba(255,255,255,0.55)" : "#FFCE00";
-  const bodyFill = tone === "magnify" ? "rgba(255, 206, 0, 0.22)" : "none";
+/** Nudgie checking a stack of documents (public/loader/nudgie-loading.gif),
+ * on a white card so its black outlines read against the dark backdrop. */
+function NudgieLoader() {
   return (
-    <g strokeLinejoin="round" strokeLinecap="round">
-      <path d="M -6,-8 L 3,-8 L 6,-5 L 6,8 L -6,8 Z" fill={bodyFill} stroke={stroke} strokeWidth={1.6} />
-      <path d="M 3,-8 L 3,-5 L 6,-5 Z" fill={bodyFill} stroke={stroke} strokeWidth={1.6} />
-      <line x1={-3.5} y1={-1.5} x2={3.5} y2={-1.5} stroke={stroke} strokeWidth={1.3} />
-      <line x1={-3.5} y1={1} x2={3.5} y2={1} stroke={stroke} strokeWidth={1.3} />
-      <line x1={-3.5} y1={3.5} x2={1} y2={3.5} stroke={stroke} strokeWidth={1.3} />
-    </g>
-  );
-}
-
-/** Row of files getting swept by a searching magnifier. Each file sits still and colorless until
- * the (transparent) lens is directly over it, at which point that exact file — same glyph, same
- * spot, drawn again on top of itself in amber — grows up to ~2x and fades right back down as the
- * lens moves on. No duplicate row, no clip-path: the position and timing alone are what keep the
- * effect locked to whatever the lens is actually over, so it can't drift into a generic overlay. */
-function SearchScanLoader() {
-  return (
-    <svg className="page-loader__scan" viewBox="0 0 340 112" role="img" aria-hidden="true">
-      <defs>
-        <filter id="pageLoaderScanGlow" x="-80%" y="-80%" width="260%" height="260%">
-          <feDropShadow dx="0" dy="3" stdDeviation="5" floodColor="#FFCE00" floodOpacity="0.55" />
-        </filter>
-      </defs>
-
-      <line
-        x1={SCAN_CHIP_X[0] - 6}
-        y1={SCAN_CENTER_Y}
-        x2={SCAN_CHIP_X[SCAN_CHIP_X.length - 1] + 6}
-        y2={SCAN_CENTER_Y}
-        className="page-loader__rail"
-      />
-
-      {SCAN_CHIP_X.map((cx, i) => (
-        <g key={cx}>
-          <rect x={cx - 15} y={SCAN_CENTER_Y - 15} width={30} height={30} rx={10} className="page-loader__chip-base" />
-          <g transform={`translate(${cx} ${SCAN_CENTER_Y})`}>
-            <g
-              className="page-loader__chip-neutral"
-              style={{ animationDelay: `${SCAN_CHIP_DELAYS[i]}s`, animationDuration: `${SCAN_DURATION}s` }}
-            >
-              <FileGlyph tone="neutral" />
-            </g>
-            <g
-              className="page-loader__chip-magnify"
-              style={{ animationDelay: `${SCAN_CHIP_DELAYS[i]}s`, animationDuration: `${SCAN_DURATION}s` }}
-            >
-              <FileGlyph tone="magnify" />
-            </g>
-          </g>
-        </g>
-      ))}
-
-      <g className="page-loader__scanner" style={{ animationDuration: `${SCAN_DURATION}s` }}>
-        <circle r={29} className="page-loader__lens" filter="url(#pageLoaderScanGlow)" />
-        <circle r={24} className="page-loader__lens-inner" />
-        <line x1={20} y1={20} x2={36} y2={36} className="page-loader__handle" />
-        <circle cx={36} cy={36} r={3.4} className="page-loader__handle-tip" />
-      </g>
-    </svg>
+    <div className="page-loader__nudgie" aria-hidden="true">
+      <img src="/loader/nudgie-loading.gif" alt="" width={240} height={240} />
+    </div>
   );
 }
 
@@ -169,8 +99,8 @@ function WalletBucketLoader() {
 
 /**
  * Viewport-locked loading state: blurred backdrop, plus a themed centerpiece
- * (a magnifier sweeping a row of files, scanning shown inside its own lens,
- * or coins dropping into the Commitment Bank bucket). Position is fixed to
+ * (Nudgie checking documents, or coins dropping into the Commitment Bank
+ * bucket). Position is fixed to
  * the visible area so tab switches don't push the centerpiece into the
  * wrong place.
  */
@@ -184,7 +114,7 @@ export default function PageLoader({ label, sublabel, variant = "fullscreen", th
       aria-busy="true"
     >
       <div className="page-loader__content">
-        {theme === "wallet" ? <WalletBucketLoader /> : <SearchScanLoader />}
+        {theme === "wallet" ? <WalletBucketLoader /> : <NudgieLoader />}
         {resolvedLabel ? <p className="page-loader__label">{resolvedLabel}</p> : null}
         {sublabel ? <p className="page-loader__sublabel">{sublabel}</p> : null}
         <span className="sr-only">{[resolvedLabel, sublabel].filter(Boolean).join(" — ") || "Loading"}</span>

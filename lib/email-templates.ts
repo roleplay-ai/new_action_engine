@@ -328,13 +328,9 @@ function nudgieEmailHtml(params: {
   const companyName = str(data, "company_name");
   const companyLogo = str(data, "company_logo");
 
-  // Company logo when the org has one, else the company name as text, else
-  // the Nudgeable logo so the header is never empty.
-  const logoHtml = companyLogo
-    ? `<img src="${esc(companyLogo)}" alt="${esc(companyName || "Company")}" width="130" style="display:block;width:130px;max-width:100%;height:auto;margin:0 auto;background-color:#ffffff;">`
-    : companyName
-      ? `<p style="margin:0;font-size:22px;line-height:28px;font-weight:700;color:#17171e;">${esc(companyName)}</p>`
-      : `<img src="${NUDGIE_FALLBACK_LOGO_URL}" alt="Nudgeable" width="130" style="display:block;width:130px;max-width:100%;height:auto;margin:0 auto;background-color:#ffffff;">`;
+  // Always a logo above the yellow rule: the company's when it has one
+  // uploaded, otherwise the Nudgeable logo (never the company name as text).
+  const logoHtml = `<img src="${esc(companyLogo || NUDGIE_FALLBACK_LOGO_URL)}" alt="${esc(companyLogo ? companyName || "Company" : "Nudgeable")}" width="130" style="display:block;width:130px;max-width:100%;height:auto;margin:0 auto;background-color:#ffffff;">`;
 
   return `<!doctype html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">

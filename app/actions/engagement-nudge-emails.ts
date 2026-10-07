@@ -391,6 +391,7 @@ export type NudgeAudience = {
     full_name: string;
     first_name: string;
     company_name?: string;
+    company_logo?: string;
     batch_name?: string;
     app_link: string;
     login_email: string;
@@ -410,7 +411,7 @@ export async function getNudgeAudience(
     await requireSuperadmin();
     if (!companyId) return { error: "Select a company first" };
 
-    const { companyName, batches, recipients } = await buildAudience(kind, companyId, cohortId, windowDays);
+    const { companyName, companyLogo, batches, recipients } = await buildAudience(kind, companyId, cohortId, windowDays);
     const first = recipients[0];
     const fullName = first?.fullName ?? "there";
 
@@ -421,6 +422,7 @@ export async function getNudgeAudience(
           full_name: fullName,
           first_name: fullName.split(/\s+/)[0] || "there",
           company_name: companyName,
+          company_logo: companyLogo,
           batch_name: cohortId ? batches[0]?.label : first?.batchLabel,
           app_link: NUDGE_APP_URL,
           login_email: first?.email ?? "participant@company.com",

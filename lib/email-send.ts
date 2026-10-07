@@ -98,6 +98,7 @@ export async function sendTemplateToUsers({
   /** Key of a template defined in lib/email-templates.ts (e.g. "weekly_challenges", "credentials"). */
   templateId: string;
   fromEmail: string;
+  /** Ignored for links: emails always point at the production app (see normalizedBase). */
   baseUrl: string;
   sentBy: string | null;
   extraTemplateData?: Record<string, unknown>;
@@ -215,11 +216,10 @@ export async function sendTemplateToUsers({
   }
 
   const results: SendToUsersResult[] = [];
-  // Credential/welcome emails must always use the deployed app so magic-link
-  // buttons never inherit a localhost URL from an admin or cron environment.
-  const normalizedBase = templateKey === "credentials"
-    ? NUDGEABLE_APP_URL
-    : baseUrl.replace(/\/$/, "");
+  // Every email links to the production app. Senders still pass a baseUrl,
+  // but it comes from NEXT_PUBLIC_APP_URL (the Vercel deployment URL) or the
+  // request host (localhost), and participants must never land there.
+  const normalizedBase = NUDGEABLE_APP_URL;
   const appLoginUrl = `${normalizedBase}/login`;
 
   for (const userId of userIds) {

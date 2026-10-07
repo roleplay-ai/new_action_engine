@@ -258,8 +258,8 @@ function nudgieActionCardHtml(action: { title?: string; imageUrl?: string }, ind
             <tr><td class="action-pad" style="padding:20px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;"><tr>
                 ${action.imageUrl
-                  ? `<td class="image-cell" width="116" valign="top" style="width:116px;padding-right:20px;"><img class="action-image" src="${esc(action.imageUrl)}" alt="" width="96" height="96" style="display:block;width:96px;height:96px;background-color:#ffffff;border:0;border-radius:12px;"></td>`
-                  : ""}
+      ? `<td class="image-cell" width="116" valign="top" style="width:116px;padding-right:20px;"><img class="action-image" src="${esc(action.imageUrl)}" alt="" width="96" height="96" style="display:block;width:96px;height:96px;background-color:#ffffff;border:0;border-radius:12px;"></td>`
+      : ""}
                 <td class="copy-cell" valign="top">
                   <p class="action-copy" style="margin:0 0 18px;font-size:18px;line-height:27px;font-weight:600;color:#24242c;">${esc(title)}</p>
                   ${nudgieButtonHtml(markDoneUrl, "&#10003;&nbsp; Mark done", { ariaLabel: `Mark done: ${title}`, minWidth: 126, margin: "0" })}
@@ -286,8 +286,8 @@ function nudgieScoresRowHtml(data: EmailTemplateData): string {
               <td class="stat-cell buddy-cell" valign="top" width="55%" style="width:55%;padding:0 0 0 24px;border-left:1px solid #e7e7e9;">
                 <p style="margin:0 0 6px;font-size:13px;line-height:19px;color:#64646e;">Commitment buddy</p>
                 ${buddyName
-                  ? `<p style="margin:0 0 4px;font-size:17px;line-height:24px;font-weight:600;color:#23232c;">${esc(buddyName)}</p><p style="margin:0;font-size:14px;line-height:22px;color:#64646e;">Commitment score: <strong style="color:#23232c;">${buddyScore !== null ? `${Math.round(buddyScore)}%` : "&mdash;"}</strong></p>`
-                  : `<p style="margin:0;font-size:17px;line-height:24px;font-weight:600;color:#23232c;">Not assigned</p>`}
+      ? `<p style="margin:0 0 4px;font-size:17px;line-height:24px;font-weight:600;color:#23232c;">${esc(buddyName)}</p><p style="margin:0;font-size:14px;line-height:22px;color:#64646e;">Commitment score: <strong style="color:#23232c;">${buddyScore !== null ? `${Math.round(buddyScore)}%` : "&mdash;"}</strong></p>`
+      : `<p style="margin:0;font-size:17px;line-height:24px;font-weight:600;color:#23232c;">Not assigned</p>`}
               </td>
             </tr></table>
           </td></tr></table>
@@ -605,10 +605,10 @@ function renderWeeklyRecapHtml(data: EmailTemplateData): string {
     ? `<p style="${NUDGIE_MUTED_STYLE}">No open actions to confirm. Have a good weekend.</p>`
     : `${reminderActionCardsHtml(actions, loginUrl)}
           ${completeAllUrl
-            ? `<p style="${NUDGIE_MUTED_STYLE}">Completed every action shown above?</p>
+      ? `<p style="${NUDGIE_MUTED_STYLE}">Completed every action shown above?</p>
           ${nudgieButtonHtml(completeAllUrl, "Confirm all as completed")}
           <p style="${NUDGIE_MUTED_STYLE}">Use this only if you’ve completed every action shown above. For individual actions, use “Mark done”.</p>`
-            : ""}`;
+      : ""}`;
 
   return nudgieEmailHtml({
     data,
@@ -911,8 +911,8 @@ export const EMAIL_TEMPLATES = {
     label: "Action Reminder",
     subject: (data: EmailTemplateData) => {
       const name = str(data, "first_name", "there");
-      const parts = [str(data, "company_name"), str(data, "batch_name"), str(data, "module_name")].filter(Boolean);
-      return `Hi ${name} 👋 — Your actions are ready${parts.length ? ` — ${parts.join(" — ")}` : ""}`;
+      const company = str(data, "company_name");
+      return `Hi ${name} 👋, Your actions are ready${company ? ` — ${company}` : ""}`;
     },
     render: renderDailyReminderHtml,
   },

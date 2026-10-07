@@ -16,16 +16,25 @@ type PageLoaderProps = {
    * Which animation to show:
    * - default: Nudgie checking a stack of documents
    * - wallet: coins dropping into the Commitment Points bucket
+   * - email-signin / email-complete: the two steps after a reminder email's
+   *   "Mark done" link — Nudgie opening the email and going through the door
+   *   while signing in, then ticking off action cards while it's saved
    */
-  theme?: "default" | "wallet";
+  theme?: "default" | "wallet" | "email-signin" | "email-complete";
 };
 
-/** Nudgie checking a stack of documents (public/loader/nudgie-loading.gif),
- * on a white card so its black outlines read against the dark backdrop. */
-function NudgieLoader() {
+const NUDGIE_LOADER_SRC = {
+  default: "/loader/nudgie-loading.gif",
+  "email-signin": "/loader/nudgie-email-signin.gif",
+  "email-complete": "/loader/nudgie-email-complete.gif",
+} as const;
+
+/** Animated Nudgie GIF (public/loader/) on a white card so its black
+ * outlines read against the dark backdrop. */
+function NudgieLoader({ src }: { src: string }) {
   return (
     <div className="page-loader__nudgie" aria-hidden="true">
-      <img src="/loader/nudgie-loading.gif" alt="" width={240} height={240} />
+      <img src={src} alt="" width={240} height={240} />
     </div>
   );
 }
@@ -114,7 +123,11 @@ export default function PageLoader({ label, sublabel, variant = "fullscreen", th
       aria-busy="true"
     >
       <div className="page-loader__content">
-        {theme === "wallet" ? <WalletBucketLoader /> : <NudgieLoader />}
+        {theme === "wallet" ? (
+          <WalletBucketLoader />
+        ) : (
+          <NudgieLoader src={NUDGIE_LOADER_SRC[theme]} />
+        )}
         {resolvedLabel ? <p className="page-loader__label">{resolvedLabel}</p> : null}
         {sublabel ? <p className="page-loader__sublabel">{sublabel}</p> : null}
         <span className="sr-only">{[resolvedLabel, sublabel].filter(Boolean).join(" — ") || "Loading"}</span>

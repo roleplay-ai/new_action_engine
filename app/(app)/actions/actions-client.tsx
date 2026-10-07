@@ -1022,6 +1022,7 @@ export default function ActionsClient() {
     {typeof document !== "undefined" && autoCompleting && createPortal(
       <PageLoader
         variant="main"
+        theme="email-complete"
         label={autoCompleting.count === 1 ? "Marking your action as done" : "Marking your actions as done"}
         sublabel="This can take 10–15 seconds — please hold on."
       />,

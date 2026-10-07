@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEngine } from "@/lib/store";
@@ -53,6 +53,19 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   const activePath = pendingHref || pathname || "";
   const isActive = (href: string) => activePath.startsWith(href);
   const showLoader = isLoading || contentLoading;
+
+  // Arrived from a reminder email's "Mark done" / "Confirm all" link
+  // (?completeAction(s)=… on /actions): keep showing the sign-in step's
+  // animation (as on /auth/callback) until the page is ready and its own
+  // "Marking your action as done" overlay takes over. Cleared once this loader hides,
+  // since the actions page strips the query string itself.
+  const [fromEmailLink, setFromEmailLink] = useState(false);
+  useLayoutEffect(() => {
+    if (/[?&]completeActions?=/.test(window.location.search)) setFromEmailLink(true);
+  }, [pathname]);
+  useEffect(() => {
+    if (!showLoader) setFromEmailLink(false);
+  }, [showLoader]);
   const viewingEarlierBatch = Boolean(cohort && cohorts.find((option) => option.id === cohort.id)?.isCurrent === false);
   async function switchCohort(cohortId: string) {
     if (!cohortId || cohortId === cohort?.id || switchingCohort) return;
@@ -203,7 +216,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       </aside>
 
       <section className="participant-main">
-        {showLoader && <PageLoader variant="main" theme={loaderTheme} />}
+        {showLoader && <PageLoader variant="main" theme={fromEmailLink ? "email-signin" : loaderTheme} />}
         <header className="participant-topbar" style={showLoader ? { visibility: "hidden" } : undefined} aria-hidden={showLoader}>
           <div className="participant-topbar-row">
             <div className="participant-topbar-side">

@@ -6,8 +6,8 @@
  * (this file) and referenced by a fixed key instead.
  */
 
-import { nextMilestoneFor, milestonePoints } from "./commitment-wallet-milestones";
 import {
+  NUDGE_APP_URL,
   NUDGE_DEFAULT_CONTENT,
   renderNudgeBodyParagraphs,
   renderNudgeSubject,
@@ -191,147 +191,265 @@ function renderWeeklyChallengesHtml(data: EmailTemplateData): string {
     ${footerHtml()}`);
 }
 
-// ─── Login credentials ──────────────────────────────────────────────────────
+// ─── Nudgie design (shared) ─────────────────────────────────────────────────
+//
+// Shared layout for the participant journey emails: welcome, plan activated,
+// action reminder, Friday recap and the two engagement nudges. Logo, yellow
+// rule, a hero with greeting/headline and an animated Nudgie, then the
+// email-specific body and a "Powered by" footer.
 
-type WelcomeStep = { n: number; badgeColor: string; cardColor: string; title: string; copy: string };
+// Animated Nudgie GIFs, hosted in the public "email-assets" Supabase bucket
+// (see supabase/migrations/080_email_assets_bucket.sql).
+const EMAIL_ASSETS_URL = "https://tyhjrwaoogaqicgxqqwd.supabase.co/storage/v1/object/public/email-assets";
 
-const WELCOME_STEPS: WelcomeStep[] = [
-  { n: 1, badgeColor: "#FFCE00", cardColor: "#FFF9E8", title: "Create your plan", copy: "Choose what you want to work on." },
-  { n: 2, badgeColor: "#F68A29", cardColor: "#FFF4EA", title: "Turn it into actions", copy: "Choose daily or weekly actions." },
-  { n: 3, badgeColor: "#3696FC", cardColor: "#EAF5FF", title: "Get reminders", copy: "Get nudged on the schedule you choose." },
-  { n: 4, badgeColor: "#23CE68", cardColor: "#E9FFF2", title: "Build team progress", copy: "Completed actions add to your team total." },
-];
+const NUDGIE_GIF = {
+  welcome: `${EMAIL_ASSETS_URL}/nudgie-welcome.gif`,
+  planActivated: `${EMAIL_ASSETS_URL}/nudgie-plan-activated.gif`,
+  actionReminder: `${EMAIL_ASSETS_URL}/nudgie-action-reminder.gif`,
+  weeklyRecap: `${EMAIL_ASSETS_URL}/nudgie-weekly-recap.gif`,
+  planIncomplete: `${EMAIL_ASSETS_URL}/nudgie-plan-incomplete.gif`,
+  actionsUnconfirmed: `${EMAIL_ASSETS_URL}/nudgie-actions-unconfirmed.gif`,
+} as const;
 
-function welcomeStepCellHtml(step: WelcomeStep, padStyle: string): string {
-  return `
-    <td class="step-cell" width="50%" valign="top" style="width:50%;${padStyle}">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${step.cardColor};border-radius:11px;">
-        <tr><td style="padding:12px 13px;">
-          <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-            <td valign="top" style="width:26px;"><div style="width:24px;height:24px;border-radius:12px;background:${step.badgeColor};color:#221D23;text-align:center;font-size:11px;line-height:24px;font-weight:800;">${step.n}</div></td>
-            <td style="padding-left:8px;"><div style="font-size:12px;line-height:15px;font-weight:800;color:#221D23;">${esc(step.title)}</div><div style="margin-top:3px;font-size:10px;line-height:14px;color:#6F6871;">${esc(step.copy)}</div></td>
+const NUDGIE_FALLBACK_LOGO_URL = `${NUDGE_APP_URL}/NudgeableBlack.png`;
+const NUDGIE_SUPPORT_EMAIL = "team@nudgeable.ai";
+
+/** Alternating accent (border, top/left stripe) for stacked action cards. */
+const NUDGIE_CARD_ACCENTS = [
+  { border: "#f0dc8f", stripe: "#ffcf00" },
+  { border: "#bfe6cd", stripe: "#92d9ac" },
+] as const;
+
+const NUDGIE_TEXT_STYLE = "margin:0 0 18px;font-size:16px;line-height:25px;color:#44444f;";
+const NUDGIE_MUTED_STYLE = "margin:0 0 18px;font-size:16px;line-height:25px;color:#64646e;";
+const NUDGIE_HELP_STYLE = "margin:8px 0 20px;font-size:14px;line-height:23px;color:#64646e;";
+const NUDGIE_LINK_STYLE = "color:#535064;text-decoration:underline;";
+const NUDGIE_BUTTON_STYLE =
+  "display:inline-block;padding:0 26px;min-width:160px;line-height:48px;font-size:16px;font-weight:700;color:#ffffff;" +
+  "text-align:center;text-decoration:none;background-color:#087f46;border:1px solid #087f46;border-radius:8px;mso-line-height-rule:exactly;";
+
+function nudgieButtonHtml(url: string, label: string, options: { ariaLabel?: string; minWidth?: number; margin?: string } = {}): string {
+  const style = NUDGIE_BUTTON_STYLE.replace("min-width:160px", `min-width:${options.minWidth ?? 160}px`);
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="button-table" style="margin:${options.margin ?? "0 0 20px"};"><tr><td bgcolor="#087f46" align="center" style="background-color:#087f46;border-radius:8px;">
+            <a class="button" href="${esc(url)}" target="_blank"${options.ariaLabel ? ` aria-label="${esc(options.ariaLabel)}"` : ""} style="${style}">${label}</a>
+          </td></tr></table>`;
+}
+
+function nudgieHeadingHtml(text: string): string {
+  return `<p style="margin:8px 0 14px;font-size:16px;line-height:24px;font-weight:700;color:#292932;">${esc(text)}</p>`;
+}
+
+function nudgieHelpHtml(prompt: string, linkText: string, after = "."): string {
+  return `<p style="${NUDGIE_HELP_STYLE}">${esc(prompt)} <a href="mailto:${NUDGIE_SUPPORT_EMAIL}" style="${NUDGIE_LINK_STYLE}">${esc(linkText)}</a>${esc(after)}</p>`;
+}
+
+function nudgieCredentialsHtml(loginEmail: string, password: string): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#fafafa" style="width:100%;background-color:#fafafa;border:1px solid #e7e7e9;border-radius:12px;margin:0 0 20px;">
+            <tr><td style="padding:18px 20px 10px;"><p style="margin:0 0 4px;font-size:12px;line-height:18px;color:#6b6b75;">Login ID</p><p style="margin:0;font-size:16px;line-height:24px;color:#292932;word-break:break-word;">${esc(loginEmail)}</p></td></tr>
+            <tr><td style="padding:0 20px 18px;"><p style="margin:0 0 4px;font-size:12px;line-height:18px;color:#6b6b75;">Password</p><p style="margin:0;font-size:16px;line-height:24px;color:#292932;word-break:break-word;">${esc(password)}</p></td></tr>
+          </table>`;
+}
+
+/** Action card with an optional illustration and a per-action "Mark done" button. */
+function nudgieActionCardHtml(action: { title?: string; imageUrl?: string }, index: number, markDoneUrl: string): string {
+  const accent = NUDGIE_CARD_ACCENTS[index % NUDGIE_CARD_ACCENTS.length];
+  const title = action.title ?? "";
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="action-card" bgcolor="#ffffff" style="width:100%;background-color:#ffffff;border:1px solid ${accent.border};border-top:4px solid ${accent.stripe};border-radius:14px;margin:0 0 14px;">
+            <tr><td class="action-pad" style="padding:20px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;"><tr>
+                ${action.imageUrl
+                  ? `<td class="image-cell" width="116" valign="top" style="width:116px;padding-right:20px;"><img class="action-image" src="${esc(action.imageUrl)}" alt="" width="96" height="96" style="display:block;width:96px;height:96px;background-color:#ffffff;border:0;border-radius:12px;"></td>`
+                  : ""}
+                <td class="copy-cell" valign="top">
+                  <p class="action-copy" style="margin:0 0 18px;font-size:18px;line-height:27px;font-weight:600;color:#24242c;">${esc(title)}</p>
+                  ${nudgieButtonHtml(markDoneUrl, "&#10003;&nbsp; Mark done", { ariaLabel: `Mark done: ${title}`, minWidth: 126, margin: "0" })}
+                </td>
+              </tr></table>
+            </td></tr>
+          </table>`;
+}
+
+/** Commitment score + buddy, side by side (stacked on mobile). */
+function nudgieScoresRowHtml(data: EmailTemplateData): string {
+  const hasFinalisedPlan = data.has_finalised_plan === true;
+  const commitmentScore = typeof data.commitment_score === "number" ? data.commitment_score : null;
+  const buddyName = str(data, "buddy_name").trim();
+  const buddyScore = typeof data.buddy_score === "number" ? data.buddy_score : null;
+  const ownScore = hasFinalisedPlan && commitmentScore !== null ? `${Math.round(commitmentScore)}%` : "&mdash;";
+  return `<tr><td class="content-pad" style="padding:10px 32px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-top:1px solid #e7e7e9;"><tr><td style="padding:20px 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;"><tr>
+              <td class="stat-cell own-cell" valign="top" width="45%" style="width:45%;padding:0 20px 0 0;">
+                <p style="margin:0 0 6px;font-size:13px;line-height:19px;color:#64646e;">Your commitment score</p>
+                <p style="margin:0;font-size:28px;line-height:34px;font-weight:700;color:#23232c;">${ownScore}</p>
+              </td>
+              <td class="stat-cell buddy-cell" valign="top" width="55%" style="width:55%;padding:0 0 0 24px;border-left:1px solid #e7e7e9;">
+                <p style="margin:0 0 6px;font-size:13px;line-height:19px;color:#64646e;">Commitment buddy</p>
+                ${buddyName
+                  ? `<p style="margin:0 0 4px;font-size:17px;line-height:24px;font-weight:600;color:#23232c;">${esc(buddyName)}</p><p style="margin:0;font-size:14px;line-height:22px;color:#64646e;">Commitment score: <strong style="color:#23232c;">${buddyScore !== null ? `${Math.round(buddyScore)}%` : "&mdash;"}</strong></p>`
+                  : `<p style="margin:0;font-size:17px;line-height:24px;font-weight:600;color:#23232c;">Not assigned</p>`}
+              </td>
+            </tr></table>
+          </td></tr></table>
+        </td></tr>`;
+}
+
+function nudgiePendingBannerHtml(count: number, url: string): string {
+  if (count <= 0) return "";
+  return `<tr><td class="content-pad" style="padding:0 32px 18px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#fff9e5" style="width:100%;background-color:#fff9e5;border:1px solid #efe2af;border-radius:8px;">
+            <tr><td class="pending-pad" style="padding:10px 14px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;"><tr>
+                <td class="pending-copy" valign="middle"><p style="margin:0;font-size:14px;line-height:21px;font-weight:600;color:#555044;">${count} action${count === 1 ? " is" : "s are"} waiting for your update.</p></td>
+                <td class="pending-link-cell" width="160" valign="middle" align="right" style="width:160px;padding-left:12px;text-align:right;">
+                  <a href="${esc(url)}" target="_blank" style="display:inline-block;font-size:13px;line-height:22px;font-weight:600;color:#665514;text-decoration:underline;padding:2px 0;">Review pending actions&nbsp;&#8594;</a>
+                </td>
+              </tr></table>
+            </td></tr>
+          </table>
+        </td></tr>`;
+}
+
+function nudgieEmailHtml(params: {
+  data: EmailTemplateData;
+  title: string;
+  preheader: string;
+  greetingName: string;
+  headline: string;
+  intro: string;
+  mascotCaption: string;
+  mascotUrl: string;
+  /** Trusted HTML for the main content cell. */
+  bodyHtml: string;
+  /** Trusted HTML rows (`<tr>…</tr>`) inserted between the body and the footer. */
+  extraRowsHtml?: string;
+}): string {
+  const { data } = params;
+  const companyName = str(data, "company_name");
+  const companyLogo = str(data, "company_logo");
+
+  // Company logo when the org has one, else the company name as text, else
+  // the Nudgeable logo so the header is never empty.
+  const logoHtml = companyLogo
+    ? `<img src="${esc(companyLogo)}" alt="${esc(companyName || "Company")}" width="130" style="display:block;width:130px;max-width:100%;height:auto;margin:0 auto;background-color:#ffffff;">`
+    : companyName
+      ? `<p style="margin:0;font-size:22px;line-height:28px;font-weight:700;color:#17171e;">${esc(companyName)}</p>`
+      : `<img src="${NUDGIE_FALLBACK_LOGO_URL}" alt="Nudgeable" width="130" style="display:block;width:130px;max-width:100%;height:auto;margin:0 auto;background-color:#ffffff;">`;
+
+  return `<!doctype html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="format-detection" content="telephone=no,date=no,address=no,email=no">
+  <title>${esc(params.title)}</title>
+  <!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
+  <style>
+    body { margin:0; padding:0; width:100%; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+    table { border-spacing:0; mso-table-lspace:0pt; mso-table-rspace:0pt; }
+    img { border:0; outline:none; text-decoration:none; display:block; }
+    a { text-decoration:none; }
+    .action-copy { overflow-wrap:break-word; word-wrap:break-word; }
+    @media screen and (max-width:520px) {
+      .outer-pad { padding:12px 8px !important; }
+      .email-shell { width:100% !important; border-radius:16px !important; }
+      .content-pad { padding-left:20px !important; padding-right:20px !important; }
+      .headline { font-size:28px !important; line-height:34px !important; }
+      .intro { padding-top:24px !important; padding-bottom:22px !important; }
+      .hero-copy { padding-right:12px !important; }
+      .hero-mascot { width:82px !important; }
+      .nudgie-image { width:82px !important; height:82px !important; }
+      .nudgie-caption { font-size:12px !important; line-height:17px !important; }
+      .pending-pad { padding:10px 14px !important; }
+      .pending-copy, .pending-link-cell { display:block !important; width:auto !important; }
+      .pending-link-cell { padding:4px 0 0 !important; text-align:left !important; }
+      .action-pad { padding:18px !important; }
+      .image-cell { display:block !important; width:auto !important; padding:0 0 8px !important; }
+      .action-image { width:68px !important; height:68px !important; }
+      .copy-cell { display:block !important; width:auto !important; }
+      .action-copy { font-size:17px !important; line-height:25px !important; }
+      .button-table { width:100% !important; }
+      .button { display:block !important; width:100% !important; box-sizing:border-box !important; text-align:center !important; }
+      .stat-cell { display:block !important; width:auto !important; }
+      .buddy-cell { border-left:0 !important; border-top:1px solid #e7e7e9 !important; padding:16px 0 0 !important; }
+      .own-cell { padding:0 0 16px !important; }
+      .footer-pad { padding-top:18px !important; padding-bottom:24px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f5f3ed;color:#202027;font-family:Inter,Arial,Helvetica,sans-serif;">
+  <div style="display:none;font-size:1px;color:#f5f3ed;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">${esc(params.preheader)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f5f3ed" style="width:100%;background-color:#f5f3ed;">
+    <tr><td class="outer-pad" align="center" style="padding:28px 12px;">
+      <!--[if mso]><table role="presentation" width="640" align="center"><tr><td><![endif]-->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="email-shell" bgcolor="#ffffff" style="width:100%;max-width:640px;background-color:#ffffff;border-radius:20px;">
+        <tr><td align="center" class="content-pad" style="padding:28px 32px 22px;">
+          ${logoHtml}
+        </td></tr>
+        <tr><td class="content-pad" style="padding:0 32px;"><table role="presentation" width="100%"><tr><td height="4" bgcolor="#ffcf00" style="height:4px;line-height:4px;font-size:1px;background-color:#ffcf00;">&nbsp;</td></tr></table></td></tr>
+        <tr><td class="content-pad intro" style="padding:28px 32px 26px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;"><tr>
+            <td class="hero-copy" valign="middle" style="padding-right:20px;">
+              <p style="margin:0 0 10px;font-size:17px;line-height:25px;">Hi ${esc(params.greetingName)},</p>
+              <h1 class="headline" style="margin:0 0 12px;font-size:34px;line-height:41px;font-weight:700;letter-spacing:-0.7px;color:#17171e;">${esc(params.headline)}</h1>
+              <p style="margin:0;font-size:17px;line-height:26px;color:#575762;">${esc(params.intro)}</p>
+            </td>
+            <td class="hero-mascot" width="120" valign="middle" align="center" style="width:120px;text-align:center;">
+              <p class="nudgie-caption" style="margin:0 0 4px;font-size:13px;line-height:19px;color:#575762;">${esc(params.mascotCaption)}</p>
+              <img class="nudgie-image" src="${params.mascotUrl}" alt="Nudgie Coach" width="120" height="120" style="display:block;width:120px;height:120px;margin:0 auto;background-color:#ffffff;">
+              <p class="nudgie-caption" style="margin:4px 0 0;font-size:13px;line-height:19px;font-weight:700;color:#17171e;">Nudgie Coach</p>
+            </td>
           </tr></table>
         </td></tr>
+        <tr><td class="content-pad" style="padding:0 32px;">
+          ${params.bodyHtml}
+        </td></tr>
+        ${params.extraRowsHtml ?? ""}
+        <tr><td align="center" class="content-pad footer-pad" style="padding:20px 32px 28px;border-top:1px solid #eeeef0;">
+          <p style="margin:0;font-size:11px;line-height:18px;color:#898992;">Powered by Nudgeable.ai</p>
+        </td></tr>
       </table>
-    </td>`;
+      <!--[if mso]></td></tr></table><![endif]-->
+    </td></tr>
+  </table>
+</body>
+</html>`;
 }
+
+// ─── Login credentials (welcome) ────────────────────────────────────────────
+
+const WELCOME_STEPS = [
+  "Create a plan for what you want to work on.",
+  "Review and accept actions for your work.",
+  "Practise them when the opportunity comes up.",
+  "Mark completed actions done.",
+];
 
 function renderCredentialsHtml(data: EmailTemplateData): string {
   const firstName = str(data, "first_name", "there");
-  const loginEmail = str(data, "login_email");
-  const password = str(data, "temporary_password");
+  const companyName = str(data, "company_name");
   const loginUrl = str(data, "login_url", "#");
 
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Your practice starts here</title>
-    <style>
-      body { margin: 0; padding: 0; background: #F6F2E6; }
-      table { border-spacing: 0; }
-      td { padding: 0; }
-      img { border: 0; display: block; }
-      a { color: inherit; }
+  const stepsHtml = WELCOME_STEPS.map(
+    (copy, i) => `<tr><td width="28" valign="top" style="width:28px;padding:7px 12px 7px 0;font-size:14px;line-height:23px;font-weight:700;color:#8a6d00;">${i + 1}</td><td style="padding:7px 0;font-size:15px;line-height:23px;color:#555560;">${esc(copy)}</td></tr>`,
+  ).join("");
 
-      @media only screen and (max-width: 620px) {
-        .shell { width: 100% !important; }
-        .pad { padding-left: 22px !important; padding-right: 22px !important; }
-        .hero-title { font-size: 30px !important; line-height: 32px !important; }
-        .step-cell { display: block !important; width: 100% !important; padding-right: 0 !important; }
-        .step-cell + .step-cell { padding-top: 10px !important; }
-        .cta { width: 100% !important; }
-      }
-    </style>
-  </head>
-  <body>
-    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">Your practice starts here. Sign in to continue your action journey.</div>
-
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#F6F2E6;">
-      <tr>
-        <td align="center" style="padding:0 8px 26px;">
-          <table role="presentation" class="shell" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#FFFFFF;border-top:2px solid #FFCE00;border-left:1px solid #E9DFC3;border-right:1px solid #E9DFC3;border-bottom:1px solid #E9DFC3;">
-
-            <tr>
-              <td class="pad" style="padding:36px 38px 30px;background:#221D23;color:#FFFFFF;font-family:Inter,Arial,sans-serif;">
-                ${heroTopRowHtml(`<div style="display:inline-block;padding:7px 11px;border:1px solid #7E6810;border-radius:20px;color:#FFCE00;font-size:10px;line-height:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;">Welcome</div>`, data)}
-                <div class="hero-title" style="margin-top:17px;font-size:36px;line-height:37px;font-weight:800;letter-spacing:-1.4px;">Your practice<br /><span style="color:#FFCE00;">starts here.</span></div>
-                <div style="margin-top:17px;color:#E9E5E7;font-size:14px;line-height:21px;">Hey ${esc(firstName)}, your secure access is ready. Use the button below for instant sign in, or keep the credentials for regular login.</div>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:26px 38px 0;font-family:Inter,Arial,sans-serif;">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#FFFDF8;border:1px solid #E6DDC7;border-radius:14px;overflow:hidden;">
-                  <tr>
-                    <td style="padding:15px 18px;border-bottom:1px solid #E6DDC7;">
-                      <div style="font-size:9px;line-height:12px;font-weight:800;letter-spacing:1.2px;color:#8A818B;text-transform:uppercase;">Login ID</div>
-                      <div style="margin-top:5px;font-size:14px;line-height:19px;font-weight:700;color:#1769E0;word-break:break-all;">${esc(loginEmail)}</div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding:15px 18px;">
-                      <div style="font-size:9px;line-height:12px;font-weight:800;letter-spacing:1.2px;color:#8A818B;text-transform:uppercase;">Password</div>
-                      <div style="margin-top:5px;font-size:14px;line-height:19px;color:#221D23;word-break:break-all;">${esc(password)}</div>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" align="center" style="padding:22px 38px 24px;font-family:Inter,Arial,sans-serif;">
-                <table role="presentation" class="cta" cellpadding="0" cellspacing="0" border="0">
-                  <tr>
-                    <td align="center" style="background:#221D23;border-radius:11px;">
-                      <a href="${esc(loginUrl)}" target="_blank" style="display:block;padding:15px 34px;color:#FFFFFF;text-decoration:none;font-size:13px;line-height:17px;font-weight:800;">Login</a>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:0 38px;font-family:Inter,Arial,sans-serif;">
-                <div style="border-top:1px solid #E9E4DC;"></div>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:22px 38px 10px;font-family:Inter,Arial,sans-serif;">
-                <div style="font-size:18px;line-height:22px;font-weight:800;color:#221D23;">How it works</div>
-                <div style="margin-top:4px;color:#77717B;font-size:11px;line-height:16px;">Four simple steps from plan to practice.</div>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:0 38px 10px;font-family:Inter,Arial,sans-serif;">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                  <tr>
-                    ${welcomeStepCellHtml(WELCOME_STEPS[0], "padding:0 7px 10px 0;")}
-                    ${welcomeStepCellHtml(WELCOME_STEPS[1], "padding:0 0 10px 7px;")}
-                  </tr>
-                  <tr>
-                    ${welcomeStepCellHtml(WELCOME_STEPS[2], "padding:0 7px 0 0;")}
-                    ${welcomeStepCellHtml(WELCOME_STEPS[3], "padding:0 0 0 7px;")}
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:12px 38px 26px;font-family:Inter,Arial,sans-serif;text-align:center;">
-                <div style="padding-top:16px;border-top:1px solid #E9E4DC;color:#8A848B;font-size:10px;line-height:15px;">Powered by <a href="https://www.nudgeable.ai" style="color:#623CEA;text-decoration:none;font-weight:700;">Nudgeable.ai</a></div>
-              </td>
-            </tr>
-
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+  return nudgieEmailHtml({
+    data,
+    title: `Hi ${firstName}, your ${companyName ? `${companyName} ` : ""}access is ready`,
+    preheader: "Your login details are ready. Create your action plan when you sign in.",
+    greetingName: firstName,
+    headline: "Your access is ready.",
+    intro: "Log in to create your action plan and start practising at work.",
+    mascotCaption: "Let’s get started.",
+    mascotUrl: NUDGIE_GIF.welcome,
+    bodyHtml: `${nudgieCredentialsHtml(str(data, "login_email"), str(data, "temporary_password"))}
+          ${nudgieButtonHtml(loginUrl, "Log in")}
+          ${nudgieHeadingHtml("How it works")}
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 20px;">${stepsHtml}</table>
+          ${nudgieHelpHtml("Need help logging in?", "Email us")}`,
+  });
 }
 
 // ─── Plan activated summary ─────────────────────────────────────────────────
@@ -352,9 +470,9 @@ export function formatPlanActionDate(value: unknown): string {
 function renderPlanActivatedSummaryHtml(data: EmailTemplateData): string {
   const firstName = str(data, "first_name", "there");
   const frequency = str(data, "reminder_frequency", "daily").toLowerCase() === "weekly" ? "weekly" : "daily";
-  const buddyName = str(data, "buddy_name");
-  const buddyEmail = str(data, "buddy_email");
+  const buddyName = str(data, "buddy_name").trim();
   const planText = str(data, "plan_text");
+  const planUrl = str(data, "login_url", `${NUDGE_APP_URL}/actions`);
   const rawActions = Array.isArray(data.actions) ? (data.actions as PlanSummaryAction[]) : [];
   const allActions = rawActions.filter((a) => typeof a.title === "string" && a.title.trim());
   // The email only ever shows the top actions — the participant's chosen
@@ -363,143 +481,43 @@ function renderPlanActivatedSummaryHtml(data: EmailTemplateData): string {
   const ACTIONS_SHOWN_LIMIT = 6;
   const actions = allActions.slice(0, ACTIONS_SHOWN_LIMIT);
   const hiddenCount = allActions.length - actions.length;
-  const actionsHeading = hiddenCount > 0
-    ? `Your first ${actions.length} action${actions.length === 1 ? "" : "s"}`
-    : `Your action${actions.length === 1 ? "" : "s"}`;
-  const actionsNote = hiddenCount > 0
-    ? `These are your first ${actions.length} actions. All ${allActions.length} actions in your plan are attached as a PDF.`
+  const actionsHeading = hiddenCount > 0 ? "Your first actions" : `Your action${actions.length === 1 ? "" : "s"}`;
+  const pdfNote = hiddenCount > 0
+    ? `All ${allActions.length} actions in your plan are attached to this email as a PDF.`
     : allActions.length > 0
-      ? `All ${allActions.length} action${allActions.length === 1 ? "" : "s"} in your plan ${allActions.length === 1 ? "is" : "are"} also attached as a PDF.`
+      ? "Your full plan is attached to this email as a PDF."
       : "";
-
-  const planTextHtml = planText
-    ? `
-    <tr>
-      <td class="pad" style="padding:22px 34px 9px;font-family:Inter,Arial,sans-serif;">
-        <div style="font-size:17px;line-height:21px;font-weight:800;color:#221D23;">Your plan</div>
-      </td>
-    </tr>
-    <tr>
-      <td class="pad" style="padding:0 34px 9px;font-family:Inter,Arial,sans-serif;">
-        <div style="padding:14px 16px;background:#FFFDF8;border:1px solid #E6DDC7;border-radius:13px;color:#3D3740;font-size:13px;line-height:20px;white-space:pre-wrap;">${esc(planText)}</div>
-      </td>
-    </tr>`
-    : "";
 
   const actionsHtml = actions.length
     ? actions
-      .map(
-        (action, i) => `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#221D23;border:1px solid #221D23;border-radius:13px;margin:0 0 9px;">
-      <tr>
-        <td width="86" valign="middle" style="width:86px;padding:14px 0 14px 13px;">${action.imageUrl
-            ? `<img src="${esc(action.imageUrl)}" width="70" height="70" alt="" style="width:70px;height:70px;border-radius:14px;object-fit:cover;display:block;" />`
-            : `<div style="width:28px;height:28px;border-radius:9px;background:#FFCE00;color:#221D23;text-align:center;font-size:13px;line-height:28px;font-weight:900;">${i + 1}</div>`}</td>
-        <td valign="middle" style="padding:13px 14px 13px 5px;">
-          <div style="font-size:13px;line-height:18px;font-weight:650;color:#FFFFFF;">${esc(action.title)}</div>
-          ${formatPlanActionDate(action.date) ? `<div style="margin-top:3px;font-size:11px;line-height:15px;color:#B7AEC2;">${esc(formatPlanActionDate(action.date))}</div>` : ""}
-        </td>
-      </tr>
-    </table>`
-      )
-      .join("") + (actionsNote
-        ? `<div style="margin:6px 0 0;font-size:12px;line-height:18px;color:#4F484D;">${esc(actionsNote)}</div>`
-        : "")
-    : `<p style="margin:0;padding:18px;border-radius:13px;background:#FFFDF8;border:1px solid #E6DDC7;color:#5f5860;font-size:13px;line-height:1.5;">No actions were found on this plan.</p>`;
+      .map((action, i) => {
+        const accent = NUDGIE_CARD_ACCENTS[i % NUDGIE_CARD_ACCENTS.length];
+        const date = formatPlanActionDate(action.date);
+        return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#ffffff;border:1px solid #e7e7e9;border-left:4px solid ${accent.stripe};border-radius:10px;margin:0 0 12px;"><tr><td style="padding:16px 18px;">
+            <p style="margin:0${date ? " 0 7px" : ""};font-size:17px;line-height:25px;color:#292932;font-weight:600;">${esc(action.title)}</p>
+            ${date ? `<p style="margin:0;font-size:13px;line-height:20px;color:#72727c;">${esc(date)}</p>` : ""}
+          </td></tr></table>`;
+      })
+      .join("")
+    : `<p style="${NUDGIE_MUTED_STYLE}">No actions were found on this plan.</p>`;
 
-  const buddyHtml = buddyName
-    ? `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F1ECFF;border:1px solid #DDD2FF;border-radius:13px;margin:0 0 9px;">
-      <tr>
-        <td width="46" valign="top" style="width:46px;padding:14px 0 14px 13px;"><div style="width:28px;height:28px;border-radius:14px;background:#F68A29;color:#221D23;text-align:center;font-size:13px;line-height:28px;font-weight:900;">&#8596;</div></td>
-        <td valign="top" style="padding:13px 14px 13px 5px;">
-          <div style="font-size:9px;line-height:12px;font-weight:800;letter-spacing:1px;color:#6F6871;text-transform:uppercase;">Your commitment buddy</div>
-          <div style="margin-top:4px;font-size:13px;line-height:18px;font-weight:700;color:#221D23;">${esc(buddyName)}</div>
-          ${buddyEmail ? `<div style="margin-top:2px;font-size:12px;line-height:16px;color:#4F484D;">${esc(buddyEmail)}</div>` : ""}
-        </td>
-      </tr>
-    </table>`
-    : `<p style="margin:0;padding:14px 16px;border-radius:13px;background:#F1ECFF;border:1px solid #DDD2FF;color:#5f5860;font-size:12px;line-height:1.5;">No commitment buddy paired yet.</p>`;
-
-  const preheader = "Your plan is finalised and active.";
-
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Your plan is finalised</title>
-    <style>
-      body { margin: 0; padding: 0; background: #F6F2E6; }
-      table { border-spacing: 0; }
-      td { padding: 0; }
-      a { color: inherit; }
-
-      @media only screen and (max-width: 620px) {
-        .shell { width: 100% !important; }
-        .pad { padding-left: 20px !important; padding-right: 20px !important; }
-        .headline { font-size: 29px !important; line-height: 31px !important; }
-      }
-    </style>
-  </head>
-  <body>
-    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(preheader)}</div>
-
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#F6F2E6;">
-      <tr>
-        <td align="center" style="padding:18px 8px 30px;">
-          <table role="presentation" class="shell" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#FFFFFF;border-top:3px solid #FFCE00;border-left:1px solid #E8DFC6;border-right:1px solid #E8DFC6;border-bottom:1px solid #E8DFC6;">
-
-            <tr>
-              <td class="pad" style="padding:30px 34px 28px;background:#FFCE00;color:#221D23;font-family:Inter,Arial,sans-serif;">
-                ${heroTopRowHtml(`<div style="display:inline-block;padding:6px 10px;border:1.5px solid #221D23;border-radius:18px;color:#221D23;font-size:9px;line-height:10px;font-weight:800;letter-spacing:1.15px;text-transform:uppercase;">Plan finalised</div>`, data)}
-                <div class="headline" style="margin-top:16px;font-size:34px;line-height:36px;font-weight:800;letter-spacing:-1.25px;color:#221D23;">Your plan is<br /><span style="color:#221D23;">locked in.</span></div>
-                <div style="margin-top:12px;color:rgba(34,29,35,.72);font-size:13px;line-height:19px;">Hey ${esc(firstName)}, this is your plan and actions you have finalised.</div>
-              </td>
-            </tr>
-            ${planTextHtml}
-            <tr>
-              <td class="pad" style="padding:22px 34px 9px;font-family:Inter,Arial,sans-serif;">
-                <div style="font-size:17px;line-height:21px;font-weight:800;color:#221D23;">${esc(actionsHeading)}</div>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:0 34px 9px;font-family:Inter,Arial,sans-serif;">
-                ${actionsHtml}
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:8px 34px 9px;font-family:Inter,Arial,sans-serif;">
-                <div style="font-size:17px;line-height:21px;font-weight:800;color:#221D23;">Your buddy</div>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:0 34px 2px;font-family:Inter,Arial,sans-serif;">
-                ${buddyHtml}
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:16px 34px 20px;font-family:Inter,Arial,sans-serif;">
-                <div style="font-size:12px;line-height:18px;color:#4F484D;">You will get a <strong style="color:#221D23;font-weight:800;">${frequency}</strong> reminder on email for your actions, based on your plan. Just one click needed on the app to verify it.</div>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:0 34px 22px;font-family:Inter,Arial,sans-serif;text-align:center;">
-                <div style="padding-top:15px;border-top:1px solid #ECE7E0;color:#8B8489;font-size:10px;line-height:15px;">Powered by <a href="https://www.nudgeable.ai" style="color:#623CEA;text-decoration:none;font-weight:700;">Nudgeable.ai</a></div>
-              </td>
-            </tr>
-
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+  return nudgieEmailHtml({
+    data,
+    title: `Hi ${firstName}, your action plan is active`,
+    preheader: "Your plan is ready. See your first actions and review the full plan.",
+    greetingName: firstName,
+    headline: "Your action plan is active.",
+    intro: "You’ve accepted your actions. Start with the first one when the opportunity comes up at work.",
+    mascotCaption: "You’re ready to begin.",
+    mascotUrl: NUDGIE_GIF.planActivated,
+    bodyHtml: `${planText ? `${nudgieHeadingHtml("Your focus")}<p style="${NUDGIE_MUTED_STYLE}white-space:pre-wrap;">${esc(planText)}</p>` : ""}
+          ${nudgieHeadingHtml(actionsHeading)}
+          ${actionsHtml}
+          ${nudgieButtonHtml(planUrl, "View my action plan", { margin: "8px 0 20px" })}
+          ${pdfNote ? `<p style="margin:0 0 20px;font-size:14px;line-height:23px;color:#64646e;">${esc(pdfNote)}</p>` : ""}
+          <p style="${NUDGIE_MUTED_STYLE}">Commitment buddy: ${buddyName ? `<strong style="color:#292932;">${esc(buddyName)}</strong>` : "Not assigned"}</p>
+          <p style="${NUDGIE_MUTED_STYLE}">You’ll receive ${frequency} action reminders. Mark each action done after you’ve completed it.</p>`,
+  });
 }
 
 // ─── Calendar invite ────────────────────────────────────────────────────────
@@ -547,367 +565,69 @@ type ReminderAction = {
   imageUrl?: string;
 };
 
-function reminderMetricCellHtml(params: {
-  bg: string;
-  border: string;
-  iconBg: string;
-  iconColor: string;
-  icon: string;
-  value: string;
-  label: string;
-  padStyle: string;
-}): string {
-  return `
-    <td class="metric-cell" width="33.33%" valign="top" style="width:33.33%;${params.padStyle}">
-      <table role="presentation" class="metric-inner" width="100%" cellpadding="0" cellspacing="0" border="0" style="min-height:126px;background:${params.bg};border:1px solid ${params.border};border-radius:13px;">
-        <tr><td style="padding:13px 12px 12px;">
-          <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-            <td style="width:37px;"><div style="width:34px;height:34px;border-radius:17px;background:${params.iconBg};color:${params.iconColor};text-align:center;font-size:16px;line-height:34px;font-weight:900;">${params.icon}</div></td>
-            <td style="padding-left:7px;"><div style="font-size:23px;line-height:24px;font-weight:900;color:#221D23;letter-spacing:-.7px;">${params.value}</div></td>
-          </tr></table>
-          <div style="margin-top:10px;font-size:10px;line-height:13px;font-weight:800;color:#221D23;text-transform:uppercase;letter-spacing:.55px;">${params.label}</div>
-        </td></tr>
-      </table>
-    </td>`;
+function reminderActionsFrom(data: EmailTemplateData): ReminderAction[] {
+  return Array.isArray(data.actions) ? (data.actions as ReminderAction[]) : [];
+}
+
+/** Action cards; each "Mark done" uses the action's own completion link,
+ * falling back to the app login when the sender didn't provide one. */
+function reminderActionCardsHtml(actions: ReminderAction[], loginUrl: string): string {
+  return actions.map((action, i) => nudgieActionCardHtml(action, i, action.complete_url || loginUrl)).join("");
 }
 
 function renderDailyReminderHtml(data: EmailTemplateData): string {
   const firstName = str(data, "first_name", "there");
   const loginUrl = str(data, "login_url", "#");
-  const actions = Array.isArray(data.actions) ? (data.actions as ReminderAction[]) : [];
-  const count = actions.length;
+  const actions = reminderActionsFrom(data);
 
-  const hasFinalisedPlan = data.has_finalised_plan === true;
-  const commitmentScore = typeof data.commitment_score === "number" ? data.commitment_score : null;
-  const buddyName = typeof data.buddy_name === "string" && data.buddy_name.trim() ? data.buddy_name.trim() : null;
-  const buddyScore = typeof data.buddy_score === "number" ? data.buddy_score : null;
-  const teamRank = typeof data.team_rank === "number" ? data.team_rank : null;
-  const teamSize = typeof data.team_size === "number" ? data.team_size : null;
-  const teamPoints = typeof data.team_points === "number" ? data.team_points : 0;
-  const teamMaximumPoints = typeof data.team_maximum_points === "number" ? data.team_maximum_points : 0;
-
-  const actionsHtml = actions.length
-    ? actions
-      .map(
-        (action) => `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#221D23;border:1px solid #221D23;border-radius:13px;margin:0 0 9px;">
-      <tr>
-        <td width="96" valign="middle" style="width:96px;padding:15px 0 15px 13px;">${action.imageUrl
-            ? `<img src="${esc(action.imageUrl)}" width="74" height="74" alt="" style="width:74px;height:74px;border-radius:14px;object-fit:cover;display:block;" />`
-            : `<div style="width:31px;height:31px;border-radius:10px;background:#FFCE00;color:#221D23;text-align:center;font-size:16px;line-height:31px;font-weight:900;">&#8594;</div>`}</td>
-        <td valign="middle" style="padding:14px 14px 14px 5px;">
-          <div style="font-size:13px;line-height:18px;font-weight:650;color:#FFFFFF;">${esc(action.title)}</div>
-        </td>
-        ${action.complete_url
-            ? `<td width="98" valign="middle" align="right" style="width:98px;padding:14px 13px 14px 0;">
-          <a href="${esc(action.complete_url)}" target="_blank" style="display:inline-block;padding:9px 13px;background:#23CE68;border-radius:8px;color:#FFFFFF;font-size:11px;line-height:13px;font-weight:800;text-decoration:none;white-space:nowrap;">Mark done</a>
-        </td>`
-            : ""}
-      </tr>
-    </table>`
-      )
-      .join("")
-    : `<p style="margin:0;padding:18px;border-radius:13px;background:#FFFDF8;border:1px solid #E6DDC7;color:#5f5860;font-size:13px;line-height:1.5;">Nothing pending right now — nice work staying on top of it.</p>`;
-
-  const nextMilestone = nextMilestoneFor(teamPoints, teamMaximumPoints);
-  const milestoneThreshold = nextMilestone ? milestonePoints(teamMaximumPoints, nextMilestone.percent) : 0;
-  const milestoneProgress = milestoneThreshold > 0
-    ? Math.min(100, Math.max(0, Math.round((teamPoints / milestoneThreshold) * 100)))
-    : 0;
-
-  const rewardHtml = teamMaximumPoints === 0
-    ? `<div style="color:#8A818B;font-size:12px;line-height:1.5;">Waiting for finalised plans before a team reward can be tracked.</div>`
-    : !nextMilestone
-      ? `<div style="font-size:17px;line-height:21px;font-weight:800;color:#221D23;">Every current reward unlocked!</div><div style="margin-top:7px;font-size:9px;line-height:12px;color:#8A818B;">Your team reached every milestone so far.</div>`
-      : `<div style="font-size:9px;line-height:12px;font-weight:800;color:#B8860B;letter-spacing:1px;text-transform:uppercase;">Next team reward</div>
-         <div style="margin-top:4px;font-size:17px;line-height:21px;font-weight:800;color:#221D23;">${esc(nextMilestone.headline)}</div>
-         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">
-           <tr><td style="height:7px;background:#EFE7D2;border-radius:6px;overflow:hidden;"><div style="width:${milestoneProgress}%;height:7px;background:#23CE68;border-radius:6px;"></div></td></tr>
-         </table>
-         <div style="margin-top:7px;font-size:9px;line-height:12px;color:#8A818B;">Every completed action moves your team closer.</div>`;
-
-  const preheader = "Your next actions are ready.";
-
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Your action reminder</title>
-    <style>
-      body { margin: 0; padding: 0; background: #F6F2E6; }
-      table { border-spacing: 0; }
-      td { padding: 0; }
-      a { color: inherit; }
-
-      @media only screen and (max-width: 620px) {
-        .shell { width: 100% !important; }
-        .pad { padding-left: 20px !important; padding-right: 20px !important; }
-        .headline { font-size: 29px !important; line-height: 31px !important; }
-        .metric-cell { display: block !important; width: 100% !important; padding: 0 0 8px !important; }
-        .metric-inner { min-height: 0 !important; }
-        .reward-icon-cell { width: 54px !important; }
-        .cta { width: 100% !important; }
-      }
-    </style>
-  </head>
-  <body>
-    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(preheader)}</div>
-
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#F6F2E6;">
-      <tr>
-        <td align="center" style="padding:18px 8px 30px;">
-          <table role="presentation" class="shell" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#FFFFFF;border-top:3px solid #FFCE00;border-left:1px solid #E8DFC6;border-right:1px solid #E8DFC6;border-bottom:1px solid #E8DFC6;">
-
-            <tr>
-              <td class="pad" style="padding:30px 34px 28px;background:#FFCE00;color:#221D23;font-family:Inter,Arial,sans-serif;">
-                ${heroTopRowHtml(`<div style="display:inline-block;padding:6px 10px;border:1.5px solid #221D23;border-radius:18px;color:#221D23;font-size:9px;line-height:10px;font-weight:800;letter-spacing:1.15px;text-transform:uppercase;">Your action reminder</div>`, data)}
-                <div class="headline" style="margin-top:16px;font-size:34px;line-height:36px;font-weight:800;letter-spacing:-1.25px;color:#221D23;">Your next actions<br /><span style="color:#221D23;">are ready.</span></div>
-                <div style="margin-top:12px;color:rgba(34,29,35,.72);font-size:13px;line-height:19px;">Hey ${esc(firstName)}, your next actions are ready when you are.</div>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:22px 34px 9px;font-family:Inter,Arial,sans-serif;">
-                <div style="font-size:17px;line-height:21px;font-weight:800;color:#221D23;">Your actions</div>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:0 34px 9px;font-family:Inter,Arial,sans-serif;">
-                ${actionsHtml}
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:6px 34px 4px;font-family:Inter,Arial,sans-serif;">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                  <tr>
-                    ${reminderMetricCellHtml({
-    bg: "#FFFFFF", border: "#E6DDC7", iconBg: "#FFCE00", iconColor: "#221D23", icon: "&#10003;",
-    value: hasFinalisedPlan && commitmentScore !== null ? `${Math.round(commitmentScore)}%` : "&mdash;",
-    label: "Your Commitment Score",
-    padStyle: "padding-right:5px;",
-  })}
-                    ${reminderMetricCellHtml({
-    bg: "#FFFFFF", border: "#E6DDC7", iconBg: "#F68A29", iconColor: "#221D23", icon: "&#8596;",
-    value: buddyName && buddyScore !== null ? `${Math.round(buddyScore)}%` : "&mdash;",
-    label: buddyName ? `${esc(buddyName)} &middot; Your Buddy` : "No buddy yet",
-    padStyle: "padding-left:3px;padding-right:3px;",
-  })}
-                    ${reminderMetricCellHtml({
-    bg: "#FFFFFF", border: "#E6DDC7", iconBg: "#3696FC", iconColor: "#FFFFFF", icon: "&#9733;",
-    value: teamRank !== null && teamSize !== null
-      ? `${teamRank}<span style="font-size:12px;font-weight:700;color:#716A70;letter-spacing:0;"> / ${teamSize}</span>`
-      : "&mdash;",
-    label: "Team Contribution Rank",
-    padStyle: "padding-left:5px;",
-  })}
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:8px 34px 2px;font-family:Inter,Arial,sans-serif;">
-                <div style="font-size:12px;line-height:18px;color:#4F484D;"><strong style="color:#221D23;font-weight:800;">Done an action?</strong> Click "Mark done" next to it above and in one click update your Commitment Score and add points to your team.</div>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:14px 34px 22px;font-family:Inter,Arial,sans-serif;">
-                <p style="margin:0;font-size:15px;line-height:1.55;color:#4B474C;text-align:left;">
-                  Prefer to review them in the app?
-                  <a href="${esc(loginUrl)}" target="_blank" style="color:#2563EB;text-decoration:underline;">Log in to update each action individually.</a>
-                </p>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:0 34px 22px;font-family:Inter,Arial,sans-serif;">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border:1px solid #E6DDC7;border-radius:15px;">
-                  <tr>
-                    <td class="reward-icon-cell" width="82" valign="middle" style="width:82px;padding:16px 0 16px 16px;">
-                      <div style="width:58px;height:58px;border-radius:15px;background:#FFCE00;color:#221D23;text-align:center;font-size:27px;line-height:58px;">${nextMilestone ? nextMilestone.icon : teamMaximumPoints === 0 ? "⏳" : "🎉"}</div>
-                    </td>
-                    <td valign="middle" style="padding:16px 18px 16px 12px;color:#221D23;">
-                      ${rewardHtml}
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad" style="padding:0 34px 22px;font-family:Inter,Arial,sans-serif;text-align:center;">
-                <div style="padding-top:15px;border-top:1px solid #ECE7E0;color:#8B8489;font-size:10px;line-height:15px;">Powered by <a href="https://www.nudgeable.ai" style="color:#623CEA;text-decoration:none;font-weight:700;">Nudgeable.ai</a></div>
-              </td>
-            </tr>
-
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+  return nudgieEmailHtml({
+    data,
+    title: `Hi ${firstName}, ready to record your progress?`,
+    preheader: "Completed an action? Mark it done and record your progress.",
+    greetingName: firstName,
+    headline: "Ready to record your progress?",
+    intro: "Mark each action you’ve completed.",
+    mascotCaption: "One tap to record it.",
+    mascotUrl: NUDGIE_GIF.actionReminder,
+    bodyHtml: actions.length
+      ? reminderActionCardsHtml(actions, loginUrl)
+      : `<p style="${NUDGIE_MUTED_STYLE}">Nothing pending right now. Nice work staying on top of it.</p>`,
+    extraRowsHtml: nudgieScoresRowHtml(data) + nudgiePendingBannerHtml(actions.length, loginUrl),
+  });
 }
 
-// ─── Friday week recap (bulk "I completed all") ────────────────────────────
-
-/**
- * Recap hero badge: company logo when available, otherwise the company name
- * in the white italic lockup from the Friday recap design.
- */
-function recapCompanyBadgeHtml(data: EmailTemplateData): string {
-  const logo = str(data, "company_logo");
-  const companyName = str(data, "company_name");
-  if (logo) {
-    return `
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border-radius:12px;">
-      <tr>
-        <td valign="middle" align="center" height="54" style="height:54px;padding:0 14px;">
-          <img src="${esc(logo)}" alt="${esc(companyName || "Company")} logo" height="32" style="display:block;max-height:32px;width:auto;" />
-        </td>
-      </tr>
-    </table>`;
-  }
-  if (!companyName) return "";
-  return `
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border-radius:12px;">
-      <tr>
-        <td valign="middle" align="center" height="54" style="height:54px;padding:0 14px;color:#2563eb;font-size:13px;line-height:54px;font-style:italic;font-weight:800;letter-spacing:.7px;white-space:nowrap;">
-          ${esc(companyName)}
-        </td>
-      </tr>
-    </table>`;
-}
-
-function recapHeroTopRowHtml(data: EmailTemplateData): string {
-  const pill = `<div style="display:inline-block;padding:8px 14px;border:1.5px solid #221D23;border-radius:999px;color:#221D23;font-size:11px;line-height:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;white-space:nowrap;">Your Friday recap</div>`;
-  const badge = recapCompanyBadgeHtml(data);
-  if (!badge) return pill;
-  return `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-      <tr>
-        <td valign="top" align="left" style="padding-right:12px;">${pill}</td>
-        <td valign="top" align="right">${badge}</td>
-      </tr>
-    </table>`;
-}
+// ─── Friday week recap ──────────────────────────────────────────────────────
 
 function renderWeeklyRecapHtml(data: EmailTemplateData): string {
   const firstName = str(data, "first_name", "there");
   const loginUrl = str(data, "login_url", "#");
   const completeAllUrl = str(data, "complete_all_url");
-  const actions = Array.isArray(data.actions) ? (data.actions as ReminderAction[]) : [];
+  const actions = reminderActionsFrom(data);
   const count = actions.length;
 
-  const actionsHtml = actions.length
-    ? actions
-      .map(
-        (action) => `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#221D23;border:1px solid #221D23;border-radius:14px;margin:0 0 16px;">
-      <tr>
-        <td width="116" valign="middle" style="width:116px;padding:20px 0 20px 22px;">
-          ${action.imageUrl
-            ? `<img src="${esc(action.imageUrl)}" width="98" height="98" alt="" style="width:98px;height:98px;border-radius:16px;object-fit:cover;display:block;" />`
-            : `<div style="width:46px;height:46px;border-radius:14px;background:#FFCE00;color:#221D23;text-align:center;font-size:28px;line-height:46px;font-weight:400;">&#8594;</div>`}
-        </td>
-        <td valign="middle" style="padding:20px 22px 20px 18px;">
-          <div class="action-text" style="margin:0;font-size:17px;line-height:1.45;font-weight:700;color:#FFFFFF;">${esc(action.title)}</div>
-        </td>
-      </tr>
-    </table>`
-      )
-      .join("")
-    : `<p style="margin:0;padding:20px 22px;border-radius:14px;background:#FFFFFF;border:1px solid #E8DFCA;color:#4b474c;font-size:16px;line-height:1.5;">Nothing pending right now — nice work staying on top of it.</p>`;
+  const bodyHtml = count === 0
+    ? `<p style="${NUDGIE_MUTED_STYLE}">No open actions to confirm. Have a good weekend.</p>`
+    : `${reminderActionCardsHtml(actions, loginUrl)}
+          ${completeAllUrl
+            ? `<p style="${NUDGIE_MUTED_STYLE}">Completed every action shown above?</p>
+          ${nudgieButtonHtml(completeAllUrl, "Confirm all as completed")}
+          <p style="${NUDGIE_MUTED_STYLE}">Use this only if you’ve completed every action shown above. For individual actions, use “Mark done”.</p>`
+            : ""}`;
 
-  const headline =
-    count === 0
-      ? `You&apos;re all<br /><span style="color:#221D23;">caught up this week.</span>`
-      : `${count} action${count === 1 ? " is" : "s are"} still<br /><span style="color:#221D23;">waiting for your confirmation.</span>`;
-
-  const subcopy =
-    count === 0
-      ? "No open actions to confirm. Have a good weekend."
-      : "Completed all of them? Click below to confirm them together.";
-
-  const preheader =
-    count === 0
-      ? "You're all caught up this week."
-      : `${count} action${count === 1 ? " is" : "s are"} still waiting for your confirmation.`;
-
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Weekly Recap</title>
-    <style>
-      body { margin: 0; padding: 0; background: #F7F3E7; }
-      table { border-spacing: 0; }
-      td { padding: 0; }
-
-      @media only screen and (max-width: 620px) {
-        .outer { padding: 0 !important; }
-        .shell { width: 100% !important; border-radius: 0 !important; }
-        .pad { padding-left: 22px !important; padding-right: 22px !important; }
-        .hero { padding-top: 24px !important; padding-bottom: 28px !important; }
-        .headline { font-size: 34px !important; line-height: 1.08 !important; }
-        .content { padding-top: 30px !important; padding-bottom: 34px !important; }
-        .cta { width: 100% !important; }
-        .action-text { font-size: 16px !important; }
-      }
-    </style>
-  </head>
-  <body style="margin:0;padding:0;background:#F7F3E7;font-family:Arial,Helvetica,sans-serif;color:#221D23;">
-    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(preheader)}</div>
-
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#F7F3E7;">
-      <tr>
-        <td class="outer" align="center" style="padding:28px 14px;">
-          <table role="presentation" class="shell" width="620" cellpadding="0" cellspacing="0" border="0" style="width:620px;max-width:620px;background:#FFFFFF;border-radius:18px;overflow:hidden;">
-
-            <tr>
-              <td class="pad hero" style="padding:30px 34px 34px;background:#FFCE00;color:#221D23;font-family:Arial,Helvetica,sans-serif;">
-                <div style="margin-bottom:42px;">${recapHeroTopRowHtml(data)}</div>
-                <p style="margin:0 0 18px;font-size:22px;line-height:1.25;font-weight:700;color:#221D23;">Hey ${esc(firstName)},</p>
-                <h1 class="headline" style="margin:0;font-size:40px;line-height:1.08;letter-spacing:-1px;font-weight:800;color:#221D23;">${headline}</h1>
-                <p style="margin:22px 0 0;font-size:16px;line-height:1.55;color:rgba(34,29,35,.72);">${esc(subcopy)}</p>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="pad content" style="padding:38px 34px 42px;font-family:Arial,Helvetica,sans-serif;">
-                <h2 style="margin:0 0 18px;font-size:24px;line-height:1.2;font-weight:800;color:#221D23;">Your actions</h2>
-                ${actionsHtml}
-
-                ${completeAllUrl && count > 0
-      ? `<table role="presentation" class="cta" width="78%" cellpadding="0" cellspacing="0" border="0" align="center" style="width:78%;margin:8px auto 0;">
-                  <tr>
-                    <td align="center" style="background:#23CE68;border-radius:9px;">
-                      <a href="${esc(completeAllUrl)}" target="_blank" style="display:block;padding:19px 22px;color:#FFFFFF;text-decoration:none;text-align:center;font-size:16px;line-height:16px;font-weight:800;letter-spacing:.2px;text-transform:uppercase;">Confirm all as completed</a>
-                    </td>
-                  </tr>
-                </table>
-                <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:#ED4551;font-weight:700;text-align:center;"> Reminder: ${count} action${count === 1 ? "" : "s"} still ${count === 1 ? "needs" : "need"} to be validated.</p>`
-      : ""}
-
-                ${count > 0
-      ? `<p style="margin:34px 0 0;font-size:15px;line-height:1.55;color:#4B474C;text-align:left;">
-                  Completed only some of these?
-                  <a href="${esc(loginUrl)}" target="_blank" style="color:#2563EB;text-decoration:underline;">Log in to update each action individually.</a>
-                </p>`
-      : ""}
-              </td>
-            </tr>
-
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+  return nudgieEmailHtml({
+    data,
+    title: `Hi ${firstName}, what did you complete this week?`,
+    preheader: count === 0
+      ? "You’re all caught up this week."
+      : "Completed an action this week? Mark it done below.",
+    greetingName: firstName,
+    headline: count === 0 ? "You’re all caught up this week." : "What did you complete this week?",
+    intro: count === 0 ? "Nothing is waiting for your update." : "If you’ve completed an action, mark it done below.",
+    mascotCaption: "Time for a quick recap.",
+    mascotUrl: NUDGIE_GIF.weeklyRecap,
+    bodyHtml,
+    extraRowsHtml: nudgieScoresRowHtml(data) + nudgiePendingBannerHtml(count, loginUrl),
+  });
 }
 
 // ─── Cohort announcement ────────────────────────────────────────────────────
@@ -1104,27 +824,6 @@ function renderTeamLeaderboardHtml(data: EmailTemplateData): string {
 
 // ─── Engagement nudges (manual, superadmin-sent) ────────────────────────────
 
-/** Deliberately plain, personal-looking emails with no design — they should
- * read like a note from the trainer, not another campaign. Still HTML (not
- * text-only) so Resend's open/click tracking keeps working. `paragraphs` are
- * trusted template HTML; anything user-supplied must be escaped by the caller. */
-function plainEmailHtml(title: string, paragraphs: string[]): string {
-  const body = paragraphs
-    .map((html, index) => `<p style="margin:0${index === paragraphs.length - 1 ? "" : " 0 16px"};">${html}</p>`)
-    .join("\n    ");
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${esc(title)}</title>
-  </head>
-  <body style="margin:0;padding:16px;background:#FFFFFF;color:#222222;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;">
-    ${body}
-  </body>
-</html>`;
-}
-
 /** Admin-editable nudge (see lib/nudge-email-content.ts): `custom_subject` /
  * `custom_body` carry the superadmin's edited text, falling back to the
  * default wording when absent. */
@@ -1136,9 +835,52 @@ function nudgeContent(kind: NudgeKind, data: EmailTemplateData) {
   };
 }
 
+/** Fixed hero per nudge; the admin's editable text renders below it. */
+const NUDGE_HERO: Record<NudgeKind, {
+  title: (name: string) => string;
+  preheader: string;
+  headline: string;
+  intro: string;
+  mascotCaption: string;
+  mascotUrl: string;
+}> = {
+  no_plan: {
+    title: (name) => `Hi ${name}, complete your action plan`,
+    preheader: "Your batch has started its action journey. Complete your plan to practise alongside them.",
+    headline: "Set up your action plan.",
+    intro: "Your workshop is complete. Choose actions to practise at work.",
+    mascotCaption: "Let’s get your plan ready.",
+    mascotUrl: NUDGIE_GIF.planIncomplete,
+  },
+  opened_no_action: {
+    title: (name) => `Hi ${name}, your actions need an update`,
+    preheader: "If you’ve completed an action, mark it done in your plan.",
+    headline: "Your actions need an update.",
+    intro: "You accepted these actions during action planning and have been receiving nudges for them.",
+    mascotCaption: "What’s getting in the way?",
+    mascotUrl: NUDGIE_GIF.actionsUnconfirmed,
+  },
+};
+
 function renderNudgeEmail(kind: NudgeKind, data: EmailTemplateData): string {
-  const { subject, body } = nudgeContent(kind, data);
-  return plainEmailHtml(subject, renderNudgeBodyParagraphs(body, data, str(data, "login_url", "#")));
+  const { body } = nudgeContent(kind, data);
+  const hero = NUDGE_HERO[kind];
+  const name = str(data, "full_name", str(data, "first_name", "there"));
+  const paragraphs = renderNudgeBodyParagraphs(body, data, str(data, "login_url", "#"), {
+    buttonStyle: NUDGIE_BUTTON_STYLE,
+    linkStyle: NUDGIE_LINK_STYLE,
+  });
+  return nudgieEmailHtml({
+    data,
+    title: hero.title(name),
+    preheader: hero.preheader,
+    greetingName: name,
+    headline: hero.headline,
+    intro: hero.intro,
+    mascotCaption: hero.mascotCaption,
+    mascotUrl: hero.mascotUrl,
+    bodyHtml: paragraphs.map((html) => `<p style="${NUDGIE_TEXT_STYLE}">${html}</p>`).join("\n          "),
+  });
 }
 
 // ─── Registry ───────────────────────────────────────────────────────────────

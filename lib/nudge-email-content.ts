@@ -49,25 +49,23 @@ export type NudgeContent = { subject: string; body: string };
 export const NUDGE_DEFAULT_CONTENT: Record<NudgeKind, NudgeContent> = {
   opened_no_action: {
     subject: "Hi {{first_name}}, have you completed any of your actions from the {{company_name}} Action Plan?",
+    // The email's fixed hero already greets the participant and carries the
+    // headline (see NUDGE_HERO in lib/email-templates.ts), so the editable
+    // body picks up from there.
     body: [
-      "Hi {{full_name}},",
-      "You accepted these actions during action planning and have been receiving nudges for them. We noticed you haven’t marked any as **Done** yet.",
+      "We noticed you haven’t marked any as **Done** yet.",
       "If you’ve completed an action, please mark it **Done** in your plan.",
       "[[UPDATE MY ACTIONS]]",
       "Need any support with your actions? Just let us know at team@nudgeable.ai. We’re here to help.",
-      "From\nTeam Nudgeable",
     ].join("\n\n"),
   },
   no_plan: {
     subject: "Hi {{first_name}}, complete your action plan to stay on track with your batch",
     body: [
-      "Hi {{full_name}},",
-      "The workshop is over, but we noticed you haven’t completed your action plan yet.",
-      "Please log in with your credentials and complete it as soon as possible. Your batch has started its action journey, and delaying your plan may leave you too little time to finish alongside your colleagues.",
-      "**Platform link:** {{app_link}}\n**Login ID:** {{login_email}}\n**Password:** {{password}}",
-      "[[COMPLETE MY ACTION PLAN]]",
-      "Need help logging in or completing your plan? Just let us know at team@nudgeable.ai. We’re here to help.",
-      "From\nTeam Nudgeable",
+      "Your batch has started its action journey. Complete your plan so you have time to practise alongside your colleagues.",
+      "[[Complete my action plan]]",
+      "**Your login details**\nLogin ID: {{login_email}}\nPassword: {{password}}",
+      "Need help logging in or completing your plan? Email us at team@nudgeable.ai.",
     ].join("\n\n"),
   },
 };
@@ -155,8 +153,16 @@ const BUTTON_STYLE =
   "display:inline-block;padding:12px 26px;background:#FFCE00;border:2px solid #221D23;border-radius:10px;" +
   "color:#221D23;font-size:13px;line-height:16px;font-weight:bold;letter-spacing:.4px;text-decoration:none;";
 
-/** Body paragraphs as trusted HTML fragments. */
-export function renderNudgeBodyParagraphs(body: string, values: Values, loginUrl: string): string[] {
+/** Body paragraphs as trusted HTML fragments. `styles` lets the email design
+ * override the inline styles of [[buttons]] and links. */
+export function renderNudgeBodyParagraphs(
+  body: string,
+  values: Values,
+  loginUrl: string,
+  styles: { buttonStyle?: string; linkStyle?: string } = {},
+): string[] {
+  const buttonStyle = styles.buttonStyle ?? BUTTON_STYLE;
+  const linkStyle = styles.linkStyle ?? LINK_STYLE;
   // Variable values and buttons go in as placeholders and are swapped in
   // after the **bold** pass, so a value that happens to contain ** (e.g. a
   // password) is never reinterpreted as formatting.
@@ -171,7 +177,7 @@ export function renderNudgeBodyParagraphs(body: string, values: Values, loginUrl
           .split(EMAIL_IN_TEXT)
           .map((part, index) =>
             index % 2 === 1
-              ? placeholder(`<a href="mailto:${escapeHtml(part)}" style="${LINK_STYLE}">${escapeHtml(part)}</a>`)
+              ? placeholder(`<a href="mailto:${escapeHtml(part)}" style="${linkStyle}">${escapeHtml(part)}</a>`)
               : escapeHtml(part)
           )
           .join("");
@@ -180,11 +186,11 @@ export function renderNudgeBodyParagraphs(body: string, values: Values, loginUrl
         if (!token.known) return "";
         const value = variableValue(values, token.name);
         if (URL_VARIABLES.has(token.name) && /^https?:\/\//i.test(value)) {
-          return placeholder(`<a href="${escapeHtml(value)}" target="_blank" style="${LINK_STYLE}">${escapeHtml(value)}</a>`);
+          return placeholder(`<a href="${escapeHtml(value)}" target="_blank" style="${linkStyle}">${escapeHtml(value)}</a>`);
         }
         return placeholder(escapeHtml(value));
       }
-      return placeholder(`<a href="${escapeHtml(loginUrl)}" target="_blank" style="${BUTTON_STYLE}">${escapeHtml(token.label)}</a>`);
+      return placeholder(`<a href="${escapeHtml(loginUrl)}" target="_blank" style="${buttonStyle}">${escapeHtml(token.label)}</a>`);
     })
     .join("")
     .replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>")

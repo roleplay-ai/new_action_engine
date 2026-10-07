@@ -944,6 +944,174 @@
   background: #fffdf8 !important;
 }
 
+/* Credential store layout */
+.credential-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #ebe8eb;
+  background: #faf9fa;
+}
+
+.credential-search {
+  position: relative;
+  flex: 1 1 260px;
+  min-width: 200px;
+}
+
+.credential-search>svg {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: #a39da4;
+  pointer-events: none;
+}
+
+.credential-search button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  transform: translateY(-50%);
+  color: #a39da4;
+}
+
+.credential-search button:hover {
+  color: #29252b;
+}
+
+/* Prefixed with .superadmin-content to out-rank the console-wide input/select rule. */
+.superadmin-content .credential-search input:not([type="checkbox"]):not([type="radio"]),
+.superadmin-content .credential-select {
+  height: 38px;
+  min-height: 38px;
+  border: 1px solid #dedadf;
+  border-radius: 10px;
+  outline: none;
+  background: #fff;
+  color: #29252b;
+  font-size: 11px;
+}
+
+.superadmin-content .credential-search input:not([type="checkbox"]):not([type="radio"]) {
+  width: 100%;
+  padding: 0 34px 0 38px;
+}
+
+.superadmin-content .credential-select {
+  min-width: 150px;
+  padding: 0 12px;
+}
+
+/* The page draws its own clear (×) button, so hide the browser's duplicate. */
+.credential-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.superadmin-content .credential-search input:focus,
+.superadmin-content .credential-select:focus {
+  border-color: #d1aa0a !important;
+  box-shadow: 0 0 0 3px rgba(255, 206, 0, .18);
+}
+
+.superadmin-content .credential-select:disabled {
+  background: #f3f1f3;
+  color: #a39da4;
+  cursor: not-allowed;
+}
+
+.credential-hint {
+  color: #8d858e;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.credential-count {
+  padding: 10px 18px;
+  border-bottom: 1px solid #ebe8eb;
+  color: #8d858e;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.credential-table {
+  width: 100%;
+  text-align: left;
+}
+
+.credential-table th,
+.credential-table td {
+  padding-right: 14px;
+  padding-left: 14px;
+  vertical-align: top;
+}
+
+.credential-table th:first-child,
+.credential-table td:first-child {
+  padding-left: 18px;
+}
+
+.credential-table th:last-child,
+.credential-table td:last-child {
+  padding-right: 18px;
+}
+
+.credential-table th {
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.credential-table td {
+  font-size: 11px;
+}
+
+.credential-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.credential-cell code {
+  min-width: 110px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.credential-icon-button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: #a39da4;
+}
+
+.credential-icon-button:hover {
+  background: #f3f1f3;
+  color: #29252b;
+}
+
+.credential-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Credential store: click a row to highlight it, click again to clear. */
+.superadmin-surface table tbody tr.is-selected,
+.superadmin-surface table tbody tr.is-selected:hover {
+  background: #fff1cf !important;
+}
+
 .superadmin-surface table td {
   padding-top: 12px !important;
   padding-bottom: 12px !important;

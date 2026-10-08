@@ -137,3 +137,60 @@ export function surpriseUploadExtension(purpose: SurpriseUploadPurpose, mimeType
   };
   return extensions[mimeType] ?? null;
 }
+
+// ---------------------------------------------------------------------------
+// Action-to-resource matching helpers (used by lib/surprise-resource-matching.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * Reads the matcher's `{ matches: [{ actionIndex, resourceIndex }] }` JSON.
+ * Indexes are 1-based positions in the prompt's lists. Returns a 0-based
+ * action → resource map, dropping malformed, out-of-range and repeated entries
+ * (first answer for an action wins).
+ */
+export function parseResourceMatches(text: string, actionCount: number, resourceCount: number): Map<number, number> {
+  const matches = new Map<number, number>();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return matches;
+  }
+  const entries = (parsed as { matches?: unknown })?.matches;
+  if (!Array.isArray(entries)) return matches;
+
+  for (const entry of entries) {
+    const { actionIndex, resourceIndex } = (entry ?? {}) as { actionIndex?: unknown; resourceIndex?: unknown };
+    if (!Number.isInteger(actionIndex) || !Number.isInteger(resourceIndex)) continue;
+    const action = (actionIndex as number) - 1;
+    const resource = (resourceIndex as number) - 1;
+    if (action < 0 || action >= actionCount || resource < 0 || resource >= resourceCount) continue;
+    if (!matches.has(action)) matches.set(action, resource);
+  }
+  return matches;
+}
+
+/**
+ * Gives every action in `actionIds` without an assignment the least-used
+ * resource (ties go to the earliest in `resourceIds`), counting both `usage`
+ * and assignments made so far. Mutates and returns `assignments`; updates
+ * `usage` so later calls keep spreading resources out.
+ */
+export function fillWithLeastUsed(
+  actionIds: string[],
+  assignments: Map<string, string>,
+  resourceIds: string[],
+  usage: Map<string, number>
+): Map<string, string> {
+  if (!resourceIds.length) return assignments;
+  for (const actionId of actionIds) {
+    if (assignments.has(actionId)) continue;
+    let best = resourceIds[0];
+    for (const id of resourceIds) {
+      if ((usage.get(id) ?? 0) < (usage.get(best) ?? 0)) best = id;
+    }
+    assignments.set(actionId, best);
+    usage.set(best, (usage.get(best) ?? 0) + 1);
+  }
+  return assignments;
+}

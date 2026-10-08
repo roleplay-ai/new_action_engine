@@ -25,6 +25,7 @@ import { renderEmailTemplate, formatPlanActionDate } from "@/lib/email-templates
 import { buildFromHeader } from "@/lib/email-send";
 import { buildActionPlanPdf } from "@/lib/action-plan-pdf";
 import { matchActionImagesForRows } from "@/lib/action-image-matching";
+import { matchSurpriseResourceForAction, matchSurpriseResourcesForPlan } from "@/lib/surprise-resource-matching";
 
 export type MyPlanSettings = {
   track: DeliveryTrack;
@@ -609,6 +610,12 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
 
     await supabase.from("profiles").update({ self_onboarding_completed_at: new Date().toISOString() }).eq("id", user.id);
 
+    // Map each frozen action to its Surprise Box resource. Background and
+    // best-effort: an unmatched action still gets a resource at unlock time.
+    const matchAdmin = createAdminClient();
+    const matchCohortId = cohortContext.cohortId;
+    after(() => matchSurpriseResourcesForPlan(matchAdmin, { userId: user.id, cohortId: matchCohortId }));
+
     // Deferred to after the response so the participant isn't kept waiting
     // on buddy pairing, multiple lookups, and a Resend call before their
     // "Activate My Plan" click redirects them to /actions.
@@ -837,6 +844,11 @@ export async function updateUpcomingPersonalAction(
       .eq("created_by", user.id)
       .eq("is_personal", true);
     if (error) return { error: error.message };
+
+    // The edit can change what the action is about, so re-pick its Surprise
+    // Box resource (it hasn't been delivered, so its box can't be unlocked yet).
+    const admin = createAdminClient();
+    after(() => matchSurpriseResourceForAction(admin, id));
 
     revalidatePath("/actions");
     return {};

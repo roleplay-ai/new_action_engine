@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  fillWithLeastUsed,
   isSurpriseStoragePath,
+  parseResourceMatches,
   surpriseUploadExtension,
   validateSurpriseResourceInput,
   type SurpriseResourceInput,
@@ -85,5 +87,64 @@ describe("surpriseUploadExtension", () => {
     expect(surpriseUploadExtension("thumbnail", "image/jpeg")).toBe("jpg");
     expect(surpriseUploadExtension("video", "application/pdf")).toBeNull();
     expect(surpriseUploadExtension("thumbnail", "image/svg+xml")).toBeNull();
+  });
+});
+
+describe("parseResourceMatches", () => {
+  it("converts 1-based indexes and keeps the first answer per action", () => {
+    const text = JSON.stringify({
+      matches: [
+        { actionIndex: 1, resourceIndex: 3 },
+        { actionIndex: 2, resourceIndex: 1 },
+        { actionIndex: 1, resourceIndex: 2 },
+      ],
+    });
+    expect([...parseResourceMatches(text, 2, 3)]).toEqual([[0, 2], [1, 0]]);
+  });
+
+  it("drops out-of-range, non-integer and malformed entries", () => {
+    const text = JSON.stringify({
+      matches: [
+        { actionIndex: 0, resourceIndex: 1 },
+        { actionIndex: 3, resourceIndex: 1 },
+        { actionIndex: 1, resourceIndex: 9 },
+        { actionIndex: 1.5, resourceIndex: 1 },
+        { actionIndex: "2", resourceIndex: 1 },
+        null,
+        { actionIndex: 2, resourceIndex: 2 },
+      ],
+    });
+    expect([...parseResourceMatches(text, 2, 2)]).toEqual([[1, 1]]);
+    expect(parseResourceMatches("not json", 2, 2).size).toBe(0);
+    expect(parseResourceMatches(JSON.stringify({ matches: "x" }), 2, 2).size).toBe(0);
+  });
+});
+
+describe("fillWithLeastUsed", () => {
+  it("spreads 12 actions across 30 resources without repeats", () => {
+    const actions = Array.from({ length: 12 }, (_, i) => `a${i}`);
+    const resources = Array.from({ length: 30 }, (_, i) => `r${i}`);
+    const result = fillWithLeastUsed(actions, new Map(), resources, new Map());
+    expect(new Set(result.values()).size).toBe(12);
+  });
+
+  it("repeats evenly when there are more actions than resources", () => {
+    const actions = Array.from({ length: 40 }, (_, i) => `a${i}`);
+    const resources = Array.from({ length: 30 }, (_, i) => `r${i}`);
+    const usage = new Map<string, number>();
+    fillWithLeastUsed(actions, new Map(), resources, usage);
+    expect(Math.max(...usage.values())).toBe(2);
+    expect(Math.min(...resources.map((id) => usage.get(id) ?? 0))).toBe(1);
+  });
+
+  it("keeps existing assignments and avoids resources already used", () => {
+    const usage = new Map([["r0", 1]]);
+    const result = fillWithLeastUsed(["a0", "a1"], new Map([["a0", "r0"]]), ["r0", "r1"], usage);
+    expect(result.get("a0")).toBe("r0");
+    expect(result.get("a1")).toBe("r1");
+  });
+
+  it("leaves actions unassigned when the library is empty", () => {
+    expect(fillWithLeastUsed(["a0"], new Map(), [], new Map()).size).toBe(0);
   });
 });

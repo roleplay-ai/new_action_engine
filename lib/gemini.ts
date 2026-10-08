@@ -27,3 +27,11 @@ export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
  * smaller model; overridable via GEMINI_IMAGE_MATCH_MODEL.
  */
 export const GEMINI_IMAGE_MATCH_MODEL = process.env.GEMINI_IMAGE_MATCH_MODEL || "gemini-3.5-flash-lite";
+
+/**
+ * Model that maps a finalised plan's actions to Surprise Box resources by
+ * their descriptions (lib/surprise-resource-matching.ts). Same class of task
+ * as image matching, so it defaults to that model; overridable via
+ * GEMINI_SURPRISE_MATCH_MODEL.
+ */
+export const GEMINI_SURPRISE_MATCH_MODEL = process.env.GEMINI_SURPRISE_MATCH_MODEL || GEMINI_IMAGE_MATCH_MODEL;

@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import PageLoader from "@/components/PageLoader";
+import { startEmailSequencePhase, waitForEmailSequencePhase } from "@/lib/email-link-sequence";
 
 /**
  * Handles Supabase auth callback (e.g. from magic link / auto-login redirect).
@@ -15,8 +16,8 @@ export default function AuthCallbackPage({
 }) {
   const [status, setStatus] = useState<"loading" | "done" | "error">("loading");
   // Reminder emails' "Mark done" / "Confirm all" links pass through here on
-  // their way to /actions?completeAction(s)=…; show the sign-in step of the
-  // email-link animation (the actions page shows the "marking done" step).
+  // their way to /actions?completeAction(s)=…; Nudgie dances here (step 1 of
+  // the email-link sequence; /actions shows the door, then the notebook).
   // Read from searchParams (not window) so the server-rendered first paint
   // already shows the right animation.
   const { next } = use(searchParams);
@@ -39,11 +40,18 @@ export default function AuthCallbackPage({
       return;
     }
 
+    const emailLink = /[?&]completeActions?=/.test(safeNext);
+    if (emailLink) startEmailSequencePhase("dance");
+
     const supabase = createClient();
-    supabase.auth
-      .setSession({ access_token: accessToken, refresh_token: refreshToken })
+    Promise.all([
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }),
+      // Let the dance play through once before handing over to the door.
+      emailLink ? waitForEmailSequencePhase("dance") : Promise.resolve(),
+    ])
       .then(() => {
         setStatus("done");
+        if (emailLink) startEmailSequencePhase("door");
         window.location.replace(safeNext);
       })
       .catch(() => {
@@ -67,5 +75,9 @@ export default function AuthCallbackPage({
     );
   }
 
-  return <PageLoader label="Signing you in" theme={fromEmailLink ? "email-signin" : "default"} />;
+  return fromEmailLink ? (
+    <PageLoader theme="email-dance" label="Yay, you did it! 🎉" sublabel="Nudgie is celebrating your action" />
+  ) : (
+    <PageLoader label="Signing you in" theme="default" />
+  );
 }

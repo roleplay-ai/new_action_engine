@@ -16,17 +16,19 @@ type PageLoaderProps = {
    * Which animation to show:
    * - default: Nudgie checking a stack of documents
    * - wallet: coins dropping into the Commitment Points bucket
-   * - email-signin / email-complete: the two steps after a reminder email's
-   *   "Mark done" link — Nudgie opening the email and going through the door
-   *   while signing in, then ticking off action cards while it's saved
+   * - email-dance / email-door / email-notebook: the three steps after a
+   *   reminder email's "Mark done" link — Nudgie dances on the click, walks
+   *   through the door while signing in, then writes in the notebook while the
+   *   action is saved (timing in lib/email-link-sequence.ts)
    */
-  theme?: "default" | "wallet" | "email-signin" | "email-complete";
+  theme?: "default" | "wallet" | "email-dance" | "email-door" | "email-notebook";
 };
 
 const NUDGIE_LOADER_SRC = {
   default: "/loader/nudgie-loading.gif",
-  "email-signin": "/loader/nudgie-email-signin.gif",
-  "email-complete": "/loader/nudgie-email-complete.gif",
+  "email-dance": "/loader/nudgie-dance.gif",
+  "email-door": "/loader/nudgie-door.gif",
+  "email-notebook": "/loader/nudgie-notebook.gif",
 } as const;
 
 /** Animated Nudgie GIF (public/loader/) on a white card so its black

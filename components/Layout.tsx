@@ -10,6 +10,7 @@ import PageLoader from "@/components/PageLoader";
 import { usePageLoadingControls } from "@/components/PageLoadingProvider";
 import { selectMyCohort } from "@/app/actions/cohorts";
 import { getMyCommitmentWallet } from "@/app/actions/commitment-wallet";
+import { remainingEmailSequenceMs } from "@/lib/email-link-sequence";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -52,17 +53,24 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
 
   const activePath = pendingHref || pathname || "";
   const isActive = (href: string) => activePath.startsWith(href);
-  const showLoader = isLoading || contentLoading;
-
   // Arrived from a reminder email's "Mark done" / "Confirm all" link
-  // (?completeAction(s)=… on /actions): keep showing the sign-in step's
-  // animation (as on /auth/callback) until the page is ready and its own
-  // "Marking your action as done" overlay takes over. Cleared once this loader hides,
-  // since the actions page strips the query string itself.
+  // (?completeAction(s)=… on /actions): show Nudgie walking through the door
+  // (step 2 of the email-link sequence) until the page is ready AND the door
+  // animation has played once, then the actions page's notebook overlay takes
+  // over. Cleared once this loader hides, since the actions page strips the
+  // query string itself.
   const [fromEmailLink, setFromEmailLink] = useState(false);
+  const [holdingDoor, setHoldingDoor] = useState(false);
   useLayoutEffect(() => {
-    if (/[?&]completeActions?=/.test(window.location.search)) setFromEmailLink(true);
+    if (!/[?&]completeActions?=/.test(window.location.search)) return;
+    setFromEmailLink(true);
+    const remaining = remainingEmailSequenceMs("door");
+    if (remaining <= 0) return;
+    setHoldingDoor(true);
+    const timer = window.setTimeout(() => setHoldingDoor(false), remaining);
+    return () => window.clearTimeout(timer);
   }, [pathname]);
+  const showLoader = isLoading || contentLoading || holdingDoor;
   useEffect(() => {
     if (!showLoader) setFromEmailLink(false);
   }, [showLoader]);
@@ -216,7 +224,11 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       </aside>
 
       <section className="participant-main">
-        {showLoader && <PageLoader variant="main" theme={fromEmailLink ? "email-signin" : loaderTheme} />}
+        {showLoader && (fromEmailLink ? (
+          <PageLoader variant="main" theme="email-door" label="Signing you in…" sublabel="Securely opening your account, no password needed" />
+        ) : (
+          <PageLoader variant="main" theme={loaderTheme} />
+        ))}
         <header className="participant-topbar" style={showLoader ? { visibility: "hidden" } : undefined} aria-hidden={showLoader}>
           <div className="participant-topbar-row">
             <div className="participant-topbar-side">

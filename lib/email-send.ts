@@ -7,8 +7,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resend } from "@/lib/resend";
 import { isEmailTemplateKey, renderEmailTemplate, type EmailTemplateKey } from "@/lib/email-templates";
-
-const NUDGEABLE_APP_URL = "https://practice.nudgeable.ai";
+import { getAppUrl } from "@/lib/app-url";
 
 /**
  * Builds a Resend "From" header showing a display name in front of the
@@ -218,8 +217,9 @@ export async function sendTemplateToUsers({
   const results: SendToUsersResult[] = [];
   // Every email links to the production app. Senders still pass a baseUrl,
   // but it comes from NEXT_PUBLIC_APP_URL (the Vercel deployment URL) or the
-  // request host (localhost), and participants must never land there.
-  const normalizedBase = NUDGEABLE_APP_URL;
+  // request host (localhost), and participants must never land there. Only the
+  // explicit NUDGEABLE_APP_URL test override changes it (see lib/app-url.ts).
+  const normalizedBase = getAppUrl();
   const appLoginUrl = `${normalizedBase}/login`;
 
   for (const userId of userIds) {

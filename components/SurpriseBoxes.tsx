@@ -7,6 +7,9 @@ import { FileText, Lock, Play, X } from "lucide-react";
 import { markSurpriseBoxOpened } from "@/app/actions/surprise-boxes";
 import type { SurpriseShelf, SurpriseShelfBox } from "@/lib/surprise-boxes";
 
+/** Boxes shown before the shelf scrolls (3 rows of 4 on desktop, 4 rows of 3 on phones). */
+const SHELF_VISIBLE_BOXES = 12;
+
 /** Gift colourways, cycled by slot; bonus boxes are always gold. */
 const GIFT_VARIANTS = ["", "v2", "v3", "v4"];
 
@@ -80,12 +83,15 @@ function Confetti() {
 function SurpriseReveal({
   box,
   total,
+  completedCount,
   remainingAfter,
   onOpened,
   onClose,
 }: {
   box: SurpriseShelfBox;
   total: number;
+  /** Plan actions completed so far (one unlocked box each), for the "N of M" badge. */
+  completedCount: number;
   remainingAfter: number;
   onOpened: (box: SurpriseShelfBox) => void;
   onClose: () => void;
@@ -136,10 +142,14 @@ function SurpriseReveal({
           <button ref={closeRef} type="button" className="surprise-reveal-close" onClick={onClose} aria-label="Close">
             <X size={16} />
           </button>
-          {!alreadyOpen && <div className="surprise-reveal-eyebrow">✓ Action completed</div>}
+          {!alreadyOpen && (
+            <div className="surprise-reveal-eyebrow">
+              ✓ {completedCount} of {total} action{total === 1 ? "" : "s"} completed
+            </div>
+          )}
           <h3 id="surprise-reveal-title">{stage === "open" ? "Surprise box revealed!" : "Surprise box unlocked!"}</h3>
           <p className="surprise-reveal-sub">
-            {stage === "open" ? `Box ${box.slot} of ${total}` : "Your action unlocked something special."}
+            {stage === "open" ? "Here’s what was inside." : "Your action unlocked something special."}
           </p>
 
           <div className={`surprise-stage ${stage}`}>
@@ -302,6 +312,19 @@ export default function SurpriseBoxes({ shelf, revealUnlockIds }: { shelf: Surpr
     });
   }, [pathname, router]);
 
+  // Plans with more than 12 actions scroll inside the shelf instead of
+  // growing the page. Start scrolled to the box that matters now.
+  const scrollable = boxes.length > SHELF_VISIBLE_BOXES;
+  const gridRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!scrollable || !grid) return;
+    const focus = grid.querySelector<HTMLElement>(".surprise-tile.ready, .surprise-tile.next");
+    if (focus) grid.scrollTop = Math.max(0, focus.offsetTop - grid.offsetTop - 16);
+    // Only on first render: later opens shouldn't yank the scroll position.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollable]);
+
   if (!boxes.length) return null;
 
   const openedCount = boxes.filter((box) => box.state === "opened").length;
@@ -346,7 +369,11 @@ export default function SurpriseBoxes({ shelf, revealUnlockIds }: { shelf: Surpr
         </>
       )}
 
-      <div className="surprise-grid">
+      <div
+        ref={gridRef}
+        className={`surprise-grid${scrollable ? " is-scrollable" : ""}`}
+        {...(scrollable ? { tabIndex: 0, role: "region", "aria-label": `All ${boxes.length} Surprise Boxes, scrollable` } : {})}
+      >
         {boxes.map((box) => (
           <div key={box.actionId} className={box.unlockId && box.unlockId === justOpened ? "surprise-tile-wrap is-new" : "surprise-tile-wrap"}>
             <ShelfTile box={box} onSelect={(selected) => selected.unlockId && setQueue([selected.unlockId])} />
@@ -359,6 +386,7 @@ export default function SurpriseBoxes({ shelf, revealUnlockIds }: { shelf: Surpr
           key={current.unlockId}
           box={current}
           total={boxes.length}
+          completedCount={boxes.filter((box) => box.unlockId).length}
           remainingAfter={queue.length - 1}
           onOpened={handleOpened}
           onClose={handleClose}

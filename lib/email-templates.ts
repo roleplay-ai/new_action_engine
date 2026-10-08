@@ -250,14 +250,8 @@ function nudgieCredentialsHtml(loginEmail: string, password: string): string {
           </table>`;
 }
 
-/** Action card with an optional illustration, a per-action "Mark done" button, and
- * — for plans with Surprise Boxes — a line saying marking it done opens a box. */
-function nudgieActionCardHtml(
-  action: { title?: string; imageUrl?: string },
-  index: number,
-  markDoneUrl: string,
-  surpriseBoxes = false
-): string {
+/** Action card with an optional illustration and a per-action "Mark done" button. */
+function nudgieActionCardHtml(action: { title?: string; imageUrl?: string }, index: number, markDoneUrl: string): string {
   const accent = NUDGIE_CARD_ACCENTS[index % NUDGIE_CARD_ACCENTS.length];
   const title = action.title ?? "";
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="action-card" bgcolor="#ffffff" style="width:100%;background-color:#ffffff;border:1px solid ${accent.border};border-top:4px solid ${accent.stripe};border-radius:14px;margin:0 0 14px;">
@@ -269,9 +263,6 @@ function nudgieActionCardHtml(
                 <td class="copy-cell" valign="top">
                   <p class="action-copy" style="margin:0 0 18px;font-size:18px;line-height:27px;font-weight:600;color:#24242c;">${esc(title)}</p>
                   ${nudgieButtonHtml(markDoneUrl, "&#10003;&nbsp; Mark done", { ariaLabel: `Mark done: ${title}`, minWidth: 126, margin: "0" })}
-                  ${surpriseBoxes
-      ? `<p style="margin:12px 0 0;font-size:13px;line-height:20px;color:#6b6b75;">&#127873;&nbsp; Mark done to open a <strong style="color:#24242c;">Surprise Box</strong> in your Commitment Wallet.</p>`
-      : ""}
                 </td>
               </tr></table>
             </td></tr>
@@ -303,7 +294,11 @@ function nudgieScoresRowHtml(data: EmailTemplateData): string {
         </td></tr>`;
 }
 
-function nudgiePendingBannerHtml(count: number, url: string): string {
+/** "N actions are waiting for your update" — the participant's Pending validation
+ * actions (data.pending_validation_count), not the actions listed in the email.
+ * Omitted entirely when there are none. */
+function nudgiePendingBannerHtml(data: EmailTemplateData, url: string): string {
+  const count = typeof data.pending_validation_count === "number" ? data.pending_validation_count : 0;
   if (count <= 0) return "";
   return `<tr><td class="content-pad" style="padding:0 32px 18px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#fff9e5" style="width:100%;background-color:#fff9e5;border:1px solid #efe2af;border-radius:8px;">
@@ -577,7 +572,11 @@ function reminderActionsFrom(data: EmailTemplateData): ReminderAction[] {
 /** Action cards; each "Mark done" uses the action's own completion link,
  * falling back to the app login when the sender didn't provide one. */
 function reminderActionCardsHtml(actions: ReminderAction[], loginUrl: string, surpriseBoxes: boolean): string {
-  return actions.map((action, i) => nudgieActionCardHtml(action, i, action.complete_url || loginUrl, surpriseBoxes)).join("");
+  // Plans with Surprise Boxes get one line above the cards (not one per card).
+  const surpriseHtml = surpriseBoxes && actions.length
+    ? `<p style="margin:0 0 14px;padding:12px 14px;border-radius:12px;background-color:#fff8e1;font-size:14px;line-height:21px;color:#24242c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">&#127873;&nbsp;Mark done to open a <strong>Surprise Box</strong></p>`
+    : "";
+  return surpriseHtml + actions.map((action, i) => nudgieActionCardHtml(action, i, action.complete_url || loginUrl)).join("");
 }
 
 function renderDailyReminderHtml(data: EmailTemplateData): string {
@@ -597,7 +596,7 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
     bodyHtml: actions.length
       ? reminderActionCardsHtml(actions, loginUrl, data.surprise_boxes_enabled === true)
       : `<p style="${NUDGIE_MUTED_STYLE}">Nothing pending right now. Nice work staying on top of it.</p>`,
-    extraRowsHtml: nudgieScoresRowHtml(data) + nudgiePendingBannerHtml(actions.length, loginUrl),
+    extraRowsHtml: nudgieScoresRowHtml(data) + nudgiePendingBannerHtml(data, loginUrl),
   });
 }
 
@@ -631,7 +630,7 @@ function renderWeeklyRecapHtml(data: EmailTemplateData): string {
     mascotCaption: "Time for a quick recap.",
     mascotUrl: NUDGIE_GIF.weeklyRecap,
     bodyHtml,
-    extraRowsHtml: nudgieScoresRowHtml(data) + nudgiePendingBannerHtml(count, loginUrl),
+    extraRowsHtml: nudgieScoresRowHtml(data) + nudgiePendingBannerHtml(data, loginUrl),
   });
 }
 

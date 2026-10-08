@@ -20027,8 +20027,12 @@ button.surprise-tile:focus-visible,
   transition: height .5s cubic-bezier(.2, .8, .2, 1);
 }
 
+/* Once open, the stage grows with the prize card, so long titles and
+   descriptions push the buttons down instead of overlapping them. */
 .surprise-stage.open {
-  height: 300px;
+  height: auto;
+  min-height: 250px;
+  padding: 8px 0 4px;
 }
 
 .surprise-rays {
@@ -20072,6 +20076,10 @@ button.surprise-tile:focus-visible,
 }
 
 .surprise-stage.open .surprise-stage-gift {
+  position: absolute;
+  top: 38px;
+  left: 50%;
+  margin-left: -87px; /* half the gift's width (120px × 1.45); transform is used by the animation */
   pointer-events: none;
   animation: surpriseSink .6s .35s ease forwards;
 }
@@ -20092,6 +20100,8 @@ button.surprise-tile:focus-visible,
 }
 
 .surprise-stage.open .surprise-prize {
+  position: relative;
+  inset: auto;
   pointer-events: auto;
   animation: surpriseRise .7s .45s cubic-bezier(.2, 1.4, .4, 1) forwards;
 }
@@ -20116,10 +20126,14 @@ button.surprise-tile:focus-visible,
 }
 
 .surprise-prize-card p {
+  display: -webkit-box;
   margin: 0;
+  overflow: hidden;
   color: #4a4047;
   font-size: 13px;
   line-height: 1.45;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
 }
 
 .surprise-thumb {
@@ -20349,7 +20363,8 @@ button.surprise-tile:focus-visible,
   }
 }
 
-@media (max-width: 700px) {
+/* 760px: the side-by-side reveal (440px card + 250px Nudgie + gutters) needs ~730px. */
+@media (max-width: 760px) {
   .surprise-shelf {
     padding: 22px 14px;
   }
@@ -20451,9 +20466,6 @@ button.surprise-tile:focus-visible,
     height: 240px;
   }
 
-  .surprise-stage.open {
-    height: 330px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -20463,5 +20475,74 @@ button.surprise-tile:focus-visible,
     animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
+  }
+}
+
+/* Commitment Wallet: score card beside the Surprise Boxes shelf (no Batch Action Bank). */
+.wallet-main-grid.wallet-main-grid--boxes {
+  grid-template-columns: minmax(300px, 340px) minmax(0, 1fr);
+  align-items: start;
+}
+
+.wallet-main-grid.wallet-main-grid--single {
+  grid-template-columns: minmax(0, 560px);
+}
+
+.wallet-main-grid--boxes .surprise-shelf {
+  margin-top: 0;
+}
+
+.wallet-main-grid--boxes .surprise-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .wallet-main-grid.wallet-main-grid--boxes,
+  .wallet-main-grid.wallet-main-grid--single {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .wallet-main-grid--boxes .surprise-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Plans with more than 12 actions: the box grid scrolls inside the shelf,
+   showing 12 boxes at a time (3 rows of 4; 4 rows of 3 on phones). */
+.surprise-grid.is-scrollable {
+  /* Fixed rows (tallest tile is ~203px) so exactly 3 rows fit, plus a sliver
+     of the 4th as a hint that the shelf scrolls: 12px top room for the bonus
+     ribbon + 3 × 204px + 2 × 12px gaps + 24px sliver. */
+  grid-auto-rows: 204px;
+  max-height: 672px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 6px 4px 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 206, 0, .55) transparent;
+}
+
+.surprise-grid.is-scrollable:focus-visible {
+  outline: 3px solid rgba(255, 206, 0, .5);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+
+.surprise-grid.is-scrollable::-webkit-scrollbar {
+  width: 6px;
+}
+
+.surprise-grid.is-scrollable::-webkit-scrollbar-thumb {
+  border-radius: 99px;
+  background: rgba(255, 206, 0, .55);
+}
+
+@media (max-width: 760px) {
+  /* Phones: 4 rows of 3 (tallest tile ~153px): 12 + 4 × 154 + 3 × 8 + 20 sliver. */
+  .surprise-grid.is-scrollable {
+    grid-auto-rows: 154px;
+    max-height: 672px;
   }
 }

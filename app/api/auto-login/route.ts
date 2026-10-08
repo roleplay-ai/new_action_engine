@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAppUrl } from "@/lib/app-url";
 
-const ACTION_ENGINE_URL = "https://practice.nudgeable.ai";
-
+/** Production app by default; NUDGEABLE_APP_URL overrides it for local/preview testing. */
 function appUrl(path: string) {
-  return new URL(path, ACTION_ENGINE_URL);
+  return new URL(path, getAppUrl());
 }
 
 /**

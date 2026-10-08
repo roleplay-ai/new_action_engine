@@ -250,8 +250,14 @@ function nudgieCredentialsHtml(loginEmail: string, password: string): string {
           </table>`;
 }
 
-/** Action card with an optional illustration and a per-action "Mark done" button. */
-function nudgieActionCardHtml(action: { title?: string; imageUrl?: string }, index: number, markDoneUrl: string): string {
+/** Action card with an optional illustration, a per-action "Mark done" button, and
+ * — for plans with Surprise Boxes — a line saying marking it done opens a box. */
+function nudgieActionCardHtml(
+  action: { title?: string; imageUrl?: string },
+  index: number,
+  markDoneUrl: string,
+  surpriseBoxes = false
+): string {
   const accent = NUDGIE_CARD_ACCENTS[index % NUDGIE_CARD_ACCENTS.length];
   const title = action.title ?? "";
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="action-card" bgcolor="#ffffff" style="width:100%;background-color:#ffffff;border:1px solid ${accent.border};border-top:4px solid ${accent.stripe};border-radius:14px;margin:0 0 14px;">
@@ -263,6 +269,9 @@ function nudgieActionCardHtml(action: { title?: string; imageUrl?: string }, ind
                 <td class="copy-cell" valign="top">
                   <p class="action-copy" style="margin:0 0 18px;font-size:18px;line-height:27px;font-weight:600;color:#24242c;">${esc(title)}</p>
                   ${nudgieButtonHtml(markDoneUrl, "&#10003;&nbsp; Mark done", { ariaLabel: `Mark done: ${title}`, minWidth: 126, margin: "0" })}
+                  ${surpriseBoxes
+      ? `<p style="margin:12px 0 0;font-size:13px;line-height:20px;color:#6b6b75;">&#127873;&nbsp; Mark done to open a <strong style="color:#24242c;">Surprise Box</strong> in your Commitment Wallet.</p>`
+      : ""}
                 </td>
               </tr></table>
             </td></tr>
@@ -567,8 +576,8 @@ function reminderActionsFrom(data: EmailTemplateData): ReminderAction[] {
 
 /** Action cards; each "Mark done" uses the action's own completion link,
  * falling back to the app login when the sender didn't provide one. */
-function reminderActionCardsHtml(actions: ReminderAction[], loginUrl: string): string {
-  return actions.map((action, i) => nudgieActionCardHtml(action, i, action.complete_url || loginUrl)).join("");
+function reminderActionCardsHtml(actions: ReminderAction[], loginUrl: string, surpriseBoxes: boolean): string {
+  return actions.map((action, i) => nudgieActionCardHtml(action, i, action.complete_url || loginUrl, surpriseBoxes)).join("");
 }
 
 function renderDailyReminderHtml(data: EmailTemplateData): string {
@@ -586,7 +595,7 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
     mascotCaption: "One tap to record it.",
     mascotUrl: NUDGIE_GIF.actionReminder,
     bodyHtml: actions.length
-      ? reminderActionCardsHtml(actions, loginUrl)
+      ? reminderActionCardsHtml(actions, loginUrl, data.surprise_boxes_enabled === true)
       : `<p style="${NUDGIE_MUTED_STYLE}">Nothing pending right now. Nice work staying on top of it.</p>`,
     extraRowsHtml: nudgieScoresRowHtml(data) + nudgiePendingBannerHtml(actions.length, loginUrl),
   });
@@ -603,7 +612,7 @@ function renderWeeklyRecapHtml(data: EmailTemplateData): string {
 
   const bodyHtml = count === 0
     ? `<p style="${NUDGIE_MUTED_STYLE}">No open actions to confirm. Have a good weekend.</p>`
-    : `${reminderActionCardsHtml(actions, loginUrl)}
+    : `${reminderActionCardsHtml(actions, loginUrl, data.surprise_boxes_enabled === true)}
           ${completeAllUrl
       ? `<p style="${NUDGIE_MUTED_STYLE}">Completed every action shown above?</p>
           ${nudgieButtonHtml(completeAllUrl, "Confirm all as completed")}

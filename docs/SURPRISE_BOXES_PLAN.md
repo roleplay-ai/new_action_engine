@@ -2,7 +2,7 @@
 
 Replace the "points added" celebration with a **Surprise Box** reveal. Super admin curates a library of 30+ videos and resources, each with a short description. When a participant finalises their action plan, a separate Gemini matcher maps every action to the best-fitting resource. Marking an action done (on time or late) unlocks that action's box. The reminder email's "Mark done" link plays a three-step Nudgie sequence (dance → door → notebook) and lands on the Wallet with the reveal open.
 
-Prototype: `public/prototypes/surprise-box.html` (published at https://claude.ai/artifact/MkyyzMSQqJ1uYhpVZiQfuX).
+Prototype: `docs/prototypes/surprise-box.html` (published at https://claude.ai/artifact/MkyyzMSQqJ1uYhpVZiQfuX).
 
 ## Agreed decisions
 
@@ -173,16 +173,18 @@ Assets already generated in `public/loader/`:
 
 ## 9. Email (last, optional)
 
-Reminder email action card (`lib/email-templates.ts`, `nudgieActionCardHtml`): "🎁 Mark done to open your Surprise Box" — only for recipients whose plan has boxes enabled.
+Reminder email action card (`lib/email-templates.ts`, `nudgieActionCardHtml`): "🎁 Mark done to open a Surprise Box in your Commitment Wallet." — only for recipients whose plan has boxes enabled (`surprise_boxes_enabled`, from `fetchWalletEmailSummary`).
 
-## 10. Delivery order (one PR each)
+## 10. Delivery order — all built on `animateSurpriseBox`
 
-1. Migration: bucket, tables, columns, functions, RLS, purge update, data-model doc.
-2. Super admin library page + upload actions (so the 30+ resources can be loaded before launch).
-3. Resource matcher + pure helpers + tests; hook into plan activation, new actions and edits.
-4. `completeAction()` unlock + wallet shelf + reveal (testable via `?reveal=`).
-5. Animation themes, email-link sequence, actions-page redirect.
-6. Email teaser; delete old GIFs; move the prototype.
+1. ✅ Migration `081_surprise_boxes.sql`: bucket, tables, columns, functions, RLS, purge update. (`docs/documentation/04-data-model.md` only covers migrations 001–021, so the migration comments document the new tables.)
+2. ✅ Super admin library page + upload actions.
+3. ✅ Resource matcher + pure helpers + tests; hooked into plan activation and upcoming-action edits ("add one more action" is pre-finalisation only, so activation covers it).
+4. ✅ `completeAction()` unlock + wallet shelf + reveal.
+5. ✅ Animation themes, email-link sequence, actions-page redirect. The minimum play times apply to the email-link flow; in-app "I did it" shows the notebook only while saving.
+6. ✅ Email teaser; old GIFs deleted; prototype moved to `docs/prototypes/`.
+
+**Before go-live:** apply migration 081, load 30+ resources in Superadmin → Surprise boxes, and run the checks in §11 on staging.
 
 ## 11. Testing
 
@@ -194,8 +196,6 @@ Reminder email action card (`lib/email-templates.ts`, `nudgieActionCardHtml`): "
 
 ## 12. Housekeeping
 
-- `public/prototypes/surprise-box.html` is served publicly by the live site — move it to `docs/prototypes/` before merging.
-- `.claude/launch.json` has a local `prototypes` static-server entry; keep or revert.
 - **Upload size:** Supabase Storage caps file size by plan (50 MB on Free). Large videos should be links (YouTube/Vimeo) or the bucket limit raised.
 
 ## 13. Open questions

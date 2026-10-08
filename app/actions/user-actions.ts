@@ -385,6 +385,8 @@ export async function completeAction(params: {
   pointsDelta?: number;
   currentPoints?: number;
   completedLate?: boolean;
+  /** Set when this completion unlocked a Surprise Box (plans with boxes enabled). */
+  surpriseBoxUnlockId?: string;
 }> {
   const { actionId, success, reflection } = params;
   const supabase = await createClient();
@@ -462,6 +464,7 @@ export async function completeAction(params: {
   // check-in also keeps the score), but only this path awards the 50 points
   // to the Team Action Bank, so it needs the dedicated RPC.
   let walletValidation: { pointsAdded?: number; completedLate?: boolean } | undefined;
+  let surpriseBoxUnlockId: string | undefined;
   if (actionRow.is_personal) {
     const isPendingValidation = existingUa?.status === "failed" && existingUa?.auto_expired === true;
     if (success && isPendingValidation) {
@@ -481,6 +484,20 @@ export async function completeAction(params: {
         p_reflection: reflection || null,
       });
       if (walletError) return { error: walletError.message };
+    }
+
+    // On time, late, or validated — every success opens this action's Surprise
+    // Box. Best-effort: a failed unlock must never fail the completion.
+    if (success) {
+      const { data: unlockRows, error: unlockError } = await supabase.rpc("unlock_my_surprise_box", {
+        p_action_id: actionId,
+      });
+      if (unlockError) {
+        console.error("[completeAction] Surprise Box unlock failed:", unlockError.message);
+      } else {
+        const unlock = Array.isArray(unlockRows) ? unlockRows[0] : unlockRows;
+        surpriseBoxUnlockId = (unlock as { id?: string } | null)?.id;
+      }
     }
   } else {
     const { error: upsertError } = await supabase.from("user_actions").upsert(
@@ -529,5 +546,6 @@ export async function completeAction(params: {
   return {
     pointsDelta: walletValidation?.pointsAdded,
     completedLate: walletValidation?.completedLate,
+    surpriseBoxUnlockId,
   };
 }

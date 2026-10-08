@@ -54,6 +54,7 @@ interface EngineContextType {
     pointsDelta?: number;
     currentPoints?: number;
     completedLate?: boolean;
+    surpriseBoxUnlockId?: string;
   }>;
   declineAction: (actionId: string) => Promise<void>;
   /** Confirm a Pending validation action really wasn't done — moves it into Didn't complete for good. */

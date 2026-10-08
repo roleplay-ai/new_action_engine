@@ -194,3 +194,90 @@ export function fillWithLeastUsed(
   }
   return assignments;
 }
+
+// ---------------------------------------------------------------------------
+// Participant shelf (Commitment Wallet)
+// ---------------------------------------------------------------------------
+
+/**
+ * opened — unlocked and viewed; ready — unlocked but the reveal was closed
+ * before opening; next — the first box still to earn; missed — its action was
+ * missed (completing it late still opens it); locked — everything else.
+ */
+export type SurpriseBoxState = "opened" | "ready" | "next" | "missed" | "locked";
+export type SurpriseBoxBonus = "halfway" | "finale";
+
+/** What a participant sees inside an unlocked box. */
+export type SurprisePrize = {
+  kind: SurpriseResourceKind;
+  title: string;
+  description: string;
+  durationLabel: string | null;
+  url: string;
+  thumbnailUrl: string | null;
+};
+
+export type SurpriseShelfBox = {
+  slot: number;
+  actionId: string;
+  actionTitle: string;
+  state: SurpriseBoxState;
+  bonus: SurpriseBoxBonus | null;
+  unlockId: string | null;
+  /** Null when locked, or when the library was empty at unlock time. */
+  prize: SurprisePrize | null;
+};
+
+export type SurpriseShelf = {
+  /** False for plans finalised before Surprise Boxes launched: every box stays locked. */
+  enabled: boolean;
+  boxes: SurpriseShelfBox[];
+  unlockedCount: number;
+};
+
+/** 1-based slots that get the ⭐ halfway and 🏆 finale highlight. */
+export function bonusSlots(boxCount: number): { halfway: number | null; finale: number | null } {
+  if (boxCount < 2) return { halfway: null, finale: boxCount === 1 ? 1 : null };
+  const halfway = Math.ceil(boxCount / 2);
+  return { halfway: halfway === boxCount ? null : halfway, finale: boxCount };
+}
+
+export type ShelfActionInput = {
+  actionId: string;
+  actionTitle: string;
+  /** user_actions.status, or null when the action hasn't been delivered yet. */
+  status: string | null;
+};
+
+export type ShelfUnlockInput = { unlockId: string; openedAt: string | null; prize: SurprisePrize | null };
+
+/** Builds the shelf from plan actions in delivery order plus the participant's unlocks. */
+export function buildSurpriseShelf(
+  actions: ShelfActionInput[],
+  unlocksByAction: Map<string, ShelfUnlockInput>,
+  enabled: boolean
+): SurpriseShelf {
+  const { halfway, finale } = bonusSlots(actions.length);
+  let nextAssigned = !enabled;
+
+  const boxes = actions.map((action, index): SurpriseShelfBox => {
+    const slot = index + 1;
+    const bonus: SurpriseBoxBonus | null = slot === finale ? "finale" : slot === halfway ? "halfway" : null;
+    const unlock = enabled ? unlocksByAction.get(action.actionId) : undefined;
+    const base = { slot, actionId: action.actionId, actionTitle: action.actionTitle, bonus };
+
+    if (unlock) {
+      return { ...base, state: unlock.openedAt ? "opened" : "ready", unlockId: unlock.unlockId, prize: unlock.prize };
+    }
+    if (enabled && (action.status === "failed" || action.status === "skipped")) {
+      return { ...base, state: "missed", unlockId: null, prize: null };
+    }
+    if (!nextAssigned) {
+      nextAssigned = true;
+      return { ...base, state: "next", unlockId: null, prize: null };
+    }
+    return { ...base, state: "locked", unlockId: null, prize: null };
+  });
+
+  return { enabled, boxes, unlockedCount: boxes.filter((box) => box.unlockId).length };
+}

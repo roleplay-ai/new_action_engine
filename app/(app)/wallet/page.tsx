@@ -12,6 +12,8 @@ import { getMyCohort } from "@/app/actions/cohorts";
 import { cohortLockInfo } from "@/lib/cohort-lock";
 import { CohortLockedNotice } from "@/components/CohortLockedNotice";
 import { MILESTONES, milestonePoints } from "@/lib/commitment-wallet-milestones";
+import { getMySurpriseShelf } from "@/app/actions/surprise-boxes";
+import SurpriseBoxes from "@/components/SurpriseBoxes";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -257,7 +259,11 @@ function WalletMilestones({ summary }: { summary: CommitmentWalletSummary }) {
   );
 }
 
-export default async function WalletPage() {
+export default async function WalletPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { cohort } = await getMyCohort({ includeRoster: false });
   const lock = cohortLockInfo(cohort);
   if (lock.locked) {
@@ -270,7 +276,16 @@ export default async function WalletPage() {
     );
   }
 
-  const { summary, error } = await getMyCommitmentWallet(cohort?.id);
+  const [{ summary, error }, { shelf }, params] = await Promise.all([
+    getMyCommitmentWallet(cohort?.id),
+    getMySurpriseShelf(cohort?.id),
+    searchParams,
+  ]);
+  // /wallet?reveal=<unlockId,…> — set after completing an action — opens those boxes.
+  const revealUnlockIds = (Array.isArray(params.reveal) ? params.reveal.join(",") : params.reveal ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
 
   return (
     <div className="commitment-wallet-page animate-in fade-in duration-700">
@@ -302,6 +317,8 @@ export default async function WalletPage() {
         <PersonalWallet summary={summary} />
         <TeamWallet summary={summary} />
       </section>
+
+      <SurpriseBoxes shelf={shelf} revealUnlockIds={revealUnlockIds} />
 
       <WalletMilestones summary={summary} />
 

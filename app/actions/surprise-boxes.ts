@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   SURPRISE_BOX_BUCKET,
   buildSurpriseShelf,
+  youtubeThumbnailUrl,
   type ShelfUnlockInput,
   type SurprisePrize,
   type SurpriseShelf,
@@ -102,7 +103,9 @@ export async function getMySurpriseShelf(cohortId: string | null | undefined): P
               description: resource.description,
               durationLabel: resource.duration_label,
               url,
-              thumbnailUrl: resource.thumbnail_path ? bucket.getPublicUrl(resource.thumbnail_path).data.publicUrl : null,
+              thumbnailUrl: resource.thumbnail_path
+                ? bucket.getPublicUrl(resource.thumbnail_path).data.publicUrl
+                : youtubeThumbnailUrl(resource.external_url),
             }
           : null,
       });

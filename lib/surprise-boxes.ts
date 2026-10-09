@@ -68,6 +68,30 @@ export function isHttpUrl(value: string): boolean {
   }
 }
 
+/**
+ * YouTube's own thumbnail for a single-video link (watch, youtu.be, shorts,
+ * embed). Null for playlists, channels and non-YouTube links.
+ */
+export function youtubeThumbnailUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  const host = parsed.hostname.replace(/^(www|m)\./, "");
+  const id =
+    host === "youtu.be"
+      ? parsed.pathname.slice(1)
+      : host === "youtube.com"
+        ? parsed.pathname === "/watch"
+          ? parsed.searchParams.get("v")
+          : parsed.pathname.match(/^\/(?:shorts|embed)\/([^/]+)/)?.[1]
+        : null;
+  return id && /^[\w-]{11}$/.test(id) ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : null;
+}
+
 /** Storage paths are generated server-side as `<folder>/<uuid>.<ext>`; reject anything else. */
 export function isSurpriseStoragePath(value: string, folder: "resources" | "thumbnails"): boolean {
   return new RegExp(`^${folder}/[0-9a-f-]{36}\\.[a-z0-9]{1,10}$`).test(value);

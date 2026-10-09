@@ -5,6 +5,7 @@ import {
   parseResourceMatches,
   surpriseUploadExtension,
   validateSurpriseResourceInput,
+  youtubeThumbnailUrl,
   type SurpriseResourceInput,
 } from "../surprise-boxes";
 
@@ -146,5 +147,25 @@ describe("fillWithLeastUsed", () => {
 
   it("leaves actions unassigned when the library is empty", () => {
     expect(fillWithLeastUsed(["a0"], new Map(), [], new Map()).size).toBe(0);
+  });
+});
+
+describe("youtubeThumbnailUrl", () => {
+  const thumb = "https://i.ytimg.com/vi/wtl5UrrgU8c/hqdefault.jpg";
+
+  it("reads the video id from watch, short, shorts and embed links", () => {
+    expect(youtubeThumbnailUrl("https://www.youtube.com/watch?v=wtl5UrrgU8c")).toBe(thumb);
+    expect(youtubeThumbnailUrl("https://m.youtube.com/watch?v=wtl5UrrgU8c&t=30s")).toBe(thumb);
+    expect(youtubeThumbnailUrl("https://youtu.be/wtl5UrrgU8c")).toBe(thumb);
+    expect(youtubeThumbnailUrl("https://youtube.com/shorts/wtl5UrrgU8c")).toBe(thumb);
+    expect(youtubeThumbnailUrl("https://www.youtube.com/embed/wtl5UrrgU8c")).toBe(thumb);
+  });
+
+  it("returns null for playlists, other sites and bad input", () => {
+    expect(youtubeThumbnailUrl("https://www.youtube.com/playlist?list=PLYfF89-7GhtGF2y6L0roakq7xHAwDrh5q")).toBeNull();
+    expect(youtubeThumbnailUrl("https://www.ted.com/speakers/julian_treasure")).toBeNull();
+    expect(youtubeThumbnailUrl("https://www.youtube.com/watch?v=short")).toBeNull();
+    expect(youtubeThumbnailUrl("not a url")).toBeNull();
+    expect(youtubeThumbnailUrl(null)).toBeNull();
   });
 });

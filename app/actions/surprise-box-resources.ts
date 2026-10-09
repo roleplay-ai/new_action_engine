@@ -7,6 +7,7 @@ import {
   SURPRISE_BOX_BUCKET,
   surpriseUploadExtension,
   validateSurpriseResourceInput,
+  youtubeThumbnailUrl,
   type SurpriseResource,
   type SurpriseResourceInput,
   type SurpriseUploadPurpose,
@@ -104,7 +105,7 @@ export async function listSurpriseResources(): Promise<{ resources?: SurpriseRes
       isActive: row.is_active,
       createdAt: row.created_at,
       url: row.storage_path ? bucket.getPublicUrl(row.storage_path).data.publicUrl : row.external_url ?? "",
-      thumbnailUrl: row.thumbnail_path ? bucket.getPublicUrl(row.thumbnail_path).data.publicUrl : null,
+      thumbnailUrl: row.thumbnail_path ? bucket.getPublicUrl(row.thumbnail_path).data.publicUrl : youtubeThumbnailUrl(row.external_url),
       mappedActionCount: mapped.get(row.id) ?? 0,
       unlockCount: unlocked.get(row.id) ?? 0,
     }));

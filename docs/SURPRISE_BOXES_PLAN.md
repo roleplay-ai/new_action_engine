@@ -1,6 +1,6 @@
 # Surprise Boxes — Implementation Plan
 
-Replace the "points added" celebration with a **Surprise Box** reveal. Super admin curates a library of 30+ videos and resources, each with a short description. When a participant finalises their action plan, a separate Gemini matcher maps every action to the best-fitting resource. Marking an action done (on time or late) unlocks that action's box. The reminder email's "Mark done" link plays a three-step Nudgie sequence (dance → door → notebook) and lands on the Wallet with the reveal open.
+Replace the "points added" celebration with a **Surprise Box** reveal. Super admin curates a library of 30+ videos and resources, each with a short description. When a participant finalises their action plan, every action is given a random resource. Marking an action done (on time or late) unlocks that action's box. The reminder email's "Mark done" link plays a three-step Nudgie sequence (dance → door → notebook) and lands on the Wallet with the reveal open.
 
 Prototype: `docs/prototypes/surprise-box.html` (published at https://claude.ai/artifact/MkyyzMSQqJ1uYhpVZiQfuX).
 
@@ -11,7 +11,7 @@ Prototype: `docs/prototypes/surprise-box.html` (published at https://claude.ai/a
 | Content source | A **new super-admin library** (not the Prepare content library), at least 30 items, each with a description used for matching. |
 | Storage | A **new storage bucket** `surprise-box-resources`; nothing goes in `email-assets` or the other existing buckets. |
 | Resource format | Either an **uploaded file** (video, PDF) in the new bucket **or an external link** (YouTube, article). |
-| Mapping | A **separate Gemini matcher** maps each action to one resource by its description, right after the plan is finalised. |
+| Mapping | Each action gets a **random** resource (no LLM) right after the plan is finalised; a plan sees every resource once before any repeats. |
 | What a box reveals | The resource mapped to **the action just completed**. |
 | More actions than resources | Resources **may repeat**. |
 | Late completions | **Unlock** the box (as do on-time completions and Pending-validation confirmations). |
@@ -31,7 +31,7 @@ Prototype: `docs/prototypes/surprise-box.html` (published at https://claude.ai/a
 | Celebration | `components/ConfettiCelebration.tsx` | "Action completed!" + points |
 | Continue | `router.push("/wallet")` | Wallet page |
 
-Plans are finalised in `activatePersonalActionPlan()` (`app/actions/ai-actions.ts`), which calls `activate_my_commitment_wallet_plan`. The existing **action-image matcher** (`lib/action-image-matching.ts`) already maps actions to a fixed library with a small Gemini model, run in the background with `after()` — the resource matcher follows the same pattern.
+Plans are finalised in `activatePersonalActionPlan()` (`app/actions/ai-actions.ts`), which calls `activate_my_commitment_wallet_plan`. The existing **action-image matcher** (`lib/action-image-matching.ts`) already maps actions to a fixed library with a small Gemini model, run in the background with `after()` — resource assignment runs the same way, without the model.
 
 ## 2. Target flow
 
@@ -59,7 +59,7 @@ Public for durable URLs; writes only via the service role (same convention as `0
 |---|---|
 | `id` UUID PK | |
 | `title` TEXT NOT NULL | Shown on the box card. |
-| `description` TEXT NOT NULL | What the resource is about. **Used by the matcher**; also shown on the card. |
+| `description` TEXT NOT NULL | What the resource is about; shown on the card. |
 | `kind` TEXT CHECK IN ('video','resource') | Drives "Watch now" vs "Open resource" and the icon. |
 | `source` TEXT CHECK IN ('upload','link') | |
 | `storage_path` TEXT NULL | Set when `source = 'upload'`. |
@@ -94,28 +94,23 @@ No application code needed to tell old plans from new ones.
 - **`unlock_my_surprise_box(p_action_id UUID)`** — `SECURITY DEFINER`, as `auth.uid()`:
   - requires a `success` `user_actions` row (on time, late or validated) and a plan with `surprise_boxes_enabled`;
   - returns the existing unlock if one exists for this action (double clicks, reused email links, bulk "complete all");
-  - uses `actions.surprise_resource_id`; if it's empty (matcher failed or still running), falls back to the participant's least-used active resource so a box is never empty.
+  - uses `actions.surprise_resource_id`; if it's empty (assignment failed or still running), falls back to the participant's least-used active resource so a box is never empty.
 - **`mark_my_surprise_box_opened(p_unlock_id UUID)`** — sets `opened_at` once.
 
 ### Also in this migration
 - Recreate `purge_user_owned_data()` (latest body in `055_fix_purge_user_owned_data_stale_tables.sql`) with `DELETE FROM public.surprise_box_unlocks WHERE user_id = p_user_id;`.
 - Document the new tables and columns in `docs/documentation/04-data-model.md`.
 
-## 4. Resource matcher — `lib/surprise-resource-matching.ts`
+## 4. Resource assignment — `lib/surprise-resource-assignment.ts`
 
-Modelled on `lib/action-image-matching.ts`:
-- Loads active resources (`title`, `description`) and the plan's actions (`title`, `how`, `why`).
-- One Gemini call (`GEMINI_IMAGE_MATCH_MODEL`, overridable via a new `GEMINI_SURPRISE_MATCH_MODEL`) with a JSON schema returning `{ actionIndex, resourceIndex }` pairs — indexes, not UUIDs, for the same reliability reason the image matcher gives.
-- Prompt: match on the underlying skill or situation in the description; every action must get a resource; **prefer variety — use each resource once before repeating; repeats are allowed when there are more actions than resources**.
+No LLM: resources are assigned at random.
+- Loads the plan's actions and the active resources.
+- `assignRandomResources()` gives each unassigned action a random resource from the ones the plan has used least, so a plan sees every resource once before any repeats.
 - Writes `actions.surprise_resource_id`. Never throws into its caller.
-- Batches large plans so one call never carries too many actions.
 
-**Where it runs (all via `after()`, so nobody waits on it):**
-- `activatePersonalActionPlan()` — maps the whole plan once it's finalised.
-- `generateOneMorePersonalAction()` and `app/api/generate-actions-batch/route.ts` — maps newly inserted actions in plans that already have boxes enabled.
-- Editing an upcoming action's title/how/why (`actions-client.tsx` → its server action) — re-maps that one action if it hasn't been unlocked yet.
+**Where it runs:** `activatePersonalActionPlan()`, via `after()` once the plan is finalised. Editing an action doesn't change its resource.
 
-**Pure helpers** (`lib/surprise-boxes.ts`, tested in `lib/__tests__/surprise-boxes.test.ts`): parsing and validating the matcher response, the variety-preserving fallback assignment, box state (`opened | ready | next | locked`).
+**Pure helpers** (`lib/surprise-boxes.ts`, tested in `lib/__tests__/surprise-boxes.test.ts`): the random assignment, box state (`opened | ready | next | locked`).
 
 ## 5. Server actions
 
@@ -179,7 +174,7 @@ Reminder email, one banner below the action cards (`lib/email-templates.ts`, `re
 
 1. ✅ Migration `081_surprise_boxes.sql`: bucket, tables, columns, functions, RLS, purge update. (`docs/documentation/04-data-model.md` only covers migrations 001–021, so the migration comments document the new tables.)
 2. ✅ Super admin library page + upload actions.
-3. ✅ Resource matcher + pure helpers + tests; hooked into plan activation and upcoming-action edits ("add one more action" is pre-finalisation only, so activation covers it).
+3. ✅ Random resource assignment + pure helpers + tests; hooked into plan activation ("add one more action" is pre-finalisation only, so activation covers it).
 4. ✅ `completeAction()` unlock + wallet shelf + reveal.
 5. ✅ Animation themes, email-link sequence, actions-page redirect. The minimum play times apply to the email-link flow; in-app "I did it" shows the notebook only while saving.
 6. ✅ Email teaser; old GIFs deleted; prototype moved to `docs/prototypes/`.
@@ -188,9 +183,9 @@ Reminder email, one banner below the action cards (`lib/email-templates.ts`, `re
 
 ## 11. Testing
 
-- **Unit (`npx vitest run`):** matcher response parsing (out-of-range indexes, missing actions), variety-preserving fallback with 12 actions / 30 resources and 40 actions / 30 resources, box states.
+- **Unit (`npx vitest run`):** random assignment (no repeats for 12 actions / 33 resources, even spread for 40 / 30, skips resources already used), box states.
 - **Database (staging Supabase):** unlock twice → one row; bulk unlock of 3 → 3 rows; late completion unlocks; old plan (`surprise_boxes_enabled = false`) never unlocks; other users can't read your unlocks; purge removes them; upload/read in the new bucket; non-superadmin can't write resources.
-- **Matcher:** run against a real finalised staging plan and eyeball the 12 mappings; force a failure and confirm the unlock fallback still fills the box.
+- **Assignment:** finalise a staging plan and check its 12 actions got 12 different resources; force a failure and confirm the unlock fallback still fills the box.
 - **End to end:** test reminder email from Superadmin → Emails → "Mark done" on desktop and phone; Friday "I completed all"; in-app "I did it"; Pending validation; late completion; an existing-cohort account (locked shelf, old popup); all boxes opened.
 - **Timing:** each animation plays to the end, on a fast connection and on throttled "Slow 4G".
 

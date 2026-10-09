@@ -221,7 +221,7 @@ export async function updateSurpriseResource(id: string, input: SurpriseResource
   }
 }
 
-/** Inactive resources are skipped by the matcher and the unlock fallback; boxes already unlocked keep them. */
+/** Inactive resources are skipped by assignment and the unlock fallback; boxes already unlocked keep them. */
 export async function setSurpriseResourceActive(id: string, isActive: boolean): Promise<{ error?: string }> {
   try {
     await ensureSuperadmin();
@@ -248,7 +248,7 @@ export async function deleteSurpriseResource(id: string): Promise<{ error?: stri
       admin.from("surprise_box_unlocks").select("id", { count: "exact", head: true }).eq("resource_id", id),
     ]);
     if ((mapped.count ?? 0) > 0 || (unlocked.count ?? 0) > 0) {
-      return { error: "This resource is already matched to participants' actions. Deactivate it instead." };
+      return { error: "This resource is already assigned to participants' actions. Deactivate it instead." };
     }
 
     const { data: existing } = await admin

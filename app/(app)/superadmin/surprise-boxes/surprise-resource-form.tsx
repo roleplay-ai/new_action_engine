@@ -104,7 +104,7 @@ export default function SurpriseResourceForm({
       <div className="superadmin-creation-form-head">
         <div>
           <h3>{resource ? "Edit resource" : "New resource"}</h3>
-          <p>Participants get this in a Surprise Box when they complete an action it's matched to.</p>
+          <p>Participants get this in a Surprise Box when they complete an action it's assigned to.</p>
         </div>
         <button type="button" onClick={onClose} aria-label="Close" disabled={saving}>
           <X size={15} />

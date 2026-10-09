@@ -10,7 +10,7 @@ export const SURPRISE_BOX_BUCKET = "surprise-box-resources";
 export const SURPRISE_LIBRARY_TARGET = 30;
 
 export const SURPRISE_TITLE_MAX = 120;
-/** The description drives the Gemini action-to-resource matcher, so it must say what the resource is about. */
+/** The description is shown in the opened box, so it must say what the resource is about. */
 export const SURPRISE_DESCRIPTION_MIN = 20;
 export const SURPRISE_DESCRIPTION_MAX = 600;
 export const SURPRISE_DURATION_LABEL_MAX = 40;
@@ -33,7 +33,7 @@ export type SurpriseResource = {
   /** Public URL a participant opens: the bucket file or the external link. */
   url: string;
   thumbnailUrl: string | null;
-  /** Plan actions the matcher has mapped to this resource. */
+  /** Plan actions this resource has been assigned to. */
   mappedActionCount: number;
   /** Boxes already unlocked with this resource. */
   unlockCount: number;
@@ -163,58 +163,29 @@ export function surpriseUploadExtension(purpose: SurpriseUploadPurpose, mimeType
 }
 
 // ---------------------------------------------------------------------------
-// Action-to-resource matching helpers (used by lib/surprise-resource-matching.ts)
+// Action-to-resource assignment (used by lib/surprise-resource-assignment.ts)
 // ---------------------------------------------------------------------------
 
 /**
- * Reads the matcher's `{ matches: [{ actionIndex, resourceIndex }] }` JSON.
- * Indexes are 1-based positions in the prompt's lists. Returns a 0-based
- * action → resource map, dropping malformed, out-of-range and repeated entries
- * (first answer for an action wins).
+ * Gives every action a random resource from the ones used least so far, so a
+ * plan sees each resource once before any repeats. `usage` counts resources
+ * already given in the plan and is updated as resources are assigned.
+ * `random` is injectable for tests.
  */
-export function parseResourceMatches(text: string, actionCount: number, resourceCount: number): Map<number, number> {
-  const matches = new Map<number, number>();
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return matches;
-  }
-  const entries = (parsed as { matches?: unknown })?.matches;
-  if (!Array.isArray(entries)) return matches;
-
-  for (const entry of entries) {
-    const { actionIndex, resourceIndex } = (entry ?? {}) as { actionIndex?: unknown; resourceIndex?: unknown };
-    if (!Number.isInteger(actionIndex) || !Number.isInteger(resourceIndex)) continue;
-    const action = (actionIndex as number) - 1;
-    const resource = (resourceIndex as number) - 1;
-    if (action < 0 || action >= actionCount || resource < 0 || resource >= resourceCount) continue;
-    if (!matches.has(action)) matches.set(action, resource);
-  }
-  return matches;
-}
-
-/**
- * Gives every action in `actionIds` without an assignment the least-used
- * resource (ties go to the earliest in `resourceIds`), counting both `usage`
- * and assignments made so far. Mutates and returns `assignments`; updates
- * `usage` so later calls keep spreading resources out.
- */
-export function fillWithLeastUsed(
+export function assignRandomResources(
   actionIds: string[],
-  assignments: Map<string, string>,
   resourceIds: string[],
-  usage: Map<string, number>
+  usage: Map<string, number> = new Map(),
+  random: () => number = Math.random
 ): Map<string, string> {
+  const assignments = new Map<string, string>();
   if (!resourceIds.length) return assignments;
   for (const actionId of actionIds) {
-    if (assignments.has(actionId)) continue;
-    let best = resourceIds[0];
-    for (const id of resourceIds) {
-      if ((usage.get(id) ?? 0) < (usage.get(best) ?? 0)) best = id;
-    }
-    assignments.set(actionId, best);
-    usage.set(best, (usage.get(best) ?? 0) + 1);
+    const fewest = Math.min(...resourceIds.map((id) => usage.get(id) ?? 0));
+    const candidates = resourceIds.filter((id) => (usage.get(id) ?? 0) === fewest);
+    const picked = candidates[Math.floor(random() * candidates.length)];
+    assignments.set(actionId, picked);
+    usage.set(picked, fewest + 1);
   }
   return assignments;
 }

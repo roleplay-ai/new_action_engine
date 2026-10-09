@@ -27,7 +27,7 @@ export default async function SurpriseBoxesPage() {
       <div className="superadmin-page-heading">
         <div>
           <h1>Surprise boxes</h1>
-          <p>Videos and resources participants unlock when they complete an action. Each one is matched to actions by its description.</p>
+          <p>Videos and resources participants unlock when they complete an action. Each action in a plan gets one at random.</p>
         </div>
       </div>
 

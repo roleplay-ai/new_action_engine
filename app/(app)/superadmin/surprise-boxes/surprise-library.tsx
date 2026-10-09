@@ -40,7 +40,7 @@ export default function SurpriseLibrary({ resources }: { resources: SurpriseReso
       <div className="superadmin-section-heading">
         <div>
           <h2>Library</h2>
-          <p>Each resource can appear in many participants&apos; boxes. Inactive resources are never matched to new actions.</p>
+          <p>Each resource can appear in many participants&apos; boxes. Inactive resources are never given to new actions.</p>
         </div>
         {!creating && (
           <button type="button" className="superadmin-primary-action" onClick={() => { setCreating(true); setEditingId(null); }}>
@@ -71,7 +71,7 @@ export default function SurpriseLibrary({ resources }: { resources: SurpriseReso
           <strong>{resources.length === 0 ? "No resources yet" : "Nothing here"}</strong>
           <p>
             {resources.length === 0
-              ? "Add videos and resources with a clear description. They're matched to participants' actions when a plan is finalised."
+              ? "Add videos and resources with a clear description. They're given out at random to participants' actions when a plan is finalised."
               : "No resources match this filter."}
           </p>
         </div>
@@ -105,7 +105,7 @@ export default function SurpriseLibrary({ resources }: { resources: SurpriseReso
                   <strong>{resource.title}</strong>
                   <p>{resource.description}</p>
                   <small>
-                    Matched to {resource.mappedActionCount} action{resource.mappedActionCount === 1 ? "" : "s"} · opened in{" "}
+                    Assigned to {resource.mappedActionCount} action{resource.mappedActionCount === 1 ? "" : "s"} · opened in{" "}
                     {resource.unlockCount} box{resource.unlockCount === 1 ? "" : "es"}
                   </small>
                 </div>

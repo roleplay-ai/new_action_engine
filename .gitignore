@@ -38,3 +38,6 @@ tsconfig.tsbuildinfo
 *.njsproj
 *.sln
 *.sw?
+
+# Local backups (e.g. scripts/compress-action-images.mjs originals)
+.backups/

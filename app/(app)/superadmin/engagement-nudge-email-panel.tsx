@@ -67,12 +67,17 @@ const WINDOW_OPTIONS: { value: string; label: string; days: NudgeWindowDays }[] 
   { value: "all", label: "Since batch start", days: null },
 ];
 
-const draftStorageKey = (kind: NudgeKind) => `nudge-email-draft:${kind}`;
+// v2: drafts saved before the Nudgie email redesign started with a
+// "Hi {{full_name}}," line that the new fixed hero already shows, so they
+// are discarded rather than carried over.
+const draftStorageKey = (kind: NudgeKind) => `nudge-email-draft:v2:${kind}`;
+const legacyDraftStorageKey = (kind: NudgeKind) => `nudge-email-draft:${kind}`;
 
 /** The admin's last edits survive a reload in this browser; a missing,
  * blocked or malformed draft just falls back to the default wording. */
 function loadDraft(kind: NudgeKind): NudgeContent {
   try {
+    window.localStorage.removeItem(legacyDraftStorageKey(kind));
     const raw = window.localStorage.getItem(draftStorageKey(kind));
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<NudgeContent>;

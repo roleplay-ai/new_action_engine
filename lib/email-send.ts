@@ -7,8 +7,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resend } from "@/lib/resend";
 import { isEmailTemplateKey, renderEmailTemplate, type EmailTemplateKey } from "@/lib/email-templates";
-
-const NUDGEABLE_APP_URL = "https://practice.nudgeable.ai";
+import { getAppUrl } from "@/lib/app-url";
 
 /**
  * Builds a Resend "From" header showing a display name in front of the
@@ -98,6 +97,7 @@ export async function sendTemplateToUsers({
   /** Key of a template defined in lib/email-templates.ts (e.g. "weekly_challenges", "credentials"). */
   templateId: string;
   fromEmail: string;
+  /** Ignored for links: emails always point at the production app (see normalizedBase). */
   baseUrl: string;
   sentBy: string | null;
   extraTemplateData?: Record<string, unknown>;
@@ -215,11 +215,11 @@ export async function sendTemplateToUsers({
   }
 
   const results: SendToUsersResult[] = [];
-  // Credential/welcome emails must always use the deployed app so magic-link
-  // buttons never inherit a localhost URL from an admin or cron environment.
-  const normalizedBase = templateKey === "credentials"
-    ? NUDGEABLE_APP_URL
-    : baseUrl.replace(/\/$/, "");
+  // Every email links to the production app. Senders still pass a baseUrl,
+  // but it comes from NEXT_PUBLIC_APP_URL (the Vercel deployment URL) or the
+  // request host (localhost), and participants must never land there. Only the
+  // explicit NUDGEABLE_APP_URL test override changes it (see lib/app-url.ts).
+  const normalizedBase = getAppUrl();
   const appLoginUrl = `${normalizedBase}/login`;
 
   for (const userId of userIds) {
@@ -275,12 +275,12 @@ export async function sendTemplateToUsers({
         dynamicTemplateData.app_login_url = appLoginUrl;
       }
 
-      // Give the action reminder a per-action "Mark done" link: it reuses
+      // Give the action reminder and Friday recap a per-action "Mark done" link: it reuses
       // the same auto-login key as the main CTA, but sends the participant
       // straight to /actions with ?completeAction=<id> so the app settles
       // that specific action and shows the usual celebration on arrival —
       // no extra tap needed once the email link is opened.
-      if (templateKey === "daily_reminder" && key && Array.isArray(dynamicTemplateData.actions)) {
+      if ((templateKey === "daily_reminder" || templateKey === "weekly_recap") && key && Array.isArray(dynamicTemplateData.actions)) {
         dynamicTemplateData.actions = (dynamicTemplateData.actions as Record<string, unknown>[]).map((action) => {
           const actionId = typeof action.id === "string" ? action.id : undefined;
           if (!actionId) return action;
@@ -292,10 +292,9 @@ export async function sendTemplateToUsers({
         });
       }
 
-      // The Friday week recap has no per-action links — instead it gets one
-      // "I completed all" button that bulk-completes every listed action in
-      // a single click, via the same auto-login mechanism as the daily
-      // reminder's per-action Mark done link.
+      // The Friday week recap also gets one "Confirm all as completed"
+      // button that bulk-completes every listed action in a single click,
+      // via the same auto-login mechanism as the per-action Mark done link.
       if (templateKey === "weekly_recap" && key && Array.isArray(dynamicTemplateData.actions)) {
         const actionIds = (dynamicTemplateData.actions as Record<string, unknown>[])
           .map((action) => (typeof action.id === "string" ? action.id : undefined))

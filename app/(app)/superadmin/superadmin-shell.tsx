@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Building2,
+  Gift,
   GraduationCap,
   LayoutDashboard,
   Library,
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { href: "/superadmin", label: "Companies", description: "Organisation directory", icon: Building2, exact: true },
   { href: "/superadmin/users", label: "Users", description: "Access and roles", icon: Users },
   { href: "/superadmin/content-library", label: "Content", description: "Learning library", icon: Library },
+  { href: "/superadmin/surprise-boxes", label: "Surprise boxes", description: "Action rewards", icon: Gift },
   { href: "/superadmin/trainers", label: "Trainers", description: "Trainer roster", icon: UserRound },
   { href: "/superadmin/tags", label: "Participant tags", description: "Team tag roster", icon: Tag },
   { href: "/superadmin/emails", label: "Emails & reminders", description: "Queue and delivery", icon: Mail },

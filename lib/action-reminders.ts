@@ -58,6 +58,10 @@ export type WalletEmailSummary = {
   teamMemberCount?: number;
   buddyName?: string | null;
   buddyScore?: number | null;
+  /** The plan has Surprise Boxes (finalised after they launched) — the email teases them. */
+  surpriseBoxesEnabled?: boolean;
+  /** Actions in "Pending validation": auto-expired before a check-in and not yet resolved. */
+  pendingValidationCount?: number;
 };
 
 /** Live score/rank/buddy data for the reminder email — see get_commitment_wallet_email_summary. */
@@ -66,10 +70,26 @@ export async function fetchWalletEmailSummary(
   userId: string,
   cohortId: string
 ): Promise<WalletEmailSummary | null> {
-  const { data, error } = await admin.rpc("get_commitment_wallet_email_summary", {
-    p_user_id: userId,
-    p_cohort_id: cohortId,
-  });
+  const [{ data, error }, { data: plan }, { count: pendingValidationCount }] = await Promise.all([
+    admin.rpc("get_commitment_wallet_email_summary", {
+      p_user_id: userId,
+      p_cohort_id: cohortId,
+    }),
+    admin
+      .from("commitment_wallet_plans")
+      .select("surprise_boxes_enabled")
+      .eq("user_id", userId)
+      .eq("cohort_id", cohortId)
+      .maybeSingle(),
+    // Same rule as the My Actions "Pending validation" tab.
+    admin
+      .from("user_actions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("cohort_id", cohortId)
+      .eq("status", "failed")
+      .eq("auto_expired", true),
+  ]);
   if (error) {
     console.error("[action-reminders] failed to load wallet summary for email", {
       userId,
@@ -77,7 +97,11 @@ export async function fetchWalletEmailSummary(
     });
     return null;
   }
-  return data as unknown as WalletEmailSummary;
+  return {
+    ...(data as unknown as WalletEmailSummary),
+    surpriseBoxesEnabled: plan?.surprise_boxes_enabled === true,
+    pendingValidationCount: pendingValidationCount ?? 0,
+  };
 }
 
 const WEEKDAYS = [
@@ -356,6 +380,8 @@ export async function sendDailyActionReminders(
         team_size: walletSummary?.teamMemberCount ?? null,
         buddy_name: walletSummary?.buddyName ?? null,
         buddy_score: walletSummary?.buddyScore ?? null,
+        surprise_boxes_enabled: walletSummary?.surpriseBoxesEnabled ?? false,
+        pending_validation_count: walletSummary?.pendingValidationCount ?? 0,
       };
     },
   });
@@ -575,6 +601,8 @@ export async function sendWeeklyUnvalidatedRecap(fromEmail: string): Promise<Wee
         team_size: walletSummary?.teamMemberCount ?? null,
         buddy_name: walletSummary?.buddyName ?? null,
         buddy_score: walletSummary?.buddyScore ?? null,
+        surprise_boxes_enabled: walletSummary?.surpriseBoxesEnabled ?? false,
+        pending_validation_count: walletSummary?.pendingValidationCount ?? 0,
       };
     },
   });

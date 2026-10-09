@@ -25,6 +25,7 @@ import { renderEmailTemplate, formatPlanActionDate } from "@/lib/email-templates
 import { buildFromHeader } from "@/lib/email-send";
 import { buildActionPlanPdf } from "@/lib/action-plan-pdf";
 import { matchActionImagesForRows } from "@/lib/action-image-matching";
+import { assignSurpriseResourcesForPlan } from "@/lib/surprise-resource-assignment";
 
 export type MyPlanSettings = {
   track: DeliveryTrack;
@@ -608,6 +609,12 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
     if (activationError) return { error: activationError.message };
 
     await supabase.from("profiles").update({ self_onboarding_completed_at: new Date().toISOString() }).eq("id", user.id);
+
+    // Give each frozen action a random Surprise Box resource. Background and
+    // best-effort: an unassigned action still gets a resource at unlock time.
+    const assignAdmin = createAdminClient();
+    const assignCohortId = cohortContext.cohortId;
+    after(() => assignSurpriseResourcesForPlan(assignAdmin, { userId: user.id, cohortId: assignCohortId }));
 
     // Deferred to after the response so the participant isn't kept waiting
     // on buddy pairing, multiple lookups, and a Resend call before their

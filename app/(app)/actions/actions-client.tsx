@@ -20,6 +20,7 @@ import { nextMilestoneFor, milestonePoints } from "@/lib/commitment-wallet-miles
 import { usePageLoading, usePageLoadingControls } from "@/components/PageLoadingProvider";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
 import PageLoader from "@/components/PageLoader";
+import { clearEmailSequence, startEmailSequencePhase, waitForEmailSequencePhase } from "@/lib/email-link-sequence";
 
 type Tab = "upcoming" | "completed" | "pending-validation" | "not-completed" | "archived" | "settings";
 type ArchivedActionEntry = {
@@ -544,64 +545,64 @@ export default function ActionsClient() {
     // Strip immediately so a refresh or back-navigation can't replay it.
     window.history.replaceState({}, "", window.location.pathname);
 
-    if (targetActionIds) {
-      const ids = [...new Set(targetActionIds.split(",").map((id) => id.trim()).filter(Boolean))];
-      if (!ids.length) return;
-      void (async () => {
-        setAutoCompleting({ count: ids.length });
-        try {
-          let completedCount = 0;
-          let pointsTotal = 0;
-          let anyLate = false;
-          for (const id of ids) {
-            const result = await completeAction(id, true, "");
-            if (!result.error) {
-              completedCount += 1;
-              pointsTotal += result.pointsDelta ?? 0;
-              if (result.completedLate) anyLate = true;
-            } else {
-              console.error("Bulk auto-complete from email link failed:", id, result.error);
-            }
-          }
-          if (completedCount === 0) return;
-          try {
-            setArchivedActions(await fetchArchivedActions());
-          } catch {
-            // Non-fatal — the celebration below doesn't depend on this list.
-          }
-          setCelebration({
-            title: completedCount === 1 ? "Action completed" : `${completedCount} actions completed!`,
-            pointsDelta: pointsTotal,
-            completedLate: anyLate,
-          });
-        } finally {
-          setAutoCompleting(null);
-        }
-      })();
-      return;
-    }
+    const ids = targetActionIds
+      ? [...new Set(targetActionIds.split(",").map((id) => id.trim()).filter(Boolean))]
+      : [targetActionId!];
+    if (!ids.length) return;
+    const singleTitle = ids.length === 1 ? actionMap.get(ids[0])?.title : undefined;
 
-    const actionTitle = actionMap.get(targetActionId!)?.title ?? "Action completed";
     void (async () => {
-      setAutoCompleting({ count: 1 });
-      try {
-        const result = await completeAction(targetActionId!, true, "");
-        if (!result.error) {
-          try {
-            setArchivedActions(await fetchArchivedActions());
-          } catch {
-            // Non-fatal — the celebration below doesn't depend on this list.
+      // Saving starts right away; the notebook (step 3 of the email-link
+      // sequence) only appears once the door has played through — Layout
+      // keeps the door up until then.
+      const work = (async () => {
+        let completedCount = 0;
+        let pointsTotal = 0;
+        let anyLate = false;
+        const unlockIds: string[] = [];
+        for (const id of ids) {
+          const result = await completeAction(id, true, "");
+          if (!result.error) {
+            completedCount += 1;
+            pointsTotal += result.pointsDelta ?? 0;
+            if (result.completedLate) anyLate = true;
+            if (result.surpriseBoxUnlockId) unlockIds.push(result.surpriseBoxUnlockId);
+          } else {
+            console.error("Auto-complete from email link failed:", id, result.error);
           }
-          setCelebration({
-            title: actionTitle,
-            pointsDelta: result.pointsDelta,
-            completedLate: result.completedLate,
-          });
-        } else {
-          console.error("Auto-complete from email link failed:", result.error);
         }
+        return { completedCount, pointsTotal, anyLate, unlockIds };
+      })();
+
+      await waitForEmailSequencePhase("door");
+      startEmailSequencePhase("notebook");
+      setAutoCompleting({ count: ids.length });
+      let leavingForWallet = false;
+      try {
+        const [outcome] = await Promise.all([work, waitForEmailSequencePhase("notebook")]);
+        if (outcome.completedCount === 0) return;
+
+        // Plans with Surprise Boxes: straight to the Wallet with the reveal
+        // open. The notebook stays up until this page unmounts.
+        if (outcome.unlockIds.length) {
+          leavingForWallet = true;
+          router.replace(`/wallet?reveal=${outcome.unlockIds.map(encodeURIComponent).join(",")}`);
+          return;
+        }
+
+        try {
+          setArchivedActions(await fetchArchivedActions());
+        } catch {
+          // Non-fatal — the celebration below doesn't depend on this list.
+        }
+        setCelebration({
+          title: outcome.completedCount === 1 ? singleTitle ?? "Action completed" : `${outcome.completedCount} actions completed!`,
+          pointsDelta: outcome.pointsTotal,
+          completedLate: outcome.anyLate,
+        });
       } finally {
-        setAutoCompleting(null);
+        clearEmailSequence();
+        if (!leavingForWallet) setAutoCompleting(null);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -614,9 +615,18 @@ export default function ActionsClient() {
       archivedActions.find((action) => action.id === completingId)?.title;
     setBusy(true);
     setCompleteError(null);
+    // Nudgie writes in the notebook while it saves (only as long as the save
+    // takes — the minimum play time is for the email-link sequence).
+    if (success) setAutoCompleting({ count: 1 });
+    let leavingForWallet = false;
     try {
       const result = await completeAction(completingId, success, reflection);
       if (!result.error) {
+        if (success && result.surpriseBoxUnlockId) {
+          leavingForWallet = true;
+          router.replace(`/wallet?reveal=${encodeURIComponent(result.surpriseBoxUnlockId)}`);
+          return;
+        }
         try {
           setArchivedActions(await fetchArchivedActions());
         } catch {
@@ -637,7 +647,10 @@ export default function ActionsClient() {
         setCompleteError(result.error);
       }
     } finally {
-      setBusy(false);
+      if (!leavingForWallet) {
+        setAutoCompleting(null);
+        setBusy(false);
+      }
     }
   }
 
@@ -1022,8 +1035,9 @@ export default function ActionsClient() {
     {typeof document !== "undefined" && autoCompleting && createPortal(
       <PageLoader
         variant="main"
-        label={autoCompleting.count === 1 ? "Marking your action as done" : "Marking your actions as done"}
-        sublabel="This can take 10–15 seconds — please hold on."
+        theme="email-notebook"
+        label={autoCompleting.count === 1 ? "Marking your action as done…" : "Marking your actions as done…"}
+        sublabel="Writing it into your plan"
       />,
       document.body,
     )}

@@ -10,11 +10,11 @@ import type { SurpriseShelf, SurpriseShelfBox } from "@/lib/surprise-boxes";
 /** Boxes shown before the shelf scrolls (3 rows of 4 on desktop, 4 rows of 3 on phones). */
 const SHELF_VISIBLE_BOXES = 12;
 
-/** Gift colourways, cycled by slot; bonus boxes are always gold. */
+/** Gift colourways, cycled by slot. */
 const GIFT_VARIANTS = ["", "v2", "v3", "v4"];
 
 function giftVariant(box: SurpriseShelfBox) {
-  return box.bonus ? "gold" : GIFT_VARIANTS[(box.slot - 1) % GIFT_VARIANTS.length];
+  return GIFT_VARIANTS[(box.slot - 1) % GIFT_VARIANTS.length];
 }
 
 function Gift({ variant, locked }: { variant: string; locked?: boolean }) {
@@ -35,8 +35,6 @@ const IDLE_LINES = [
 ];
 
 function openLine(box: SurpriseShelfBox) {
-  if (box.bonus === "finale") return { line: "You finished them all! 🏆", sub: "I'm so proud of you!" };
-  if (box.bonus === "halfway") return { line: "HALFWAY THERE!! ⭐", sub: "Keep this momentum going!" };
   if (box.prize?.kind === "resource") return { line: "Woohoo! Look what you got! 🎉", sub: "This one's a keeper 📌" };
   return { line: "Yesss! You earned this! 🎉", sub: "Grab a coffee and press play ☕" };
 }
@@ -222,11 +220,10 @@ function ShelfTile({ box, onSelect }: { box: SurpriseShelfBox; onSelect: (box: S
   const selectable = box.state === "opened" || box.state === "ready";
   const content = (
     <>
-      {box.bonus && <span className="surprise-tile-ribbon">{box.bonus === "finale" ? "Grand finale" : "Halfway bonus"}</span>}
       <div className="surprise-tile-art">
         {box.state === "opened" ? (
-          <span className={`surprise-tile-icon ${box.bonus ? "bonus" : box.prize?.kind ?? "resource"}`}>
-            {box.bonus === "finale" ? "🏆" : box.bonus === "halfway" ? "⭐" : box.prize?.kind === "video" ? <Play size={20} fill="currentColor" /> : <FileText size={20} />}
+          <span className={`surprise-tile-icon ${box.prize?.kind ?? "resource"}`}>
+            {box.prize?.kind === "video" ? <Play size={20} fill="currentColor" /> : <FileText size={20} />}
           </span>
         ) : (
           <Gift variant={giftVariant(box)} locked={box.state === "locked" || box.state === "missed"} />
@@ -259,11 +256,11 @@ function ShelfTile({ box, onSelect }: { box: SurpriseShelfBox; onSelect: (box: S
   );
 
   return selectable ? (
-    <button type="button" className={`surprise-tile ${box.state} ${box.bonus ? "bonus" : ""}`} onClick={() => onSelect(box)} aria-label={box.state === "ready" ? `Open box ${box.slot}` : `View ${box.prize?.title ?? `box ${box.slot}`}`}>
+    <button type="button" className={`surprise-tile ${box.state}`} onClick={() => onSelect(box)} aria-label={box.state === "ready" ? `Open box ${box.slot}` : `View ${box.prize?.title ?? `box ${box.slot}`}`}>
       {content}
     </button>
   ) : (
-    <div className={`surprise-tile ${box.state} ${box.bonus ? "bonus" : ""}`}>{content}</div>
+    <div className={`surprise-tile ${box.state}`}>{content}</div>
   );
 }
 
@@ -329,7 +326,6 @@ export default function SurpriseBoxes({ shelf, revealUnlockIds }: { shelf: Surpr
 
   const openedCount = boxes.filter((box) => box.state === "opened").length;
   const progress = (boxes.filter((box) => box.unlockId).length / boxes.length) * 100;
-  const markers = boxes.filter((box) => box.bonus);
 
   return (
     <section className={`surprise-shelf ${shelf.enabled ? "" : "is-disabled"}`} aria-labelledby="surprise-shelf-title">
@@ -339,7 +335,7 @@ export default function SurpriseBoxes({ shelf, revealUnlockIds }: { shelf: Surpr
           <h3 id="surprise-shelf-title">Surprise Boxes</h3>
           <p>
             {shelf.enabled
-              ? "Every action you mark done opens a box with a video or resource picked for that action. Opened boxes stay here."
+              ? "These boxes hold surprises—people-skills videos, behavioural experiments, or inspiring movie picks. Open one and see."
               : "Surprise Boxes start with your next programme."}
           </p>
         </div>
@@ -352,21 +348,9 @@ export default function SurpriseBoxes({ shelf, revealUnlockIds }: { shelf: Surpr
       </div>
 
       {shelf.enabled && (
-        <>
-          <div className="surprise-progress" role="img" aria-label={`${Math.round(progress)}% of boxes unlocked`}>
-            <span style={{ width: `${progress}%` }} />
-            {markers.map((box) => (
-              <i key={box.slot} className={box.unlockId ? "hit" : ""} style={{ left: `${(box.slot / boxes.length) * 100}%` }}>
-                {box.bonus === "finale" ? "🏆" : "⭐"}
-              </i>
-            ))}
-          </div>
-          <div className="surprise-legend">
-            {markers.map((box) => (
-              <span key={box.slot}>{box.bonus === "finale" ? "🏆" : "⭐"} <b>Box {box.slot}</b> · {box.bonus === "finale" ? "Grand finale" : "Halfway bonus"}</span>
-            ))}
-          </div>
-        </>
+        <div className="surprise-progress" role="img" aria-label={`${Math.round(progress)}% of boxes unlocked`}>
+          <span style={{ width: `${progress}%` }} />
+        </div>
       )}
 
       <div

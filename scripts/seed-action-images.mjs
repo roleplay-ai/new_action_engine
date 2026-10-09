@@ -11,10 +11,14 @@
 // Safe to re-run: re-uploads (upsert) and re-upserts the DB row for every
 // file found, so replacing an image or adding new ones later is just running
 // this again against the same (or an updated) folder.
+//
+// Every file is compressed before upload (see action-image-compression.mjs)
+// and always stored as .png, whatever the source format.
 
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
+import { compressActionImage } from "./action-image-compression.mjs";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -33,12 +37,6 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 });
 
 const SUPPORTED_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
-const CONTENT_TYPE_BY_EXTENSION = {
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".webp": "image/webp",
-};
 
 function labelFromFilename(filename) {
   return filename.slice(0, filename.lastIndexOf(".")).trim();
@@ -69,16 +67,14 @@ let failed = 0;
 
 for (const filename of files) {
   const label = labelFromFilename(filename);
-  const extension = path.extname(filename).toLowerCase();
-  const contentType = CONTENT_TYPE_BY_EXTENSION[extension] ?? "application/octet-stream";
-  const storagePath = `library/${slugify(label)}${extension}`;
+  const storagePath = `library/${slugify(label)}.png`;
 
   try {
-    const buffer = await readFile(path.join(sourceDir, filename));
+    const buffer = await compressActionImage(await readFile(path.join(sourceDir, filename)));
 
     const { error: uploadError } = await admin.storage
       .from("action-images")
-      .upload(storagePath, buffer, { contentType, upsert: true });
+      .upload(storagePath, buffer, { contentType: "image/png", upsert: true });
     if (uploadError) throw uploadError;
 
     const { data: publicUrlData } = admin.storage.from("action-images").getPublicUrl(storagePath);

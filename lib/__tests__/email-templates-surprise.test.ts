@@ -9,10 +9,10 @@ const actions = [
 const teaser = "Mark done to open a <strong>Surprise Box</strong>";
 
 describe("reminder emails: Surprise Box teaser", () => {
-  it.each(["daily_reminder", "weekly_recap"] as const)("%s shows it once, above the cards, when the plan has boxes", (template) => {
+  it.each(["daily_reminder", "weekly_recap"] as const)("%s shows it once, below the cards, when the plan has boxes", (template) => {
     const { html } = renderEmailTemplate(template, { first_name: "Priya", actions, surprise_boxes_enabled: true });
     expect(html.split(teaser)).toHaveLength(2);
-    expect(html.indexOf(teaser)).toBeLessThan(html.indexOf(actions[0].title));
+    expect(html.indexOf(teaser)).toBeGreaterThan(html.indexOf(actions[actions.length - 1].title));
   });
 
   it.each(["daily_reminder", "weekly_recap"] as const)("%s leaves it out for plans without boxes", (template) => {

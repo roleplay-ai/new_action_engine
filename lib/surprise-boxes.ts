@@ -205,7 +205,6 @@ export function fillWithLeastUsed(
  * missed (completing it late still opens it); locked — everything else.
  */
 export type SurpriseBoxState = "opened" | "ready" | "next" | "missed" | "locked";
-export type SurpriseBoxBonus = "halfway" | "finale";
 
 /** What a participant sees inside an unlocked box. */
 export type SurprisePrize = {
@@ -222,7 +221,6 @@ export type SurpriseShelfBox = {
   actionId: string;
   actionTitle: string;
   state: SurpriseBoxState;
-  bonus: SurpriseBoxBonus | null;
   unlockId: string | null;
   /** Null when locked, or when the library was empty at unlock time. */
   prize: SurprisePrize | null;
@@ -234,13 +232,6 @@ export type SurpriseShelf = {
   boxes: SurpriseShelfBox[];
   unlockedCount: number;
 };
-
-/** 1-based slots that get the ⭐ halfway and 🏆 finale highlight. */
-export function bonusSlots(boxCount: number): { halfway: number | null; finale: number | null } {
-  if (boxCount < 2) return { halfway: null, finale: boxCount === 1 ? 1 : null };
-  const halfway = Math.ceil(boxCount / 2);
-  return { halfway: halfway === boxCount ? null : halfway, finale: boxCount };
-}
 
 export type ShelfActionInput = {
   actionId: string;
@@ -257,14 +248,12 @@ export function buildSurpriseShelf(
   unlocksByAction: Map<string, ShelfUnlockInput>,
   enabled: boolean
 ): SurpriseShelf {
-  const { halfway, finale } = bonusSlots(actions.length);
   let nextAssigned = !enabled;
 
   const boxes = actions.map((action, index): SurpriseShelfBox => {
     const slot = index + 1;
-    const bonus: SurpriseBoxBonus | null = slot === finale ? "finale" : slot === halfway ? "halfway" : null;
     const unlock = enabled ? unlocksByAction.get(action.actionId) : undefined;
-    const base = { slot, actionId: action.actionId, actionTitle: action.actionTitle, bonus };
+    const base = { slot, actionId: action.actionId, actionTitle: action.actionTitle };
 
     if (unlock) {
       return { ...base, state: unlock.openedAt ? "opened" : "ready", unlockId: unlock.unlockId, prize: unlock.prize };

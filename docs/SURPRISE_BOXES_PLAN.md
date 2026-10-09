@@ -115,7 +115,7 @@ Modelled on `lib/action-image-matching.ts`:
 - `generateOneMorePersonalAction()` and `app/api/generate-actions-batch/route.ts` — maps newly inserted actions in plans that already have boxes enabled.
 - Editing an upcoming action's title/how/why (`actions-client.tsx` → its server action) — re-maps that one action if it hasn't been unlocked yet.
 
-**Pure helpers** (`lib/surprise-boxes.ts`, tested in `lib/__tests__/surprise-boxes.test.ts`): parsing and validating the matcher response, the variety-preserving fallback assignment, box state (`opened | ready | next | locked`), halfway/finale slots.
+**Pure helpers** (`lib/surprise-boxes.ts`, tested in `lib/__tests__/surprise-boxes.test.ts`): parsing and validating the matcher response, the variety-preserving fallback assignment, box state (`opened | ready | next | locked`).
 
 ## 5. Server actions
 
@@ -159,7 +159,7 @@ Assets already generated in `public/loader/`:
 ## 8. Participant UI
 
 **Wallet page (`app/(app)/wallet/page.tsx`)** — new full-width **Surprise Boxes** section between the score/bank grid and the tree milestones.
-- One box per plan action in schedule order; 6 per row on desktop, 4 on tablet, 3 on phones; progress bar with ⭐ halfway and 🏆 finale markers (visual highlight only — they hold their action's mapped resource like any other box).
+- One box per plan action in schedule order; 6 per row on desktop, 4 on tablet, 3 on phones; a plain progress bar of boxes unlocked, with no milestone boxes — every box is equal.
 - States: **opened** (resource card, click to view again), **ready to open** (unlocked but popup was closed early), **next up**, **locked** (incl. missed actions, which unlock if completed late).
 - **Plans without boxes enabled (existing cohorts):** the section shows every box locked with "Surprise Boxes start with your next programme." and no reveal.
 - Reads `searchParams.reveal` (one or more unlock ids), opens the reveal, then strips the param.
@@ -173,7 +173,7 @@ Assets already generated in `public/loader/`:
 
 ## 9. Email (last, optional)
 
-Reminder email action card (`lib/email-templates.ts`, `nudgieActionCardHtml`): "🎁 Mark done to open a Surprise Box in your Commitment Wallet." — only for recipients whose plan has boxes enabled (`surprise_boxes_enabled`, from `fetchWalletEmailSummary`).
+Reminder email, one banner below the action cards (`lib/email-templates.ts`, `reminderActionCardsHtml`): "🎁 Mark done to open a Surprise Box." — only for recipients whose plan has boxes enabled (`surprise_boxes_enabled`, from `fetchWalletEmailSummary`).
 
 ## 10. Delivery order — all built on `animateSurpriseBox`
 
@@ -201,5 +201,5 @@ Reminder email action card (`lib/email-templates.ts`, `nudgieActionCardHtml`): "
 ## 13. Open questions
 
 1. Can a participant **re-open** an opened resource any time from the shelf? (Plan assumes yes.)
-2. Should the **halfway/finale** boxes get special content chosen by super admin, or stay visual highlights only? (Plan assumes highlights only.)
+2. ~~Halfway/finale milestone boxes~~ — dropped: there are no milestones, every box is equal.
 3. Should **company admins / trainers** see which resource each participant got, or is this participant-only for now? (Plan assumes participant-only.)

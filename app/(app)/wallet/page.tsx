@@ -1,9 +1,5 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  Check,
-  Minus,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import {
   getMyCommitmentWallet,
   type CommitmentWalletSummary,
@@ -115,46 +111,34 @@ export default async function WalletPage({
     <div className="commitment-wallet-page animate-in fade-in duration-700">
       <header className="wallet-page-heading">
         <h1>Keep your promise.<br />Unlock your surprises.</h1>
-        <p>Stay consistent. Every action you complete opens a Surprise Box with a video or resource picked for that action.</p>
+        <p>
+          {shelf.enabled
+            ? "Miss an action and your Commitment Score goes down. Complete one and a Surprise Box opens."
+            : "Miss an action and your Commitment Score goes down. Complete one and it stays strong."}
+        </p>
       </header>
 
       {error && <div className="wallet-error" role="alert">The Wallet could not be loaded: {error}</div>}
 
-      <section className="wallet-banner-row" aria-label="How the Commitment Wallet works">
-        <div className="wallet-banner miss">
-          <span className="wallet-banner-icon"><Minus size={22} /></span>
-          <div>
-            <small>Miss an action</small>
-            <strong>Commitment Score ↓</strong>
-          </div>
-        </div>
-        <div className="wallet-banner complete">
-          <span className="wallet-banner-icon"><Check size={22} /></span>
-          <div>
-            <small>Complete an action</small>
-            <strong>{shelf.enabled ? "A Surprise Box opens" : "Commitment Score stays strong"}</strong>
-          </div>
-        </div>
-      </section>
-
       <section className={`wallet-main-grid ${shelf.boxes.length ? "wallet-main-grid--boxes" : "wallet-main-grid--single"}`}>
-        <PersonalWallet summary={summary} />
-        <SurpriseBoxes shelf={shelf} revealUnlockIds={revealUnlockIds} />
-      </section>
-
-      <section className="wallet-footer-action">
-        <div>
-          <strong>
-            {!summary.hasFinalisedPlan
-              ? "Finalise your plan to start your Commitment Score."
-              : shelf.enabled
-                ? "Your next completed action opens your next Surprise Box."
-                : "Your next on-time action keeps your Commitment Score strong."}
-          </strong>
+        <div className="wallet-score-column">
+          <PersonalWallet summary={summary} />
+          <div className="wallet-footer-action">
+            <div>
+              <strong>
+                {!summary.hasFinalisedPlan
+                  ? "Finalise your plan to start your Commitment Score."
+                  : shelf.enabled
+                    ? "Your next completed action opens your next Surprise Box."
+                    : "Your next on-time action keeps your Commitment Score strong."}
+              </strong>
+            </div>
+            <Link href={summary.hasFinalisedPlan ? "/actions" : "/plan"}>
+              {summary.hasFinalisedPlan ? "View my next action" : "Go to my plan"} <ArrowRight size={14} />
+            </Link>
+          </div>
         </div>
-        <Link href={summary.hasFinalisedPlan ? "/actions" : "/plan"}>
-          {summary.hasFinalisedPlan ? "View my next action" : "Go to my plan"} <ArrowRight size={14} />
-        </Link>
+        <SurpriseBoxes shelf={shelf} revealUnlockIds={revealUnlockIds} />
       </section>
     </div>
   );

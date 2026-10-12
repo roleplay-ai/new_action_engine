@@ -93,11 +93,25 @@ line in the template itself: one UTILITY template per action count, chosen by
 - Approval/rejection arrives on the webhook as
   `message_template_status_update` (stored in `whatsapp_webhook_events`).
 
-### Phase 4 — Sending
-- `lib/whatsapp.ts` `sendTemplate()` with backoff; insert an `accepted` row
-  into `whatsapp_message_logs` with `user_id`/`purpose` on send.
-- Hook into `sendDailyActionReminders` after the email batch, with its own
-  claim/log so email and WhatsApp can't block or double each other.
+### Phase 4 — Sending ✅ (this branch)
+- `lib/whatsapp-reminders.ts` `sendWhatsAppActionReminders()`, called from the
+  daily cron (`app/api/cron/email-scheduler/route.ts`) right after the batch
+  release and before the Resend check, so WhatsApp doesn't depend on email.
+- Mirrors the reminder email exactly: active, unarchived plans linked to a
+  batch; same days (`reminderDaysFor()` in `lib/reminder-days.ts`, shared with the email); same actions
+  (`buildReminderActionContext()`: the plan's current actions in that batch).
+- Sends only when `whatsapp_reminders_enabled`, a number exists, and
+  `opted_out_at IS NULL`; skips plans with no current actions.
+- Template `action_reminder_N` by action count via `buildActionReminder()`;
+  company from the batch's company; button = persistent login key.
+- `supabase/migrations/084_whatsapp_reminder_claims.sql`: one claim per plan
+  per IST day (`claim_whatsapp_reminder`), separate from the email claim;
+  failed sends retried by a rerun after 15 min, max 3 attempts. The claim
+  stores the wamid; delivery/read/failure lands in `whatsapp_message_logs`.
+- The cron response includes a `whatsappReminders` summary (sent, failed,
+  skipped: not due / no number / opted out / empty / already claimed).
+- Plans not linked to a batch get no reminders on either channel (existing
+  email behaviour, kept as is).
 
 ### Phase 5 — Admin + extras
 - WhatsApp delivered/read/failed in the superadmin reminder logs panel.

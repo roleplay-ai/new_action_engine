@@ -17,7 +17,8 @@ import {
   getCurrentISTDate,
   istToUTCDateTime,
 } from "@/lib/timezone-utils";
-import { DAILY_DELIVERY_DAYS, getWeekdayIST } from "@/lib/personal-action-generation";
+import { getWeekdayIST } from "@/lib/personal-action-generation";
+import { reminderDaysFor } from "@/lib/reminder-days";
 
 export type ActionReminderRunSummary = {
   sent: number;
@@ -28,7 +29,7 @@ export type ActionReminderRunSummary = {
   skippedClaimed: number;
 };
 
-type ReminderSubscription = {
+export type ReminderSubscription = {
   id: string;
   user_id: string;
   cohort_id: string;
@@ -39,7 +40,7 @@ type ReminderSubscription = {
   last_reminder_sent_date: string | null;
 };
 
-type ReminderAction = {
+export type ReminderAction = {
   id: string;
   title: string;
   how: string;
@@ -114,7 +115,7 @@ const WEEKDAYS = [
   "Saturday",
 ];
 
-function subscriptionKey(userId: string, cohortId: string) {
+export function subscriptionKey(userId: string, cohortId: string) {
   return `${userId}:${cohortId}`;
 }
 
@@ -125,6 +126,7 @@ function formatReminderTime(value: string) {
 }
 
 const FIXED_REMINDER_TIME_IST = "11:30";
+
 export const ACTION_REMINDER_APP_URL =
   "https://practice.nudgeable.ai";
 
@@ -141,7 +143,7 @@ function reminderScheduleLabel(sub: ReminderSubscription) {
  * "scheduled" (not yet validated) actions plus the cohort/company context
  * needed to render either email.
  */
-async function buildReminderActionContext(
+export async function buildReminderActionContext(
   admin: ReturnType<typeof createAdminClient>,
   dueSubscriptions: Array<{ sub: ReminderSubscription; scheduledFor: string }>
 ) {
@@ -252,10 +254,7 @@ export async function sendDailyActionReminders(
       continue;
     }
 
-    const days = sub.track === "daily"
-      ? [...DAILY_DELIVERY_DAYS]
-      : sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null);
-    if (!days?.includes(todayWeekday)) {
+    if (!reminderDaysFor(sub).includes(todayWeekday)) {
       summary.skippedNotDue += 1;
       continue;
     }

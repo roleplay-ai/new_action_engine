@@ -63,25 +63,33 @@ Reference: https://developers.facebook.com/documentation/business-messaging/what
 - Env: `WHATSAPP_PHONE_NUMBER_ID` (shows the options), `WHATSAPP_ACCESS_TOKEN`
   (confirmation replies now, reminders in Phase 4).
 
-### Phase 3 — Template ✅ submitted (pending Meta review)
-- `action_reminder_company` (UTILITY, `en`, template id 1781681296084161) on
-  the Nudgeable AI WhatsApp account:
-  - Header: "Your {{1}} actions are ready" — {{1}} the participant's company
-    (falls back to "Nudgeable").
-  - Body: "Hi {{1}} 👋 Nudgie here! Your planned actions for {{2}}: / {{3}} /
-    Small steps, real change 💪 Open Nudgeable to see how to do each one, then
-    mark them done ✅ when you finish." — {{1}} first name, {{2}} "this week" |
-    "today", {{3}} up to 5 numbered titles on one line + "+N more".
-  - Footer: "Reply STOP to turn off WhatsApp reminders"
-  - URL button "View my actions" →
-    `https://practice.nudgeable.ai/api/auto-login?next=%2Factions&key={{1}}`
-    (persistent login key, same as reminder emails); Meta link tracking off.
-- An earlier draft, `action_reminder` (id 1589085402695688, "Your Nudgeable
-  actions are ready"), was superseded and is not used by the code.
-- Code: `lib/whatsapp-templates.ts` (`buildActionReminderComponents`, param
-  sanitising) and `sendWhatsAppTemplate()` in `lib/whatsapp.ts`. Changing the
-  template's wording or placeholders means a new Meta review, and the builder
-  must stay in sync.
+### Phase 3 — Templates ✅ submitted (pending Meta review)
+Template parameters can't contain line breaks, so each action needs its own
+line in the template itself: one UTILITY template per action count, chosen by
+`buildActionReminder()` in `lib/whatsapp-templates.ts`.
+
+| Template | Id | Lines |
+|---|---|---|
+| `action_reminder_1` | 3561293904030778 | 1 (singular, unnumbered) |
+| `action_reminder_2` | 3696282903855083 | 2 |
+| `action_reminder_3` | 1703608441293691 | 3 |
+| `action_reminder_4` | 1969471500396295 | 4 |
+| `action_reminder_5` | 28562238106732647 | 5 (6+ actions: "(+N more)" on line 5) |
+
+- Header: "Your {{1}} actions are ready" ({{1}} company; falls back to "Nudgeable").
+- Body: "Hi {{1}}, this is your scheduled reminder. These actions from your plan
+  are due {{2}}: / 1) {{3}} / 2) {{4}} … / Open Nudgeable to see how to do each
+  one and mark them done when you finish." — {{2}} "this week" | "today".
+- Footer: "Reply STOP to turn off WhatsApp reminders".
+- URL button "View my actions" →
+  `https://practice.nudgeable.ai/api/auto-login?next=%2Factions&key={{1}}`
+  (persistent login key, same as reminder emails); Meta link tracking off.
+- **Wording must stay strictly factual.** `action_reminder_company` added
+  "Nudgie here!", "Small steps, real change 💪" and emoji, and Meta approved it
+  as MARKETING instead of UTILITY (utility = no promotional or persuasive
+  intent; mixed content → marketing). Repeated misclassification can get the
+  business's utility templates restricted. Earlier drafts `action_reminder`
+  (UTILITY) and `action_reminder_company` (MARKETING) are not used by the code.
 - Approval/rejection arrives on the webhook as
   `message_template_status_update` (stored in `whatsapp_webhook_events`).
 

@@ -63,10 +63,27 @@ Reference: https://developers.facebook.com/documentation/business-messaging/what
 - Env: `WHATSAPP_PHONE_NUMBER_ID` (shows the options), `WHATSAPP_ACCESS_TOKEN`
   (confirmation replies now, reminders in Phase 4).
 
-### Phase 3 — Template
-- Create and submit a utility template (e.g. `action_reminder`): name, action
-  count, top action titles, "View my actions" URL button. Approval can take time,
-  and Meta may recategorise it as marketing.
+### Phase 3 — Template ✅ submitted (pending Meta review)
+- `action_reminder_company` (UTILITY, `en`, template id 1781681296084161) on
+  the Nudgeable AI WhatsApp account:
+  - Header: "Your {{1}} actions are ready" — {{1}} the participant's company
+    (falls back to "Nudgeable").
+  - Body: "Hi {{1}} 👋 Nudgie here! Your planned actions for {{2}}: / {{3}} /
+    Small steps, real change 💪 Open Nudgeable to see how to do each one, then
+    mark them done ✅ when you finish." — {{1}} first name, {{2}} "this week" |
+    "today", {{3}} up to 5 numbered titles on one line + "+N more".
+  - Footer: "Reply STOP to turn off WhatsApp reminders"
+  - URL button "View my actions" →
+    `https://practice.nudgeable.ai/api/auto-login?next=%2Factions&key={{1}}`
+    (persistent login key, same as reminder emails); Meta link tracking off.
+- An earlier draft, `action_reminder` (id 1589085402695688, "Your Nudgeable
+  actions are ready"), was superseded and is not used by the code.
+- Code: `lib/whatsapp-templates.ts` (`buildActionReminderComponents`, param
+  sanitising) and `sendWhatsAppTemplate()` in `lib/whatsapp.ts`. Changing the
+  template's wording or placeholders means a new Meta review, and the builder
+  must stay in sync.
+- Approval/rejection arrives on the webhook as
+  `message_template_status_update` (stored in `whatsapp_webhook_events`).
 
 ### Phase 4 — Sending
 - `lib/whatsapp.ts` `sendTemplate()` with backoff; insert an `accepted` row

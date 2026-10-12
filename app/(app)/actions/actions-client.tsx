@@ -20,6 +20,7 @@ import { nextMilestoneFor, milestonePoints } from "@/lib/commitment-wallet-miles
 import { usePageLoading, usePageLoadingControls } from "@/components/PageLoadingProvider";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
 import PageLoader from "@/components/PageLoader";
+import WhatsAppRemindersCard from "@/components/WhatsAppRemindersCard";
 import { clearEmailSequence, startEmailSequencePhase, waitForEmailSequencePhase } from "@/lib/email-link-sequence";
 
 type Tab = "upcoming" | "completed" | "pending-validation" | "not-completed" | "archived" | "settings";
@@ -917,6 +918,7 @@ export default function ActionsClient() {
 
     {tab === "settings" && <section className="actions-list-card actions-settings-card"><div className="actions-card-heading"><div><h3>Plan overview</h3><p>Your current duration, pace and reminder schedule.</p></div><Settings2 size={20} /></div>
       {!settings ? <div className="actions-empty-state"><CalendarDays size={28} /><strong>No plan for this batch yet</strong><p>Generate, review and finalise your plan before actions appear here.</p>{cohort?.isCurrent && <Link href="/plan" className="journey-primary-button">Go to my plan</Link>}</div> : <><div className="actions-inline-empty">{settings.isArchived ? "Archived · reminders paused · plan settings are read-only" : settings.isActive ? "Finalised · plan settings are read-only" : "Draft · finalise this plan before reminders begin"}</div><div className="actions-settings-grid"><div><span>Action pace</span><strong>{settings.track === "weekly" ? "Weekly actions" : "Daily actions"}</strong></div><div><span>Plan duration</span><strong>{settings.durationWeeks} weeks</strong></div><div><span>Actions per {settings.track === "weekly" ? "week" : "weekday"}</span><strong>{settings.actionCount}</strong></div><div><span>Reminder</span><strong>{settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}{formatTime(settings.reminderTime)}</strong></div><div><span>Email notifications</span><strong className="actions-notification-status"><Mail size={15} />Email reminders on</strong></div><div><span>Total plan</span><strong>{settings.totalActionsPlanned} actions</strong></div></div></>}
+      {settings && cohort?.id && <WhatsAppRemindersCard cohortId={cohort.id} />}
     </section>}
 
     {typeof document !== "undefined" && planIsActive && buddyGroup?.revealPending && buddyGroup.buddies.length > 0 && createPortal((() => {

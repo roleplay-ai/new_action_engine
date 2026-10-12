@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseWhatsAppWebhook, verifyWhatsAppSignature } from "@/lib/whatsapp-webhook";
+import { handleInboundMessage } from "@/lib/whatsapp-inbound";
 
 /**
  * WhatsApp Cloud API webhook receiver (Phase 1 of
  * docs/WHATSAPP_REMINDERS_PLAN.md). Records:
  *   - delivery status updates for messages we send → whatsapp_message_logs
- *   - messages participants send us → whatsapp_inbound_messages
+ *   - messages participants send us → whatsapp_inbound_messages, then acted
+ *     on by lib/whatsapp-inbound.ts (connect codes, STOP / START)
  *   - any other subscribed field (template approvals, account alerts, ...)
  *     → whatsapp_webhook_events
  * See supabase/migrations/082_whatsapp_webhook.sql.
@@ -89,7 +91,9 @@ export async function POST(request: Request) {
   }
 
   if (inbound.length) {
-    const { error } = await admin.from("whatsapp_inbound_messages").upsert(
+    // ignoreDuplicates + select returns only rows inserted now, so a message
+    // Meta delivers twice is acted on (linked, STOP, ...) only once.
+    const { data: inserted, error } = await admin.from("whatsapp_inbound_messages").upsert(
       inbound.map((message) => ({
         wamid: message.wamid,
         phone_number_id: message.phoneNumberId,
@@ -103,8 +107,21 @@ export async function POST(request: Request) {
         received_at: message.receivedAt,
       })),
       { onConflict: "wamid", ignoreDuplicates: true }
-    );
-    if (error) errors.push(`inbound: ${error.message}`);
+    ).select("wamid");
+    if (error) {
+      errors.push(`inbound: ${error.message}`);
+    } else {
+      const newWamids = new Set((inserted ?? []).map((row) => row.wamid as string));
+      for (const message of inbound.filter((m) => newWamids.has(m.wamid))) {
+        try {
+          await handleInboundMessage(admin, message);
+        } catch (handleError) {
+          // Forget the message so Meta's retry processes it again.
+          await admin.from("whatsapp_inbound_messages").delete().eq("wamid", message.wamid);
+          errors.push(`handle ${message.wamid}: ${handleError instanceof Error ? handleError.message : String(handleError)}`);
+        }
+      }
+    }
   }
 
   if (other.length) {

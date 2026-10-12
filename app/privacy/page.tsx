@@ -60,9 +60,10 @@ export default function PrivacyPolicyPage() {
               information, and messages you post in cohort chat.
             </li>
             <li>
-              <strong>WhatsApp information</strong> – if you choose to receive reminders on WhatsApp: your WhatsApp
-              phone number, your WhatsApp profile name, the messages you send to our business number, and delivery
-              status for messages we send you (sent, delivered, read or failed).
+              <strong>WhatsApp information</strong> – your WhatsApp phone number (which your organisation or
+              programme administrator may provide, and which you can change), whether you have chosen to receive
+              reminders on WhatsApp, and, if you use it: your WhatsApp profile name, the messages you send to our
+              business number, and delivery status for messages we send you (sent, delivered, read or failed).
             </li>
             <li>
               <strong>Email engagement</strong> – whether our emails were opened and which links were clicked.
@@ -90,8 +91,8 @@ export default function PrivacyPolicyPage() {
 
         <Section title="WhatsApp messages">
           <p>
-            We only send you WhatsApp messages if you have given us your WhatsApp number and agreed to receive
-            them. Messages are about your programme – such as action reminders – and are sent through the WhatsApp
+            We only send you WhatsApp reminders if you have agreed to receive them – the option is offered when you
+            set up your action plan, and you can untick it there. Messages are about your programme – such as action reminders – and are sent through the WhatsApp
             Business Platform provided by Meta. You can stop them at any time by replying <strong>STOP</strong>,
             turning WhatsApp reminders off in the app, or emailing {mail}.
           </p>

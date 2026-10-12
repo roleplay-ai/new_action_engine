@@ -26,6 +26,7 @@ import { buildFromHeader } from "@/lib/email-send";
 import { buildActionPlanPdf } from "@/lib/action-plan-pdf";
 import { matchActionImagesForRows } from "@/lib/action-image-matching";
 import { assignSurpriseResourcesForPlan } from "@/lib/surprise-resource-assignment";
+import { saveWhatsAppNumber } from "@/lib/whatsapp-contact-store";
 
 export type MyPlanSettings = {
   track: DeliveryTrack;
@@ -217,6 +218,10 @@ export async function saveGeneratedActions(params: {
   durationWeeks: number;
   /** Whether action reminders should also be delivered by email. */
   emailRemindersEnabled: boolean;
+  /** "Send my reminders on WhatsApp" — ticked by default in plan setup. */
+  whatsappRemindersEnabled?: boolean;
+  /** The number shown next to that checkbox (admin's default, possibly edited). */
+  whatsappNumber?: string;
 }): Promise<{ error?: string; totalActionsNeeded?: number }> {
   try {
     const supabase = await createClient();
@@ -274,6 +279,30 @@ export async function saveGeneratedActions(params: {
       return { error: `Plan duration must be between 2 and ${effectiveMaxWeeks} weeks` };
     }
 
+    // Save the number first so an invalid/duplicate number is reported before
+    // any draft or generation job is touched. Ticking the box is an explicit
+    // opt-in, so it also clears an earlier STOP.
+    const whatsappAvailable = !!process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const whatsappEnabled = whatsappAvailable && params.whatsappRemindersEnabled === true;
+    if (whatsappEnabled) {
+      if (!params.whatsappNumber?.trim()) {
+        return { error: "Enter your WhatsApp number, or untick WhatsApp reminders" };
+      }
+      const admin = createAdminClient();
+      const saved = await saveWhatsAppNumber(admin, {
+        userId: user.id,
+        rawNumber: params.whatsappNumber,
+        source: "participant",
+        updatedBy: user.id,
+      });
+      if (saved.error) return { error: saved.error };
+      const { error: optInError } = await admin
+        .from("whatsapp_contacts")
+        .update({ opted_out_at: null, updated_at: new Date().toISOString() })
+        .eq("user_id", user.id);
+      if (optInError) return { error: optInError.message };
+    }
+
     const contextText = buildTrainingContext(params.userNotes, params.focusThemes, params.focusCustomText);
     // The free Vercel cron runs once daily at 11:30 AM IST. Enforce that
     // server-side so older or custom clients cannot submit an unsupported time.
@@ -324,6 +353,8 @@ export async function saveGeneratedActions(params: {
         duration_weeks: params.durationWeeks,
         total_actions_planned: totalActionsNeeded,
         email_reminders_enabled: params.emailRemindersEnabled,
+        whatsapp_reminders_enabled: whatsappEnabled,
+        whatsapp_opted_in_at: whatsappEnabled ? new Date().toISOString() : null,
         last_reminder_sent_date: null,
       },
       { onConflict: "user_id,cohort_id" }

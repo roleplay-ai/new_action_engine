@@ -30,7 +30,7 @@ Reference: https://developers.facebook.com/documentation/business-messaging/what
   (`business_management`, `whatsapp_business_messaging`, `whatsapp_business_management`).
 - Start Business Verification in parallel.
 
-### Phase 1 — Webhook ✅ (this branch)
+### Phase 1 — Webhook ✅ (verified end to end on the preview deployment)
 - `app/api/webhooks/whatsapp/route.ts`: GET verification handshake, POST with
   `X-Hub-Signature-256` check; parsing in `lib/whatsapp-webhook.ts`.
 - `supabase/migrations/082_whatsapp_webhook.sql`: `whatsapp_message_logs`
@@ -40,11 +40,28 @@ Reference: https://developers.facebook.com/documentation/business-messaging/what
 - Done when: a `hello_world` test send shows sent → delivered → read in
   `whatsapp_message_logs`, and a reply appears in `whatsapp_inbound_messages`.
 
-### Phase 2 — Phone numbers + opt-in
-- Store an E.164 WhatsApp number, opt-in flag and timestamp per participant;
-  `whatsapp_reminders_enabled` per plan next to `email_reminders_enabled`.
-- In-app capture with explicit consent copy.
-- Webhook: "STOP" from a known number turns WhatsApp reminders off.
+### Phase 2 — Phone numbers + opt-in ✅ (this branch)
+- `supabase/migrations/083_whatsapp_contacts.sql`: `whatsapp_contacts` (one
+  number per participant, unique; `opted_out_at` set by STOP) and
+  `personal_action_subscriptions.whatsapp_reminders_enabled` /
+  `whatsapp_opted_in_at` (per-plan choice; existing plans default off).
+- Admin: superadmin → Users → Edit user → **WhatsApp number** (default the
+  participant sees; list shows the number and a STOP badge).
+- Plan setup (`components/Onboarding.tsx`): **Send my reminders on WhatsApp**,
+  ticked by default (unticked if they previously replied STOP), with the
+  admin's number pre-filled and editable. Saved by `saveGeneratedActions`.
+- My Actions → Plan overview (`components/WhatsAppRemindersCard.tsx`): turn
+  WhatsApp off/on or change the number at any time, even after finalising.
+- Webhook (`lib/whatsapp-inbound.ts`): STOP / UNSUBSCRIBE pauses WhatsApp for
+  every plan; START resumes and re-enables their unarchived plans. Only newly
+  received messages are acted on, so Meta retries can't double-process.
+- Numbers are normalised to digits with country code; a bare 10-digit number
+  is assumed Indian (+91).
+- **Phase 4 sends a WhatsApp reminder only when** the plan has
+  `whatsapp_reminders_enabled`, the person has a number, and
+  `opted_out_at IS NULL`.
+- Env: `WHATSAPP_PHONE_NUMBER_ID` (shows the options), `WHATSAPP_ACCESS_TOKEN`
+  (confirmation replies now, reminders in Phase 4).
 
 ### Phase 3 — Template
 - Create and submit a utility template (e.g. `action_reminder`): name, action

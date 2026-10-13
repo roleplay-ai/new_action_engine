@@ -3,11 +3,11 @@
  * with no login or redirect, and the chat continues with the actions still
  * open (Option A in docs/WHATSAPP_REMINDERS_PLAN.md):
  *
- *   reminder: 1) … 2) … 3) …   [Action 1 done] [Action 2 done] [Action 3 done]
- *   tap "Action 2 done" → "✅ Saved: 2) …  2 actions left: 1) 3)"
+ *   reminder: 1️⃣ … 2️⃣ … 3️⃣ …   [Action 1 done] [Action 2 done] [Action 3 done]
+ *   tap "Action 2 done" → "✅ Saved: 2️⃣ …  2 actions left: 1️⃣ 3️⃣"
  *                          + [Action 1 done] [Action 3 done]
- *   tap "Action 3 done" → "✅ Saved: 3) …  1 action left: 1)" + [Action 1 done]
- *   tap "Action 1 done" → "✅ Saved: 1) …  🎉 every action done"
+ *   tap "Action 3 done" → "✅ Saved: 3️⃣ …  1 action left: 1️⃣" + [Action 1 done]
+ *   tap "Action 1 done" → "✅ Saved: 1️⃣ …  🎉 all done"
  *
  * Every Done payload carries the whole reminder's action list plus which
  * number was tapped ("done:<n>:<id1>,<id2>,…", ids without dashes), so the
@@ -172,6 +172,12 @@ export async function loadReminderActionStates(
 export type FollowUpMessage = { kind: "text"; body: string } | { kind: "interactive"; interactive: Record<string, unknown> };
 
 const MAX_BODY = 1024;
+const NUMBER_EMOJI = ["0️⃣", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"];
+
+/** 1 → "1️⃣", matching the reminder template's numbering. */
+function numberEmoji(number: number) {
+  return NUMBER_EMOJI[number] ?? `${number})`;
+}
 
 function truncate(value: string, max: number) {
   return value.length > max ? `${value.slice(0, max - 1).trimEnd()}…` : value;
@@ -198,13 +204,12 @@ export function buildCompletionFollowUp(params: {
   const tappedTitle = actions.find((action) => action.number === tappedNumber)?.title ?? completion.title;
   const lines =
     completion.outcome === "completed"
-      ? [`✅ Saved! Action ${tappedNumber} is marked done:`, `${tappedNumber}) ${tappedTitle}`]
-      : [`👍 Action ${tappedNumber} was already marked done:`, `${tappedNumber}) ${tappedTitle}`];
-  // No points line: the app's own celebration doesn't show one either (the
-  // settlement's points go to the team, not the participant's Wallet).
-  if (completion.outcome === "completed") {
-    if (completion.completedLate) lines.push("Recorded as completed after its assigned day.");
-    if (completion.surpriseBoxUnlocked) lines.push("🎁 You unlocked a Surprise Box.");
+      ? [`✅ Saved! Action ${tappedNumber} is marked done:`, `${numberEmoji(tappedNumber)} ${tappedTitle}`]
+      : [`👍 Action ${tappedNumber} was already marked done:`, `${numberEmoji(tappedNumber)} ${tappedTitle}`];
+  // No points or Surprise Box lines: the reply only confirms the action (the
+  // box still unlocks and shows in the app as usual).
+  if (completion.outcome === "completed" && completion.completedLate) {
+    lines.push("Recorded as completed after its assigned day.");
   }
 
   const open = actions.filter((action) => !action.done);
@@ -213,14 +218,18 @@ export function buildCompletionFollowUp(params: {
     return { kind: "text", body: lines.join("\n") };
   }
 
-  // "1 action left:" rather than "Still open (1):" — a bracketed count next to
-  // numbered actions read like an empty "action (1)".
+  // Same layout as the reminder: number emoji, a blank line between actions.
+  // ("1 action left:" rather than "Still open (1):", which read like an empty
+  // "action (1)".)
+  lines.push("", `${open.length} action${open.length === 1 ? "" : "s"} left:`);
+  for (const action of open) lines.push("", `${numberEmoji(action.number)} ${action.title}`);
+  // Same instruction as the reminder template.
   lines.push(
     "",
-    `${open.length} action${open.length === 1 ? "" : "s"} left:`,
-    ...open.map((action) => `${action.number}) ${action.title}`)
+    open.length === 1
+      ? "✅ When you complete it, click the button below to update its status as done."
+      : "✅ When you complete an action, click its button below to update its status as done."
   );
-  lines.push("", open.length === 1 ? "Tap the button when you finish it." : "Tap an action's button when you finish it.");
   const body = truncate(lines.join("\n"), MAX_BODY);
   const allIds = actions.map((action) => action.id);
 

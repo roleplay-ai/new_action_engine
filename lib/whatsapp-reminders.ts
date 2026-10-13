@@ -55,7 +55,7 @@ const REMINDER_TIME_IST = "11:30";
 
 /**
  * Resolves everything needed to send each plan's WhatsApp reminder — number,
- * opt-out, current actions, company — and why it can't be sent.
+ * opt-out, current actions — and why it can't be sent.
  */
 export async function prepareWhatsAppReminders(
   admin: AdminClient,
@@ -113,9 +113,8 @@ export async function sendPreparedWhatsAppReminder(
   purpose: "action_reminder" | "action_reminder_manual"
 ): Promise<{ result: WhatsAppSendResult; templateName: string }> {
   const { template, components } = buildActionReminder({
-    companyName: prepared.companyName,
     firstName: prepared.fullName?.trim().split(/\s+/)[0] ?? null,
-    track: prepared.sub.track,
+    companyName: prepared.companyName,
     actions: prepared.actions.map((action) => ({ id: action.id, title: action.title })),
   });
   const result = await sendWhatsAppTemplate({

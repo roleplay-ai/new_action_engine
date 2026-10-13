@@ -47,13 +47,15 @@ describe("buildCompletionFollowUp", () => {
     expect(interactive.body.text).toBe(
       [
         "✅ Saved! Action 2 is marked done:",
-        "2) Action 2",
+        "2️⃣ Action 2",
         "",
         "2 actions left:",
-        "1) Action 1",
-        "3) Action 3",
         "",
-        "Tap an action's button when you finish it.",
+        "1️⃣ Action 1",
+        "",
+        "3️⃣ Action 3",
+        "",
+        "✅ When you complete an action, click its button below to update its status as done.",
       ].join("\n")
     );
     expect(interactive.action.buttons.map((button) => button.reply.title)).toEqual(["Action 1 done", "Action 3 done"]);
@@ -64,26 +66,33 @@ describe("buildCompletionFollowUp", () => {
     const message = buildCompletionFollowUp({ completion: completed("Action 3"), tappedNumber: 3, actions: states([2, 3]) });
     if (message.kind !== "interactive") throw new Error("expected buttons");
     const interactive = message.interactive as Buttons;
-    expect(interactive.body.text).toContain("1 action left:\n1) Action 1\n\nTap the button when you finish it.");
+    expect(interactive.body.text).toContain(
+      ["1 action left:", "", "1️⃣ Action 1", "", "✅ When you complete it, click the button below to update its status as done."].join("\n")
+    );
     expect(interactive.action.buttons.map((button) => button.reply.title)).toEqual(["Action 1 done"]);
   });
 
   it("ends with a plain message once everything is done", () => {
     expect(buildCompletionFollowUp({ completion: completed("Action 1"), tappedNumber: 1, actions: states([1, 2, 3]) })).toEqual({
       kind: "text",
-      body: "✅ Saved! Action 1 is marked done:\n1) Action 1\n\n🎉 Well done, you've completed all your actions! Keep the momentum going.",
+      body: [
+        "✅ Saved! Action 1 is marked done:",
+        "1️⃣ Action 1",
+        "",
+        "🎉 Well done, you've completed all your actions! Keep the momentum going.",
+      ].join("\n"),
     });
   });
 
-  it("notes a late completion and a Surprise Box, never points", () => {
+  it("notes a late completion, but never points or a Surprise Box", () => {
     const message = buildCompletionFollowUp({
       completion: { ...completed("Action 1"), pointsAdded: 0, completedLate: true, surpriseBoxUnlocked: true },
       tappedNumber: 1,
       actions: states([1, 2, 3]),
     });
     if (message.kind !== "text") throw new Error("expected text");
-    expect(message.body).toContain("Recorded as completed after its assigned day.\n🎁 You unlocked a Surprise Box.");
-    expect(message.body).not.toMatch(/points/i);
+    expect(message.body).toContain("Recorded as completed after its assigned day.");
+    expect(message.body).not.toMatch(/points|surprise box/i);
   });
 
   it("handles repeat taps and actions it can't complete", () => {

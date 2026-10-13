@@ -129,22 +129,28 @@ line in the template itself: one UTILITY template per action count, chosen by
   per-cohort rollout flag; "Done" quick-reply button completing the action.
 
 ### Option A — "Done" buttons complete actions from WhatsApp (this branch)
-- A participant has at most three current actions, so the reminder uses one
-  of three templates, `action_done_1…3`: same factual wording as
-  `action_reminder_N`, no app link or login key, last line "When you finish
-  an action, tap its button below.", and one QUICK_REPLY button per action
-  ("Action done" / "Action 1 done"…"Action 3 done") — three buttons, all shown inline.
-  Submitted for review: `action_done_1` (28926902033586804),
-  `action_done_2` (2455818698281282), `action_done_3` (2014476699269317).
-  (An earlier set, `action_checkin_1…3` with "Done N" labels, was deleted.)
+- A participant has at most three current actions (weekly plans are capped at
+  3 per week), so the reminder uses one of three UTILITY templates,
+  `action_checklist_1…3` — no header, no app link or login key:
+  "Hi {{1}} 👋 your {{2}} actions are ready:" ({{2}} = company), then each
+  action as "1️⃣ {{3}}" with a blank line between, then "✅ When you complete
+  an action, click its button below to update its status as done.", footer
+  "Reply STOP to turn off WhatsApp reminders", and one QUICK_REPLY button per
+  action ("Action done" / "Action 1 done"…"Action 3 done"), all inline.
+  Submitted for review: `action_checklist_1` (2068865403833696),
+  `action_checklist_2` (2341520946587614), `action_checklist_3`
+  (2248056175795477). Earlier sets are unused: `action_reminder_1…5` (no
+  buttons), `action_done_1…3` (approved, but with a company header that Meta
+  wouldn't let us remove by editing), `action_checkin_1…3` (deleted).
 - Each payload is set per message to `done:<n>:<id1>,<id2>,<id3>` — the tapped
   number plus every action in that reminder (ids without dashes) — so
   follow-ups keep the original numbering with nothing stored.
 - A tap arrives on the webhook; `lib/whatsapp-inbound.ts` maps the sender's
   number → participant (`whatsapp_contacts`), completes the action
   (`completeActionFromWhatsApp`) and replies, free-form (the tap opened the
-  24-hour window, no template): "✅ Saved! Action 2 is marked done" (no points line, as in the app),
-  "2 actions left: 1) … 3) …" with [Action 1 done] [Action 3 done]; repeats per tap until
+  24-hour window, no template): "✅ Saved! Action 2 is marked done" (no points
+  or Surprise Box line),
+  "2 actions left: 1️⃣ … 3️⃣ …" with [Action 1 done] [Action 3 done]; repeats per tap until
   "🎉 Well done, you've completed all your actions! Keep the momentum going." (`buildCompletionFollowUp`).
 - `supabase/migrations/085_complete_action_for_user.sql`:
   `complete_action_for_user(user, action)` acts as the participant for one

@@ -6,13 +6,14 @@ const actions = [
   { id: "a2", title: "Share specific praise with a teammate", complete_url: "https://example.com/done/a2" },
 ];
 
-const teaser = "Mark done to open a <strong>Surprise Box</strong>";
+const teaser = "Every action you complete unlocks a Surprise Box";
 
 describe("reminder emails: Surprise Box teaser", () => {
   it.each(["daily_reminder", "weekly_recap"] as const)("%s shows it once, below the cards, when the plan has boxes", (template) => {
     const { html } = renderEmailTemplate(template, { first_name: "Priya", actions, surprise_boxes_enabled: true });
     expect(html.split(teaser)).toHaveLength(2);
     expect(html.indexOf(teaser)).toBeGreaterThan(html.indexOf(actions[actions.length - 1].title));
+    expect(html).toContain("/email-assets/surprise-box.gif");
   });
 
   it.each(["daily_reminder", "weekly_recap"] as const)("%s leaves it out for plans without boxes", (template) => {

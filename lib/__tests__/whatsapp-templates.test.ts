@@ -23,10 +23,10 @@ describe("sanitizeTemplateParam", () => {
 
 describe("actionReminderTemplateName", () => {
   it("picks the template with one line per action, capped at three", () => {
-    expect(actionReminderTemplateName(1)).toBe("action_checklist_1");
-    expect(actionReminderTemplateName(2)).toBe("action_checklist_2");
-    expect(actionReminderTemplateName(3)).toBe("action_checklist_3");
-    expect(actionReminderTemplateName(5)).toBe("action_checklist_3");
+    expect(actionReminderTemplateName(1)).toBe("plan_reminder_1");
+    expect(actionReminderTemplateName(2)).toBe("plan_reminder_2");
+    expect(actionReminderTemplateName(3)).toBe("plan_reminder_3");
+    expect(actionReminderTemplateName(5)).toBe("plan_reminder_3");
   });
 });
 
@@ -52,19 +52,21 @@ describe("buildActionReminder", () => {
       buildActionReminder({
         firstName: "Asha",
         companyName: "Acme Corp",
+        track: "weekly",
         actions: [
           { id: A1, title: "Ask an open question" },
           { id: A2, title: "Share credit" },
         ],
       })
     ).toEqual({
-      template: { name: "action_checklist_2", language: "en" },
+      template: { name: "plan_reminder_2", language: "en" },
       components: [
         {
           type: "body",
           parameters: [
             { type: "text", text: "Asha" },
             { type: "text", text: "Acme Corp" },
+            { type: "text", text: "this week" },
             { type: "text", text: "Ask an open question" },
             { type: "text", text: "Share credit" },
           ],
@@ -75,18 +77,20 @@ describe("buildActionReminder", () => {
     });
   });
 
-  it("falls back for a missing name and company", () => {
+  it("falls back for a missing name and company, and says 'today' for daily plans", () => {
     const { template, components } = buildActionReminder({
       firstName: null,
       companyName: null,
+      track: "daily",
       actions: [{ id: A1, title: "A" }],
     });
-    expect(template.name).toBe("action_checklist_1");
+    expect(template.name).toBe("plan_reminder_1");
     expect(components[0]).toEqual({
       type: "body",
       parameters: [
         { type: "text", text: "there" },
         { type: "text", text: "Nudgeable" },
+        { type: "text", text: "today" },
         { type: "text", text: "A" },
       ],
     });
@@ -98,15 +102,16 @@ describe("buildActionReminder", () => {
     const { template, components } = buildActionReminder({
       firstName: null,
       companyName: null,
+      track: "weekly",
       actions,
     });
-    expect(template.name).toBe("action_checklist_3");
+    expect(template.name).toBe("plan_reminder_3");
     expect(components.filter((c) => c.type === "button")).toHaveLength(3);
   });
 
   it("refuses an empty reminder", () => {
     expect(() =>
-      buildActionReminder({ firstName: null, companyName: null, actions: [] })
+      buildActionReminder({ firstName: null, companyName: null, track: "weekly", actions: [] })
     ).toThrow();
   });
 });

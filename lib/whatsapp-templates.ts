@@ -6,20 +6,21 @@
  *
  * Template parameters can't contain line breaks, so each action gets its own
  * line in the template itself. A participant has at most three current actions,
- * so there is one template per count: action_checklist_1 … action_checklist_3
- * (UTILITY, en) — three buttons, all shown inline. action_checklist_3:
+ * so there is one template per count: plan_reminder_1 … plan_reminder_3
+ * (UTILITY, en) — three buttons, all shown inline. plan_reminder_3:
  *
  *   (no header — the message starts directly with the greeting)
- *   Body:    Hi {{1}} 👋 your {{2}} actions are ready:      ({{2}} = company)
+ *   Body:    Hi {{1}} 👋, this is your scheduled reminder. These actions from
+ *            your {{2}} plan are due {{3}}:     ({{2}} company, {{3}} this week|today)
  *
- *            1️⃣ {{3}}
+ *            1) {{4}}
  *
- *            2️⃣ {{4}}
+ *            2) {{5}}
  *
- *            3️⃣ {{5}}
+ *            3) {{6}}
  *
- *            ✅ When you complete an action, click its button below to
- *            update its status as done.
+ *            When you complete an action, click its button below to update
+ *            its status as done.
  *   Footer:  Reply STOP to turn off WhatsApp reminders
  *   Buttons: QUICK_REPLY "Action 1 done", "Action 2 done", "Action 3 done" —
  *            each payload is set per message (doneButtonPayload: the tapped
@@ -28,22 +29,25 @@
  *            (lib/whatsapp-action-completion.ts). No link to the app: the
  *            participant stays in WhatsApp.
  *
- * action_checklist_1 is singular and unnumbered ("Hi {{1}} 👋 your {{2}}
- * action is ready:", "✅ When you complete it, click the button below to
- * update its status as done.", one "Action done" button). Emoji stay within Meta's limit of
- * 6 per UTILITY body; the closing sentence keeps placeholders under Meta's
- * "about one per three words" rule.
+ * plan_reminder_1 is singular and unnumbered ("This action from your {{2}}
+ * plan is due {{3}}:", "When you complete it, click the button below to
+ * update its status as done.", one "Action done" button).
  *
- * Keep the wording strictly factual: these must stay UTILITY. Meta
- * reclassified an earlier draft with motivational/brand lines ("Nudgie here!",
- * "Small steps, real change 💪") as MARKETING — utility content must have no
- * promotional or persuasive intent. (Earlier versions are no longer used:
- * action_reminder_1…5 without buttons, and action_done_1…3, which have a
- * "Your {{company}} actions are ready" header — Meta doesn't allow removing a
- * header from an approved template, so the headerless set got new names.)
+ * KEEP THE UTILITY ANCHORS. Meta only treats a template as UTILITY when it is
+ * clearly about the user's own account/transaction and has no promotional or
+ * persuasive intent; vague content is MARKETING. Two drafts were reclassified:
+ *   - action_reminder_company: motivational/brand lines ("Nudgie here!",
+ *     "Small steps, real change 💪");
+ *   - action_checklist_1…3: "Hi {{1}} 👋 your {{2}} actions are ready:" with
+ *     number emoji and ✅ — it dropped "this is your scheduled reminder",
+ *     "from your plan" and "are due …", which tie the message to the
+ *     participant's own scheduled plan.
+ * So: keep those three phrases, keep emoji to the greeting, no hype.
+ * (Unused earlier sets: action_reminder_1…5 without buttons; action_done_1…3,
+ * UTILITY but with a company header that can't be removed by editing.)
  *
  * Should a reminder ever have more than three actions, it uses
- * action_checklist_3 with "(+N more)" on the last line, and only the first
+ * plan_reminder_3 with "(+N more)" on the last line, and only the first
  * three get Done buttons.
  */
 import { doneButtonPayload } from "@/lib/whatsapp-action-completion";
@@ -54,7 +58,7 @@ export const MAX_ACTIONS_PER_TEMPLATE = 3;
 
 export function actionReminderTemplateName(actionCount: number): string {
   const slots = Math.min(Math.max(actionCount, 1), MAX_ACTIONS_PER_TEMPLATE);
-  return `action_checklist_${slots}`;
+  return `plan_reminder_${slots}`;
 }
 
 /** Template parameters can't contain newlines/tabs or 4+ consecutive spaces. */
@@ -97,8 +101,9 @@ export type TemplateMessage = {
  */
 export function buildActionReminder(params: {
   firstName: string | null;
-  /** "your {{company}} actions are ready"; falls back to "Nudgeable". */
+  /** "from your {{company}} plan"; falls back to "Nudgeable". */
   companyName: string | null;
+  track: "daily" | "weekly";
   actions: { id: string; title: string }[];
 }): TemplateMessage {
   if (!params.actions.length) throw new Error("An action reminder needs at least one action");
@@ -120,6 +125,7 @@ export function buildActionReminder(params: {
         parameters: [
           { type: "text", text: sanitizeTemplateParam(params.firstName || "there", 40) },
           { type: "text", text: sanitizeTemplateParam(params.companyName || "Nudgeable", 40) },
+          { type: "text", text: params.track === "daily" ? "today" : "this week" },
           ...lines.map((text) => ({ type: "text" as const, text })),
         ],
       },

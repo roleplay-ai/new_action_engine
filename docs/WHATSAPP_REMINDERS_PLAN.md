@@ -131,17 +131,22 @@ line in the template itself: one UTILITY template per action count, chosen by
 ### Option A — "Done" buttons complete actions from WhatsApp (this branch)
 - A participant has at most three current actions (weekly plans are capped at
   3 per week), so the reminder uses one of three UTILITY templates,
-  `action_checklist_1…3` — no header, no app link or login key:
-  "Hi {{1}} 👋 your {{2}} actions are ready:" ({{2}} = company), then each
-  action as "1️⃣ {{3}}" with a blank line between, then "✅ When you complete
-  an action, click its button below to update its status as done.", footer
+  `plan_reminder_1…3` — no header, no app link or login key:
+  "Hi {{1}} 👋, this is your scheduled reminder. These actions from your {{2}}
+  plan are due {{3}}:" ({{2}} company, {{3}} "this week" | "today"), then each
+  action as "1) {{4}}" with a blank line between, then "When you complete an
+  action, click its button below to update its status as done.", footer
   "Reply STOP to turn off WhatsApp reminders", and one QUICK_REPLY button per
   action ("Action done" / "Action 1 done"…"Action 3 done"), all inline.
-  Submitted for review: `action_checklist_1` (2068865403833696),
-  `action_checklist_2` (2341520946587614), `action_checklist_3`
-  (2248056175795477). Earlier sets are unused: `action_reminder_1…5` (no
-  buttons), `action_done_1…3` (approved, but with a company header that Meta
-  wouldn't let us remove by editing), `action_checkin_1…3` (deleted).
+  Submitted for review: `plan_reminder_1` (2571905986564041),
+  `plan_reminder_2` (1101638012755695), `plan_reminder_3` (1449500153780527).
+- **Utility anchors:** "this is your scheduled reminder", "from your … plan"
+  and "are due …" tie the message to the participant's own plan. Two drafts
+  without them were approved as MARKETING (`action_reminder_company`,
+  `action_checklist_1…3` — the latter with "your {{2}} actions are ready",
+  number emoji and ✅). Earlier unused sets: `action_reminder_1…5` (no
+  buttons), `action_done_1…3` (UTILITY, but with a company header that can't
+  be removed by editing), `action_checkin_1…3` (deleted).
 - Each payload is set per message to `done:<n>:<id1>,<id2>,<id3>` — the tapped
   number plus every action in that reminder (ids without dashes) — so
   follow-ups keep the original numbering with nothing stored.

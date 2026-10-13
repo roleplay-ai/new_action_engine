@@ -115,6 +115,7 @@ export async function sendPreparedWhatsAppReminder(
   const { template, components } = buildActionReminder({
     firstName: prepared.fullName?.trim().split(/\s+/)[0] ?? null,
     companyName: prepared.companyName,
+    track: prepared.sub.track,
     actions: prepared.actions.map((action) => ({ id: action.id, title: action.title })),
   });
   const result = await sendWhatsAppTemplate({

@@ -6,7 +6,7 @@ const actions = [
   { id: "a2", title: "Share specific praise with a teammate", complete_url: "https://example.com/done/a2" },
 ];
 
-const teaser = "Every action you complete unlocks a Surprise Box";
+const teaser = "Every action you complete opens a Surprise Box";
 
 describe("reminder emails: Surprise Box teaser", () => {
   it.each(["daily_reminder", "weekly_recap"] as const)("%s shows it once, below the cards, when the plan has boxes", (template) => {

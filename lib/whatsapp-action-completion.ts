@@ -209,7 +209,7 @@ export function buildCompletionFollowUp(params: {
 
   const open = actions.filter((action) => !action.done);
   if (!open.length) {
-    lines.push("", "🎉 That's every action in this reminder done!");
+    lines.push("", "🎉 Well done, you've completed all your actions! Keep the momentum going.");
     return { kind: "text", body: lines.join("\n") };
   }
 

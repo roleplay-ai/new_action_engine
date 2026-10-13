@@ -71,7 +71,7 @@ describe("buildCompletionFollowUp", () => {
   it("ends with a plain message once everything is done", () => {
     expect(buildCompletionFollowUp({ completion: completed("Action 1"), tappedNumber: 1, actions: states([1, 2, 3]) })).toEqual({
       kind: "text",
-      body: "✅ Saved! Action 1 is marked done:\n1) Action 1\n\n🎉 That's every action in this reminder done!",
+      body: "✅ Saved! Action 1 is marked done:\n1) Action 1\n\n🎉 Well done, you've completed all your actions! Keep the momentum going.",
     });
   });
 

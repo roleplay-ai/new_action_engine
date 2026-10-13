@@ -45,6 +45,30 @@ export async function sendWhatsAppText(params: {
 }
 
 /**
+ * Free-form interactive message (reply buttons or a list) — the same 24-hour
+ * rule as sendWhatsAppText. `interactive` is the Cloud API object, e.g. from
+ * buildCompletionFollowUp() in lib/whatsapp-action-completion.ts.
+ */
+export async function sendWhatsAppInteractive(params: {
+  to: string;
+  interactive: Record<string, unknown>;
+  userId?: string | null;
+  purpose: string;
+}): Promise<WhatsAppSendResult> {
+  const to = params.to.replace(/\D/g, "");
+  const result = await postMessage({
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "interactive",
+    interactive: params.interactive,
+  });
+  if (!result.ok) return result;
+  await recordAcceptedMessage({ wamid: result.wamid, to, userId: params.userId ?? null, purpose: params.purpose });
+  return result;
+}
+
+/**
  * An approved template — the only kind of message that reaches someone
  * outside the 24-hour window, so every reminder goes through this.
  */

@@ -8,11 +8,13 @@ import {
   History,
   MailOpen,
   MailPlus,
+  MessageCircle,
   Trophy,
 } from "lucide-react";
 
 type EmailTab =
   | "reminders"
+  | "whatsapp"
   | "welcome"
   | "recap"
   | "leaderboard"
@@ -26,6 +28,12 @@ const TABS = [
     label: "Reminders",
     description: "Upcoming participant emails",
     icon: Clock3,
+  },
+  {
+    id: "whatsapp" as const,
+    label: "WhatsApp reminders",
+    description: "Upcoming, send now, delivery",
+    icon: MessageCircle,
   },
   {
     id: "welcome" as const,
@@ -67,6 +75,7 @@ const TABS = [
 
 export default function EmailManagementTabs({
   reminders,
+  whatsapp,
   welcome,
   recap,
   leaderboard,
@@ -75,6 +84,7 @@ export default function EmailManagementTabs({
   history,
 }: {
   reminders: ReactNode;
+  whatsapp: ReactNode;
   welcome: ReactNode;
   recap: ReactNode;
   leaderboard: ReactNode;
@@ -88,6 +98,7 @@ export default function EmailManagementTabs({
   );
   const panels: Record<EmailTab, ReactNode> = {
     reminders,
+    whatsapp,
     welcome,
     recap,
     leaderboard,
@@ -132,7 +143,7 @@ export default function EmailManagementTabs({
     <div className="grid gap-4">
       <div className="sticky top-[74px] z-40 rounded-2xl border border-[#dfdcdf] bg-white/95 p-1.5 shadow-[0_10px_28px_rgba(34,29,35,.08)] backdrop-blur-xl">
         <div
-          className="grid grid-cols-7 gap-1 overflow-x-auto"
+          className="grid grid-cols-8 gap-1 overflow-x-auto"
           role="tablist"
           aria-label="Email management sections"
         >

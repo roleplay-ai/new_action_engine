@@ -114,7 +114,46 @@ line in the template itself: one UTILITY template per action count, chosen by
   email behaviour, kept as is).
 
 ### Phase 5 — Admin + extras
-- WhatsApp delivered/read/failed in the superadmin reminder logs panel.
-- Optional per-cohort rollout flag.
-- Later: "Done" quick-reply button completing the action via the webhook;
-  Friday recap on WhatsApp.
+- ✅ Superadmin → Emails & reminders → **WhatsApp reminders** tab
+  (`app/(app)/superadmin/whatsapp-reminders-panel.tsx`,
+  `app/actions/whatsapp-reminders-admin.ts`):
+  - Upcoming: every active plan with WhatsApp on — number, batch, schedule,
+    next 11:30 send, the exact actions and template it will use, or why it
+    can't be sent (no number, replied STOP, no current actions, no login key).
+  - **Send WhatsApp now** for selected participants: same content as the cron
+    (shared `prepareWhatsAppReminders` / `sendPreparedWhatsAppReminder`), can
+    be repeated, doesn't use up the automatic reminder (no daily claim).
+  - Delivery history: every reminder (automatic or sent now) with the
+    webhook's sent / delivered / read / failed status and Meta error.
+- Later: Friday recap on WhatsApp; bulk CSV import of numbers; optional
+  per-cohort rollout flag; "Done" quick-reply button completing the action.
+
+### Option A — "Done" buttons complete actions from WhatsApp (this branch)
+- A participant has at most three current actions, so the reminder uses one
+  of three templates, `action_done_1…3`: same factual wording as
+  `action_reminder_N`, no app link or login key, last line "When you finish
+  an action, tap its button below.", and one QUICK_REPLY button per action
+  ("Action done" / "Action 1 done"…"Action 3 done") — three buttons, all shown inline.
+  Submitted for review: `action_done_1` (28926902033586804),
+  `action_done_2` (2455818698281282), `action_done_3` (2014476699269317).
+  (An earlier set, `action_checkin_1…3` with "Done N" labels, was deleted.)
+- Each payload is set per message to `done:<n>:<id1>,<id2>,<id3>` — the tapped
+  number plus every action in that reminder (ids without dashes) — so
+  follow-ups keep the original numbering with nothing stored.
+- A tap arrives on the webhook; `lib/whatsapp-inbound.ts` maps the sender's
+  number → participant (`whatsapp_contacts`), completes the action
+  (`completeActionFromWhatsApp`) and replies, free-form (the tap opened the
+  24-hour window, no template): "✅ Saved! Action 2 is marked done" (no points line, as in the app),
+  "Still open (2): 1) … 3) …" with [Done 1] [Done 3]; repeats per tap until
+  "🎉 That's every action in this reminder done!" (`buildCompletionFollowUp`).
+- `supabase/migrations/085_complete_action_for_user.sql`:
+  `complete_action_for_user(user, action)` acts as the participant for one
+  transaction and calls the same RPCs as the app's `completeAction`
+  (older scored plans / wallet on time or late / Pending validation →
+  validated / Surprise Box unlock). Service role only. Profile points and the
+  feed event are added in TypeScript, mirroring `completeAction`.
+- Only actions on that participant's plan can be completed; repeat taps reply
+  "already marked done" with the same still-open list.
+- If a reminder ever had more than three actions, line 3 reads "(+N more)" and
+  only the first three get buttons.
+- `action_reminder_1…5` (approved, no buttons) are kept but no longer used.

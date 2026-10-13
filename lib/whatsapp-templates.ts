@@ -2,45 +2,53 @@
  * WhatsApp message templates used by the app (Phase 3 of
  * docs/WHATSAPP_REMINDERS_PLAN.md). The templates live on the "Nudgeable AI"
  * WhatsApp account and are reviewed by Meta; what's here must match them
- * exactly — same names, language, and placeholder order.
+ * exactly — same names, language, placeholder order and button order.
  *
  * Template parameters can't contain line breaks, so each action gets its own
- * line in the template itself. A plan delivers 1–5 actions at a time, so there
- * is one template per count: action_reminder_1 … action_reminder_5 (UTILITY,
- * en). action_reminder_3, for example:
+ * line in the template itself. A participant has at most three current actions,
+ * so there is one template per count: action_done_1 … action_done_3
+ * (UTILITY, en) — three buttons, all shown inline. action_done_3:
  *
- *   Header: Your {{1}} actions are ready        ({{1}} = company)
- *   Body:   Hi {{1}}, this is your scheduled reminder. These actions from
- *           your plan are due {{2}}:
+ *   Header:  Your {{1}} actions are ready        ({{1}} = company)
+ *   Body:    Hi {{1}}, this is your scheduled reminder. These actions from
+ *            your plan are due {{2}}:
  *
- *           1) {{3}}
- *           2) {{4}}
- *           3) {{5}}
+ *            1) {{3}}
+ *            2) {{4}}
+ *            3) {{5}}
  *
- *           Open Nudgeable to see how to do each one and mark them done when
- *           you finish.
- *   Footer: Reply STOP to turn off WhatsApp reminders
- *   Button: URL "View my actions" →
- *           https://practice.nudgeable.ai/api/auto-login?next=%2Factions&key={{1}}
- *           (the participant's persistent login key, same as reminder emails)
+ *            When you finish an action, tap its button below.
+ *   Footer:  Reply STOP to turn off WhatsApp reminders
+ *   Buttons: QUICK_REPLY "Action 1 done", "Action 2 done", "Action 3 done" —
+ *            each payload is set
+ *            per message (doneButtonPayload: the tapped number + every action
+ *            in the reminder), so a tap completes that action via the webhook
+ *            and the follow-up lists the rest (lib/whatsapp-action-completion.ts).
+ *            No link to the app: the participant stays in WhatsApp.
  *
- * action_reminder_1 is singular and unnumbered ("Your {{1}} action is ready",
- * "This action from your plan is due {{2}}:").
+ * action_done_1 is singular and unnumbered ("Your {{1}} action is ready",
+ * "This action from your plan is due {{2}}:", "When you have done it, tap the
+ * button below.", one "Action done" button).
  *
  * Keep the wording strictly factual: these must stay UTILITY. Meta
  * reclassified an earlier draft with motivational/brand lines ("Nudgie here!",
  * "Small steps, real change 💪") as MARKETING — utility content must have no
- * promotional or persuasive intent.
+ * promotional or persuasive intent. (Earlier versions — action_reminder_1…5
+ * without buttons, action_checkin_1…3 with "Done N" labels — are no longer
+ * used.)
  *
- * More than five actions use action_reminder_5 with "(+N more)" on the last line.
+ * Should a reminder ever have more than three actions, it uses
+ * action_done_3 with "(+N more)" on the last line, and only the first
+ * three get Done buttons.
  */
+import { doneButtonPayload } from "@/lib/whatsapp-action-completion";
 
 export const ACTION_REMINDER_LANGUAGE = "en";
-export const MAX_ACTIONS_PER_TEMPLATE = 5;
+export const MAX_ACTIONS_PER_TEMPLATE = 3;
 
 export function actionReminderTemplateName(actionCount: number): string {
   const slots = Math.min(Math.max(actionCount, 1), MAX_ACTIONS_PER_TEMPLATE);
-  return `action_reminder_${slots}`;
+  return `action_done_${slots}`;
 }
 
 /** Template parameters can't contain newlines/tabs or 4+ consecutive spaces. */
@@ -52,7 +60,7 @@ export function sanitizeTemplateParam(value: string, maxLength: number): string 
 const MAX_TITLE_LENGTH = 120;
 
 /**
- * One parameter per action line. Beyond five, the fifth line carries
+ * One parameter per action line. Beyond three, the third line carries
  * "(+N more)" so nobody thinks the list is complete.
  */
 export function actionLines(titles: string[]): string[] {
@@ -70,7 +78,7 @@ export function actionLines(titles: string[]): string[] {
 export type TemplateComponent =
   | { type: "header"; parameters: { type: "text"; text: string }[] }
   | { type: "body"; parameters: { type: "text"; text: string }[] }
-  | { type: "button"; sub_type: "url"; index: string; parameters: { type: "text"; text: string }[] };
+  | { type: "button"; sub_type: "quick_reply"; index: string; parameters: { type: "payload"; payload: string }[] };
 
 export type TemplateMessage = {
   template: { name: string; language: string };
@@ -87,11 +95,19 @@ export function buildActionReminder(params: {
   companyName: string | null;
   firstName: string | null;
   track: "daily" | "weekly";
-  actionTitles: string[];
-  loginKey: string;
+  actions: { id: string; title: string }[];
 }): TemplateMessage {
-  if (!params.actionTitles.length) throw new Error("An action reminder needs at least one action");
-  const lines = actionLines(params.actionTitles);
+  if (!params.actions.length) throw new Error("An action reminder needs at least one action");
+  const lines = actionLines(params.actions.map((action) => action.title));
+  const buttonActionIds = params.actions.slice(0, lines.length).map((action) => action.id);
+  const doneButtons = buttonActionIds.map(
+    (_actionId, index): TemplateComponent => ({
+      type: "button",
+      sub_type: "quick_reply",
+      index: String(index),
+      parameters: [{ type: "payload", payload: doneButtonPayload(buttonActionIds, index + 1) }],
+    })
+  );
   return {
     template: { name: actionReminderTemplateName(lines.length), language: ACTION_REMINDER_LANGUAGE },
     components: [
@@ -107,12 +123,7 @@ export function buildActionReminder(params: {
           ...lines.map((text) => ({ type: "text" as const, text })),
         ],
       },
-      {
-        type: "button",
-        sub_type: "url",
-        index: "0",
-        parameters: [{ type: "text", text: params.loginKey }],
-      },
+      ...doneButtons,
     ],
   };
 }

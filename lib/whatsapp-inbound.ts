@@ -1,6 +1,8 @@
 /**
  * Acts on a message a participant sent to the business number (called by
  * app/api/webhooks/whatsapp/route.ts for each newly received message):
+ *   - a "Done" tap (on a reminder or a follow-up) → completes that action
+ *     (lib/whatsapp-action-completion.ts) and replies with what's still open
  *   - STOP / UNSUBSCRIBE → opts the sender out of WhatsApp reminders on
  *     every plan (whatsapp_contacts.opted_out_at)
  *   - START → opts back in, and turns WhatsApp on for their unarchived plans
@@ -12,7 +14,14 @@
  */
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { parseOptKeyword } from "@/lib/whatsapp-contacts";
-import { isWhatsAppSendConfigured, sendWhatsAppText } from "@/lib/whatsapp";
+import {
+  buildCompletionFollowUp,
+  completeActionFromWhatsApp,
+  loadReminderActionStates,
+  parseDonePayload,
+  type DoneTap,
+} from "@/lib/whatsapp-action-completion";
+import { isWhatsAppSendConfigured, sendWhatsAppInteractive, sendWhatsAppText } from "@/lib/whatsapp";
 import type { WhatsAppInboundMessage } from "@/lib/whatsapp-webhook";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -25,6 +34,12 @@ const REPLIES = {
 } as const;
 
 export async function handleInboundMessage(admin: AdminClient, message: WhatsAppInboundMessage): Promise<void> {
+  const doneTap = parseDonePayload(message.replyPayload);
+  if (doneTap) {
+    await handleDoneTap(admin, message, doneTap);
+    return;
+  }
+
   const keyword = parseOptKeyword(message.textBody);
   if (!keyword) return;
 
@@ -74,6 +89,46 @@ export async function handleInboundMessage(admin: AdminClient, message: WhatsApp
   if (planError) throw new Error(`enable plans: ${planError.message}`);
 
   await sendReply(message.fromPhone, REPLIES.started, contact.user_id, "whatsapp_opt_in");
+}
+
+/**
+ * WhatsApp guarantees which number tapped the button, and the action is only
+ * completed for the participant that number belongs to — the database
+ * function refuses actions that aren't on their plan.
+ */
+async function handleDoneTap(admin: AdminClient, message: WhatsAppInboundMessage, tap: DoneTap) {
+  const { data: contact, error } = await admin
+    .from("whatsapp_contacts")
+    .select("user_id")
+    .eq("phone", message.fromPhone)
+    .maybeSingle();
+  if (error) throw new Error(`load contact: ${error.message}`);
+  if (!contact) {
+    await sendReply(message.fromPhone, REPLIES.notConnected, null, "whatsapp_action_done");
+    return;
+  }
+
+  const userId = contact.user_id as string;
+  const completion = await completeActionFromWhatsApp(admin, userId, tap.actionId);
+  // Best effort from here: the action is saved, so a failed follow-up must
+  // not make Meta retry the tap.
+  try {
+    const actions = await loadReminderActionStates(admin, userId, tap.reminderActionIds);
+    const followUp = buildCompletionFollowUp({ completion, tappedNumber: tap.number, actions });
+    if (!isWhatsAppSendConfigured()) return;
+    const result =
+      followUp.kind === "text"
+        ? await sendWhatsAppText({ to: message.fromPhone, body: followUp.body, userId, purpose: "whatsapp_action_done" })
+        : await sendWhatsAppInteractive({
+            to: message.fromPhone,
+            interactive: followUp.interactive,
+            userId,
+            purpose: "whatsapp_action_done",
+          });
+    if (!result.ok) console.error("[whatsapp-inbound] follow-up failed", { error: result.error });
+  } catch (followUpError) {
+    console.error("[whatsapp-inbound] follow-up failed", followUpError);
+  }
 }
 
 /** Best-effort confirmation; a failed reply never fails the webhook. */

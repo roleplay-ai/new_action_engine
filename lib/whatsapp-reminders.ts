@@ -13,6 +13,10 @@
  * Idempotent per plan per IST day through claim_whatsapp_reminder
  * (supabase/migrations/084_whatsapp_reminder_claims.sql), independent of the
  * email claim, so one channel failing never blocks or repeats the other.
+ *
+ * prepareWhatsAppReminders / sendPreparedWhatsAppReminder are shared with the
+ * superadmin WhatsApp tab (app/actions/whatsapp-reminders-admin.ts), so a
+ * manual send is exactly what the cron would send.
  */
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentISTDate, istToUTCDateTime } from "@/lib/timezone-utils";
@@ -25,7 +29,104 @@ import {
   type ReminderSubscription,
 } from "@/lib/action-reminders";
 import { buildActionReminder } from "@/lib/whatsapp-templates";
-import { isWhatsAppSendConfigured, sendWhatsAppTemplate } from "@/lib/whatsapp";
+import { isWhatsAppSendConfigured, sendWhatsAppTemplate, type WhatsAppSendResult } from "@/lib/whatsapp";
+
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+export type WhatsAppReminderSubscription = ReminderSubscription & { whatsapp_reminders_enabled: boolean };
+
+export const WHATSAPP_REMINDER_SUBSCRIPTION_COLUMNS =
+  "id, user_id, cohort_id, track, day_of_week, days_of_week, email_reminders_enabled, last_reminder_sent_date, whatsapp_reminders_enabled";
+
+export type PreparedWhatsAppReminder = {
+  sub: WhatsAppReminderSubscription;
+  fullName: string | null;
+  phone: string | null;
+  optedOut: boolean;
+  cohortName: string | null;
+  companyName: string | null;
+  actions: ReminderAction[];
+  /** Why this plan can't be sent right now, or null when it can. */
+  blockedReason: string | null;
+};
+
+/** Matches the email's fixed reminder time; only used for the shared context lookup. */
+const REMINDER_TIME_IST = "11:30";
+
+/**
+ * Resolves everything needed to send each plan's WhatsApp reminder — number,
+ * opt-out, current actions, company — and why it can't be sent.
+ */
+export async function prepareWhatsAppReminders(
+  admin: AdminClient,
+  subs: WhatsAppReminderSubscription[]
+): Promise<PreparedWhatsAppReminder[]> {
+  if (!subs.length) return [];
+  const userIds = [...new Set(subs.map((sub) => sub.user_id))];
+  const [{ data: contacts, error: contactError }, { data: profiles, error: profileError }, context] = await Promise.all([
+    admin.from("whatsapp_contacts").select("user_id, phone, opted_out_at").in("user_id", userIds),
+    admin.from("profiles").select("id, full_name").in("id", userIds),
+    buildReminderActionContext(
+      admin,
+      subs.map((sub) => ({ sub, scheduledFor: istToUTCDateTime(getCurrentISTDate(), REMINDER_TIME_IST) }))
+    ),
+  ]);
+  if (contactError || profileError) {
+    throw new Error(`load contacts/profiles: ${contactError?.message ?? profileError?.message}`);
+  }
+  const contactByUser = new Map((contacts ?? []).map((c) => [c.user_id as string, c]));
+  const profileByUser = new Map((profiles ?? []).map((p) => [p.id as string, p]));
+  const { actionIdsBySubscription, actionMap, cohortNameMap, companyByCohortId } = context;
+
+  return subs.map((sub) => {
+    const contact = contactByUser.get(sub.user_id);
+    const profile = profileByUser.get(sub.user_id);
+    const actions = (actionIdsBySubscription.get(subscriptionKey(sub.user_id, sub.cohort_id)) ?? [])
+      .map((id) => actionMap.get(id))
+      .filter((action): action is ReminderAction => Boolean(action))
+      .sort((left, right) => (left.planOrder ?? Number.MAX_SAFE_INTEGER) - (right.planOrder ?? Number.MAX_SAFE_INTEGER));
+    const blockedReason = !sub.whatsapp_reminders_enabled
+      ? "WhatsApp is off for this plan."
+      : !contact
+        ? "No WhatsApp number saved."
+        : contact.opted_out_at
+          ? "Replied STOP on WhatsApp."
+          : !actions.length
+            ? "No current actions to include."
+            : null;
+    return {
+      sub,
+      fullName: (profile?.full_name as string | null) ?? null,
+      phone: (contact?.phone as string | undefined) ?? null,
+      optedOut: !!contact?.opted_out_at,
+      cohortName: cohortNameMap.get(sub.cohort_id) ?? null,
+      companyName: companyByCohortId.get(sub.cohort_id)?.name ?? null,
+      actions,
+      blockedReason,
+    };
+  });
+}
+
+/** Sends one prepared reminder (caller checks blockedReason first). */
+export async function sendPreparedWhatsAppReminder(
+  prepared: PreparedWhatsAppReminder,
+  purpose: "action_reminder" | "action_reminder_manual"
+): Promise<{ result: WhatsAppSendResult; templateName: string }> {
+  const { template, components } = buildActionReminder({
+    companyName: prepared.companyName,
+    firstName: prepared.fullName?.trim().split(/\s+/)[0] ?? null,
+    track: prepared.sub.track,
+    actions: prepared.actions.map((action) => ({ id: action.id, title: action.title })),
+  });
+  const result = await sendWhatsAppTemplate({
+    to: prepared.phone ?? "",
+    template,
+    components,
+    userId: prepared.sub.user_id,
+    purpose,
+  });
+  return { result, templateName: template.name };
+}
 
 export type WhatsAppReminderRunSummary = {
   configured: boolean;
@@ -37,11 +138,6 @@ export type WhatsAppReminderRunSummary = {
   skippedEmpty: number;
   skippedClaimed: number;
 };
-
-type WhatsAppReminderSubscription = ReminderSubscription & { whatsapp_reminders_enabled: boolean };
-
-/** Matches the email's fixed reminder time; only used for the shared context lookup. */
-const REMINDER_TIME_IST = "11:30";
 
 export async function sendWhatsAppActionReminders(): Promise<WhatsAppReminderRunSummary> {
   const summary: WhatsAppReminderRunSummary = {
@@ -62,7 +158,7 @@ export async function sendWhatsAppActionReminders(): Promise<WhatsAppReminderRun
 
   const { data: subscriptionRows, error: subscriptionError } = await admin
     .from("personal_action_subscriptions")
-    .select("id, user_id, cohort_id, track, day_of_week, days_of_week, email_reminders_enabled, last_reminder_sent_date, whatsapp_reminders_enabled")
+    .select(WHATSAPP_REMINDER_SUBSCRIPTION_COLUMNS)
     .eq("is_active", true)
     .eq("whatsapp_reminders_enabled", true)
     .is("archived_at", null)
@@ -79,49 +175,29 @@ export async function sendWhatsAppActionReminders(): Promise<WhatsAppReminderRun
   });
   if (!dueToday.length) return summary;
 
-  const userIds = [...new Set(dueToday.map((sub) => sub.user_id))];
-  const [{ data: contacts, error: contactError }, { data: profiles, error: profileError }] = await Promise.all([
-    admin.from("whatsapp_contacts").select("user_id, phone, opted_out_at").in("user_id", userIds),
-    admin.from("profiles").select("id, full_name, persistent_login_key").in("id", userIds),
-  ]);
-  if (contactError || profileError) {
-    console.error("[whatsapp-reminders] failed to load contacts/profiles", contactError?.message ?? profileError?.message);
+  let prepared: PreparedWhatsAppReminder[];
+  try {
+    prepared = await prepareWhatsAppReminders(admin, dueToday);
+  } catch (error) {
+    console.error("[whatsapp-reminders] failed to prepare reminders", error);
     return { ...summary, failed: dueToday.length };
   }
-  const contactByUser = new Map((contacts ?? []).map((c) => [c.user_id as string, c]));
-  const profileByUser = new Map((profiles ?? []).map((p) => [p.id as string, p]));
 
-  const reachable = dueToday.filter((sub) => {
-    const contact = contactByUser.get(sub.user_id);
-    if (!contact) {
+  for (const reminder of prepared) {
+    if (!reminder.phone) {
       summary.skippedNoNumber += 1;
-      return false;
+      continue;
     }
-    if (contact.opted_out_at) {
+    if (reminder.optedOut) {
       summary.skippedOptedOut += 1;
-      return false;
+      continue;
     }
-    return true;
-  });
-  if (!reachable.length) return summary;
-
-  const { actionIdsBySubscription, actionMap, companyByCohortId } = await buildReminderActionContext(
-    admin,
-    reachable.map((sub) => ({ sub, scheduledFor: istToUTCDateTime(todayIST, REMINDER_TIME_IST) }))
-  );
-
-  for (const sub of reachable) {
-    const actions = (actionIdsBySubscription.get(subscriptionKey(sub.user_id, sub.cohort_id)) ?? [])
-      .map((id) => actionMap.get(id))
-      .filter((action): action is ReminderAction => Boolean(action))
-      .sort((left, right) => (left.planOrder ?? Number.MAX_SAFE_INTEGER) - (right.planOrder ?? Number.MAX_SAFE_INTEGER));
-    const profile = profileByUser.get(sub.user_id);
-    // The button is the participant's auto-login link; without a key there's nothing to link to.
-    if (!actions.length || !profile?.persistent_login_key) {
+    if (reminder.blockedReason) {
       summary.skippedEmpty += 1;
       continue;
     }
 
+    const { sub } = reminder;
     const { data: claimId, error: claimError } = await admin.rpc("claim_whatsapp_reminder", {
       p_subscription_id: sub.id,
       p_user_id: sub.user_id,
@@ -138,29 +214,15 @@ export async function sendWhatsAppActionReminders(): Promise<WhatsAppReminderRun
       continue;
     }
 
-    const { template, components } = buildActionReminder({
-      companyName: companyByCohortId.get(sub.cohort_id)?.name ?? null,
-      firstName: (profile.full_name as string | null)?.trim().split(/\s+/)[0] ?? null,
-      track: sub.track,
-      actionTitles: actions.map((action) => action.title),
-      loginKey: profile.persistent_login_key as string,
-    });
-    const result = await sendWhatsAppTemplate({
-      to: contactByUser.get(sub.user_id)!.phone as string,
-      template,
-      components,
-      userId: sub.user_id,
-      purpose: "action_reminder",
-    });
-
+    const { result, templateName } = await sendPreparedWhatsAppReminder(reminder, "action_reminder");
     const now = new Date().toISOString();
     await admin
       .from("whatsapp_reminder_claims")
       .update({
         status: result.ok ? "sent" : "failed",
         wamid: result.ok ? result.wamid : null,
-        template_name: template.name,
-        action_count: actions.length,
+        template_name: templateName,
+        action_count: reminder.actions.length,
         last_error: result.ok ? null : result.error,
         sent_at: result.ok ? now : null,
         updated_at: now,

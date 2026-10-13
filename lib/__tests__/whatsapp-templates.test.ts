@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { doneButtonPayload } from "../whatsapp-action-completion";
 import {
   actionLines,
   actionReminderTemplateName,
   buildActionReminder,
   sanitizeTemplateParam,
 } from "../whatsapp-templates";
+
+const A1 = "11111111-1111-4111-8111-111111111111";
+const A2 = "22222222-2222-4222-8222-222222222222";
 
 describe("sanitizeTemplateParam", () => {
   it("removes characters WhatsApp rejects in template parameters", () => {
@@ -18,11 +22,11 @@ describe("sanitizeTemplateParam", () => {
 });
 
 describe("actionReminderTemplateName", () => {
-  it("picks the template with one line per action, capped at five", () => {
-    expect(actionReminderTemplateName(1)).toBe("action_reminder_1");
-    expect(actionReminderTemplateName(3)).toBe("action_reminder_3");
-    expect(actionReminderTemplateName(5)).toBe("action_reminder_5");
-    expect(actionReminderTemplateName(9)).toBe("action_reminder_5");
+  it("picks the template with one line per action, capped at three", () => {
+    expect(actionReminderTemplateName(1)).toBe("action_done_1");
+    expect(actionReminderTemplateName(2)).toBe("action_done_2");
+    expect(actionReminderTemplateName(3)).toBe("action_done_3");
+    expect(actionReminderTemplateName(5)).toBe("action_done_3");
   });
 });
 
@@ -31,9 +35,9 @@ describe("actionLines", () => {
     expect(actionLines(["Ask an open question", "Share credit"])).toEqual(["Ask an open question", "Share credit"]);
   });
 
-  it("folds extra actions into the fifth line", () => {
-    const titles = Array.from({ length: 7 }, (_, i) => `Action ${i + 1}`);
-    expect(actionLines(titles)).toEqual(["Action 1", "Action 2", "Action 3", "Action 4", "Action 5 (+2 more)"]);
+  it("folds any extra actions into the third line", () => {
+    const titles = Array.from({ length: 5 }, (_, i) => `Action ${i + 1}`);
+    expect(actionLines(titles)).toEqual(["Action 1", "Action 2", "Action 3 (+2 more)"]);
   });
 
   it("keeps every line within the length cap", () => {
@@ -43,17 +47,19 @@ describe("actionLines", () => {
 });
 
 describe("buildActionReminder", () => {
-  it("fills header, body lines and the login button for the matching template", () => {
+  it("fills header, body lines and a Done button per action", () => {
     expect(
       buildActionReminder({
         companyName: "Acme Corp",
         firstName: "Asha",
         track: "weekly",
-        actionTitles: ["Ask an open question", "Share credit"],
-        loginKey: "key-123",
+        actions: [
+          { id: A1, title: "Ask an open question" },
+          { id: A2, title: "Share credit" },
+        ],
       })
     ).toEqual({
-      template: { name: "action_reminder_2", language: "en" },
+      template: { name: "action_done_2", language: "en" },
       components: [
         { type: "header", parameters: [{ type: "text", text: "Acme Corp" }] },
         {
@@ -65,7 +71,8 @@ describe("buildActionReminder", () => {
             { type: "text", text: "Share credit" },
           ],
         },
-        { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: "key-123" }] },
+        { type: "button", sub_type: "quick_reply", index: "0", parameters: [{ type: "payload", payload: doneButtonPayload([A1, A2], 1) }] },
+        { type: "button", sub_type: "quick_reply", index: "1", parameters: [{ type: "payload", payload: doneButtonPayload([A1, A2], 2) }] },
       ],
     });
   });
@@ -75,17 +82,36 @@ describe("buildActionReminder", () => {
       companyName: null,
       firstName: null,
       track: "daily",
-      actionTitles: ["A"],
-      loginKey: "k",
+      actions: [{ id: A1, title: "A" }],
     });
-    expect(template.name).toBe("action_reminder_1");
-    expect(components[0].parameters.map((p) => p.text)).toEqual(["Nudgeable"]);
-    expect(components[1].parameters.map((p) => p.text)).toEqual(["there", "today", "A"]);
+    expect(template.name).toBe("action_done_1");
+    expect(components[0]).toEqual({ type: "header", parameters: [{ type: "text", text: "Nudgeable" }] });
+    expect(components[1]).toEqual({
+      type: "body",
+      parameters: [
+        { type: "text", text: "there" },
+        { type: "text", text: "today" },
+        { type: "text", text: "A" },
+      ],
+    });
+    expect(components.slice(2).map((c) => (c.type === "button" ? c.sub_type : c.type))).toEqual(["quick_reply"]);
+  });
+
+  it("gives Done buttons to the first three actions only", () => {
+    const actions = Array.from({ length: 5 }, (_, i) => ({ id: `${i}${A1.slice(1)}`, title: `Action ${i + 1}` }));
+    const { template, components } = buildActionReminder({
+      companyName: null,
+      firstName: null,
+      track: "weekly",
+      actions,
+    });
+    expect(template.name).toBe("action_done_3");
+    expect(components.filter((c) => c.type === "button")).toHaveLength(3);
   });
 
   it("refuses an empty reminder", () => {
     expect(() =>
-      buildActionReminder({ companyName: null, firstName: null, track: "weekly", actionTitles: [], loginKey: "k" })
+      buildActionReminder({ companyName: null, firstName: null, track: "weekly", actions: [] })
     ).toThrow();
   });
 });

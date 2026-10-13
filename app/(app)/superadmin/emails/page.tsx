@@ -8,6 +8,7 @@ import WeeklyRecapQueuePanel from "../weekly-recap-queue-panel";
 import TeamLeaderboardEmailPanel from "../team-leaderboard-email-panel";
 import EngagementNudgeEmailPanel from "../engagement-nudge-email-panel";
 import EmailManagementTabs from "../email-management-tabs";
+import WhatsAppRemindersPanel from "../whatsapp-reminders-panel";
 import { KeyRound, MailCheck, ShieldCheck } from "lucide-react";
 
 export default async function SuperadminEmailsPage() {
@@ -52,6 +53,7 @@ export default async function SuperadminEmailsPage() {
 
       <EmailManagementTabs
         reminders={<ActionReminderQueuePanel alwaysExpanded />}
+        whatsapp={<WhatsAppRemindersPanel />}
         welcome={<WelcomeEmailPanel users={users} />}
         recap={<WeeklyRecapQueuePanel alwaysExpanded />}
         leaderboard={<TeamLeaderboardEmailPanel />}

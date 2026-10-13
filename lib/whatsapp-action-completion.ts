@@ -4,9 +4,9 @@
  * open (Option A in docs/WHATSAPP_REMINDERS_PLAN.md):
  *
  *   reminder: 1) … 2) … 3) …   [Action 1 done] [Action 2 done] [Action 3 done]
- *   tap "Action 2 done" → "✅ Saved: 2) …  Still open: 1) 3)"
+ *   tap "Action 2 done" → "✅ Saved: 2) …  2 actions left: 1) 3)"
  *                          + [Action 1 done] [Action 3 done]
- *   tap "Action 3 done" → "✅ Saved: 3) …  Still open: 1)" + [Action 1 done]
+ *   tap "Action 3 done" → "✅ Saved: 3) …  1 action left: 1)" + [Action 1 done]
  *   tap "Action 1 done" → "✅ Saved: 1) …  🎉 every action done"
  *
  * Every Done payload carries the whole reminder's action list plus which
@@ -213,7 +213,13 @@ export function buildCompletionFollowUp(params: {
     return { kind: "text", body: lines.join("\n") };
   }
 
-  lines.push("", `Still open (${open.length}):`, ...open.map((action) => `${action.number}) ${action.title}`));
+  // "1 action left:" rather than "Still open (1):" — a bracketed count next to
+  // numbered actions read like an empty "action (1)".
+  lines.push(
+    "",
+    `${open.length} action${open.length === 1 ? "" : "s"} left:`,
+    ...open.map((action) => `${action.number}) ${action.title}`)
+  );
   lines.push("", open.length === 1 ? "Tap the button when you finish it." : "Tap an action's button when you finish it.");
   const body = truncate(lines.join("\n"), MAX_BODY);
   const allIds = actions.map((action) => action.id);

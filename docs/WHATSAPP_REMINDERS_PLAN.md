@@ -144,7 +144,7 @@ line in the template itself: one UTILITY template per action count, chosen by
   number → participant (`whatsapp_contacts`), completes the action
   (`completeActionFromWhatsApp`) and replies, free-form (the tap opened the
   24-hour window, no template): "✅ Saved! Action 2 is marked done" (no points line, as in the app),
-  "Still open (2): 1) … 3) …" with [Done 1] [Done 3]; repeats per tap until
+  "2 actions left: 1) … 3) …" with [Action 1 done] [Action 3 done]; repeats per tap until
   "🎉 That's every action in this reminder done!" (`buildCompletionFollowUp`).
 - `supabase/migrations/085_complete_action_for_user.sql`:
   `complete_action_for_user(user, action)` acts as the participant for one

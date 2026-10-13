@@ -43,6 +43,12 @@ export const DEFAULT_BATCH_SIZE = 3;
 export const BATCH_SIZE = DEFAULT_BATCH_SIZE;
 /** Actions generated per call when background-filling a full multi-week plan. */
 export const BACKGROUND_BATCH_SIZE = 12;
+/**
+ * Most actions a weekly plan can deliver per week. Also the most a WhatsApp
+ * reminder lists with a button each (lib/whatsapp-templates.ts,
+ * MAX_ACTIONS_PER_TEMPLATE) — keep the two equal.
+ */
+export const MAX_WEEKLY_ACTIONS = 3;
 /** IST weekdays used by daily plans: Monday through Friday. */
 export const DAILY_DELIVERY_DAYS = [1, 2, 3, 4, 5] as const;
 

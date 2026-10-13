@@ -49,7 +49,7 @@ describe("buildCompletionFollowUp", () => {
         "✅ Saved! Action 2 is marked done:",
         "2) Action 2",
         "",
-        "Still open (2):",
+        "2 actions left:",
         "1) Action 1",
         "3) Action 3",
         "",
@@ -64,7 +64,7 @@ describe("buildCompletionFollowUp", () => {
     const message = buildCompletionFollowUp({ completion: completed("Action 3"), tappedNumber: 3, actions: states([2, 3]) });
     if (message.kind !== "interactive") throw new Error("expected buttons");
     const interactive = message.interactive as Buttons;
-    expect(interactive.body.text).toContain("Still open (1):\n1) Action 1\n\nTap the button when you finish it.");
+    expect(interactive.body.text).toContain("1 action left:\n1) Action 1\n\nTap the button when you finish it.");
     expect(interactive.action.buttons.map((button) => button.reply.title)).toEqual(["Action 1 done"]);
   });
 

@@ -13,6 +13,7 @@ import {
   BACKGROUND_BATCH_SIZE,
   buildTrainingContext,
   DAILY_DELIVERY_DAYS,
+  MAX_WEEKLY_ACTIONS,
   draftsToActionRows,
   generateDraftActions,
   type DeliveryTrack,
@@ -210,8 +211,8 @@ export async function saveGeneratedActions(params: {
   focusThemes: ActionTheme[];
   focusCustomText?: string;
   track: DeliveryTrack;
-  /** Actions generated per delivery. */
-  dailyActionCount: 1 | 2 | 3 | 4 | 5;
+  /** Actions generated per delivery (weekly plans: 1–MAX_WEEKLY_ACTIONS). */
+  dailyActionCount: 1 | 2 | 3;
   /** 0 = Sunday, ... 6 = Saturday. Multiple allowed for "daily", exactly one for "weekly". */
   daysOfWeek: number[];
   /** Length of the plan in weeks (2-24). Drives how many total actions get generated. */
@@ -270,8 +271,8 @@ export async function saveGeneratedActions(params: {
     if (params.track === "weekly" && uniqueDays.length !== 1) {
       return { error: "Weekly sprint requires exactly one day" };
     }
-    if (![1, 2, 3, 4, 5].includes(params.dailyActionCount)) {
-      return { error: "Action count must be between 1 and 5" };
+    if (!Number.isInteger(params.dailyActionCount) || params.dailyActionCount < 1 || params.dailyActionCount > MAX_WEEKLY_ACTIONS) {
+      return { error: `Action count must be between 1 and ${MAX_WEEKLY_ACTIONS}` };
     }
     const actionCount = params.track === "daily" ? 1 : params.dailyActionCount;
     const effectiveMaxWeeks = Math.min(cohortContext.maxWeeks ?? 24, 24);

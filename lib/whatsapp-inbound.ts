@@ -115,7 +115,10 @@ async function handleDoneTap(admin: AdminClient, message: WhatsAppInboundMessage
   try {
     const actions = await loadReminderActionStates(admin, userId, tap.reminderActionIds);
     const followUp = buildCompletionFollowUp({ completion, tappedNumber: tap.number, actions });
-    if (!isWhatsAppSendConfigured()) return;
+    if (!isWhatsAppSendConfigured()) {
+      console.warn("[whatsapp-inbound] action saved but no reply sent: WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN not set");
+      return;
+    }
     const result =
       followUp.kind === "text"
         ? await sendWhatsAppText({ to: message.fromPhone, body: followUp.body, userId, purpose: "whatsapp_action_done" })
@@ -133,7 +136,10 @@ async function handleDoneTap(admin: AdminClient, message: WhatsAppInboundMessage
 
 /** Best-effort confirmation; a failed reply never fails the webhook. */
 async function sendReply(to: string, body: string, userId: string | null, purpose: string) {
-  if (!isWhatsAppSendConfigured()) return;
+  if (!isWhatsAppSendConfigured()) {
+    console.warn("[whatsapp-inbound] reply skipped: WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN not set", { purpose });
+    return;
+  }
   const result = await sendWhatsAppText({ to, body, userId, purpose });
   if (!result.ok) console.error("[whatsapp-inbound] reply failed", { purpose, error: result.error });
 }

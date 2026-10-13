@@ -33,7 +33,7 @@ const Onboarding: React.FC<{
   ));
   const [track, setTrack] = useState<DeliveryTrack>("weekly");
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([2]);
-  const [weeklyActionCount, setWeeklyActionCount] = useState<1 | 2 | 3 | 4 | 5>(2);
+  const [weeklyActionCount, setWeeklyActionCount] = useState<1 | 2 | 3>(2);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // WhatsApp reminders: ticked by default with the admin-saved number
@@ -143,7 +143,7 @@ const Onboarding: React.FC<{
         <div className={`plan-setup-grid ${track === "weekly" ? "weekly" : "daily"}`}>
           <label className="plan-setup-field"><span>Duration</span><select value={durationWeeks} onChange={(event) => setDurationWeeks(Number(event.target.value))}>{availableDurations.map((weeks) => <option key={weeks} value={weeks}>{weeks} weeks</option>)}</select></label>
 
-          {track === "weekly" ? <label className="plan-setup-field"><span>Actions per week</span><select value={weeklyActionCount} onChange={(event) => setWeeklyActionCount(Number(event.target.value) as 1 | 2 | 3 | 4 | 5)}>{([1, 2, 3, 4, 5] as const).map((count) => <option key={count} value={count}>{count} action{count === 1 ? "" : "s"}</option>)}</select></label> : <div className="plan-setup-field"><span>Actions per weekday</span><div className="plan-fixed-action-count"><strong>1 action</strong><small>Fixed for a realistic daily pace</small></div></div>}
+          {track === "weekly" ? <label className="plan-setup-field"><span>Actions per week</span><select value={weeklyActionCount} onChange={(event) => setWeeklyActionCount(Number(event.target.value) as 1 | 2 | 3)}>{([1, 2, 3] as const).map((count) => <option key={count} value={count}>{count} action{count === 1 ? "" : "s"}</option>)}</select></label> : <div className="plan-setup-field"><span>Actions per weekday</span><div className="plan-fixed-action-count"><strong>1 action</strong><small>Fixed for a realistic daily pace</small></div></div>}
 
           {track === "weekly" && <label className="plan-setup-field"><span>Reminder day</span><select value={daysOfWeek[0]} onChange={(event) => setDaysOfWeek([Number(event.target.value)])}>{WEEKDAYS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label>}
 

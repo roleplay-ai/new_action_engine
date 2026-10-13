@@ -44,6 +44,7 @@
 import { doneButtonPayload } from "@/lib/whatsapp-action-completion";
 
 export const ACTION_REMINDER_LANGUAGE = "en";
+/** Equals MAX_WEEKLY_ACTIONS in lib/personal-action-generation.ts. */
 export const MAX_ACTIONS_PER_TEMPLATE = 3;
 
 export function actionReminderTemplateName(actionCount: number): string {

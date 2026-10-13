@@ -211,6 +211,8 @@ const NUDGIE_GIF = {
   actionsUnconfirmed: `${EMAIL_ASSETS_URL}/nudgie-actions-unconfirmed.gif`,
 } as const;
 
+const SURPRISE_BOX_GIF = `${EMAIL_ASSETS_URL}/surprise-box.gif`;
+
 const NUDGIE_FALLBACK_LOGO_URL = `${NUDGE_APP_URL}/NudgeableBlack.png`;
 const NUDGIE_SUPPORT_EMAIL = "team@nudgeable.ai";
 
@@ -374,6 +376,10 @@ function nudgieEmailHtml(params: {
       .stat-cell { display:block !important; width:auto !important; }
       .buddy-cell { border-left:0 !important; border-top:1px solid #e7e7e9 !important; padding:16px 0 0 !important; }
       .own-cell { padding:0 0 16px !important; }
+      .surprise-pad { padding:16px !important; }
+      .surprise-gif-cell { display:block !important; width:auto !important; padding:0 0 10px !important; }
+      .surprise-gif { width:88px !important; height:88px !important; }
+      .surprise-copy-cell { display:block !important; width:auto !important; }
       .footer-pad { padding-top:18px !important; padding-bottom:24px !important; }
     }
   </style>
@@ -572,14 +578,20 @@ function reminderActionsFrom(data: EmailTemplateData): ReminderAction[] {
 /** Action cards; each "Mark done" uses the action's own completion link,
  * falling back to the app login when the sender didn't provide one. */
 function reminderActionCardsHtml(actions: ReminderAction[], loginUrl: string, surpriseBoxes: boolean): string {
-  // Plans with Surprise Boxes get one line below the cards (not one per card).
-  // Emoji and copy sit in separate cells: Gmail swaps the emoji for an <img>,
-  // which the global `img { display:block }` reset would push onto its own line.
+  // Plans with Surprise Boxes get one animated teaser card below the cards (not one per card).
   const surpriseHtml = surpriseBoxes && actions.length
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#fff8e1" style="width:100%;background-color:#fff8e1;border-radius:12px;margin:0 0 14px;"><tr>
-            <td width="22" valign="middle" style="width:22px;padding:12px 6px 12px 14px;font-size:16px;line-height:21px;">&#127873;</td>
-            <td valign="middle" style="padding:12px 14px 12px 0;font-size:14px;line-height:21px;color:#24242c;">Mark done to open a <strong>Surprise Box</strong></td>
-          </tr></table>`
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="surprise-card" bgcolor="#fffbea" style="width:100%;background-color:#fffbea;border:2px dashed #ffcf00;border-radius:14px;margin:4px 0 18px;">
+            <tr><td class="surprise-pad" style="padding:16px 20px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;"><tr>
+                <td class="surprise-gif-cell" width="124" valign="middle" style="width:124px;padding-right:18px;"><img class="surprise-gif" src="${SURPRISE_BOX_GIF}" alt="Animated gift box" width="106" height="106" style="display:block;width:106px;height:106px;border:0;border-radius:12px;background-color:#ffffff;"></td>
+                <td class="surprise-copy-cell" valign="middle">
+                  <p style="margin:0 0 6px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#8a6d00;">Surprise inside</p>
+                  <p style="margin:0 0 6px;font-size:19px;line-height:26px;font-weight:700;color:#24242c;">Every action you complete unlocks a Surprise Box</p>
+                  <p style="margin:0;font-size:14px;line-height:21px;color:#575762;">Tap <strong>Mark done</strong> above to open yours.</p>
+                </td>
+              </tr></table>
+            </td></tr>
+          </table>`
     : "";
   return actions.map((action, i) => nudgieActionCardHtml(action, i, action.complete_url || loginUrl)).join("") + surpriseHtml;
 }

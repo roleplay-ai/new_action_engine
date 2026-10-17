@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { FileText, Lock, Play, X } from "lucide-react";
 import { markSurpriseBoxOpened } from "@/app/actions/surprise-boxes";
-import type { SurpriseShelf, SurpriseShelfBox } from "@/lib/surprise-boxes";
+import { SURPRISE_BOX_OPENED_EVENT, type SurpriseShelf, type SurpriseShelfBox } from "@/lib/surprise-boxes";
 
 /** Boxes shown before the shelf scrolls (3 rows of 4 on desktop, 4 rows of 3 on phones). */
 const SHELF_VISIBLE_BOXES = 12;
@@ -13,11 +13,11 @@ const SHELF_VISIBLE_BOXES = 12;
 /** Gift colourways, cycled by slot. */
 const GIFT_VARIANTS = ["", "v2", "v3", "v4"];
 
-function giftVariant(box: SurpriseShelfBox) {
+export function giftVariant(box: SurpriseShelfBox) {
   return GIFT_VARIANTS[(box.slot - 1) % GIFT_VARIANTS.length];
 }
 
-function Gift({ variant, locked }: { variant: string; locked?: boolean }) {
+export function Gift({ variant, locked }: { variant: string; locked?: boolean }) {
   return (
     <div className={`surprise-gift ${variant}`} aria-hidden="true">
       <div className="surprise-gift-lid"><div className="surprise-gift-bow"><i /></div></div>
@@ -216,7 +216,7 @@ function SurpriseReveal({
   );
 }
 
-function ShelfTile({ box, onSelect }: { box: SurpriseShelfBox; onSelect: (box: SurpriseShelfBox) => void }) {
+export function ShelfTile({ box, onSelect }: { box: SurpriseShelfBox; onSelect: (box: SurpriseShelfBox) => void }) {
   const selectable = box.state === "opened" || box.state === "ready";
   const content = (
     <>
@@ -265,10 +265,11 @@ function ShelfTile({ box, onSelect }: { box: SurpriseShelfBox; onSelect: (box: S
 }
 
 /**
- * Commitment Wallet Surprise Box shelf plus the reveal popup. `revealUnlockIds`
- * (from `/wallet?reveal=<id,…>`) opens those boxes one after another on load.
+ * Shelf state plus the reveal popup, shared by the Wallet shelf and the
+ * /surprises page. `revealUnlockIds` (from `?reveal=<id,…>`) opens those boxes
+ * one after another on load; `select` opens one more.
  */
-export default function SurpriseBoxes({ shelf, revealUnlockIds }: { shelf: SurpriseShelf; revealUnlockIds: string[] }) {
+export function useSurpriseReveal(shelf: SurpriseShelf, revealUnlockIds: string[]) {
   const router = useRouter();
   const pathname = usePathname();
   // Boxes opened in this session. Layered over the server shelf so a refresh
@@ -294,7 +295,7 @@ export default function SurpriseBoxes({ shelf, revealUnlockIds }: { shelf: Surpr
     const unlockId = opened.unlockId;
     setOpenedHere((ids) => new Set(ids).add(unlockId));
     setJustOpened(unlockId);
-    void markSurpriseBoxOpened(unlockId);
+    void markSurpriseBoxOpened(unlockId).then(() => window.dispatchEvent(new Event(SURPRISE_BOX_OPENED_EVENT)));
   }, []);
 
   const handleClose = useCallback(() => {
@@ -308,6 +309,28 @@ export default function SurpriseBoxes({ shelf, revealUnlockIds }: { shelf: Surpr
       return rest;
     });
   }, [pathname, router]);
+
+  const select = useCallback((unlockId: string) => setQueue([unlockId]), []);
+
+  const portal = mounted && current ? createPortal(
+    <SurpriseReveal
+      key={current.unlockId}
+      box={current}
+      total={boxes.length}
+      completedCount={boxes.filter((box) => box.unlockId).length}
+      remainingAfter={queue.length - 1}
+      onOpened={handleOpened}
+      onClose={handleClose}
+    />,
+    document.body
+  ) : null;
+
+  return { boxes, justOpened, select, portal };
+}
+
+/** Commitment Wallet Surprise Box shelf plus the reveal popup. */
+export default function SurpriseBoxes({ shelf, revealUnlockIds }: { shelf: SurpriseShelf; revealUnlockIds: string[] }) {
+  const { boxes, justOpened, select, portal } = useSurpriseReveal(shelf, revealUnlockIds);
 
   // Plans with more than 12 actions scroll inside the shelf instead of
   // growing the page. Start scrolled to the box that matters now.
@@ -360,23 +383,12 @@ export default function SurpriseBoxes({ shelf, revealUnlockIds }: { shelf: Surpr
       >
         {boxes.map((box) => (
           <div key={box.actionId} className={box.unlockId && box.unlockId === justOpened ? "surprise-tile-wrap is-new" : "surprise-tile-wrap"}>
-            <ShelfTile box={box} onSelect={(selected) => selected.unlockId && setQueue([selected.unlockId])} />
+            <ShelfTile box={box} onSelect={(selected) => selected.unlockId && select(selected.unlockId)} />
           </div>
         ))}
       </div>
 
-      {mounted && current && createPortal(
-        <SurpriseReveal
-          key={current.unlockId}
-          box={current}
-          total={boxes.length}
-          completedCount={boxes.filter((box) => box.unlockId).length}
-          remainingAfter={queue.length - 1}
-          onOpened={handleOpened}
-          onClose={handleClose}
-        />,
-        document.body
-      )}
+      {portal}
     </section>
   );
 }

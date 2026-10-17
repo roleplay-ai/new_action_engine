@@ -672,6 +672,7 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
     }
 
     revalidatePath("/wallet");
+    revalidatePath("/surprises");
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to activate plan" };

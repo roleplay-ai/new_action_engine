@@ -543,6 +543,7 @@ export async function completeAction(params: {
 
   revalidatePath("/");
   revalidatePath("/wallet");
+  revalidatePath("/surprises");
   return {
     pointsDelta: walletValidation?.pointsAdded,
     completedLate: walletValidation?.completedLate,

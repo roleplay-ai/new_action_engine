@@ -6,6 +6,9 @@
 
 export const SURPRISE_BOX_BUCKET = "surprise-box-resources";
 
+/** Window event fired after a box is opened, so the top-bar gift badge refreshes. */
+export const SURPRISE_BOX_OPENED_EVENT = "surprise-box-opened";
+
 /** Library size the superadmin page asks for before launch (a warning, not a block). */
 export const SURPRISE_LIBRARY_TARGET = 30;
 
@@ -236,6 +239,22 @@ export type ShelfActionInput = {
 };
 
 export type ShelfUnlockInput = { unlockId: string; openedAt: string | null; prize: SurprisePrize | null };
+
+/**
+ * Splits a shelf for the /surprises page: boxes to open now, boxes already
+ * opened, only the next `upcomingLimit` locked boxes (the rest are just
+ * counted), and missed boxes that a late completion can still unlock.
+ */
+export function groupSurpriseShelf(boxes: SurpriseShelfBox[], upcomingLimit = 2) {
+  const locked = boxes.filter((box) => box.state === "next" || box.state === "locked");
+  return {
+    ready: boxes.filter((box) => box.state === "ready"),
+    opened: boxes.filter((box) => box.state === "opened"),
+    upcoming: locked.slice(0, upcomingLimit),
+    moreLockedCount: Math.max(0, locked.length - upcomingLimit),
+    missed: boxes.filter((box) => box.state === "missed"),
+  };
+}
 
 /** Builds the shelf from plan actions in delivery order plus the participant's unlocks. */
 export function buildSurpriseShelf(

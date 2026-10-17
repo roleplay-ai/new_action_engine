@@ -4,12 +4,14 @@ import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEngine } from "@/lib/store";
-import { Check, ChevronDown, Home, Sparkles, ListChecks, PiggyBank, ArrowLeft } from "lucide-react";
+import { Check, ChevronDown, Gift, Home, ListChecks, ArrowLeft } from "lucide-react";
 import { LogoutButton } from "@/app/(app)/logout-button";
 import PageLoader from "@/components/PageLoader";
 import { usePageLoadingControls } from "@/components/PageLoadingProvider";
 import { selectMyCohort } from "@/app/actions/cohorts";
 import { getMyCommitmentWallet } from "@/app/actions/commitment-wallet";
+import { getMySurpriseShelf } from "@/app/actions/surprise-boxes";
+import { SURPRISE_BOX_OPENED_EVENT } from "@/lib/surprise-boxes";
 import { remainingEmailSequenceMs } from "@/lib/email-link-sequence";
 
 interface LayoutProps {
@@ -36,10 +38,10 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
 
   const navItems = useMemo(
     () => [
-      { href: "/journey", label: "Home", shortLabel: "Home", icon: Home },
-      { href: "/plan", label: "My Plan", shortLabel: "Plan", icon: Sparkles },
+      // My Plan and Commitment Points left the nav: planning moves into My
+      // Actions, and the score pill in the top bar still opens the Wallet.
+      { href: "/journey", label: "Dashboard", shortLabel: "Dashboard", icon: Home },
       { href: "/actions", label: "My Actions", shortLabel: "Actions", icon: ListChecks },
-      { href: "/wallet", label: "Commitment Points", shortLabel: "Points", icon: PiggyBank },
     ],
     []
   );
@@ -109,6 +111,29 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
       cancelled = true;
     };
   }, [cohort?.id, personalPlanState, actionProgressKey]);
+
+  // Badge on the top-bar gift: boxes unlocked but not yet opened. Refreshed when
+  // actions change, on navigation, and when a box is opened on the page.
+  const [readySurpriseCount, setReadySurpriseCount] = useState(0);
+  const [surpriseRefreshKey, setSurpriseRefreshKey] = useState(0);
+  useEffect(() => {
+    const bump = () => setSurpriseRefreshKey((key) => key + 1);
+    window.addEventListener(SURPRISE_BOX_OPENED_EVENT, bump);
+    return () => window.removeEventListener(SURPRISE_BOX_OPENED_EVENT, bump);
+  }, []);
+  useEffect(() => {
+    if (!cohort?.id || personalPlanState === "none") {
+      setReadySurpriseCount(0);
+      return;
+    }
+    let cancelled = false;
+    void getMySurpriseShelf(cohort.id).then(({ shelf }) => {
+      if (!cancelled) setReadySurpriseCount(shelf.boxes.filter((box) => box.state === "ready").length);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [cohort?.id, personalPlanState, actionProgressKey, pathname, surpriseRefreshKey]);
 
   const commitmentLabel = commitmentScore?.hasFinalisedPlan
     ? `${formatCommitmentScore(commitmentScore.score)}%`
@@ -252,6 +277,16 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
             )}
 
             <div className="participant-topbar-actions">
+              <Link
+                href="/surprises"
+                className={`participant-gift-button${isActive("/surprises") ? " active" : ""}${readySurpriseCount ? " has-ready" : ""}`}
+                title="Surprise boxes"
+                aria-label={readySurpriseCount ? `Surprise boxes, ${readySurpriseCount} ready to open` : "Surprise boxes"}
+                onClick={() => beginNavigation("/surprises")}
+              >
+                <Gift size={20} strokeWidth={2.2} />
+                {readySurpriseCount > 0 && <span className="participant-gift-badge">{readySurpriseCount}</span>}
+              </Link>
               <Link href="/wallet" className="participant-points-pill" title="Commitment score" onClick={() => beginNavigation("/wallet")}>
                 {commitmentLabel}
                 <small>Commitment Score</small>

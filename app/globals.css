@@ -20535,3 +20535,491 @@ button.surprise-tile:focus-visible,
     max-height: 672px;
   }
 }
+
+
+/* ===== Participant journey v2, Phase 1 (docs/PARTICIPANT_JOURNEY_REDESIGN_PLAN.md) ===== */
+
+/* Top-bar gift: opens /surprises; the badge counts boxes ready to open. */
+.participant-gift-button {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  color: #d03a2c;
+  background: #fff;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.participant-gift-button:hover,
+.participant-gift-button.active {
+  border-color: var(--rcpl-gold, #e7b94d);
+  background: var(--rcpl-cream, #fbf3de);
+}
+
+.participant-gift-button:focus-visible {
+  outline: 2px solid var(--rcpl-navy-700, #1d3c66);
+  outline-offset: 2px;
+}
+
+.participant-gift-button.has-ready svg {
+  animation: participant-gift-wiggle 1.6s ease-in-out infinite;
+}
+
+.participant-gift-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 99px;
+  color: #fff;
+  background: #ed4551;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+@keyframes participant-gift-wiggle {
+  0%, 70%, 100% { transform: rotate(0); }
+  76% { transform: rotate(-12deg); }
+  84% { transform: rotate(10deg); }
+  92% { transform: rotate(-5deg); }
+}
+
+/* Journey dashboard: action-plan add-on card between the hero and the content grid. */
+.rcpl-plan-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 20px;
+  padding: 20px 22px;
+  border: 1.5px solid #ecd9a6;
+  border-radius: 18px;
+  color: var(--rcpl-ink);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(231, 185, 77, .12), 0 2px 14px rgba(12, 31, 63, .07);
+}
+
+.rcpl-plan-card-icon {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: var(--rcpl-gold-deep);
+  background: var(--rcpl-cream);
+}
+
+.rcpl-plan-card-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.rcpl-plan-card-copy > small {
+  color: var(--rcpl-gold-deep);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.rcpl-plan-card-copy h3 {
+  margin: 5px 0 3px;
+  font-size: 19px;
+  font-weight: 850;
+  letter-spacing: -.02em;
+  text-wrap: balance;
+}
+
+.rcpl-plan-card-copy p {
+  margin: 0;
+  color: var(--rcpl-muted);
+  font-size: 14px;
+}
+
+.rcpl-plan-card > .journey-primary-button {
+  flex: none;
+}
+
+.rcpl-plan-card--live {
+  align-items: stretch;
+  border-color: var(--rcpl-navy-900);
+  color: #fff;
+  background: var(--rcpl-navy-900);
+  box-shadow: 0 2px 14px rgba(12, 31, 63, .12);
+}
+
+.rcpl-plan-card--live .rcpl-plan-card-copy > small {
+  color: var(--rcpl-gold);
+}
+
+.rcpl-plan-card--live .rcpl-plan-card-copy h3 {
+  color: #fff;
+}
+
+.rcpl-plan-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rcpl-plan-card-actions a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 12px;
+  color: #fff;
+  background: rgba(255, 255, 255, .06);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.rcpl-plan-card-actions a:hover {
+  background: rgba(255, 255, 255, .11);
+}
+
+.rcpl-plan-card-actions a > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+
+.rcpl-plan-card-actions em {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--rcpl-gold-soft);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.rcpl-plan-card-check {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, .4);
+  border-radius: 50%;
+  color: transparent;
+}
+
+.rcpl-plan-card-side {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-left: 18px;
+  border-left: 1px solid rgba(255, 255, 255, .12);
+}
+
+.rcpl-plan-card-ring {
+  --p: 0;
+  width: 92px;
+  height: 92px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(var(--rcpl-gold) calc(var(--p) * 1%), rgba(255, 255, 255, .12) 0);
+}
+
+.rcpl-plan-card-ring > div {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-content: center;
+  border-radius: 50%;
+  text-align: center;
+  background: var(--rcpl-navy-900);
+}
+
+.rcpl-plan-card-ring strong {
+  font-size: 19px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.rcpl-plan-card-ring small {
+  color: rgba(255, 255, 255, .6);
+  font-size: 11px;
+}
+
+.rcpl-plan-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rcpl-plan-card-meta span {
+  color: rgba(255, 255, 255, .6);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.rcpl-plan-card-meta strong {
+  margin-bottom: 6px;
+  font-size: 16px;
+}
+
+@media (max-width: 760px) {
+  .rcpl-plan-card,
+  .rcpl-plan-card--live {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rcpl-plan-card > .journey-primary-button {
+    width: 100%;
+  }
+
+  .rcpl-plan-card-side {
+    padding: 14px 0 0;
+    border-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, .12);
+  }
+
+  .rcpl-plan-card-meta {
+    flex: 1;
+  }
+}
+
+/* /surprises page. Box sections reuse the Wallet's navy .surprise-shelf. */
+.surprises-page {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.surprises-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 12px;
+  padding: 0;
+  border: 0;
+  color: var(--color-text-muted);
+  background: none;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.surprises-back:hover {
+  color: var(--color-text-primary);
+}
+
+.surprises-head h1 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 30px);
+  font-weight: 850;
+  letter-spacing: -.03em;
+}
+
+.surprises-head p {
+  max-width: 62ch;
+  margin: 6px 0 0;
+  color: var(--color-text-secondary);
+}
+
+.surprises-panel {
+  margin-top: 22px;
+}
+
+.surprises-ready {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 26px;
+  padding: 18px 22px;
+  border: 1px solid rgba(255, 206, 0, .35);
+  border-radius: 18px;
+  background: rgba(255, 206, 0, .08);
+}
+
+.surprises-ready > div {
+  flex: 1;
+  min-width: 200px;
+}
+
+.surprises-ready small {
+  color: #ffce00;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.surprises-ready h2 {
+  margin: 4px 0;
+  color: #fff;
+  font-size: 21px;
+  letter-spacing: -.02em;
+}
+
+.surprises-ready p {
+  margin: 0;
+  color: #c9d4e5;
+  font-size: 14px;
+}
+
+.surprises-ready-gift {
+  padding: 0;
+  border: 0;
+  background: none;
+  animation: participant-gift-wiggle 1.8s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+.surprises-ready-gift .surprise-gift {
+  --s: .75;
+}
+
+.surprises-section + .surprises-section {
+  margin-top: 26px;
+}
+
+.surprises-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.surprises-section-head h4 {
+  margin: 0;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.surprises-section-head span,
+.surprises-note {
+  color: #c9d4e5;
+  font-size: 13px;
+}
+
+.surprises-note {
+  margin: 14px 0 0;
+}
+
+.surprises-note a {
+  color: #ffce00;
+  font-weight: 700;
+}
+
+.surprises-upcoming {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.surprises-locked {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px dashed rgba(255, 255, 255, .2);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .03);
+}
+
+.surprises-locked .surprise-gift {
+  --s: .5;
+  flex: none;
+  opacity: .55;
+  filter: grayscale(.6);
+}
+
+.surprises-locked > div {
+  min-width: 0;
+}
+
+.surprises-locked strong {
+  display: block;
+  color: #fff;
+  font-size: 14.5px;
+}
+
+.surprises-locked small {
+  display: block;
+  margin-top: 2px;
+  color: #c9d4e5;
+  font-size: 12.5px;
+}
+
+.surprises-locked--more {
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  text-align: center;
+}
+
+.surprises-locked--more strong {
+  color: #c9d4e5;
+  font-size: 24px;
+}
+
+.surprises-empty {
+  margin-top: 22px;
+  padding: 36px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  background: #fff;
+  text-align: center;
+}
+
+.surprises-empty h2 {
+  margin: 8px 0 0;
+  font-size: 20px;
+}
+
+.surprises-empty p {
+  max-width: 44ch;
+  margin: 0 0 10px;
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 760px) {
+  .surprises-upcoming {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .surprises-ready .journey-primary-button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .participant-gift-button.has-ready svg,
+  .surprises-ready-gift {
+    animation: none;
+  }
+}
+
+/* The participant nav now has two items (Dashboard, My Actions). */
+.participant-bottom-nav,
+.participant-shell--sidebar .participant-bottom-nav {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}

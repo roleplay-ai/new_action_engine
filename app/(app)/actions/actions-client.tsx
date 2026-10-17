@@ -583,11 +583,11 @@ export default function ActionsClient() {
         const [outcome] = await Promise.all([work, waitForEmailSequencePhase("notebook")]);
         if (outcome.completedCount === 0) return;
 
-        // Plans with Surprise Boxes: straight to the Wallet with the reveal
-        // open. The notebook stays up until this page unmounts.
+        // Plans with Surprise Boxes: straight to the Surprise Boxes page with the
+        // reveal open. The notebook stays up until this page unmounts.
         if (outcome.unlockIds.length) {
           leavingForWallet = true;
-          router.replace(`/wallet?reveal=${outcome.unlockIds.map(encodeURIComponent).join(",")}`);
+          router.replace(`/surprises?reveal=${outcome.unlockIds.map(encodeURIComponent).join(",")}`);
           return;
         }
 
@@ -625,7 +625,7 @@ export default function ActionsClient() {
       if (!result.error) {
         if (success && result.surpriseBoxUnlockId) {
           leavingForWallet = true;
-          router.replace(`/wallet?reveal=${encodeURIComponent(result.surpriseBoxUnlockId)}`);
+          router.replace(`/surprises?reveal=${encodeURIComponent(result.surpriseBoxUnlockId)}`);
           return;
         }
         try {

@@ -71,7 +71,7 @@ function PersonalWallet({ summary }: { summary: CommitmentWalletSummary }) {
       </div>
 
       {!summary.hasFinalisedPlan && (
-        <Link href="/plan" className="wallet-inline-link">
+        <Link href="/actions" className="wallet-inline-link">
           Go to my plan <ArrowRight size={14} />
         </Link>
       )}
@@ -133,7 +133,7 @@ export default async function WalletPage({
                     : "Your next on-time action keeps your Commitment Score strong."}
               </strong>
             </div>
-            <Link href={summary.hasFinalisedPlan ? "/actions" : "/plan"}>
+            <Link href="/actions">
               {summary.hasFinalisedPlan ? "View my next action" : "Go to my plan"} <ArrowRight size={14} />
             </Link>
           </div>

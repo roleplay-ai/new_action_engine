@@ -31,6 +31,21 @@ export function formatWhatsAppNumber(phone: string): string {
   return `+${digits}`;
 }
 
+/**
+ * The 10-digit Indian mobile number inside a stored or typed number
+ * ("919800000000", "+91 98000 00000" → "9800000000"), or "" for anything else.
+ * The plan form shows a fixed +91 and asks for these 10 digits.
+ */
+export function indianMobileDigits(phone: string | null | undefined): string {
+  const normalized = normalizeWhatsAppNumber(phone);
+  return normalized && normalized.length === 12 && normalized.startsWith(DEFAULT_COUNTRY_CODE) ? normalized.slice(2) : "";
+}
+
+/** Indian mobile numbers are 10 digits starting with 6–9. */
+export function isIndianMobile(digits: string): boolean {
+  return /^[6-9]\d{9}$/.test(digits);
+}
+
 export type OptKeyword = "stop" | "start";
 
 const STOP_WORDS = new Set(["STOP", "UNSUBSCRIBE", "OPT OUT", "OPTOUT"]);

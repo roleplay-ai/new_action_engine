@@ -22,6 +22,7 @@ import ConfettiCelebration from "@/components/ConfettiCelebration";
 import PageLoader from "@/components/PageLoader";
 import EditPlanDrawer from "@/components/actions/EditPlanDrawer";
 import WhatsAppReminderPreview from "@/components/actions/WhatsAppReminderPreview";
+import PlanSetup from "@/components/actions/PlanSetup";
 import { clearEmailSequence, startEmailSequencePhase, waitForEmailSequencePhase } from "@/lib/email-link-sequence";
 
 /** Tabs of the Action history popup. Current actions and Next reminders live on the page itself. */
@@ -466,7 +467,7 @@ export default function ActionsClient() {
     return () => {
       cancelled = true;
     };
-  }, [cohort?.id, refetch]);
+  }, [cohort?.id, personalPlanState, refetch]);
 
   useEffect(() => {
     let cancelled = false;
@@ -774,13 +775,19 @@ export default function ActionsClient() {
 
   if (!ready) return null;
 
+  // No live plan yet in the current batch: write the plan and activate it right here.
+  if (!planCanPerform && cohort?.isCurrent !== false && personalPlanState !== "active" && personalPlanState !== "archived") {
+    return <PlanSetup />;
+  }
+
   const visibleUpcoming = planIsArchived || showAllUpcoming ? upcoming : upcoming.slice(0, UPCOMING_PREVIEW_COUNT);
   const hiddenUpcomingCount = upcoming.length - visibleUpcoming.length;
-  const historyTabs: { id: HistoryTab; label: string; count: number | string }[] = [
-    { id: "pending-validation", label: "Pending validation", count: pendingValidation.length },
-    { id: "not-completed", label: "Didn't complete", count: notCompleted.length },
-    { id: "completed", label: "Completed", count: completed.length },
-    { id: "archived", label: "Old module", count: archiveReady ? archivedActions.length : "…" },
+  // Each tab keeps its own colour, as the page tabs did before they moved into this popup.
+  const historyTabs: { id: HistoryTab; label: string; count: number | string; color: string }[] = [
+    { id: "pending-validation", label: "Pending validation", count: pendingValidation.length, color: "#ED4551" },
+    { id: "not-completed", label: "Didn't complete", count: notCompleted.length, color: "#E07B39" },
+    { id: "completed", label: "Completed", count: completed.length, color: "#2F9E51" },
+    { id: "archived", label: "Old module", count: archiveReady ? archivedActions.length : "…", color: "#E6BE31" },
   ];
 
   return <div className="reference-actions animate-in fade-in duration-700">
@@ -951,11 +958,8 @@ export default function ActionsClient() {
             <div className="actions-reminders-empty">
               <div className="actions-reminders-empty-icon" aria-hidden="true"><CalendarDays size={26} /></div>
               <span className="participant-eyebrow">Next reminders</span>
-              <strong>{personalPlanState === "draft" ? "Activate your plan to unlock reminders" : "Your reminders will live here"}</strong>
-              <p>{personalPlanState === "draft"
-                ? "You already have a draft. Finalise it and this space will fill with the actions waiting on your schedule."
-                : "Once you create workplace actions in My Plan, upcoming reminders will appear here on the days they are due."}</p>
-              <Link href="/plan" className="journey-primary-button">{personalPlanState === "draft" ? "Review draft plan" : "Create my actions"}</Link>
+              <strong>No plan for this batch</strong>
+              <p>Switch to your current batch from the sidebar to build and activate a plan.</p>
             </div>
           )}
         </section>
@@ -993,10 +997,17 @@ export default function ActionsClient() {
             </div>
             <button type="button" className="actions-history-close" onClick={() => setHistoryTab(null)} aria-label="Close"><X size={18} /></button>
           </header>
-          <nav className="actions-tabs" aria-label="History views">
+          <nav className="actions-history-tabs" aria-label="History views">
             {historyTabs.map((item) => (
-              <button type="button" key={item.id} className={historyTab === item.id ? "active" : ""} onClick={() => setHistoryTab(item.id)}>
-                {item.label} <span style={item.id === "pending-validation" && pendingValidation.length > 0 ? { background: "#ED4551", color: "#fff" } : undefined}>{item.count}</span>
+              <button
+                type="button"
+                key={item.id}
+                className={`${historyTab === item.id ? "active" : ""}${item.id === "pending-validation" && pendingValidation.length > 0 ? " has-alert" : ""}`}
+                aria-pressed={historyTab === item.id}
+                style={{ "--tab-c": item.color } as CSSProperties}
+                onClick={() => setHistoryTab(item.id)}
+              >
+                {item.label} <span>{item.count}</span>
               </button>
             ))}
           </nav>

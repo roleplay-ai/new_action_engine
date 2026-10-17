@@ -14,7 +14,7 @@ function formatReminder(iso: string | null) {
 /**
  * The action-plan add-on on the journey dashboard. It follows the plan through
  * its stages: create it, activate it, then this week's actions and progress.
- * Plan creation still lives on /plan until it moves into My Actions.
+ * Creating and activating the plan happens on My Actions.
  */
 export default function ActionPlanCard({ locked }: { locked?: boolean }) {
   const { cohort, cohorts, personalPlanState, generationJob, userActions, allActions } = useEngine();
@@ -68,10 +68,10 @@ export default function ActionPlanCard({ locked }: { locked?: boolean }) {
           <p>{generating
             ? `${generationJob.totalGenerated} of ${generationJob.totalNeeded} actions ready so far.`
             : drafted
-              ? "Review your actions and switch them on."
+              ? "One click creates your actions and switches them on."
               : "Answer one question about the skill you want to build. We'll turn it into small actions for your work week."}</p>
         </div>
-        <Link href="/plan" className="journey-primary-button">
+        <Link href="/actions" className="journey-primary-button">
           {generating ? "See progress" : drafted ? "Activate my plan" : "Create my plan"} <ArrowRight size={14} />
         </Link>
       </section>

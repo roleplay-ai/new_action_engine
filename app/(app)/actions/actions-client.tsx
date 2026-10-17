@@ -137,6 +137,18 @@ function buddyStateMessage(buddy: CommitmentBuddyProgress, state: BuddyCardState
   return `${firstName} is keeping their commitment steady.`;
 }
 
+/** One line for the collapsed card, e.g. "72% this week · up from 60%". */
+function buddySummary(buddy: CommitmentBuddyProgress, state: BuddyCardState) {
+  if (state === "pending-plan" || buddy.currentScore === null) return "Hasn't finalised their plan yet";
+  const { current } = buddyPeriodLabels(buddy.track);
+  const now = `${formatCommitmentScore(buddy.currentScore)}% ${current.toLowerCase()}`;
+  if (buddy.previousScore === null) return `${now} · just started`;
+  const before = `${formatCommitmentScore(buddy.previousScore)}%`;
+  if (buddy.currentScore < buddy.previousScore) return `${now} · down from ${before}`;
+  if (buddy.currentScore > buddy.previousScore) return `${now} · up from ${before}`;
+  return `${now} · steady`;
+}
+
 function buddyContactCopy(buddy: CommitmentBuddyProgress, state: BuddyCardState) {
   const firstName = buddy.name.split(/\s+/)[0] || buddy.name;
   const { sincePhrase } = buddyPeriodLabels(buddy.track);
@@ -184,18 +196,21 @@ function CommitmentBuddyScoreCard({
     ? (buddy.currentScore === null ? "—" : "New")
     : `${formatCommitmentScore(buddy.previousScore)}%`;
   const currentOrbText = buddy.currentScore === null ? "—" : `${formatCommitmentScore(buddy.currentScore)}%`;
+  const [expanded, setExpanded] = useState(false);
+  const panelId = `buddy-panel-${buddy.id}`;
 
-  return <section className={`commitment-buddy-card${cardClass}`} aria-label={`Commitment score for ${buddy.name}`}>
-    <div className="commitment-buddy-card-head">
-      <div className="commitment-buddy-avatar" aria-hidden="true">{initials(buddy.name)}</div>
-      <div className="commitment-buddy-identity">
-        <p className="commitment-buddy-eyebrow">Your Commitment Buddy</p>
-        <h3 className="commitment-buddy-name">{buddy.name}</h3>
-        <p className="commitment-buddy-relation">You are their commitment buddy</p>
-      </div>
-      {/* <span className="commitment-buddy-tag">1-to-1</span> */}
-    </div>
+  return <section className={`commitment-buddy-card${cardClass}${expanded ? "" : " is-collapsed"}`} aria-label={`Commitment score for ${buddy.name}`}>
+    <button type="button" className="commitment-buddy-card-head commitment-buddy-toggle" aria-expanded={expanded} aria-controls={panelId} onClick={() => setExpanded((open) => !open)}>
+      <span className="commitment-buddy-avatar" aria-hidden="true">{initials(buddy.name)}</span>
+      <span className="commitment-buddy-identity">
+        <span className="commitment-buddy-eyebrow">Your Commitment Buddy</span>
+        <span className="commitment-buddy-name">{buddy.name}</span>
+        <span className={`commitment-buddy-relation${expanded ? "" : " commitment-buddy-summary"}`}>{expanded ? "You are their commitment buddy" : buddySummary(buddy, state)}</span>
+      </span>
+      <ChevronDown size={18} className="commitment-buddy-chevron" aria-hidden="true" />
+    </button>
 
+    {expanded && <div id={panelId}>
     <div className="commitment-buddy-score-panel" aria-label="Commitment score comparison">
       <div className="commitment-buddy-score-flow">
         <div className="commitment-buddy-score-block">
@@ -218,6 +233,7 @@ function CommitmentBuddyScoreCard({
       </span>
       <span>{buddyStateMessage(buddy, state)}</span>
     </div>
+    </div>}
 
     <button type="button" className="commitment-buddy-contact" onClick={() => onContact(buddy)}>
       {isSayHi ? <Hand size={16} strokeWidth={2.4} /> : <MessageCircle size={16} strokeWidth={2.4} />}
@@ -819,13 +835,6 @@ export default function ActionsClient() {
         <div className="actions-section-heading">
           <div>
             <h3>Current actions</h3>
-            <p>
-              {currentActions.length
-                ? `${currentActions.length} action${currentActions.length === 1 ? " is" : "s are"} ready for this ${settings?.track === "daily" ? "day" : "week"}.`
-                : planIsActive
-                  ? "Nothing on your plate right now."
-                  : "Actions ready for your current practice period."}
-            </p>
           </div>
           {currentActions.length > 0 && <span>{currentActions.length} ready</span>}
         </div>

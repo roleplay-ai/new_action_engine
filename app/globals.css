@@ -3843,18 +3843,6 @@ input[type="range"] {
   padding-bottom: 36px;
 }
 
-.actions-current-card::after {
-  content: "";
-  width: 130px;
-  height: 130px;
-  position: absolute;
-  right: -68px;
-  top: -68px;
-  border: 25px solid rgba(35, 206, 107, .13);
-  border-radius: 50%;
-  pointer-events: none;
-}
-
 .actions-current-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 22px 48px rgba(34, 29, 35, .11);
@@ -16544,10 +16532,6 @@ textarea.commitment-buddy-contact-selectable {
     linear-gradient(165deg, var(--journey-yellow-soft, #fff6cf) 0%, #fff 62%);
 }
 
-.actions-current-card--empty::after {
-  display: none;
-}
-
 .actions-chill-icon {
   width: 78px;
   height: 78px;
@@ -22407,5 +22391,86 @@ button.surprise-tile:focus-visible,
 @media (prefers-reduced-motion: reduce) {
   .plan-activation-modal .plan-activation-orb::after {
     animation: none;
+  }
+}
+
+
+/* Commitment buddy card: collapsed to one row by default; the header toggles the score details. */
+.commitment-buddy-toggle {
+  width: 100%;
+  border: 0;
+  color: inherit;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.commitment-buddy-toggle:focus-visible {
+  outline: 3px solid rgba(98, 60, 234, .25);
+  outline-offset: -3px;
+  border-radius: 18px;
+}
+
+.commitment-buddy-toggle .commitment-buddy-eyebrow,
+.commitment-buddy-toggle .commitment-buddy-name,
+.commitment-buddy-toggle .commitment-buddy-relation {
+  display: block;
+}
+
+.commitment-buddy-chevron {
+  flex: none;
+  color: #8a8090;
+  transition: transform .2s ease;
+}
+
+.commitment-buddy-toggle[aria-expanded="true"] .commitment-buddy-chevron {
+  transform: rotate(180deg);
+}
+
+.commitment-buddy-card.is-collapsed {
+  border-top-width: 4px;
+  border-radius: 18px;
+  box-shadow: 0 4px 14px rgba(34, 29, 35, .06);
+}
+
+.commitment-buddy-card.is-collapsed .commitment-buddy-card-head {
+  padding: 14px 16px 10px;
+}
+
+.commitment-buddy-card.is-collapsed .commitment-buddy-avatar {
+  width: 40px;
+  height: 40px;
+  font-size: 13px;
+}
+
+.commitment-buddy-card.is-collapsed .commitment-buddy-name {
+  font-size: 15.5px;
+}
+
+.commitment-buddy-summary {
+  color: var(--color-text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.commitment-buddy-card.dipped .commitment-buddy-summary {
+  color: #b4232f;
+}
+
+.commitment-buddy-card.steady .commitment-buddy-summary {
+  color: #166534;
+}
+
+.commitment-buddy-card.is-collapsed .commitment-buddy-contact {
+  width: calc(100% - 32px);
+  min-height: 40px;
+  margin: 2px 16px 14px;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .commitment-buddy-chevron {
+    transition: none;
   }
 }

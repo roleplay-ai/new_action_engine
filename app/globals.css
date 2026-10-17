@@ -22668,3 +22668,128 @@ a.unlocked-box-card:focus-visible {
     transition: none;
   }
 }
+
+
+/* My Actions, nothing due: Nudgie sipping coffee next to a speech bubble. */
+.actions-coffee-break {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 18px 12px;
+}
+
+.nudgie-coffee {
+  width: 150px;
+  max-width: 45%;
+  height: auto;
+  flex: none;
+  overflow: visible;
+}
+
+.nudgie-coffee-body {
+  transform-box: view-box;
+  transform-origin: 121px 182px;
+  animation: nudgie-coffee-breathe 4s ease-in-out infinite;
+}
+
+.nudgie-coffee-steam path {
+  animation: nudgie-coffee-steam 2.4s ease-in-out infinite;
+}
+
+.nudgie-coffee-steam path:nth-of-type(2) {
+  animation-delay: .5s;
+}
+
+.nudgie-coffee-steam path:nth-of-type(3) {
+  animation-delay: 1s;
+}
+
+@keyframes nudgie-coffee-breathe {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.018); }
+}
+
+@keyframes nudgie-coffee-steam {
+  0% { opacity: 0; transform: translateY(4px); }
+  40% { opacity: .8; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+.actions-coffee-bubble {
+  position: relative;
+  max-width: 320px;
+  padding: 16px 18px;
+  border: 2px solid #111;
+  border-radius: 18px;
+  color: var(--color-text-primary);
+  background: #fff;
+  box-shadow: 4px 4px 0 rgba(17, 17, 17, .9);
+  text-align: left;
+}
+
+/* Tail pointing at Nudgie. */
+.actions-coffee-bubble::before {
+  content: "";
+  position: absolute;
+  top: 34px;
+  left: -11px;
+  width: 18px;
+  height: 18px;
+  border-left: 2px solid #111;
+  border-bottom: 2px solid #111;
+  background: #fff;
+  transform: rotate(45deg);
+}
+
+.actions-coffee-bubble strong {
+  display: block;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.actions-coffee-bubble p {
+  margin: 6px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 14.5px;
+}
+
+.actions-coffee-bubble .actions-chill-next-reminder {
+  margin-top: 10px;
+}
+
+@media (max-width: 560px) {
+  .actions-coffee-break {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .nudgie-coffee {
+    width: 160px;
+    max-width: 70%;
+  }
+
+  .actions-coffee-bubble {
+    text-align: center;
+  }
+
+  .actions-coffee-bubble::before {
+    top: -11px;
+    left: calc(50% - 9px);
+    border-left: 2px solid #111;
+    border-top: 2px solid #111;
+    border-bottom: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The sip itself is SVG <animate>, switched off in NudgieCoffee.tsx. */
+  .nudgie-coffee-body,
+  .nudgie-coffee-steam path {
+    animation: none;
+  }
+
+  .nudgie-coffee-steam path {
+    opacity: .6;
+  }
+}

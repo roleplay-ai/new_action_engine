@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleX, Clock3, Coffee, Hand, History, Hourglass, Lightbulb, ListChecks, Loader2, Mail, MessageCircle, Pencil, SlidersHorizontal, TrendingDown, TrendingUp, UsersRound, X } from "lucide-react";
+import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleX, Clock3, Hand, History, Hourglass, Lightbulb, ListChecks, Loader2, Mail, MessageCircle, Pencil, SlidersHorizontal, TrendingDown, TrendingUp, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getMyPlanSettings, syncMyDuePersonalActions, updateUpcomingPersonalAction, type MyPlanSettings } from "@/app/actions/ai-actions";
 import type { ActionCard } from "@/lib/types";
@@ -23,6 +23,7 @@ import PageLoader from "@/components/PageLoader";
 import EditPlanDrawer from "@/components/actions/EditPlanDrawer";
 import WhatsAppReminderPreview from "@/components/actions/WhatsAppReminderPreview";
 import PlanSetup from "@/components/actions/PlanSetup";
+import NudgieCoffee from "@/components/actions/NudgieCoffee";
 import { clearEmailSequence, startEmailSequencePhase, waitForEmailSequencePhase } from "@/lib/email-link-sequence";
 
 /** Tabs of the Action history popup. Current actions and Next reminders live on the page itself. */
@@ -839,35 +840,32 @@ export default function ActionsClient() {
         </div>
         {currentActions.length === 0 ? (
           <div className="actions-current-card actions-current-card--empty">
-            <div className="actions-empty-state actions-empty-state--chill">
-              <span className="actions-chill-icon" aria-hidden="true">
-                <Coffee size={34} strokeWidth={1.75} />
-                <i className="actions-chill-steam" />
-                <i className="actions-chill-steam" />
-                <i className="actions-chill-steam" />
-              </span>
-              <strong>
-                {planIsArchived
-                  ? "No released actions remain"
-                  : planIsActive
-                    ? "So efficient!"
-                    : "No action plan made"}
-              </strong>
-              <p>
-                {planIsArchived
-                  ? "This archived batch plan will not release more reminders."
-                  : planIsActive || planCanPerform
-                    ? "No action is due right now."
-                    : personalPlanState === "draft"
-                      ? "Finish reviewing and finalise this batch's draft plan first."
-                      : "Build a practice plan for your current batch to generate workplace actions."}
-              </p>
-              {!planIsArchived && (planIsActive || planCanPerform) && settings?.nextDeliveryAt && (
-                <p className="actions-chill-next-reminder">
-                  Next action on {formatDate(settings.nextDeliveryAt)}
-                  {settings.reminderTime && ` at ${formatTime(settings.reminderTime)}`}
+            <div className="actions-coffee-break">
+              <NudgieCoffee />
+              <div className="actions-coffee-bubble" role="status">
+                <strong>
+                  {planIsArchived
+                    ? "No released actions remain"
+                    : planIsActive || planCanPerform
+                      ? "No actions due right now"
+                      : "No action plan made"}
+                </strong>
+                <p>
+                  {planIsArchived
+                    ? "This archived batch plan will not release more reminders."
+                    : planIsActive || planCanPerform
+                      ? "Grab a cup of coffee and relax ☕"
+                      : personalPlanState === "draft"
+                        ? "Finish reviewing and finalise this batch's draft plan first."
+                        : "Build a practice plan for your current batch to generate workplace actions."}
                 </p>
-              )}
+                {!planIsArchived && (planIsActive || planCanPerform) && settings?.nextDeliveryAt && (
+                  <p className="actions-chill-next-reminder">
+                    Your next action arrives on {formatDate(settings.nextDeliveryAt)}
+                    {settings.reminderTime && ` at ${formatTime(settings.reminderTime)}`}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         ) : (

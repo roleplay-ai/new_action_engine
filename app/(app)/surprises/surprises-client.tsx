@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import { Gift, ShelfTile, giftVariant, useSurpriseReveal } from "@/components/SurpriseBoxes";
+import { Gift, giftVariant, useSurpriseReveal } from "@/components/SurpriseBoxes";
+import UnlockedBoxCard from "./unlocked-box-card";
 import { groupSurpriseShelf, type SurpriseShelf } from "@/lib/surprise-boxes";
 
 /**
@@ -69,12 +70,8 @@ export default function SurprisesClient({ shelf, revealUnlockIds }: { shelf: Sur
           <div className="surprises-section">
             <div className="surprises-section-head"><h4>Unlocked</h4><span>{opened.length} opened</span></div>
             {opened.length ? (
-              <div className="surprise-grid">
-                {opened.map((box) => (
-                  <div key={box.actionId} className={box.unlockId === justOpened ? "surprise-tile-wrap is-new" : "surprise-tile-wrap"}>
-                    <ShelfTile box={box} onSelect={(selected) => openBox(selected.unlockId)} />
-                  </div>
-                ))}
+              <div className="unlocked-box-grid">
+                {opened.map((box) => <UnlockedBoxCard key={box.actionId} box={box} isNew={box.unlockId === justOpened} />)}
               </div>
             ) : (
               <p className="surprises-note">Boxes you open will appear here so you can watch or read them again.</p>

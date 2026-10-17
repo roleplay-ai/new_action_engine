@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleCheckBig, CircleX, Clock3, Coffee, Hand, Handshake, HeartHandshake, Hourglass, ListChecks, Loader2, Mail, MessageCircle, MessageCircleHeart, Pencil, Settings2, TrendingDown, TrendingUp, UsersRound, X } from "lucide-react";
+import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleX, Clock3, Coffee, Hand, History, Hourglass, Lightbulb, ListChecks, Loader2, Mail, MessageCircle, Pencil, SlidersHorizontal, TrendingDown, TrendingUp, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getMyPlanSettings, syncMyDuePersonalActions, updateUpcomingPersonalAction, type MyPlanSettings } from "@/app/actions/ai-actions";
 import type { ActionCard } from "@/lib/types";
@@ -20,10 +20,15 @@ import { nextMilestoneFor, milestonePoints } from "@/lib/commitment-wallet-miles
 import { usePageLoading, usePageLoadingControls } from "@/components/PageLoadingProvider";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
 import PageLoader from "@/components/PageLoader";
-import WhatsAppRemindersCard from "@/components/WhatsAppRemindersCard";
+import EditPlanDrawer from "@/components/actions/EditPlanDrawer";
+import WhatsAppReminderPreview from "@/components/actions/WhatsAppReminderPreview";
 import { clearEmailSequence, startEmailSequencePhase, waitForEmailSequencePhase } from "@/lib/email-link-sequence";
 
-type Tab = "upcoming" | "completed" | "pending-validation" | "not-completed" | "archived" | "settings";
+/** Tabs of the Action history popup. Current actions and Next reminders live on the page itself. */
+type HistoryTab = "pending-validation" | "not-completed" | "completed" | "archived";
+/** Next reminders shown before "See all". */
+const UPCOMING_PREVIEW_COUNT = 2;
+const editTipKey = (cohortId: string | undefined) => `nudgeable:actions-edit-tip-dismissed:${cohortId ?? "none"}`;
 type ArchivedActionEntry = {
   id: string;
   cohortId: string;
@@ -259,7 +264,10 @@ function ReminderEmailPreview({
   teamSize,
   teamPoints,
   teamMaximumPoints,
+  alwaysOpen = false,
 }: {
+  /** Inside the preview popup: no collapse toggle, plus a From line. */
+  alwaysOpen?: boolean;
   firstName: string;
   actions: ReminderPreviewAction[];
   companyName?: string | null;
@@ -273,15 +281,16 @@ function ReminderEmailPreview({
   teamPoints: number;
   teamMaximumPoints: number;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expandedState, setExpanded] = useState(false);
+  const expanded = alwaysOpen || expandedState;
   const nextMilestone = nextMilestoneFor(teamPoints, teamMaximumPoints);
   const milestoneThreshold = nextMilestone ? milestonePoints(teamMaximumPoints, nextMilestone.percent) : 0;
   const milestoneProgress = milestoneThreshold > 0
     ? Math.min(100, Math.max(0, Math.round((teamPoints / milestoneThreshold) * 100)))
     : 0;
 
-  return <section className={`actions-reminder-preview${expanded ? " is-open" : ""}`} aria-label="Sample action reminder email">
-    <button
+  return <section className={`actions-reminder-preview${expanded ? " is-open" : ""}${alwaysOpen ? " actions-reminder-preview--modal" : ""}`} aria-label="Sample action reminder email">
+    {!alwaysOpen && <button
       type="button"
       className="actions-reminder-preview-toggle"
       aria-expanded={expanded}
@@ -296,9 +305,13 @@ function ReminderEmailPreview({
         <i aria-hidden="true"><Mail size={17} /></i>
         {expanded ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}
       </span>
-    </button>
+    </button>}
 
     {expanded && <>
+      {alwaysOpen && <div className="actions-reminder-subject">
+        <span>From</span>
+        <strong>Team Nudgeable &lt;team@nudgeable.ai&gt;</strong>
+      </div>}
       <div className="actions-reminder-subject">
         <span>Subject</span>
         <strong>Hi {firstName} — Your actions are ready</strong>
@@ -381,7 +394,12 @@ function ReminderEmailPreview({
 export default function ActionsClient() {
   const router = useRouter();
   const { profile, cohort, personalPlanState, allActions, userActions, completeAction, dismissPendingValidation, refetch } = useEngine();
-  const [tab, setTab] = useState<Tab>("upcoming");
+  const [historyTab, setHistoryTab] = useState<HistoryTab | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [preview, setPreview] = useState<"email" | "whatsapp" | null>(null);
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
+  const [highlightEdits, setHighlightEdits] = useState(false);
+  const [tipDismissed, setTipDismissed] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<{
@@ -669,21 +687,52 @@ export default function ActionsClient() {
 
   function viewPendingValidationFromCelebration() {
     setCelebration(null);
-    setTab("pending-validation");
+    setHistoryTab("pending-validation");
   }
 
-  function dismissBuddyReveal() {
-    if (!cohort?.id) return;
+  // The buddy reveal popup is gone; mark the pairing as seen so it counts as
+  // revealed. The buddy card on this page still introduces them.
+  const buddyRevealPending = Boolean(planIsActive && buddyGroup?.revealPending && buddyGroup.buddies.length > 0);
+  useEffect(() => {
+    if (!buddyRevealPending || !cohort?.id) return;
     setBuddyGroup((current) => current ? { ...current, revealPending: false } : current);
     void markMyCommitmentBuddyRevealed(cohort.id);
+  }, [buddyRevealPending, cohort?.id]);
+
+  useEffect(() => {
+    try {
+      setTipDismissed(window.localStorage.getItem(editTipKey(cohort?.id)) === "1");
+    } catch {
+      setTipDismissed(false);
+    }
+  }, [cohort?.id]);
+
+  function dismissTip() {
+    setTipDismissed(true);
+    try {
+      window.localStorage.setItem(editTipKey(cohort?.id), "1");
+    } catch {
+      // Private mode: the tip simply shows again next visit.
+    }
+  }
+
+  /** "Edit an action" in the drawer: open the full list and point at the ✎ buttons. */
+  function startEditingActions() {
+    setDrawerOpen(false);
+    setShowAllUpcoming(true);
+    setHighlightEdits(true);
+    window.setTimeout(() => setHighlightEdits(false), 2400);
+    window.requestAnimationFrame(() => {
+      document.getElementById("next-reminders")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   async function skip(actionId: string) {
     setBusy(true);
     setSkippingId(actionId);
     try {
-      const result = await completeAction(actionId, false, "Skipped");
-      if (!result.error) setTab("not-completed");
+      // The card leaves Current actions; it is listed in History → Didn't complete.
+      await completeAction(actionId, false, "Skipped");
     } finally {
       setBusy(false);
       setSkippingId(null);
@@ -695,7 +744,7 @@ export default function ActionsClient() {
     setDismissingId(actionId);
     try {
       const result = await dismissPendingValidation(actionId);
-      if (!result.error) setTab("not-completed");
+      if (!result.error) setHistoryTab("not-completed");
     } finally {
       setBusy(false);
       setDismissingId(null);
@@ -725,27 +774,40 @@ export default function ActionsClient() {
 
   if (!ready) return null;
 
+  const visibleUpcoming = planIsArchived || showAllUpcoming ? upcoming : upcoming.slice(0, UPCOMING_PREVIEW_COUNT);
+  const hiddenUpcomingCount = upcoming.length - visibleUpcoming.length;
+  const historyTabs: { id: HistoryTab; label: string; count: number | string }[] = [
+    { id: "pending-validation", label: "Pending validation", count: pendingValidation.length },
+    { id: "not-completed", label: "Didn't complete", count: notCompleted.length },
+    { id: "completed", label: "Completed", count: completed.length },
+    { id: "archived", label: "Old module", count: archiveReady ? archivedActions.length : "…" },
+  ];
+
   return <div className="reference-actions animate-in fade-in duration-700">
-    <div className="actions-overview-head">
+    <div className="actions-overview-head actions-overview-head--v2">
       <div>
         <h1>
           Your practice plan
           {planIsActive ? <span className="actions-plan-live-dot" aria-label="Plan active" role="status" /> : null}
         </h1>
-        <p>One action appears when it is due. Completed actions move to your history.</p>
+        <p>{planIsActive && settings?.nextDeliveryAt
+          ? `Your next actions arrive on ${formatDate(settings.nextDeliveryAt)}.`
+          : "One action appears when it is due. Completed actions move to your history."}</p>
+      </div>
+      <div className="actions-head-buttons">
+        <button type="button" className="actions-head-button" onClick={() => setHistoryTab(pendingValidation.length ? "pending-validation" : "completed")}>
+          <History size={16} /> History
+          {pendingValidation.length > 0 && <span className="actions-head-badge" aria-label={`${pendingValidation.length} pending validation`}>{pendingValidation.length}</span>}
+        </button>
+        {planIsActive && (
+          <button type="button" className="actions-head-button actions-head-button--primary" onClick={() => setDrawerOpen(true)}>
+            <SlidersHorizontal size={16} /> Edit my plan
+          </button>
+        )}
       </div>
     </div>
 
-    <nav className="actions-tabs" aria-label="Action views">
-      <button type="button" className={`tab-upcoming${tab === "upcoming" ? " active" : ""}`} onClick={() => setTab("upcoming")}>Upcoming <span>{scheduled.length}</span></button>
-      <button type="button" className={`tab-pending-validation${tab === "pending-validation" ? " active" : ""}`} onClick={() => setTab("pending-validation")}>Pending validation <span style={pendingValidation.length > 0 ? { background: "#ED4551", color: "#fff" } : undefined}>{pendingValidation.length}</span></button>
-      <button type="button" className={tab === "not-completed" ? "active" : ""} onClick={() => setTab("not-completed")}>Didn&apos;t complete <span>{notCompleted.length}</span></button>
-      <button type="button" className={`tab-completed${tab === "completed" ? " active" : ""}`} onClick={() => setTab("completed")}>Completed <span>{completed.length}</span></button>
-      <button type="button" className={tab === "archived" ? "active" : ""} onClick={() => setTab("archived")}>Old Module <span>{archiveReady ? archivedActions.length : "…"}</span></button>
-      <button type="button" className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>Plan overview</button>
-    </nav>
-
-    {tab === "upcoming" && <div className="actions-reference-layout">
+    <div className="actions-reference-layout">
       <section className="actions-current-group">
         <div className="actions-section-heading">
           <div>
@@ -816,19 +878,41 @@ export default function ActionsClient() {
         )}
       </section>
 
+      {pendingValidation.length > 0 && (
+        <button type="button" className="actions-pending-strip" onClick={() => setHistoryTab("pending-validation")}>
+          <span className="actions-pending-strip-icon" aria-hidden="true"><Hourglass size={17} /></span>
+          <span>
+            <strong>{pendingValidation.length} earlier action{pendingValidation.length === 1 ? "" : "s"} waiting for you to confirm</strong>
+            <small>Did you do {pendingValidation.length === 1 ? "it" : "them"}? Confirm to keep your Commitment Score up to date.</small>
+          </span>
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
+      )}
+
+      {planIsActive && !tipDismissed && (
+        <div className="actions-edit-tip">
+          <span className="actions-edit-tip-icon" aria-hidden="true"><Lightbulb size={18} /></span>
+          <div>
+            <strong>You can change your plan anytime</strong>
+            <p>Use <b>Edit my plan</b> to see your options. Tap <b>✎</b> on any upcoming action to reword it.</p>
+          </div>
+          <button type="button" onClick={dismissTip}>Got it</button>
+        </div>
+      )}
+
       <hr className="actions-section-divider" />
 
       <div className={`actions-secondary-row${planIsActive && buddyReady && buddyGroup ? "" : " actions-secondary-row--solo"}`}>
-        <section className={`actions-list-card${!planCanPerform && upcoming.length === 0 ? " actions-list-card--empty-reminders" : ""}`}>
+        <section id="next-reminders" className={`actions-list-card${!planCanPerform && upcoming.length === 0 ? " actions-list-card--empty-reminders" : ""}${highlightEdits ? " is-highlighting-edits" : ""}`}>
           {planCanPerform || upcoming.length > 0 ? (
             <>
               <h3>{planIsArchived ? "Remaining archived actions" : "Next reminders"}</h3>
               <p>{planIsArchived
                 ? "Reminder delivery is paused. You can still choose and complete any remaining action."
-                : "Actions scheduled after your current action in this batch plan."}</p>
+                : "These unlock automatically on your reminder day. Tap ✎ to edit one."}</p>
               <div className="actions-upcoming-list plan-review-list">
                 {upcoming.length === 0 && <div className="actions-inline-empty">{planIsArchived ? "No archived actions remain." : "No additional actions are scheduled yet."}</div>}
-                {upcoming.map((action, index) => {
+                {visibleUpcoming.map((action, index) => {
                   const deliveryDate = projectedDeliveryDate(settings, index);
                   const points = action.planPoints ?? 50;
                   return <article className={`plan-review-action${planIsArchived ? "" : " plan-review-action--reminder"}`} key={action.id}>
@@ -853,6 +937,15 @@ export default function ActionsClient() {
                   </article>;
                 })}
               </div>
+              {!planIsArchived && upcoming.length > UPCOMING_PREVIEW_COUNT && (
+                <button type="button" className="actions-see-all" aria-expanded={showAllUpcoming} onClick={() => setShowAllUpcoming((open) => !open)}>
+                  <span>
+                    {showAllUpcoming ? "Show fewer" : `See all ${upcoming.length} upcoming actions`}
+                    {!showAllUpcoming && <small>{hiddenUpcomingCount} more scheduled after these</small>}
+                  </span>
+                  {showAllUpcoming ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}
+                </button>
+              )}
             </>
           ) : (
             <div className="actions-reminders-empty">
@@ -870,7 +963,89 @@ export default function ActionsClient() {
         {planIsActive && buddyReady && buddyGroup && (
           <aside className="actions-buddy-sidebar">
             <CommitmentBuddyCard group={buddyGroup} onContact={setContactBuddy} />
+            <div className="actions-preview-buttons">
+              <span>See your reminders</span>
+              <button type="button" onClick={() => setPreview("email")}><Mail size={16} /> Email reminder</button>
+              <button type="button" onClick={() => setPreview("whatsapp")}><MessageCircle size={16} /> WhatsApp reminder</button>
+            </div>
+          </aside>
+        )}
+      </div>
+    </div>
+
+    <EditPlanDrawer
+      open={drawerOpen}
+      onClose={() => setDrawerOpen(false)}
+      settings={settings}
+      cohortId={cohort?.id ?? null}
+      upcomingCount={upcoming.length}
+      onEditActions={startEditingActions}
+      onPreview={(channel) => setPreview(channel)}
+    />
+
+    {typeof document !== "undefined" && historyTab && createPortal(
+      <div className="actions-history-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setHistoryTab(null); }}>
+        <section className="actions-history-modal" role="dialog" aria-modal="true" aria-labelledby="actions-history-title">
+          <header className="actions-history-head">
+            <div>
+              <h2 id="actions-history-title">Action history</h2>
+              <p>Everything that isn&apos;t due right now.</p>
+            </div>
+            <button type="button" className="actions-history-close" onClick={() => setHistoryTab(null)} aria-label="Close"><X size={18} /></button>
+          </header>
+          <nav className="actions-tabs" aria-label="History views">
+            {historyTabs.map((item) => (
+              <button type="button" key={item.id} className={historyTab === item.id ? "active" : ""} onClick={() => setHistoryTab(item.id)}>
+                {item.label} <span style={item.id === "pending-validation" && pendingValidation.length > 0 ? { background: "#ED4551", color: "#fff" } : undefined}>{item.count}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="actions-history-body">
+            {historyTab === "completed" && <section className="actions-completed-card"><p>A record of the workplace actions you have finished.</p><div className="actions-completed-list">
+              {completed.length === 0 && <div className="actions-empty-state"><CheckCircle2 size={28} /><strong>No completed actions yet</strong><p>Your completed workplace actions will appear here.</p></div>}
+              {completed.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CheckCircle2 size={19} /><span><strong>{action.title}</strong><small>{item.completedLate ? `Completed late · no Wallet points${item.reflection ? ` · ${item.reflection}` : ""}` : `Completed on time${item.pointsDelta ? ` · +${item.pointsDelta} points` : ""}${item.reflection ? ` · ${item.reflection}` : ""}`}</small></span><em>{formatDate(item.completedAt || item.scheduledAt || item.scheduledDate)}</em></div>; })}
+            </div></section>}
+
+            {historyTab === "pending-validation" && <section className="actions-completed-card"><p>These weren&apos;t marked done before your next batch arrived. If you did them, mark them done now.</p><div className="actions-completed-list actions-not-completed-list actions-pending-validation-list">
+              {pendingValidation.length === 0 && <div className="actions-empty-state"><Hourglass size={28} /><strong>Nothing awaiting validation</strong><p>Unfinished Current actions move here when your next batch arrives.</p></div>}
+              {pendingValidation.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><Hourglass size={19} /><span><strong>{action.title}</strong></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em><div className="actions-pending-validation-buttons"><button type="button" className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(item.actionId)}><Check size={16} /> I did it</button><button type="button" disabled={busy} aria-busy={dismissingId === item.actionId} onClick={() => void confirmNotDone(item.actionId)}>{dismissingId === item.actionId ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> Saving…</> : "No, I didn't"}</button></div></div>; })}
+            </div></section>}
+
+            {historyTab === "not-completed" && <section className="actions-completed-card"><p>A record of workplace actions you skipped or could not complete.</p><div className="actions-completed-list actions-not-completed-list">
+              {notCompleted.length === 0 && <div className="actions-empty-state"><CircleX size={28} /><strong>No uncompleted actions</strong><p>Actions you don&apos;t complete will appear here.</p></div>}
+              {notCompleted.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CircleX size={19} /><span><strong>{action.title}</strong><small>{item.pointsDelta && item.pointsDelta < 0 ? `${item.pointsDelta} points · ` : ""}{item.reflection || (item.status === "skipped" ? "Skipped" : "Not completed")}</small></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em><button type="button" disabled={busy} onClick={() => setCompletingId(item.actionId)}>Complete late</button></div>; })}
+            </div></section>}
+
+            {historyTab === "archived" && <section className="actions-completed-card actions-archive-card"><p>Actions from all your earlier batch plans stay visible here, whichever batch you are viewing.</p><div className="actions-archive-list">
+              {!archiveReady && <div className="actions-empty-state"><span className="actions-inline-loader" /><strong>Loading archived actions</strong></div>}
+              {archiveReady && archivedActions.length === 0 && <div className="actions-empty-state"><ListChecks size={28} /><strong>No archived actions</strong><p>Actions from an earlier batch will appear here after its plan is archived.</p></div>}
+              {archivedActions.map((action) => {
+                const isComplete = archivedActionIsComplete(action.status);
+                return <article key={action.id}>
+                  <div className="actions-archive-copy"><div className="actions-archive-meta"><span>{action.cohortName}</span><em>{archivedStatusLabel(action.status)}</em></div><strong>{action.title}</strong><p>{action.how}</p><small><Clock3 size={12} /> {action.timeEstimate} · Archived {formatDate(action.archivedAt)}</small>{action.reflection && <blockquote>{action.reflection}</blockquote>}</div>
+                  {isComplete ? <CheckCircle2 className="actions-archive-complete" size={21} aria-label="Completed" /> : <button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>{action.status === "failed" || action.status === "skipped" ? "Try again" : "Mark as done"}</button>}
+                </article>;
+              })}
+            </div></section>}
+          </div>
+        </section>
+      </div>,
+      document.body,
+    )}
+
+    {typeof document !== "undefined" && preview && createPortal(
+      <div className="actions-history-overlay actions-preview-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreview(null); }}>
+        <section className="actions-history-modal actions-preview-modal" role="dialog" aria-modal="true" aria-labelledby="actions-preview-title">
+          <header className="actions-history-head">
+            <div>
+              <h2 id="actions-preview-title">{preview === "email" ? "Your reminder email" : "Your WhatsApp reminder"}</h2>
+              <p>{preview === "email" ? "Sent from team@nudgeable.ai on your reminder day." : "Sent on your reminder day if WhatsApp reminders are on."}</p>
+            </div>
+            <button type="button" className="actions-history-close" onClick={() => setPreview(null)} aria-label="Close"><X size={18} /></button>
+          </header>
+          {preview === "email" ? (
             <ReminderEmailPreview
+              alwaysOpen
               firstName={reminderFirstName}
               actions={reminderActions}
               companyName={cohort?.companyName}
@@ -884,121 +1059,18 @@ export default function ActionsClient() {
               teamPoints={commitmentScore?.teamPoints ?? 0}
               teamMaximumPoints={commitmentScore?.teamMaximumPoints ?? 0}
             />
-          </aside>
-        )}
-      </div>
-    </div>}
-
-    {tab === "completed" && <section className="actions-list-card actions-completed-card"><h3>Completed actions</h3><p>A record of the workplace actions you have finished.</p><div className="actions-completed-list">
-      {completed.length === 0 && <div className="actions-empty-state"><CheckCircle2 size={28} /><strong>No completed actions yet</strong><p>Your completed workplace actions will appear here.</p></div>}
-      {completed.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CheckCircle2 size={19} /><span><strong>{action.title}</strong><small>{item.completedLate ? `Completed late · no Wallet points${item.reflection ? ` · ${item.reflection}` : ""}` : `Completed on time${item.pointsDelta ? ` · +${item.pointsDelta} points` : ""}${item.reflection ? ` · ${item.reflection}` : ""}`}</small></span><em>{formatDate(item.completedAt || item.scheduledAt || item.scheduledDate)}</em></div>; })}
-    </div></section>}
-
-    {tab === "pending-validation" && <section className="actions-list-card actions-completed-card"><h3>Pending validation</h3><p>These weren&apos;t marked done before your next batch arrived. If you did them, mark them done now.</p><div className="actions-completed-list actions-not-completed-list actions-pending-validation-list">
-      {pendingValidation.length === 0 && <div className="actions-empty-state"><Hourglass size={28} /><strong>Nothing awaiting validation</strong><p>Unfinished Current actions move here when your next batch arrives.</p></div>}
-      {pendingValidation.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><Hourglass size={19} /><span><strong>{action.title}</strong></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em><div className="actions-pending-validation-buttons"><button type="button" className="journey-primary-button" disabled={busy} onClick={() => setCompletingId(item.actionId)}><Check size={16} /> I did it</button><button type="button" disabled={busy} aria-busy={dismissingId === item.actionId} onClick={() => void confirmNotDone(item.actionId)}>{dismissingId === item.actionId ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> Saving…</> : "No, I didn't"}</button></div></div>; })}
-    </div></section>}
-
-    {tab === "not-completed" && <section className="actions-list-card actions-completed-card"><h3>Actions not completed</h3><p>A record of workplace actions you skipped or could not complete.</p><div className="actions-completed-list actions-not-completed-list">
-      {notCompleted.length === 0 && <div className="actions-empty-state"><CircleX size={28} /><strong>No uncompleted actions</strong><p>Actions you don&apos;t complete will appear here.</p></div>}
-      {notCompleted.map((item) => { const action = actionMap.get(item.actionId)!; return <div key={item.id}><CircleX size={19} /><span><strong>{action.title}</strong><small>{item.pointsDelta && item.pointsDelta < 0 ? `${item.pointsDelta} points · ` : ""}{item.reflection || (item.status === "skipped" ? "Skipped" : "Not completed")}</small></span><em>{formatDate(item.scheduledAt || item.scheduledDate)}</em><button type="button" disabled={busy} onClick={() => setCompletingId(item.actionId)}>Complete late</button></div>; })}
-    </div></section>}
-
-    {tab === "archived" && <section className="actions-list-card actions-completed-card actions-archive-card"><h3>Archived actions</h3><p>Actions from all your earlier batch plans stay visible here, whichever batch you are viewing.</p><div className="actions-archive-list">
-      {!archiveReady && <div className="actions-empty-state"><span className="actions-inline-loader" /><strong>Loading archived actions</strong></div>}
-      {archiveReady && archivedActions.length === 0 && <div className="actions-empty-state"><ListChecks size={28} /><strong>No archived actions</strong><p>Actions from an earlier batch will appear here after its plan is archived.</p></div>}
-      {archivedActions.map((action) => {
-        const isComplete = archivedActionIsComplete(action.status);
-        return <article key={action.id}>
-          <div className="actions-archive-copy"><div className="actions-archive-meta"><span>{action.cohortName}</span><em>{archivedStatusLabel(action.status)}</em></div><strong>{action.title}</strong><p>{action.how}</p><small><Clock3 size={12} /> {action.timeEstimate} · Archived {formatDate(action.archivedAt)}</small>{action.reflection && <blockquote>{action.reflection}</blockquote>}</div>
-          {isComplete ? <CheckCircle2 className="actions-archive-complete" size={21} aria-label="Completed" /> : <button type="button" disabled={busy} onClick={() => setCompletingId(action.id)}>{action.status === "failed" || action.status === "skipped" ? "Try again" : "Mark as done"}</button>}
-        </article>;
-      })}
-    </div></section>}
-
-    {tab === "settings" && <section className="actions-list-card actions-settings-card"><div className="actions-card-heading"><div><h3>Plan overview</h3><p>Your current duration, pace and reminder schedule.</p></div><Settings2 size={20} /></div>
-      {!settings ? <div className="actions-empty-state"><CalendarDays size={28} /><strong>No plan for this batch yet</strong><p>Generate, review and finalise your plan before actions appear here.</p>{cohort?.isCurrent && <Link href="/plan" className="journey-primary-button">Go to my plan</Link>}</div> : <><div className="actions-inline-empty">{settings.isArchived ? "Archived · reminders paused · plan settings are read-only" : settings.isActive ? "Finalised · plan settings are read-only" : "Draft · finalise this plan before reminders begin"}</div><div className="actions-settings-grid"><div><span>Action pace</span><strong>{settings.track === "weekly" ? "Weekly actions" : "Daily actions"}</strong></div><div><span>Plan duration</span><strong>{settings.durationWeeks} weeks</strong></div><div><span>Actions per {settings.track === "weekly" ? "week" : "weekday"}</span><strong>{settings.actionCount}</strong></div><div><span>Reminder</span><strong>{settings.track === "weekly" ? `${DAYS[settings.daysOfWeek[0] ?? 1]}, ` : "Weekdays, "}{formatTime(settings.reminderTime)}</strong></div><div><span>Email notifications</span><strong className="actions-notification-status"><Mail size={15} />Email reminders on</strong></div><div><span>Total plan</span><strong>{settings.totalActionsPlanned} actions</strong></div></div></>}
-      {settings && cohort?.id && <WhatsAppRemindersCard cohortId={cohort.id} />}
-    </section>}
-
-    {typeof document !== "undefined" && planIsActive && buddyGroup?.revealPending && buddyGroup.buddies.length > 0 && createPortal((() => {
-      const primaryBuddy = buddyGroup.buddies[0];
-      const buddyNames = buddyGroup.buddies.map((buddy) => buddy.name);
-      const buddyLabel = buddyNames.length === 1
-        ? buddyNames[0]
-        : buddyNames.slice(0, -1).join(", ") + " and " + buddyNames[buddyNames.length - 1];
-      const firstNames = buddyGroup.buddies.map((buddy) => buddy.name.split(/\s+/)[0] || buddy.name);
-      const helloNames = firstNames.length === 1
-        ? firstNames[0]
-        : firstNames.slice(0, -1).join(", ") + " and " + firstNames[firstNames.length - 1];
-      const pairingLabel = buddyGroup.buddies.length === 1
-        ? `You and ${primaryBuddy.name} are commitment buddies`
-        : `You, ${buddyLabel} are commitment buddies`;
-
-      return <div
-        className="commitment-buddy-popup-overlay"
-        onMouseDown={(event) => {
-          if (event.target === event.currentTarget) dismissBuddyReveal();
-        }}
-      >
-        <section className="commitment-buddy-popup" role="dialog" aria-modal="true" aria-labelledby="commitment-buddy-title">
-          <div className="commitment-buddy-popup-identity">
-            <p className="commitment-buddy-popup-label">{buddyGroup.buddies.length === 1 ? "Your commitment buddy" : "Your commitment buddies"}</p>
-
-            <div className="commitment-buddy-popup-pairing" aria-label={pairingLabel}>
-              <div className="commitment-buddy-popup-avatar" aria-label="You">{initials(profile.name)}</div>
-              <div className="commitment-buddy-popup-link" aria-hidden="true"><Handshake size={16} /></div>
-              {buddyGroup.buddies.map((buddy) => (
-                <div className="commitment-buddy-popup-avatar is-buddy" aria-label={buddy.name} key={buddy.id}>{initials(buddy.name)}</div>
-              ))}
-            </div>
-
-            <h2 id="commitment-buddy-title">{buddyLabel}</h2>
-            {buddyGroup.buddies.length === 1 && primaryBuddy.email ? (
-              <a className="commitment-buddy-popup-email" href={`mailto:${encodeURIComponent(primaryBuddy.email)}`}>
-                <Mail size={14} aria-hidden="true" />
-                {primaryBuddy.email}
-              </a>
-            ) : buddyGroup.buddies.length > 1 ? (
-              <p className="commitment-buddy-popup-email-note">You can see each other&apos;s Commitment Score on My Actions.</p>
-            ) : null}
-          </div>
-
-          <div className="commitment-buddy-popup-content">
-            <div className="commitment-buddy-popup-hello">
-              <div className="commitment-buddy-popup-hello-icon" aria-hidden="true"><MessageCircleHeart size={18} /></div>
-              <div>
-                <h3>Start with a hello</h3>
-                <p>Say hi to {helloNames} and agree on a quick catch-up later in the journey.</p>
-              </div>
-            </div>
-
-            <div className="commitment-buddy-popup-support">
-              <div className="commitment-buddy-popup-support-title">
-                <UsersRound size={16} aria-hidden="true" />
-                <h3>How you&apos;ll support your buddy</h3>
-              </div>
-              <p>{buddyGroup.buddies.length === 1
-                ? "You'll see their Commitment Score."
-                : "You'll see their Commitment Scores."}</p>
-
-              <div className="commitment-buddy-popup-states">
-                <div className="commitment-buddy-popup-state is-steady">
-                  <div className="commitment-buddy-popup-state-heading"><CircleCheckBig size={15} aria-hidden="true" /> Stays at 100%</div>
-                  <p>Congratulate them.</p>
-                </div>
-                <div className="commitment-buddy-popup-state is-drop">
-                  <div className="commitment-buddy-popup-state-heading"><HeartHandshake size={15} aria-hidden="true" /> Score drops</div>
-                  <p>Check in and offer support.</p>
-                </div>
-              </div>
-            </div>
-
-            <button type="button" className="commitment-buddy-popup-got-it" onClick={dismissBuddyReveal}>Got it</button>
-          </div>
+          ) : (
+            <WhatsAppReminderPreview
+              firstName={reminderFirstName}
+              companyName={cohort?.companyName}
+              track={settings?.track === "daily" ? "daily" : "weekly"}
+              actionTitles={reminderActions.map((action) => action.title)}
+            />
+          )}
         </section>
-      </div>;
-    })(), document.body)}
+      </div>,
+      document.body,
+    )}
 
     {typeof document !== "undefined" && contactBuddy && createPortal((() => {
       const state = buddyCardState(contactBuddy);

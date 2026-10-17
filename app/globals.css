@@ -21023,3 +21023,587 @@ button.surprise-tile:focus-visible,
 .participant-shell--sidebar .participant-bottom-nav {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+
+
+/* ===== Participant journey v2, Phase 2: My Actions ===== */
+/* Stacking: drawer 210 < history 220 < previews 225 < check-in 230 < edit action 240. */
+
+.actions-overview-head--v2 {
+  flex-wrap: wrap;
+}
+
+.actions-head-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.actions-head-button {
+  position: relative;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 12px;
+  color: var(--color-text-primary);
+  background: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.actions-head-button:hover {
+  border-color: var(--color-text-muted);
+}
+
+.actions-head-button--primary {
+  border-color: var(--rcpl-navy-900, #0c1f3f);
+  color: #fff;
+  background: var(--rcpl-navy-900, #0c1f3f);
+}
+
+.actions-head-button--primary:hover {
+  border-color: var(--rcpl-navy-700, #1d3c66);
+  background: var(--rcpl-navy-700, #1d3c66);
+}
+
+.actions-head-badge {
+  min-width: 19px;
+  height: 19px;
+  padding: 0 6px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 99px;
+  color: #fff;
+  background: #ed4551;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.actions-pending-strip {
+  width: 100%;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #f6c9a2;
+  border-radius: 14px;
+  color: var(--color-text-primary);
+  background: #fff6ec;
+  text-align: left;
+}
+
+.actions-pending-strip > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+
+.actions-pending-strip strong {
+  display: block;
+  font-size: 14px;
+}
+
+.actions-pending-strip small {
+  color: var(--color-text-secondary);
+  font-size: 12.5px;
+}
+
+.actions-pending-strip > svg {
+  color: #8a4b00;
+}
+
+.actions-pending-strip-icon,
+.actions-edit-tip-icon {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #8a4b00;
+  background: #ffeacb;
+}
+
+.actions-edit-tip {
+  margin-top: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #cfdcf9;
+  border-radius: 14px;
+  background: #eef4ff;
+}
+
+.actions-edit-tip-icon {
+  color: #2563eb;
+  background: #fff;
+}
+
+.actions-edit-tip > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.actions-edit-tip strong {
+  display: block;
+  font-size: 14px;
+}
+
+.actions-edit-tip p {
+  margin: 3px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 13.5px;
+}
+
+.actions-edit-tip > button {
+  flex: none;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.actions-see-all {
+  width: 100%;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 16px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 14px;
+  color: var(--color-text-primary);
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.actions-see-all:hover {
+  border-style: solid;
+  background: #fff;
+}
+
+.actions-see-all small {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* "Edit an action" from the drawer: pulse the ✎ buttons once. */
+.is-highlighting-edits .plan-action-edit-button {
+  animation: actions-edit-pulse 1.2s ease-in-out 2;
+}
+
+@keyframes actions-edit-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+  50% { box-shadow: 0 0 0 5px rgba(37, 99, 235, .3); border-color: #2563eb; color: #2563eb; }
+}
+
+.actions-preview-buttons,
+.edit-plan-preview-buttons {
+  display: grid;
+  gap: 8px;
+}
+
+.actions-preview-buttons > span,
+.edit-plan-preview-buttons > span {
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.actions-preview-buttons button,
+.edit-plan-preview-buttons button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 12px;
+  color: var(--color-text-primary);
+  background: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.actions-preview-buttons button:hover,
+.edit-plan-preview-buttons button:hover {
+  border-color: var(--color-text-muted);
+}
+
+/* History and reminder-preview popups. */
+.actions-history-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(34, 29, 35, .6);
+  backdrop-filter: blur(6px);
+}
+
+.actions-preview-overlay {
+  z-index: 225;
+}
+
+.actions-history-modal {
+  width: min(760px, 100%);
+  max-height: 90dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, .3);
+}
+
+.actions-preview-modal {
+  width: min(560px, 100%);
+  overflow-y: auto;
+  padding-bottom: 20px;
+}
+
+.actions-history-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 22px 22px 12px;
+}
+
+.actions-history-head h2 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -.02em;
+}
+
+.actions-history-head p {
+  margin: 3px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13.5px;
+}
+
+.actions-history-close,
+.edit-plan-close {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.actions-history-modal .actions-tabs {
+  margin: 0 22px 4px;
+}
+
+.actions-history-body {
+  overflow-y: auto;
+  padding: 8px 22px 22px;
+}
+
+.actions-history-body .actions-completed-card > p {
+  margin: 4px 0 12px;
+  color: var(--color-text-secondary);
+  font-size: 13.5px;
+}
+
+.actions-reminder-preview--modal {
+  margin: 0 22px;
+  border: 0;
+  box-shadow: none;
+}
+
+/* WhatsApp reminder preview (mirrors plan_reminder_N). */
+.wa-preview {
+  margin: 0 22px;
+}
+
+.wa-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 14px 14px 0 0;
+  color: #fff;
+  background: #075e54;
+}
+
+.wa-preview-head strong {
+  display: block;
+  font-size: 14px;
+}
+
+.wa-preview-head small {
+  font-size: 11.5px;
+  opacity: .8;
+}
+
+.wa-preview-avatar {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #0c1f3f;
+  background: #e7b94d;
+  font-weight: 800;
+}
+
+.wa-preview-chat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 16px 14px;
+  border-radius: 0 0 14px 14px;
+  background: #ece5dd;
+}
+
+.wa-preview-bubble {
+  position: relative;
+  max-width: 92%;
+  padding: 9px 11px 22px;
+  border-radius: 0 10px 10px 10px;
+  color: #111b21;
+  background: #fff;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .08);
+}
+
+.wa-preview-bubble p {
+  margin: 0 0 8px;
+}
+
+.wa-preview-footer {
+  display: block;
+  color: #667781;
+  font-size: 12px;
+}
+
+.wa-preview-bubble time {
+  position: absolute;
+  right: 9px;
+  bottom: 5px;
+  color: #667781;
+  font-size: 11px;
+}
+
+.wa-preview-buttons {
+  width: 92%;
+  display: grid;
+  gap: 4px;
+}
+
+.wa-preview-buttons span {
+  padding: 9px;
+  border-radius: 10px;
+  color: #027eb5;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .08);
+}
+
+.wa-preview .actions-reminder-preview-note {
+  margin-top: 12px;
+}
+
+/* Edit my plan drawer. */
+.edit-plan-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  background: rgba(12, 31, 63, .35);
+}
+
+.edit-plan-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(460px, 100%);
+  overflow-y: auto;
+  padding: 24px;
+  background: #f7f5f0;
+  box-shadow: -20px 0 50px rgba(12, 31, 63, .2);
+}
+
+.edit-plan-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.edit-plan-head h2 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -.02em;
+}
+
+.edit-plan-head p {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13.5px;
+}
+
+.edit-plan-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.edit-plan-card {
+  --edit-c: #2563eb;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  color: var(--color-text-primary);
+  background: #fff;
+  text-align: left;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.edit-plan-card:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--edit-c) 45%, #fff);
+  box-shadow: 0 6px 20px rgba(12, 31, 63, .08);
+  transform: translateY(-1px);
+}
+
+.edit-plan-card:disabled {
+  cursor: default;
+  opacity: .72;
+}
+
+.edit-plan-card > svg {
+  color: #b8b0a6;
+}
+
+.edit-plan-card-icon {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--edit-c);
+  background: color-mix(in srgb, var(--edit-c) 13%, #fff);
+}
+
+.edit-plan-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.edit-plan-card-body strong {
+  display: block;
+  font-size: 15px;
+}
+
+.edit-plan-card-body small {
+  display: block;
+  margin: 2px 0 7px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.edit-plan-reminders {
+  display: grid;
+  gap: 14px;
+}
+
+.edit-plan-reminders h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.edit-plan-back {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  color: var(--color-text-muted);
+  background: none;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.edit-plan-foot {
+  display: flex;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 14px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 12px;
+  color: var(--color-text-muted);
+  background: #fff;
+  font-size: 13px;
+}
+
+.edit-plan-foot svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+@media (max-width: 760px) {
+  .actions-head-buttons {
+    width: 100%;
+  }
+
+  .actions-head-button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .actions-edit-tip {
+    flex-wrap: wrap;
+  }
+
+  .actions-history-overlay {
+    align-items: end;
+    padding: 0;
+  }
+
+  .actions-history-modal {
+    max-height: 92dvh;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .actions-history-modal .actions-tabs {
+    overflow-x: auto;
+  }
+
+  .edit-plan-drawer {
+    top: auto;
+    max-height: 88dvh;
+    border-radius: 20px 20px 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-highlighting-edits .plan-action-edit-button {
+    animation: none;
+    border-color: #2563eb;
+  }
+}

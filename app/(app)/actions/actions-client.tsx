@@ -24,6 +24,7 @@ import EditPlanDrawer from "@/components/actions/EditPlanDrawer";
 import WhatsAppReminderPreview from "@/components/actions/WhatsAppReminderPreview";
 import PlanSetup from "@/components/actions/PlanSetup";
 import NudgieCoffee from "@/components/actions/NudgieCoffee";
+import ActionCheckinModal from "@/components/actions/ActionCheckinModal";
 import { clearEmailSequence, startEmailSequencePhase, waitForEmailSequencePhase } from "@/lib/email-link-sequence";
 
 /** Tabs of the Action history popup. Current actions and Next reminders live on the page itself. */
@@ -457,8 +458,11 @@ export default function ActionsClient() {
     teamMaximumPoints: number;
   } | null>(null);
 
-  usePageLoading(!ready);
   const { beginNavigation } = usePageLoadingControls();
+  // Plan setup (no live plan yet) loads its own data after this page is
+  // ready; keep the loading screen up until it says it's ready too.
+  const [setupReady, setSetupReady] = useState(false);
+  useEffect(() => setSetupReady(false), [cohort?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -550,6 +554,8 @@ export default function ActionsClient() {
   const totalPlanActions = allActions.filter((action) => action.isPersonal).length;
   const currentActions = scheduled.map((item) => ({ userAction: item, action: actionMap.get(item.actionId)! }));
   const upcoming = planCanPerform ? allActions.filter((action) => action.isPersonal && !usedActionIds.has(action.id)) : [];
+  const showPlanSetup = Boolean(cohort) && !planCanPerform && cohort?.isCurrent !== false && personalPlanState !== "active" && personalPlanState !== "archived";
+  usePageLoading(!ready || (showPlanSetup && !setupReady));
   const fallbackReminderAction: ReminderPreviewAction = {
     title: "Turn one learning into a question",
     how: "Before your next conversation, write one open question that helps you understand the other person's perspective.",
@@ -792,8 +798,8 @@ export default function ActionsClient() {
   if (!ready) return null;
 
   // No live plan yet in the current batch: write the plan and activate it right here.
-  if (!planCanPerform && cohort?.isCurrent !== false && personalPlanState !== "active" && personalPlanState !== "archived") {
-    return <PlanSetup />;
+  if (showPlanSetup) {
+    return <PlanSetup onReady={() => setSetupReady(true)} />;
   }
 
   const visibleUpcoming = planIsArchived || showAllUpcoming ? upcoming : upcoming.slice(0, UPCOMING_PREVIEW_COUNT);
@@ -1121,7 +1127,15 @@ export default function ActionsClient() {
 
     {typeof document !== "undefined" && editingUpcomingAction && editUpcomingForm && createPortal(<div className="plan-edit-overlay"><div className="plan-edit-modal"><button className="plan-edit-close" onClick={() => { setEditingUpcomingAction(null); setEditUpcomingForm(null); }}><X size={18} /></button><span className="participant-eyebrow">Edit action</span><h3>Edit your action</h3><label>Action title<input value={editUpcomingForm.title} onChange={(event) => setEditUpcomingForm((current) => current ? { ...current, title: event.target.value } : current)} /></label><div className="plan-edit-how-why"><label><span>How to do it</span><textarea value={editUpcomingForm.how} onChange={(event) => setEditUpcomingForm((current) => current ? { ...current, how: event.target.value } : current)} /></label><label><span>Why it works</span><textarea value={editUpcomingForm.why} onChange={(event) => setEditUpcomingForm((current) => current ? { ...current, why: event.target.value } : current)} /></label></div>{upcomingEditError && <p className="plan-review-error">{upcomingEditError}</p>}<button className="journey-primary-button" disabled={savingUpcomingEdit || !editUpcomingForm.title.trim() || !editUpcomingForm.how.trim() || !editUpcomingForm.why.trim()} onClick={saveUpcomingEdit}>{savingUpcomingEdit ? "Saving…" : "Save"}</button></div></div>, document.body)}
 
-    {typeof document !== "undefined" && completingId && createPortal(<div className="actions-checkin-overlay"><div className="actions-checkin-modal"><button onClick={() => { setCompletingId(null); setCompleteError(null); }}><X size={18} /></button><span className="participant-eyebrow">Action check-in</span><h3>How did this action go?</h3><p>Add a short reflection. It helps you notice what worked and what to adjust.</p><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="What happened when you tried it?" />{completeError && <p className="actions-checkin-error" role="alert" style={{ color: "var(--color-danger, #ed4551)", fontSize: "var(--text-sm)" }}>{completeError}</p>}<div><button className="journey-primary-button" disabled={busy} onClick={() => finish(true)}><CheckCircle2 size={16} strokeWidth={2.5} />{busy ? "Saving…" : "Complete action"}</button></div></div></div>, document.body)}
+    <ActionCheckinModal
+      open={Boolean(completingId)}
+      reflection={reflection}
+      busy={busy}
+      error={completeError}
+      onReflectionChange={setReflection}
+      onClose={() => { setCompletingId(null); setCompleteError(null); }}
+      onComplete={() => void finish(true)}
+    />
 
     {typeof document !== "undefined" && autoCompleting && createPortal(
       <PageLoader

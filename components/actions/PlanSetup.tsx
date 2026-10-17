@@ -2,16 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, FileText, Loader2, Mail, MessageCircle, Pencil, CalendarDays, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { Check, FileText, Mail, MessageCircle, Pencil, CalendarDays, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { activatePersonalActionPlan, getMyPlanSettings, saveGeneratedActions } from "@/app/actions/ai-actions";
-import { saveMySessionNotes } from "@/app/actions/session-notes";
+import { refineMySessionNotes, saveMySessionNotes } from "@/app/actions/session-notes";
 import { getMyPlanSetupContext, type MyPlanSetupContext } from "@/app/actions/plan-setup";
 import { buildUserNotesPayload, type MyPlanAnswers } from "@/lib/my-plan-notes";
 import { PLAN_REMINDER_DAYS, recommendedSetup, sameSetup, setupDaysOfWeek, totalPlanActions, type PlanSetupChoice } from "@/lib/plan-setup";
 import { isIndianMobile } from "@/lib/whatsapp-contacts";
 import PlanFormModal, { type PlanFormValues } from "@/components/actions/PlanFormModal";
 import PlanSetupModal, { type PlanSetupValues } from "@/components/actions/PlanSetupModal";
+import ActionGenerationStory from "@/components/ActionGenerationStory";
 
 /** Set when the participant clicks Activate, so a reload mid-generation still finishes activating. */
 const autoActivateKey = (cohortId: string) => `nudgeable:plan-auto-activate:${cohortId}`;
@@ -53,7 +54,7 @@ function formatPhone(digits: string) {
  * "Recommended" setup with a Change popup, and one-click Activate, which
  * generates the actions and switches the plan on as soon as they're ready.
  */
-export default function PlanSetup() {
+export default function PlanSetup({ onReady }: { onReady?: () => void }) {
   const { profile, cohort, personalPlanState, generationJob, generationError, refetch, refreshGenerationStatus } = useEngine();
   const cohortId = cohort?.id ?? null;
   const maxWeeks = cohort?.maxWeeks ?? null;
@@ -84,6 +85,7 @@ export default function PlanSetup() {
       if (cancelled) return;
       if (contextResult.error || !contextResult.context) {
         setLoadError(contextResult.error ?? "Your plan could not be loaded.");
+        onReady?.();
         return;
       }
       const loaded = contextResult.context;
@@ -98,6 +100,7 @@ export default function PlanSetup() {
         : null;
       const saved = readStorage<{ setup?: PlanSetupChoice; whatsappOn?: boolean; phoneDigits?: string }>(setupDraftKey(cohortId));
       setContext(loaded);
+      onReady?.();
       setDraftSetup(fromDraft);
       setDraftActionCount(settings?.totalActionsPlanned ?? 0);
       setSetup(saved?.setup ?? fromDraft ?? recommendedSetup(maxWeeks));
@@ -193,6 +196,18 @@ export default function PlanSetup() {
     setFormOpen(false);
   }
 
+  /** "Refine with AI" in the plan popup: clearer wording for review; nothing is saved yet. */
+  async function refinePlan(values: PlanFormValues): Promise<{ designation: string; skillGoal: string } | string> {
+    if (!context || !cohortId) return "Your batch isn't loaded yet. Please try again.";
+    const result = await refineMySessionNotes(
+      { ...context.answers, name: profile.name, designation: values.designation, skillGoal: values.skillGoal, dailyWork: "", practiceOpportunities: "" },
+      cohortId,
+      { save: false },
+    );
+    if (result.error || !result.answers) return result.error ?? "Your plan couldn't be refined. Please try again.";
+    return { designation: result.answers.designation, skillGoal: result.answers.skillGoal };
+  }
+
   function saveSetup(values: PlanSetupValues) {
     if (!cohortId) return;
     setSetup(values.setup);
@@ -263,9 +278,6 @@ export default function PlanSetup() {
   const planText = context
     ? context.answers.skillGoal.trim() || [context.answers.dailyWork, context.answers.practiceOpportunities].filter((value) => value.trim()).join(" ")
     : "";
-  const progress = generationJob && generationJob.totalNeeded > 0
-    ? Math.min(100, Math.round((generationJob.totalGenerated / generationJob.totalNeeded) * 100))
-    : 0;
 
   return (
     <div className="reference-actions plan-setup-page animate-in fade-in duration-700">
@@ -341,6 +353,7 @@ export default function PlanSetup() {
         whatsappAvailable={whatsappAvailable}
         onClose={() => setFormOpen(false)}
         onSave={savePlan}
+        onRefine={refinePlan}
       />
 
       <PlanSetupModal
@@ -352,51 +365,20 @@ export default function PlanSetup() {
         onSave={saveSetup}
       />
 
-      {activation && typeof document !== "undefined" && createPortal(
+      {/* While actions are created and the plan is switched on: the same
+          "Generating your actions" screen the earlier plan flow used. */}
+      {activation && (activation.stage === "starting" || activation.stage === "generating" || activation.stage === "activating")
+        && typeof document !== "undefined"
+        && createPortal(<ActionGenerationStory job={generationJob} />, document.body)}
+
+      {activation && (activation.stage === "done" || activation.stage === "error") && typeof document !== "undefined" && createPortal(
         <div className="actions-history-overlay plan-activation-overlay">
           <section className={`actions-history-modal plan-activation-modal is-${activation.stage}`} role="dialog" aria-modal="true" aria-labelledby="plan-activation-title" aria-live="polite">
             <span className="plan-activation-orb" aria-hidden="true">
-              {activation.stage === "done" ? <Check size={30} /> : activation.stage === "error" ? <X size={28} /> : <Sparkles size={28} />}
+              {activation.stage === "done" ? <Check size={30} /> : <X size={28} />}
             </span>
-            <h2 id="plan-activation-title">
-              {activation.stage === "done"
-                ? "Your actions are live 🎉"
-                : activation.stage === "error"
-                  ? "We couldn't finish your plan"
-                  : "Creating your actions"}
-            </h2>
-            <p>
-              {activation.stage === "done"
-                ? "Your actions are created and switched on."
-                : activation.stage === "error"
-                  ? activation.message
-                  : generationJob
-                    ? `${generationJob.totalGenerated} of ${generationJob.totalNeeded} actions ready…`
-                    : "Getting started…"}
-            </p>
-            {activation.stage !== "done" && activation.stage !== "error" && (
-              <div className="plan-activation-bar"><span style={{ width: `${activation.stage === "activating" ? 100 : progress}%` }} /></div>
-            )}
-            {activation.stage !== "error" && (
-              <ol className="plan-activation-steps">
-                {[
-                  ["Reading your plan", activation.stage !== "starting"],
-                  [`Writing ${total} actions for you`, activation.stage === "activating" || activation.stage === "done"],
-                  ["Switching on your reminders", activation.stage === "done"],
-                ].map(([label, complete], index) => {
-                  const current = !complete && (index === 0 || (index === 1 && activation.stage === "generating") || (index === 2 && activation.stage === "activating"));
-                  return (
-                    <li key={String(label)} className={complete ? "is-done" : current ? "is-current" : ""}>
-                      <span aria-hidden="true">{complete ? <Check size={12} strokeWidth={3} /> : current ? <Loader2 size={12} className="animate-spin" /> : null}</span>
-                      {label}
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-            {(activation.stage === "starting" || activation.stage === "generating") && (
-              <small className="plan-activation-note">You can leave this page. Your plan switches on when you next open My Actions.</small>
-            )}
+            <h2 id="plan-activation-title">{activation.stage === "done" ? "Your actions are live 🎉" : "We couldn't finish your plan"}</h2>
+            <p>{activation.stage === "error" ? activation.message : "Your actions are created and switched on."}</p>
             {activation.stage === "error" && (
               <div className="plan-form-actions plan-activation-actions">
                 <button type="button" className="plan-form-cancel" onClick={() => setActivation(null)}>Close</button>

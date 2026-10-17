@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { Loader2, Sparkles, X } from "lucide-react";
 import { isIndianMobile } from "@/lib/whatsapp-contacts";
 
 export type PlanFormValues = {
@@ -28,6 +28,7 @@ export default function PlanFormModal({
   whatsappAvailable,
   onClose,
   onSave,
+  onRefine,
 }: {
   open: boolean;
   name: string;
@@ -36,17 +37,21 @@ export default function PlanFormModal({
   onClose: () => void;
   /** Resolves to an error message, or nothing on success. */
   onSave: (values: PlanFormValues) => Promise<string | void>;
+  /** "Refine with AI": the clearer wording to show for review, or an error message. Doesn't save. */
+  onRefine: (values: PlanFormValues) => Promise<{ designation: string; skillGoal: string } | string>;
 }) {
   const [values, setValues] = useState(initial);
   const [placeholder, setPlaceholder] = useState(SAMPLE_ANSWER);
   const [saving, setSaving] = useState(false);
+  const [refining, setRefining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const busy = saving || refining;
 
   useEffect(() => {
     if (!open) return;
     setValues(initial);
     setError(null);
-    const onKey = (event: KeyboardEvent) => event.key === "Escape" && !saving && onClose();
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // Reset only when the popup opens, not while the participant types.
@@ -59,8 +64,21 @@ export default function PlanFormModal({
   const phoneValid = !needsPhone || isIndianMobile(values.phoneDigits);
   const valid = values.designation.trim().length > 0 && values.skillGoal.trim().length >= MIN_ANSWER_LENGTH && phoneValid;
 
+  async function refine() {
+    if (busy || !values.skillGoal.trim()) return;
+    setRefining(true);
+    setError(null);
+    const result = await onRefine(values);
+    setRefining(false);
+    if (typeof result === "string") {
+      setError(result);
+      return;
+    }
+    setValues((current) => ({ ...current, designation: result.designation || current.designation, skillGoal: result.skillGoal || current.skillGoal }));
+  }
+
   async function save() {
-    if (!valid || saving) return;
+    if (!valid || busy) return;
     setSaving(true);
     setError(null);
     const result = await onSave({ ...values, designation: values.designation.trim(), skillGoal: values.skillGoal.trim() });
@@ -69,7 +87,7 @@ export default function PlanFormModal({
   }
 
   return createPortal(
-    <div className="actions-history-overlay plan-form-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+    <div className="actions-history-overlay plan-form-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
       <form
         className="actions-history-modal plan-form-modal"
         role="dialog"
@@ -82,7 +100,7 @@ export default function PlanFormModal({
             <h2 id="plan-form-title">Hi {name} 👋</h2>
             <p>Answer in your own words. We&apos;ll turn it into small actions for your work week.</p>
           </div>
-          <button type="button" className="actions-history-close" onClick={onClose} disabled={saving} aria-label="Close"><X size={18} /></button>
+          <button type="button" className="actions-history-close" onClick={onClose} disabled={busy} aria-label="Close"><X size={18} /></button>
         </header>
 
         <div className="plan-form-body">
@@ -156,8 +174,10 @@ export default function PlanFormModal({
         </div>
 
         <footer className="plan-form-actions">
-          <button type="button" className="plan-form-cancel" onClick={onClose} disabled={saving}>Cancel</button>
-          <button type="submit" className="journey-primary-button" disabled={!valid || saving}>{saving ? "Saving…" : "Save my plan"}</button>
+          <button type="button" className="plan-form-cancel plan-form-refine" onClick={() => void refine()} disabled={busy || !values.skillGoal.trim()}>
+            {refining ? <><Loader2 size={15} className="animate-spin" aria-hidden="true" /> Refining…</> : <><Sparkles size={15} aria-hidden="true" /> Refine with AI</>}
+          </button>
+          <button type="submit" className="journey-primary-button" disabled={!valid || busy}>{saving ? "Saving…" : "Save my plan"}</button>
         </footer>
       </form>
     </div>,

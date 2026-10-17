@@ -21,11 +21,12 @@ export default function SurprisesClient({ shelf, revealUnlockIds }: { shelf: Sur
 
   return (
     <div className="surprises-page animate-in fade-in duration-700">
-      <button type="button" className="surprises-back" onClick={goBack}><ArrowLeft size={15} /> Back</button>
-
       <header className="surprises-head">
-        <h1>Your surprise boxes</h1>
-        <p>Every action you complete unlocks a box with a short video, a resource or an experiment to try.</p>
+        <div>
+          <h1>Your surprise boxes</h1>
+          <p>Every action you complete unlocks a box with a short video, a resource or an experiment to try.</p>
+        </div>
+        <button type="button" className="surprises-back" onClick={goBack}><ArrowLeft size={16} /> Back</button>
       </header>
 
       {!boxes.length || !shelf.enabled ? (

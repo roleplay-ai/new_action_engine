@@ -2,6 +2,7 @@
 
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { istToUTCDateTime, IST_OFFSET_MINUTES, getCurrentISTDate } from "@/lib/timezone-utils";
 import { getPointsForEvent } from "@/lib/points";
@@ -400,23 +401,28 @@ export async function completeAction(params: {
     return { error: "Not authenticated" };
   }
 
-  const { data: actionRow } = await supabase
-    .from("actions")
-    .select("title, cohort_id, is_personal")
-    .eq("id", actionId)
-    .single();
-  if (!actionRow) return { error: "Action not found" };
-
-  let isWalletAction = false;
-  if (actionRow?.is_personal && actionRow.cohort_id) {
-    const { data: walletActionRow } = await supabase
+  const [{ data: actionRow }, { data: walletActionRow }, { data: existingUa }] = await Promise.all([
+    supabase
+      .from("actions")
+      .select("title, cohort_id, is_personal")
+      .eq("id", actionId)
+      .single(),
+    supabase
       .from("commitment_wallet_actions")
       .select("action_id")
       .eq("action_id", actionId)
       .eq("user_id", user.id)
-      .maybeSingle();
-    isWalletAction = !!walletActionRow;
-  }
+      .maybeSingle(),
+    supabase
+      .from("user_actions")
+      .select("status, auto_expired")
+      .eq("user_id", user.id)
+      .eq("action_id", actionId)
+      .maybeSingle(),
+  ]);
+  if (!actionRow) return { error: "Action not found" };
+
+  const isWalletAction = !!(actionRow.is_personal && actionRow.cohort_id && walletActionRow);
 
   // Legacy plans (frozen via the older cohort-points system, before the
   // Wallet replaced it) still settle through settle_my_personal_action.
@@ -450,13 +456,6 @@ export async function completeAction(params: {
       completedLate: settlement?.completed_late ?? false,
     };
   }
-
-  const { data: existingUa } = await supabase
-    .from("user_actions")
-    .select("status, auto_expired")
-    .eq("user_id", user.id)
-    .eq("action_id", actionId)
-    .maybeSingle();
 
   // An action retired when the next batch arrived (unfinished Current →
   // "pending validation"), not a real miss the participant chose. Marking it
@@ -515,30 +514,20 @@ export async function completeAction(params: {
     if (upsertError) return { error: upsertError.message };
   }
 
-  const alreadyAccepted =
-    existingUa?.status === "scheduled" ||
-    existingUa?.status === "success" ||
-    existingUa?.status === "failed";
-
-  if (!existingUa) {
-    await addPointsToProfile(user.id, getPointsForEvent("read"));
-    await addPointsToProfile(user.id, getPointsForEvent("accept", false));
-  } else if (!alreadyAccepted) {
-    await addPointsToProfile(user.id, getPointsForEvent("accept", false));
-  }
-
-  if (success && existingUa?.status !== "success") {
-    await addPointsToProfile(user.id, getPointsForEvent("success"));
-    if (actionRow?.title) {
-      await supabase.from("feed_events").insert({
-        user_id: user.id,
-        cohort_id: actionRow.cohort_id,
-        action_title: actionRow.title,
-        type: "SUCCESS",
-      });
-    }
-  } else if (existingUa?.status !== "failed" && existingUa?.status !== "success") {
-    await addPointsToProfile(user.id, getPointsForEvent("inaction"));
+  // Progress is the Commitment Score (settled by the RPCs above); the old
+  // profile points are no longer updated here. The feed entry doesn't change
+  // what the participant sees next, so it's written after the response.
+  if (success && existingUa?.status !== "success" && actionRow.title) {
+    const feedEvent = {
+      user_id: user.id,
+      cohort_id: actionRow.cohort_id,
+      action_title: actionRow.title,
+      type: "SUCCESS",
+    };
+    after(async () => {
+      const { error } = await supabase.from("feed_events").insert(feedEvent);
+      if (error) console.error("[completeAction] feed event failed:", error.message);
+    });
   }
 
   revalidatePath("/");

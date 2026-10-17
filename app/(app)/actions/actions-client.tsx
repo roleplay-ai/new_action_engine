@@ -656,19 +656,18 @@ export default function ActionsClient() {
     if (success) setAutoCompleting({ count: 1 });
     let leavingForWallet = false;
     try {
-      const result = await completeAction(completingId, success, reflection);
+      // A success opens the celebration or the box reveal straight away; the
+      // store reloads behind it. ("I didn't complete it" still waits, below.)
+      const result = await completeAction(completingId, success, reflection, { waitForRefresh: !success });
       if (!result.error) {
         if (success && result.surpriseBoxUnlockId) {
           leavingForWallet = true;
           router.replace(`/surprises?reveal=${encodeURIComponent(result.surpriseBoxUnlockId)}`);
           return;
         }
-        try {
-          setArchivedActions(await fetchArchivedActions());
-        } catch {
-          // The selected-cohort store has already refreshed. Keep the existing
-          // archive list if its independent refresh is temporarily unavailable.
-        }
+        // Refresh the archive list in the background; keep the existing one if
+        // that request fails. The celebration doesn't depend on it.
+        void fetchArchivedActions().then(setArchivedActions).catch(() => undefined);
         setCompletingId(null);
         setReflection("");
         if (success) {

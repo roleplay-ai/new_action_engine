@@ -20789,21 +20789,43 @@ button.surprise-tile:focus-visible,
   margin: 0 auto;
 }
 
+/* Title on the left, a clear Back button on the right of the same line. */
+.surprises-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.surprises-head > div {
+  min-width: 0;
+}
+
 .surprises-back {
+  flex: none;
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  margin-bottom: 12px;
-  padding: 0;
-  border: 0;
-  color: var(--color-text-muted);
-  background: none;
+  gap: 6px;
+  padding: 0 16px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 12px;
+  color: var(--color-text-primary);
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(34, 29, 35, .06);
   font-size: 13.5px;
-  font-weight: 700;
+  font-weight: 800;
+  transition: border-color .15s ease, background .15s ease;
 }
 
 .surprises-back:hover {
-  color: var(--color-text-primary);
+  border-color: var(--color-text-muted);
+  background: #faf8f4;
+}
+
+.surprises-back:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, .25);
+  outline-offset: 2px;
 }
 
 .surprises-head h1 {

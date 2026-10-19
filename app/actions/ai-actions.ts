@@ -10,9 +10,11 @@ import {
   computeNextDeliveryAt,
   computeTotalActionsNeeded,
   advanceNextDeliveryAt,
+  getWeekdayIST,
   BACKGROUND_BATCH_SIZE,
   buildTrainingContext,
   DAILY_DELIVERY_DAYS,
+  MAX_WEEKLY_ACTIONS,
   draftsToActionRows,
   generateDraftActions,
   type DeliveryTrack,
@@ -26,6 +28,7 @@ import { buildFromHeader } from "@/lib/email-send";
 import { buildActionPlanPdf } from "@/lib/action-plan-pdf";
 import { matchActionImagesForRows } from "@/lib/action-image-matching";
 import { assignSurpriseResourcesForPlan } from "@/lib/surprise-resource-assignment";
+import { saveWhatsAppNumber } from "@/lib/whatsapp-contact-store";
 
 export type MyPlanSettings = {
   track: DeliveryTrack;
@@ -167,9 +170,13 @@ export async function getDraftPlanSchedule(): Promise<{
     const releaseDates: string[] = [];
     let nextRelease = firstCadenceAt;
     const batchCount = Math.ceil((count ?? 0) / actionCountPerRelease);
-    // Every batch follows the chosen cadence. Daily plans begin on the next
-    // weekday; weekly plans begin on the next selected weekday.
-    for (let batchIndex = 0; batchIndex < batchCount; batchIndex += 1) {
+    // The first batch is released at activation; the rest follow the chosen
+    // cadence (next weekday for daily plans, next selected weekday for weekly).
+    // Daily plans activated on a weekend wait for the next weekday instead.
+    const firstIsImmediate = subscription.track !== "daily"
+      || (DAILY_DELIVERY_DAYS as readonly number[]).includes(getWeekdayIST(getCurrentISTDate()));
+    if (firstIsImmediate && batchCount > 0) releaseDates.push(new Date().toISOString());
+    for (let batchIndex = releaseDates.length; batchIndex < batchCount; batchIndex += 1) {
       releaseDates.push(nextRelease);
       nextRelease = advanceNextDeliveryAt(
         nextRelease,
@@ -185,7 +192,7 @@ export async function getDraftPlanSchedule(): Promise<{
         const batchNumber = Math.floor(index / actionCountPerRelease) + 1;
         return {
           plannedAt: releaseDates[batchNumber - 1],
-          isImmediate: false,
+          isImmediate: firstIsImmediate && batchNumber === 1,
           batchNumber,
         };
       }),
@@ -209,14 +216,18 @@ export async function saveGeneratedActions(params: {
   focusThemes: ActionTheme[];
   focusCustomText?: string;
   track: DeliveryTrack;
-  /** Actions generated per delivery. */
-  dailyActionCount: 1 | 2 | 3 | 4 | 5;
+  /** Actions generated per delivery (weekly plans: 1–MAX_WEEKLY_ACTIONS). */
+  dailyActionCount: 1 | 2 | 3;
   /** 0 = Sunday, ... 6 = Saturday. Multiple allowed for "daily", exactly one for "weekly". */
   daysOfWeek: number[];
   /** Length of the plan in weeks (2-24). Drives how many total actions get generated. */
   durationWeeks: number;
   /** Whether action reminders should also be delivered by email. */
   emailRemindersEnabled: boolean;
+  /** "Send my reminders on WhatsApp" — ticked by default in plan setup. */
+  whatsappRemindersEnabled?: boolean;
+  /** The number shown next to that checkbox (admin's default, possibly edited). */
+  whatsappNumber?: string;
 }): Promise<{ error?: string; totalActionsNeeded?: number }> {
   try {
     const supabase = await createClient();
@@ -265,13 +276,37 @@ export async function saveGeneratedActions(params: {
     if (params.track === "weekly" && uniqueDays.length !== 1) {
       return { error: "Weekly sprint requires exactly one day" };
     }
-    if (![1, 2, 3, 4, 5].includes(params.dailyActionCount)) {
-      return { error: "Action count must be between 1 and 5" };
+    if (!Number.isInteger(params.dailyActionCount) || params.dailyActionCount < 1 || params.dailyActionCount > MAX_WEEKLY_ACTIONS) {
+      return { error: `Action count must be between 1 and ${MAX_WEEKLY_ACTIONS}` };
     }
     const actionCount = params.track === "daily" ? 1 : params.dailyActionCount;
     const effectiveMaxWeeks = Math.min(cohortContext.maxWeeks ?? 24, 24);
     if (!Number.isInteger(params.durationWeeks) || params.durationWeeks < 2 || params.durationWeeks > effectiveMaxWeeks) {
       return { error: `Plan duration must be between 2 and ${effectiveMaxWeeks} weeks` };
+    }
+
+    // Save the number first so an invalid/duplicate number is reported before
+    // any draft or generation job is touched. Ticking the box is an explicit
+    // opt-in, so it also clears an earlier STOP.
+    const whatsappAvailable = !!process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const whatsappEnabled = whatsappAvailable && params.whatsappRemindersEnabled === true;
+    if (whatsappEnabled) {
+      if (!params.whatsappNumber?.trim()) {
+        return { error: "Enter your WhatsApp number, or untick WhatsApp reminders" };
+      }
+      const admin = createAdminClient();
+      const saved = await saveWhatsAppNumber(admin, {
+        userId: user.id,
+        rawNumber: params.whatsappNumber,
+        source: "participant",
+        updatedBy: user.id,
+      });
+      if (saved.error) return { error: saved.error };
+      const { error: optInError } = await admin
+        .from("whatsapp_contacts")
+        .update({ opted_out_at: null, updated_at: new Date().toISOString() })
+        .eq("user_id", user.id);
+      if (optInError) return { error: optInError.message };
     }
 
     const contextText = buildTrainingContext(params.userNotes, params.focusThemes, params.focusCustomText);
@@ -324,6 +359,8 @@ export async function saveGeneratedActions(params: {
         duration_weeks: params.durationWeeks,
         total_actions_planned: totalActionsNeeded,
         email_reminders_enabled: params.emailRemindersEnabled,
+        whatsapp_reminders_enabled: whatsappEnabled,
+        whatsapp_opted_in_at: whatsappEnabled ? new Date().toISOString() : null,
         last_reminder_sent_date: null,
       },
       { onConflict: "user_id,cohort_id" }
@@ -425,8 +462,10 @@ async function sendPlanActivatedSummaryEmail(params: {
     time_of_day_utc: string;
   };
   nextDeliveryAt: string;
+  /** The first batch was released at activation, before nextDeliveryAt. */
+  firstBatchReleasedNow?: boolean;
 }): Promise<void> {
-  const { supabase, userId, userEmail, cohortId, sub, nextDeliveryAt } = params;
+  const { supabase, userId, userEmail, cohortId, sub, nextDeliveryAt, firstBatchReleasedNow } = params;
   try {
     const fromEmail = process.env.RESEND_FROM_EMAIL;
     if (!fromEmail) return;
@@ -474,12 +513,16 @@ async function sendPlanActivatedSummaryEmail(params: {
     // assignScheduledBatch() uses to release them for real: one action per
     // weekday for daily plans, daily_action_count actions per cycle for
     // weekly ones — so the dates shown here match what actually happens.
+    // When the first batch went out at activation it is dated today and the
+    // second batch lands on nextDeliveryAt.
     const daysOfWeek = sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null);
     const batchSize = sub.track === "daily" ? 1 : Math.max(1, sub.daily_action_count ?? 1);
-    let cursor = nextDeliveryAt;
+    let cursor = firstBatchReleasedNow ? new Date().toISOString() : nextDeliveryAt;
     const actions = (actionRows ?? []).map((row, index) => {
       if (index > 0 && index % batchSize === 0) {
-        cursor = advanceNextDeliveryAt(cursor, sub.track, daysOfWeek, sub.time_of_day_utc);
+        cursor = firstBatchReleasedNow && index === batchSize
+          ? nextDeliveryAt
+          : advanceNextDeliveryAt(cursor, sub.track, daysOfWeek, sub.time_of_day_utc);
       }
       return { title: row.title as string, date: utcToISTDate(cursor), imageUrl: (row.image_url as string | null) ?? undefined };
     });
@@ -608,6 +651,14 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
     });
     if (activationError) return { error: activationError.message };
 
+    // Release the first batch right away so the participant starts practising
+    // today. next_delivery_at stays on the next cadence day, which brings the
+    // second batch. (Daily plans activated on a weekend still wait for Monday.)
+    const { assigned: releasedNow } = await assignScheduledBatch(
+      { ...sub, track: sub.track as DeliveryTrack, next_delivery_at: nextDeliveryAt },
+      { advanceCadence: false }
+    );
+
     await supabase.from("profiles").update({ self_onboarding_completed_at: new Date().toISOString() }).eq("id", user.id);
 
     // Give each frozen action a random Surprise Box resource. Background and
@@ -635,11 +686,13 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
             time_of_day_utc: sub.time_of_day_utc,
           },
           nextDeliveryAt,
+          firstBatchReleasedNow: releasedNow > 0,
         })
       );
     }
 
     revalidatePath("/wallet");
+    revalidatePath("/surprises");
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to activate plan" };

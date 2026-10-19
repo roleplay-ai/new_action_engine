@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { upsertUserCredentialDelivery } from "@/lib/user-credential-delivery";
+import { saveWhatsAppNumber } from "@/lib/whatsapp-contact-store";
+import { formatWhatsAppNumber } from "@/lib/whatsapp-contacts";
 
 const SUPERADMIN_EMAIL = (process.env.SUPERADMIN_EMAIL || "admin@actionengine").toLowerCase();
 
@@ -25,6 +27,7 @@ async function ensureSuperadmin() {
   if (profile?.role !== "superadmin" && !isSuperadminEmail) {
     throw new Error("Forbidden: superadmin only");
   }
+  return user.id;
 }
 
 /** Users page is under /superadmin/users — revalidating only /superadmin leaves this page stale. */
@@ -118,11 +121,24 @@ export async function updateUserBySuperadmin(
     fullName: string;
     companyId: string | null;
     role: "user" | "admin";
+    /** Default WhatsApp number for reminders; empty removes it. Omit to leave unchanged. */
+    whatsappNumber?: string;
   }
 ): Promise<{ error?: string }> {
   try {
-    await ensureSuperadmin();
+    const actorId = await ensureSuperadmin();
     const admin = createAdminClient();
+
+    // Saved first so a bad/duplicate number is reported before anything else changes.
+    if (params.whatsappNumber !== undefined) {
+      const saved = await saveWhatsAppNumber(admin, {
+        userId,
+        rawNumber: params.whatsappNumber,
+        source: "admin",
+        updatedBy: actorId,
+      });
+      if (saved.error) return { error: saved.error };
+    }
 
     const { data: target, error: fetchErr } = await admin
       .from("profiles")
@@ -357,6 +373,8 @@ export async function getUsersWithProfiles(): Promise<
     persistent_login_key: string | null;
     has_stored_credentials: boolean;
     welcome_email_sent_at: string | null;
+    whatsapp_phone: string | null;
+    whatsapp_opted_out: boolean;
   }[] | { error: string }
 > {
   try {
@@ -378,6 +396,9 @@ export async function getUsersWithProfiles(): Promise<
 
     const { data: cohorts } = await admin.from("cohorts").select("id, name");
     const cohortMap = new Map((cohorts ?? []).map((c) => [c.id, c.name]));
+
+    const { data: whatsappContacts } = await admin.from("whatsapp_contacts").select("user_id, phone, opted_out_at");
+    const whatsappMap = new Map((whatsappContacts ?? []).map((c) => [c.user_id as string, c]));
 
     const userIds = (usersData?.users ?? []).map((user) => user.id);
     const credentialUserIds = new Set<string>();
@@ -423,6 +444,8 @@ export async function getUsersWithProfiles(): Promise<
         persistent_login_key: p?.persistent_login_key ?? null,
         has_stored_credentials: credentialUserIds.has(u.id),
         welcome_email_sent_at: welcomeSentAt.get(u.id) ?? null,
+        whatsapp_phone: whatsappMap.has(u.id) ? formatWhatsAppNumber(whatsappMap.get(u.id)!.phone as string) : null,
+        whatsapp_opted_out: !!whatsappMap.get(u.id)?.opted_out_at,
       };
     });
 

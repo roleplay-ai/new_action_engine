@@ -77,10 +77,15 @@ export async function saveMySessionNotes(
   return { updatedAt: data.updated_at };
 }
 
-/** Rewrite My Plan answers into clearer wording without inventing new goals. */
+/**
+ * Rewrite My Plan answers into clearer wording without inventing new goals.
+ * Saves the result unless `save: false` (the plan popup on My Actions shows the
+ * refined text for review and saves only on "Save my plan").
+ */
 export async function refineMySessionNotes(
   input: string | MyPlanAnswers,
   cohortId?: string | null,
+  options?: { save?: boolean },
 ): Promise<{ body?: string; answers?: MyPlanAnswers; error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -112,6 +117,7 @@ Rules:
 - Fix grammar and spelling lightly; keep a natural first-person voice.
 - Keep name, designation, and team factual — only lightly clean them up if needed.
 - Refine dailyWork, skillGoal, and practiceOpportunities into clearer short paragraphs.
+- Leave any empty answer empty. Never fill in an answer the writer left blank.
 - Return JSON only matching the schema. No markdown.
 
 Answers:
@@ -157,8 +163,10 @@ ${body}
     if (!refinedBody.trim()) return { error: "AI returned an empty response" };
     if (refinedBody.length > 50000) return { error: "Refined answers are too long. Try shortening your draft first." };
 
-    const saved = await saveMySessionNotes(refined, cohortId);
-    if (saved.error) return { error: saved.error };
+    if (options?.save !== false) {
+      const saved = await saveMySessionNotes(refined, cohortId);
+      if (saved.error) return { error: saved.error };
+    }
     return { body: refinedBody, answers: refined };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to refine notes" };

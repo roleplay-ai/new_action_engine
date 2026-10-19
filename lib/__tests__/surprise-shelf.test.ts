@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSurpriseShelf, type ShelfActionInput, type ShelfUnlockInput } from "../surprise-boxes";
+import { buildSurpriseShelf, groupSurpriseShelf, type ShelfActionInput, type ShelfUnlockInput } from "../surprise-boxes";
 
 const plan = (statuses: (string | null)[]): ShelfActionInput[] =>
   statuses.map((status, i) => ({ actionId: `a${i + 1}`, actionTitle: `Action ${i + 1}`, status }));
@@ -34,5 +34,26 @@ describe("buildSurpriseShelf", () => {
     expect(shelf.enabled).toBe(false);
     expect(shelf.boxes.map((box) => box.state)).toEqual(["locked", "locked", "locked"]);
     expect(shelf.unlockedCount).toBe(0);
+  });
+});
+
+describe("groupSurpriseShelf", () => {
+  const shelf = buildSurpriseShelf(
+    plan(["success", "success", "failed", "scheduled", null, null, null]),
+    new Map([["a1", unlock("u1", true)], ["a2", unlock("u2", false)]]),
+    true
+  );
+
+  it("shows only the next two locked boxes and counts the rest", () => {
+    const groups = groupSurpriseShelf(shelf.boxes);
+    expect(groups.ready.map((box) => box.slot)).toEqual([2]);
+    expect(groups.opened.map((box) => box.slot)).toEqual([1]);
+    expect(groups.upcoming.map((box) => box.slot)).toEqual([4, 5]);
+    expect(groups.moreLockedCount).toBe(2);
+    expect(groups.missed.map((box) => box.slot)).toEqual([3]);
+  });
+
+  it("never reports a negative remainder", () => {
+    expect(groupSurpriseShelf(shelf.boxes, 10).moreLockedCount).toBe(0);
   });
 });

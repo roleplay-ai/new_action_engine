@@ -49,7 +49,12 @@ interface EngineContextType {
   refetch: (options?: { syncPoints?: boolean }) => Promise<void>;
   completeOnboarding: (importance: number, goal: number) => Promise<void>;
   updatePoints: (amount: number) => Promise<void>;
-  completeAction: (actionId: string, success: boolean, reflection?: string) => Promise<{
+  /**
+   * Settles an action, then reloads the store. Pass `waitForRefresh: false` to
+   * return as soon as it's saved and reload in the background (the "I did it"
+   * celebration and box reveal don't need the reload first).
+   */
+  completeAction: (actionId: string, success: boolean, reflection?: string, options?: { waitForRefresh?: boolean }) => Promise<{
     error?: string;
     pointsDelta?: number;
     currentPoints?: number;
@@ -400,9 +405,12 @@ export const EngineProvider: React.FC<{ children: React.ReactNode; adminCompanyI
     // Implemented in AdminDashboard via createAction server action
   };
 
-  const completeAction = async (actionId: string, success: boolean, reflection?: string) => {
+  const completeAction = async (actionId: string, success: boolean, reflection?: string, options?: { waitForRefresh?: boolean }) => {
     const result = await completeActionServer({ actionId, success, reflection });
-    if (!result.error) await refetch();
+    if (!result.error) {
+      if (options?.waitForRefresh === false) void refetch();
+      else await refetch();
+    }
     return result;
   };
 

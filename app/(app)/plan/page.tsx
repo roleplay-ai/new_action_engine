@@ -1,26 +1,9 @@
-import UnifiedPlanClient from "./unified-plan-client";
-import { getMyCohort } from "@/app/actions/cohorts";
-import { getMySessionNotes } from "@/app/actions/session-notes";
-import { cohortLockInfo } from "@/lib/cohort-lock";
-import { CohortLockedNotice } from "@/components/CohortLockedNotice";
+import { redirect } from "next/navigation";
 
-export default async function PlanPage() {
-  const { cohort } = await getMyCohort({ includeRoster: false });
-  const lock = cohortLockInfo(cohort);
-  if (lock.locked) {
-    return (
-      <div className="unified-plan-page">
-        <CohortLockedNotice
-          title="Your plan isn't open yet"
-          body="Your trainer or admin hasn't opened up action planning for you yet."
-          daysToGo={lock.daysToGo}
-        />
-      </div>
-    );
-  }
-
-  const notes = await getMySessionNotes(cohort?.id);
-  return <div className="unified-plan-page">
-    <UnifiedPlanClient initialTrainingText={notes.body} />
-  </div>;
+/**
+ * Plans are written and activated on My Actions now (Phase 3 of
+ * docs/PARTICIPANT_JOURNEY_REDESIGN_PLAN.md). Kept so old links and emails still land somewhere useful.
+ */
+export default function PlanPage() {
+  redirect("/actions");
 }

@@ -35,7 +35,7 @@ const PAGE_SIZE = 1000;
 
 const LOGIN_PATH_BY_KIND: Record<NudgeKind, string> = {
   opened_no_action: "/actions",
-  no_plan: "/plan",
+  no_plan: "/actions",
 };
 
 async function requireSuperadmin(): Promise<{ userId: string }> {

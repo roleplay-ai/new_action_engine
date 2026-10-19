@@ -7,6 +7,7 @@ import { computeNextRunAtAfter } from "@/lib/schedule-utils";
 import { buildWeeklyEmailTemplateDataForUser } from "@/lib/weekly-email";
 import { getDueSubscriptions, assignScheduledBatch } from "@/lib/personal-action-generation";
 import { sendDailyActionReminders } from "@/lib/action-reminders";
+import { sendWhatsAppActionReminders } from "@/lib/whatsapp-reminders";
 
 /**
  * Shared cron handler — runs once daily at 11:30 AM IST / 06:00 UTC
@@ -19,6 +20,8 @@ import { sendDailyActionReminders } from "@/lib/action-reminders";
  * action-reminder emails on each participant's chosen day at the fixed cron time
  * (see lib/action-reminders.ts) — a separate concept from email_schedules,
  * which is admin-configured broadcasts to explicitly chosen recipients.
+ * The same reminder also goes out on WhatsApp to participants who opted in
+ * (lib/whatsapp-reminders.ts) — independent of Resend, with its own claims.
  * The Friday week-recap email (all still-unvalidated actions + a bulk
  * "I completed all" link) runs on its own cron path and schedule — see
  * app/api/cron/weekly-recap/route.ts and vercel.json.
@@ -66,6 +69,12 @@ export async function GET(request: Request) {
     });
   }
 
+  // ── WhatsApp action reminders (require the WhatsApp Cloud API env) ──────────
+  // Runs after the batch release above so it lists the same current actions
+  // as the reminder email, and before the Resend check so WhatsApp doesn't
+  // depend on email being configured.
+  const whatsappReminders = await sendWhatsAppActionReminders();
+
   // ── Email schedules (require Resend) ────────────────────────────────────────
   if (!isResendConfigured()) {
     return NextResponse.json({
@@ -74,6 +83,7 @@ export async function GET(request: Request) {
       processed: 0,
       results: [],
       subscriptionsDelivered,
+      whatsappReminders,
       reminders: {
         sent: 0,
         failed: 0,
@@ -208,5 +218,6 @@ export async function GET(request: Request) {
     results: summary,
     subscriptionsDelivered,
     reminders: reminderSummary,
+    whatsappReminders,
   });
 }

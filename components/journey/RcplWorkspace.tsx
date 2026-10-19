@@ -15,6 +15,7 @@ import type { Cohort, CohortMember, CohortNotice, Facilitator, PrepareContentIte
 import { resolveVideoEmbed, resolveVideoThumbnail } from "@/lib/video-embed";
 import { browserNeedsExternalPdfViewer } from "@/lib/pdf-embed";
 import { daysUntil, nextUpcomingCohortDate } from "@/lib/cohort-dates";
+import ActionPlanCard from "@/components/journey/ActionPlanCard";
 
 // This component is shared by every company — see prepare-client.tsx, which
 // passes `phases` sourced from this batch's own cohorts.program_phases
@@ -315,6 +316,8 @@ export default function RcplWorkspace({
           ) : null}
         </div>
       </section>
+
+      <ActionPlanCard locked={cohort.locked} />
 
       <div className="rcpl-content-shell">
         <main>

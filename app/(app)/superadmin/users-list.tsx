@@ -22,6 +22,8 @@ type User = {
   cohort_name?: string | null;
   persistent_login_key?: string | null;
   has_stored_credentials?: boolean;
+  whatsapp_phone?: string | null;
+  whatsapp_opted_out?: boolean;
 };
 
 type Company = { id: string; name: string };
@@ -42,6 +44,7 @@ export default function UsersList({
   const [editFullName, setEditFullName] = useState("");
   const [editCompanyId, setEditCompanyId] = useState("");
   const [editRole, setEditRole] = useState<"user" | "admin">("user");
+  const [editWhatsapp, setEditWhatsapp] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
@@ -194,6 +197,7 @@ export default function UsersList({
     setEditFullName(u.full_name || "");
     setEditCompanyId(u.company_id || "");
     setEditRole(u.role === "admin" ? "admin" : "user");
+    setEditWhatsapp(u.whatsapp_phone || "");
     setEditError(null);
   }
 
@@ -207,6 +211,7 @@ export default function UsersList({
         fullName: editFullName,
         companyId: editCompanyId || null,
         role: editRole,
+        whatsappNumber: editWhatsapp,
       });
       if (result.error) {
         setEditError(result.error);
@@ -395,6 +400,20 @@ export default function UsersList({
                 className="w-full px-4 py-2 border-2 border-black rounded-lg text-sm"
               />
             </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1">WhatsApp number</label>
+              <input
+                type="tel"
+                value={editWhatsapp}
+                onChange={(e) => setEditWhatsapp(e.target.value)}
+                placeholder="+91 98000 00000"
+                className="w-full px-4 py-2 border-2 border-black rounded-lg text-sm"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Pre-filled for the participant when they set up their plan; they can change it.
+                {editing.whatsapp_opted_out && " They replied STOP on WhatsApp, so reminders there are paused."}
+              </p>
+            </div>
 
             {isSuperadminTarget ? (
               <p className="text-xs text-slate-600 border-l-4 border-amber-400 pl-3 py-1">
@@ -511,6 +530,12 @@ export default function UsersList({
                   <p className="font-semibold text-slate-900">{u.email}</p>
                   {u.full_name && (
                     <p className="text-xs text-slate-500">{u.full_name}</p>
+                  )}
+                  {u.whatsapp_phone && (
+                    <p className="text-xs text-slate-500">
+                      WhatsApp {u.whatsapp_phone}
+                      {u.whatsapp_opted_out && <span className="ml-1 font-bold text-amber-600">· STOP</span>}
+                    </p>
                   )}
                 </td>
                 <td className="p-4">

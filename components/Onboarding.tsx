@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
-import { X, Zap, CalendarDays, Mail, NotebookPen } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { X, Zap, CalendarDays, Mail, MessageCircle, NotebookPen } from "lucide-react";
 import { saveGeneratedActions, skipSelfOnboarding } from "@/app/actions/ai-actions";
+import { getMyWhatsAppSettings } from "@/app/actions/whatsapp";
 import { computeTotalActionsNeeded, DAILY_DELIVERY_DAYS, type DeliveryTrack } from "@/lib/personal-action-generation";
 
 const WEEKDAYS = [
@@ -32,9 +33,26 @@ const Onboarding: React.FC<{
   ));
   const [track, setTrack] = useState<DeliveryTrack>("weekly");
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([2]);
-  const [weeklyActionCount, setWeeklyActionCount] = useState<1 | 2 | 3 | 4 | 5>(2);
+  const [weeklyActionCount, setWeeklyActionCount] = useState<1 | 2 | 3>(2);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // WhatsApp reminders: ticked by default with the admin-saved number
+  // pre-filled; stays hidden until WhatsApp is configured on the server.
+  const [whatsappAvailable, setWhatsappAvailable] = useState(false);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(true);
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    getMyWhatsAppSettings().then(({ settings }) => {
+      if (cancelled || !settings?.available) return;
+      setWhatsappAvailable(true);
+      setWhatsappNumber(settings.phone ?? "");
+      // Someone who replied STOP shouldn't be silently opted back in.
+      setWhatsappEnabled(!settings.optedOut);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const trainingText = initialTrainingText.trim();
   const actionCount = track === "daily" ? 1 : weeklyActionCount;
@@ -58,6 +76,10 @@ const Onboarding: React.FC<{
       setErrorMsg("Answer at least one My Plan question first. Your answers are the personal input for this plan.");
       return;
     }
+    if (whatsappAvailable && whatsappEnabled && !whatsappNumber.trim()) {
+      setErrorMsg("Enter your WhatsApp number, or untick WhatsApp reminders.");
+      return;
+    }
     setSaving(true);
     setErrorMsg(null);
     onGeneratingChange?.(true);
@@ -70,6 +92,8 @@ const Onboarding: React.FC<{
         daysOfWeek,
         durationWeeks,
         emailRemindersEnabled: true,
+        whatsappRemindersEnabled: whatsappAvailable && whatsappEnabled,
+        whatsappNumber: whatsappAvailable && whatsappEnabled ? whatsappNumber : undefined,
       });
       setSaving(false);
       if (error) {
@@ -119,7 +143,7 @@ const Onboarding: React.FC<{
         <div className={`plan-setup-grid ${track === "weekly" ? "weekly" : "daily"}`}>
           <label className="plan-setup-field"><span>Duration</span><select value={durationWeeks} onChange={(event) => setDurationWeeks(Number(event.target.value))}>{availableDurations.map((weeks) => <option key={weeks} value={weeks}>{weeks} weeks</option>)}</select></label>
 
-          {track === "weekly" ? <label className="plan-setup-field"><span>Actions per week</span><select value={weeklyActionCount} onChange={(event) => setWeeklyActionCount(Number(event.target.value) as 1 | 2 | 3 | 4 | 5)}>{([1, 2, 3, 4, 5] as const).map((count) => <option key={count} value={count}>{count} action{count === 1 ? "" : "s"}</option>)}</select></label> : <div className="plan-setup-field"><span>Actions per weekday</span><div className="plan-fixed-action-count"><strong>1 action</strong><small>Fixed for a realistic daily pace</small></div></div>}
+          {track === "weekly" ? <label className="plan-setup-field"><span>Actions per week</span><select value={weeklyActionCount} onChange={(event) => setWeeklyActionCount(Number(event.target.value) as 1 | 2 | 3)}>{([1, 2, 3] as const).map((count) => <option key={count} value={count}>{count} action{count === 1 ? "" : "s"}</option>)}</select></label> : <div className="plan-setup-field"><span>Actions per weekday</span><div className="plan-fixed-action-count"><strong>1 action</strong><small>Fixed for a realistic daily pace</small></div></div>}
 
           {track === "weekly" && <label className="plan-setup-field"><span>Reminder day</span><select value={daysOfWeek[0]} onChange={(event) => setDaysOfWeek([Number(event.target.value)])}>{WEEKDAYS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label>}
 
@@ -127,6 +151,15 @@ const Onboarding: React.FC<{
         </div>
 
         <div className="plan-setup-summary"><div><strong>{cadenceSummary}</strong><small>Generated from your answers and batch context</small></div><b>{totalActions} actions</b></div>
+
+        {whatsappAvailable && <div className={`plan-whatsapp-optin${whatsappEnabled ? " is-on" : ""}`}>
+          <label className="plan-whatsapp-check">
+            <input type="checkbox" checked={whatsappEnabled} onChange={(event) => { setWhatsappEnabled(event.target.checked); setErrorMsg(null); }} />
+            <MessageCircle size={18} />
+            <span><strong>Send my reminders on WhatsApp</strong><small>As well as email. Reply STOP on WhatsApp anytime to turn them off.</small></span>
+          </label>
+          {whatsappEnabled && <label className="plan-setup-field plan-whatsapp-number"><span>WhatsApp number</span><input type="tel" inputMode="tel" autoComplete="tel" placeholder="+91 98000 00000" value={whatsappNumber} onChange={(event) => setWhatsappNumber(event.target.value)} /></label>}
+        </div>}
 
         {planWarning && <p className="plan-setup-warning">{planWarning}</p>}
         {errorMsg && <p className="plan-setup-error">{errorMsg}</p>}

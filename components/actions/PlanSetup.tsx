@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, FileText, Mail, MessageCircle, Pencil, CalendarDays, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { FileText, Mail, Pencil, CalendarDays, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { activatePersonalActionPlan, getMyPlanSettings, saveGeneratedActions } from "@/app/actions/ai-actions";
 import { refineMySessionNotes, saveMySessionNotes } from "@/app/actions/session-notes";
@@ -12,7 +12,6 @@ import { PLAN_REMINDER_DAYS, recommendedSetup, sameSetup, setupDaysOfWeek, total
 import { isIndianMobile } from "@/lib/whatsapp-contacts";
 import PlanFormModal, { type PlanFormValues } from "@/components/actions/PlanFormModal";
 import PlanSetupModal, { type PlanSetupValues } from "@/components/actions/PlanSetupModal";
-import ActionGenerationStory from "@/components/ActionGenerationStory";
 
 /** Set when the participant clicks Activate, so a reload mid-generation still finishes activating. */
 const autoActivateKey = (cohortId: string) => `nudgeable:plan-auto-activate:${cohortId}`;
@@ -20,7 +19,7 @@ const autoActivateKey = (cohortId: string) => `nudgeable:plan-auto-activate:${co
 const setupDraftKey = (cohortId: string) => `nudgeable:plan-setup-draft:${cohortId}`;
 
 type Activation =
-  | { stage: "starting" | "generating" | "activating" | "done" }
+  | { stage: "starting" | "generating" | "activating" }
   | { stage: "error"; message: string };
 
 function readStorage<T>(key: string): T | null {
@@ -45,23 +44,26 @@ function hasPlanAnswers(answers: MyPlanAnswers) {
   return [answers.designation, answers.skillGoal, answers.dailyWork, answers.practiceOpportunities].some((value) => value.trim());
 }
 
-function formatPhone(digits: string) {
-  return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
-}
-
 /**
  * My Actions before a plan is live: the plan popup (one question), the
  * "Recommended" setup with a Change popup, and one-click Activate, which
  * generates the actions and switches the plan on as soon as they're ready.
  */
-export default function PlanSetup({ onReady }: { onReady?: () => void }) {
-  const { profile, cohort, personalPlanState, generationJob, generationError, refetch, refreshGenerationStatus } = useEngine();
+export default function PlanSetup({ onReady, onActivated, onGeneratingChange }: {
+  onReady?: () => void;
+  /** Loads the now-live plan; My Actions keeps the generating screen up until it resolves. */
+  onActivated?: () => Promise<void>;
+  /** My Actions owns the "Generating your actions" screen; this turns it on and off. */
+  onGeneratingChange?: (generating: boolean) => void;
+}) {
+  const { profile, cohort, personalPlanState, isLoading, generationJob, generationError, refetch, refreshGenerationStatus } = useEngine();
   const cohortId = cohort?.id ?? null;
   const maxWeeks = cohort?.maxWeeks ?? null;
   const firstName = profile.name.trim().split(/\s+/)[0] || "there";
 
   const [context, setContext] = useState<MyPlanSetupContext | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [setup, setSetup] = useState<PlanSetupChoice>(() => recommendedSetup(maxWeeks));
   const [draftSetup, setDraftSetup] = useState<PlanSetupChoice | null>(null);
   const [draftActionCount, setDraftActionCount] = useState(0);
@@ -81,22 +83,31 @@ export default function PlanSetup({ onReady }: { onReady?: () => void }) {
   useEffect(() => {
     if (!cohortId) return;
     let cancelled = false;
+    setLoadError(null);
     void Promise.all([getMyPlanSetupContext(cohortId), getMyPlanSettings(cohortId)]).then(([contextResult, settingsResult]) => {
       if (cancelled) return;
+      const settings = settingsResult.settings;
+      // Already live (e.g. this screen mounted again right after activating):
+      // go straight to My Actions instead of showing setup again.
+      if (settings?.isActive && onActivated) {
+        writeStorage(autoActivateKey(cohortId), null);
+        onReady?.();
+        void onActivated().catch(() => window.location.reload());
+        return;
+      }
       if (contextResult.error || !contextResult.context) {
         setLoadError(contextResult.error ?? "Your plan could not be loaded.");
         onReady?.();
         return;
       }
       const loaded = contextResult.context;
-      const settings = settingsResult.settings;
       const fromDraft: PlanSetupChoice | null = settings && !settings.isActive && !settings.isArchived
         ? {
-            track: settings.track === "daily" ? "daily" : "weekly",
-            actionCount: Math.min(3, Math.max(1, settings.actionCount)) as 1 | 2 | 3,
-            durationWeeks: settings.durationWeeks,
-            dayOfWeek: settings.daysOfWeek[0] ?? 2,
-          }
+          track: settings.track === "daily" ? "daily" : "weekly",
+          actionCount: Math.min(3, Math.max(1, settings.actionCount)) as 1 | 2 | 3,
+          durationWeeks: settings.durationWeeks,
+          dayOfWeek: settings.daysOfWeek[0] ?? 2,
+        }
         : null;
       const saved = readStorage<{ setup?: PlanSetupChoice; whatsappOn?: boolean; phoneDigits?: string }>(setupDraftKey(cohortId));
       setContext(loaded);
@@ -107,11 +118,16 @@ export default function PlanSetup({ onReady }: { onReady?: () => void }) {
       // WhatsApp is opt-in by default, unless the participant replied STOP before.
       setWhatsappOn(saved?.whatsappOn ?? !loaded.whatsapp.optedOut);
       setPhoneDigits(saved?.phoneDigits ?? loaded.whatsapp.phoneDigits);
+    }).catch(() => {
+      // A failed request must not leave an empty page behind.
+      if (cancelled) return;
+      setLoadError("Your plan could not be loaded. Please try again.");
+      onReady?.();
     });
     return () => {
       cancelled = true;
     };
-  }, [cohortId, maxWeeks]);
+  }, [cohortId, maxWeeks, loadAttempt]);
 
   const hasPlan = context ? hasPlanAnswers(context.answers) : false;
 
@@ -123,6 +139,21 @@ export default function PlanSetup({ onReady }: { onReady?: () => void }) {
     }
   }, [context, hasPlan, activation]);
 
+  // Show the generating screen while a run is in progress; hide it on an error
+  // or when the run is dropped. A fresh mount (activation still null) never
+  // hides it, since My Actions may be mid-handoff to the live plan.
+  const reportedGenerating = useRef(false);
+  useEffect(() => {
+    const generating = Boolean(activation && activation.stage !== "error");
+    if (generating) {
+      reportedGenerating.current = true;
+      onGeneratingChange?.(true);
+    } else if (reportedGenerating.current) {
+      reportedGenerating.current = false;
+      onGeneratingChange?.(false);
+    }
+  }, [activation, onGeneratingChange]);
+
   const finishActivation = useCallback(async () => {
     if (!cohortId) return;
     setActivation({ stage: "activating" });
@@ -133,23 +164,39 @@ export default function PlanSetup({ onReady }: { onReady?: () => void }) {
     }
     writeStorage(autoActivateKey(cohortId), null);
     writeStorage(setupDraftKey(cohortId), null);
-    setActivation({ stage: "done" });
-    // Let the success message show, then reload: My Actions switches to the live plan.
-    window.setTimeout(() => void refetch(), 1800);
-  }, [cohortId, refetch]);
+    // The generating screen stays up (stage "activating") while My Actions
+    // loads the live plan, then gives way straight to the actions: one loader
+    // from Activate to the finished page.
+    try {
+      await (onActivated ? onActivated() : refetch());
+    } catch {
+      // The plan is live; a full reload lands on it.
+      window.location.reload();
+    }
+  }, [cohortId, refetch, onActivated]);
 
-  // Reload after clicking Activate: pick the run back up from where it is.
+  // Reload after clicking Activate: put the generating screen straight back
+  // up, so the plan card doesn't show in between while we check on the run.
+  useLayoutEffect(() => {
+    if (cohortId && readStorage<boolean>(autoActivateKey(cohortId))) {
+      setActivation((current) => current ?? { stage: "starting" });
+    }
+  }, [cohortId]);
+
+  // ...then pick the run back up from where it is.
   useEffect(() => {
     if (!cohortId || !context || resumeChecked.current) return;
     if (!readStorage<boolean>(autoActivateKey(cohortId))) {
       resumeChecked.current = true;
       return;
     }
-    // The flag is only set once a draft exists; wait for the store to load it.
-    if (personalPlanState === "none") return;
+    // The draft can still be on its way; wait for the store to load it.
+    if (personalPlanState === "none" && isLoading) return;
     resumeChecked.current = true;
     if (personalPlanState !== "draft") {
+      // Nothing to resume (never saved, or already active).
       writeStorage(autoActivateKey(cohortId), null);
+      setActivation(null);
       return;
     }
     void refreshGenerationStatus().then((job) => {
@@ -162,7 +209,7 @@ export default function PlanSetup({ onReady }: { onReady?: () => void }) {
         void finishActivation();
       }
     }).catch(() => undefined);
-  }, [cohortId, context, personalPlanState, refreshGenerationStatus, finishActivation]);
+  }, [cohortId, context, personalPlanState, isLoading, refreshGenerationStatus, finishActivation]);
 
   // The store polls generation every few seconds; activate once our job settles.
   useEffect(() => {
@@ -284,11 +331,17 @@ export default function PlanSetup({ onReady }: { onReady?: () => void }) {
       <div className="actions-overview-head">
         <div>
           <h1>Your practice plan</h1>
-          <p>{hasPlan ? "One last step: activate your plan and we'll create your actions." : "Your personal practice plan lives here."}</p>
+          {/* <p>{hasPlan ? "One last step: activate your plan and we'll create your actions." : "Your personal practice plan lives here."}</p> */}
         </div>
       </div>
 
-      {loadError && <div className="plan-setup-error" role="alert">{loadError}</div>}
+      {loadError && (
+        <div className="plan-setup-error" role="alert">
+          {loadError}{" "}
+          <button type="button" className="plan-setup-retry" onClick={() => setLoadAttempt((n) => n + 1)}>Try again</button>
+        </div>
+      )}
+
 
       {context && !hasPlan && !formOpen && (
         <section className="plan-setup-empty">
@@ -321,19 +374,16 @@ export default function PlanSetup({ onReady }: { onReady?: () => void }) {
             </p>
             <ul className="plan-setup-rows">
               <li><CalendarDays size={15} aria-hidden="true" /> Reminders on {reminderLine}</li>
-              <li><Mail size={15} aria-hidden="true" /> Emails will come from <b>team@nudgeable.ai</b></li>
-              {context.email && <li><Mail size={15} aria-hidden="true" /> Your email: <b>{context.email}</b></li>}
-              {whatsappAvailable && (
-                <li><MessageCircle size={15} aria-hidden="true" /> Your WhatsApp no: <b>{whatsappOn && phoneDigits ? formatPhone(phoneDigits) : "Reminders off"}</b></li>
-              )}
+              <li><Mail size={15} aria-hidden="true" /> Emails will come from <b>team@nudgeable.app</b></li>
+              <li><Mail size={15} aria-hidden="true" /> Recap email every <b>Friday at 12:30 PM</b></li>
             </ul>
           </section>
         </div>
 
         <section className="plan-setup-activate">
           <div>
-            <strong>Ready when you are</strong>
-            <p>{activateHint ?? `We'll create your ${total} actions and switch them on.`}</p>
+            <strong>Convert plan into actions</strong>
+            <p>{activateHint ?? "One last step: activate your plan and we'll create your actions."}</p>
           </div>
           <button type="button" className="journey-primary-button" onClick={() => void activate()} disabled={Boolean(activation)}>
             <Sparkles size={16} /> Activate my plan
@@ -365,26 +415,16 @@ export default function PlanSetup({ onReady }: { onReady?: () => void }) {
         onSave={saveSetup}
       />
 
-      {/* While actions are created and the plan is switched on: the same
-          "Generating your actions" screen the earlier plan flow used. */}
-      {activation && (activation.stage === "starting" || activation.stage === "generating" || activation.stage === "activating")
-        && typeof document !== "undefined"
-        && createPortal(<ActionGenerationStory job={generationJob} />, document.body)}
-
-      {activation && (activation.stage === "done" || activation.stage === "error") && typeof document !== "undefined" && createPortal(
+      {activation?.stage === "error" && typeof document !== "undefined" && createPortal(
         <div className="actions-history-overlay plan-activation-overlay">
-          <section className={`actions-history-modal plan-activation-modal is-${activation.stage}`} role="dialog" aria-modal="true" aria-labelledby="plan-activation-title" aria-live="polite">
-            <span className="plan-activation-orb" aria-hidden="true">
-              {activation.stage === "done" ? <Check size={30} /> : <X size={28} />}
-            </span>
-            <h2 id="plan-activation-title">{activation.stage === "done" ? "Your actions are live 🎉" : "We couldn't finish your plan"}</h2>
-            <p>{activation.stage === "error" ? activation.message : "Your actions are created and switched on."}</p>
-            {activation.stage === "error" && (
-              <div className="plan-form-actions plan-activation-actions">
-                <button type="button" className="plan-form-cancel" onClick={() => setActivation(null)}>Close</button>
-                <button type="button" className="journey-primary-button" onClick={() => void activate()}>Try again</button>
-              </div>
-            )}
+          <section className="actions-history-modal plan-activation-modal is-error" role="dialog" aria-modal="true" aria-labelledby="plan-activation-title" aria-live="polite">
+            <span className="plan-activation-orb" aria-hidden="true"><X size={28} /></span>
+            <h2 id="plan-activation-title">We couldn&apos;t finish your plan</h2>
+            <p>{activation.message}</p>
+            <div className="plan-form-actions plan-activation-actions">
+              <button type="button" className="plan-form-cancel" onClick={() => setActivation(null)}>Close</button>
+              <button type="button" className="journey-primary-button" onClick={() => void activate()}>Try again</button>
+            </div>
           </section>
         </div>,
         document.body

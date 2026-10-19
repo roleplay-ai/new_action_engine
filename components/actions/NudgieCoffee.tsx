@@ -28,7 +28,7 @@ function usePrefersReducedMotion() {
 
 /**
  * Nudgie having a coffee break: shown on My Actions when nothing is due.
- * Drawn to match the /public/loader GIFs (same 240×240 frame, #f6e412 body,
+ * Drawn to match the /public/loader GIFs (same 240×240 frame, brand-yellow #ffce00 body,
  * thin black outline, thinner brows, stick limbs with round hands and oval
  * feet, happy closed eyes, purple prop).
  *
@@ -56,7 +56,7 @@ export default function NudgieCoffee({ className = "" }: { className?: string })
       <g className="nudgie-coffee-body">
         <path d="M96 140 C 80 144, 80 158, 93 161" stroke="#000" strokeWidth="2.6" strokeLinecap="round" fill="none" />
         <circle cx="94" cy="161" r="4.6" fill="#000" />
-        <rect x="96" y="92" width="50" height="90" rx="25" fill="#f6e412" stroke="#000" strokeWidth="2.6" />
+        <rect x="96" y="92" width="50" height="90" rx="25" fill="#ffce00" stroke="#000" strokeWidth="2.6" />
         {/* Brows */}
         <path d="M106 103 q5 -4 10 0" stroke="#000" strokeWidth="1.8" strokeLinecap="round" fill="none" />
         <path d="M126 103 q5 -4 10 0" stroke="#000" strokeWidth="1.8" strokeLinecap="round" fill="none" />

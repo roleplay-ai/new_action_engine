@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleX, Clock3, Hand, History, Hourglass, Lightbulb, ListChecks, Loader2, Mail, MessageCircle, Pencil, SlidersHorizontal, TrendingDown, TrendingUp, UsersRound, X } from "lucide-react";
+import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleX, Clock3, Hand, History, Hourglass, Lightbulb, ListChecks, Loader2, Mail, MessageCircle, Pencil,TrendingDown, TrendingUp, UsersRound, X } from "lucide-react";
 import { useEngine } from "@/lib/store";
 import { getMyPlanSettings, syncMyDuePersonalActions, updateUpcomingPersonalAction, type MyPlanSettings } from "@/app/actions/ai-actions";
 import type { ActionCard } from "@/lib/types";
@@ -20,9 +20,9 @@ import { nextMilestoneFor, milestonePoints } from "@/lib/commitment-wallet-miles
 import { usePageLoading, usePageLoadingControls } from "@/components/PageLoadingProvider";
 import ConfettiCelebration from "@/components/ConfettiCelebration";
 import PageLoader from "@/components/PageLoader";
-import EditPlanDrawer from "@/components/actions/EditPlanDrawer";
 import WhatsAppReminderPreview from "@/components/actions/WhatsAppReminderPreview";
 import PlanSetup from "@/components/actions/PlanSetup";
+import ActionGenerationStory from "@/components/ActionGenerationStory";
 import NudgieCoffee from "@/components/actions/NudgieCoffee";
 import ActionCheckinModal from "@/components/actions/ActionCheckinModal";
 import { clearEmailSequence, startEmailSequencePhase, waitForEmailSequencePhase } from "@/lib/email-link-sequence";
@@ -412,9 +412,8 @@ function ReminderEmailPreview({
 
 export default function ActionsClient() {
   const router = useRouter();
-  const { profile, cohort, personalPlanState, allActions, userActions, completeAction, dismissPendingValidation, refetch } = useEngine();
+  const { profile, cohort, personalPlanState, allActions, userActions, completeAction, dismissPendingValidation, refetch, generationJob } = useEngine();
   const [historyTab, setHistoryTab] = useState<HistoryTab | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [preview, setPreview] = useState<"email" | "whatsapp" | null>(null);
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   const [highlightEdits, setHighlightEdits] = useState(false);
@@ -463,10 +462,34 @@ export default function ActionsClient() {
   // ready; keep the loading screen up until it says it's ready too.
   const [setupReady, setSetupReady] = useState(false);
   useEffect(() => setSetupReady(false), [cohort?.id]);
+  // True from "Your actions are live" until the live plan has loaded, so plan
+  // setup stays on screen instead of flashing an empty page.
+  const [handingOff, setHandingOff] = useState(false);
+  // "Generating your actions" lives here, not in PlanSetup, so it stays up
+  // from Activate until Current actions are on screen, even if PlanSetup
+  // re-renders or the page reloads its data in between.
+  const [generating, setGenerating] = useState(false);
+  const loadedCohortId = useRef<string | null | undefined>(undefined);
+
+  const cohortId = cohort?.id;
+  const loadActivatedPlan = useCallback(async () => {
+    setHandingOff(true);
+    setGenerating(true);
+    try {
+      const [, settingsResult] = await Promise.all([refetch(), getMyPlanSettings(cohortId)]);
+      setSettings(settingsResult.settings);
+    } finally {
+      setHandingOff(false);
+      setGenerating(false);
+    }
+  }, [refetch, cohortId]);
 
   useEffect(() => {
     let cancelled = false;
-    setReady(false);
+    // Only a batch switch blanks the page; a plan-state change (e.g. right
+    // after activation) refreshes in place.
+    if (loadedCohortId.current !== cohort?.id) setReady(false);
+    loadedCohortId.current = cohort?.id;
     void (async () => {
       // Current actions and Next reminders only need these two calls, so
       // resolve just them and let the page paint immediately — commitment
@@ -555,7 +578,8 @@ export default function ActionsClient() {
   const currentActions = scheduled.map((item) => ({ userAction: item, action: actionMap.get(item.actionId)! }));
   const upcoming = planCanPerform ? allActions.filter((action) => action.isPersonal && !usedActionIds.has(action.id)) : [];
   const showPlanSetup = Boolean(cohort) && !planCanPerform && cohort?.isCurrent !== false && personalPlanState !== "active" && personalPlanState !== "archived";
-  usePageLoading(!ready || (showPlanSetup && !setupReady));
+  // The generating screen covers everything, so no second loader underneath it.
+  usePageLoading(!generating && (!ready || (showPlanSetup && !setupReady)));
   const fallbackReminderAction: ReminderPreviewAction = {
     title: "Turn one learning into a question",
     how: "Before your next conversation, write one open question that helps you understand the other person's perspective.",
@@ -739,9 +763,8 @@ export default function ActionsClient() {
     }
   }
 
-  /** "Edit an action" in the drawer: open the full list and point at the ✎ buttons. */
+  /** "Edit my actions": open the full upcoming list and point at the ✎ buttons. */
   function startEditingActions() {
-    setDrawerOpen(false);
     setShowAllUpcoming(true);
     setHighlightEdits(true);
     window.setTimeout(() => setHighlightEdits(false), 2400);
@@ -795,11 +818,18 @@ export default function ActionsClient() {
     await refetch();
   }
 
-  if (!ready) return null;
+  const generatingScreen = generating && typeof document !== "undefined"
+    ? createPortal(<ActionGenerationStory job={generationJob} />, document.body)
+    : null;
+
+  if (!ready) return generatingScreen;
 
   // No live plan yet in the current batch: write the plan and activate it right here.
-  if (showPlanSetup) {
-    return <PlanSetup onReady={() => setSetupReady(true)} />;
+  if (showPlanSetup || handingOff) {
+    return <>
+      {generatingScreen}
+      <PlanSetup onReady={() => setSetupReady(true)} onActivated={loadActivatedPlan} onGeneratingChange={setGenerating} />
+    </>;
   }
 
   const visibleUpcoming = planIsArchived || showAllUpcoming ? upcoming : upcoming.slice(0, UPCOMING_PREVIEW_COUNT);
@@ -828,9 +858,9 @@ export default function ActionsClient() {
           <History size={16} /> History
           {pendingValidation.length > 0 && <span className="actions-head-badge" aria-label={`${pendingValidation.length} pending validation`}>{pendingValidation.length}</span>}
         </button>
-        {planIsActive && (
-          <button type="button" className="actions-head-button actions-head-button--primary" onClick={() => setDrawerOpen(true)}>
-            <SlidersHorizontal size={16} /> Edit my plan
+        {planIsActive && upcoming.length > 0 && (
+          <button type="button" className="actions-head-button actions-head-button--primary" onClick={startEditingActions}>
+            <Pencil size={16} /> Edit my actions
           </button>
         )}
       </div>
@@ -913,7 +943,7 @@ export default function ActionsClient() {
           <span className="actions-edit-tip-icon" aria-hidden="true"><Lightbulb size={18} /></span>
           <div>
             <strong>You can change your plan anytime</strong>
-            <p>Use <b>Edit my plan</b> to see your options. Tap <b>✎</b> on any upcoming action to reword it.</p>
+            <p>Use <b>Edit my actions</b> or tap <b>✎</b> on any upcoming action to reword it.</p>
           </div>
           <button type="button" onClick={dismissTip}>Got it</button>
         </div>
@@ -988,16 +1018,6 @@ export default function ActionsClient() {
         )}
       </div>
     </div>
-
-    <EditPlanDrawer
-      open={drawerOpen}
-      onClose={() => setDrawerOpen(false)}
-      settings={settings}
-      cohortId={cohort?.id ?? null}
-      upcomingCount={upcoming.length}
-      onEditActions={startEditingActions}
-      onPreview={(channel) => setPreview(channel)}
-    />
 
     {typeof document !== "undefined" && historyTab && createPortal(
       <div className="actions-history-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setHistoryTab(null); }}>

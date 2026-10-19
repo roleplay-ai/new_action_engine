@@ -87,7 +87,7 @@ export default function SurprisesClient({ shelf, revealUnlockIds }: { shelf: Sur
                     <Gift variant={giftVariant(box)} locked />
                     <div>
                       <strong>Box {box.slot}</strong>
-                      <small>Unlocks when you complete: {box.actionTitle}</small>
+                      <small>Unlocks when you complete your next action</small>
                     </div>
                   </div>
                 ))}

@@ -22075,6 +22075,17 @@ button.surprise-tile:focus-visible,
   background: #fde2e4;
 }
 
+.plan-setup-retry {
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: none;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .plan-setup-empty {
   display: flex;
   flex-direction: column;

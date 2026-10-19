@@ -10,6 +10,7 @@ import {
   computeNextDeliveryAt,
   computeTotalActionsNeeded,
   advanceNextDeliveryAt,
+  getWeekdayIST,
   BACKGROUND_BATCH_SIZE,
   buildTrainingContext,
   DAILY_DELIVERY_DAYS,
@@ -169,9 +170,13 @@ export async function getDraftPlanSchedule(): Promise<{
     const releaseDates: string[] = [];
     let nextRelease = firstCadenceAt;
     const batchCount = Math.ceil((count ?? 0) / actionCountPerRelease);
-    // Every batch follows the chosen cadence. Daily plans begin on the next
-    // weekday; weekly plans begin on the next selected weekday.
-    for (let batchIndex = 0; batchIndex < batchCount; batchIndex += 1) {
+    // The first batch is released at activation; the rest follow the chosen
+    // cadence (next weekday for daily plans, next selected weekday for weekly).
+    // Daily plans activated on a weekend wait for the next weekday instead.
+    const firstIsImmediate = subscription.track !== "daily"
+      || (DAILY_DELIVERY_DAYS as readonly number[]).includes(getWeekdayIST(getCurrentISTDate()));
+    if (firstIsImmediate && batchCount > 0) releaseDates.push(new Date().toISOString());
+    for (let batchIndex = releaseDates.length; batchIndex < batchCount; batchIndex += 1) {
       releaseDates.push(nextRelease);
       nextRelease = advanceNextDeliveryAt(
         nextRelease,
@@ -187,7 +192,7 @@ export async function getDraftPlanSchedule(): Promise<{
         const batchNumber = Math.floor(index / actionCountPerRelease) + 1;
         return {
           plannedAt: releaseDates[batchNumber - 1],
-          isImmediate: false,
+          isImmediate: firstIsImmediate && batchNumber === 1,
           batchNumber,
         };
       }),
@@ -457,8 +462,10 @@ async function sendPlanActivatedSummaryEmail(params: {
     time_of_day_utc: string;
   };
   nextDeliveryAt: string;
+  /** The first batch was released at activation, before nextDeliveryAt. */
+  firstBatchReleasedNow?: boolean;
 }): Promise<void> {
-  const { supabase, userId, userEmail, cohortId, sub, nextDeliveryAt } = params;
+  const { supabase, userId, userEmail, cohortId, sub, nextDeliveryAt, firstBatchReleasedNow } = params;
   try {
     const fromEmail = process.env.RESEND_FROM_EMAIL;
     if (!fromEmail) return;
@@ -506,12 +513,16 @@ async function sendPlanActivatedSummaryEmail(params: {
     // assignScheduledBatch() uses to release them for real: one action per
     // weekday for daily plans, daily_action_count actions per cycle for
     // weekly ones — so the dates shown here match what actually happens.
+    // When the first batch went out at activation it is dated today and the
+    // second batch lands on nextDeliveryAt.
     const daysOfWeek = sub.days_of_week ?? (sub.day_of_week != null ? [sub.day_of_week] : null);
     const batchSize = sub.track === "daily" ? 1 : Math.max(1, sub.daily_action_count ?? 1);
-    let cursor = nextDeliveryAt;
+    let cursor = firstBatchReleasedNow ? new Date().toISOString() : nextDeliveryAt;
     const actions = (actionRows ?? []).map((row, index) => {
       if (index > 0 && index % batchSize === 0) {
-        cursor = advanceNextDeliveryAt(cursor, sub.track, daysOfWeek, sub.time_of_day_utc);
+        cursor = firstBatchReleasedNow && index === batchSize
+          ? nextDeliveryAt
+          : advanceNextDeliveryAt(cursor, sub.track, daysOfWeek, sub.time_of_day_utc);
       }
       return { title: row.title as string, date: utcToISTDate(cursor), imageUrl: (row.image_url as string | null) ?? undefined };
     });
@@ -640,6 +651,14 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
     });
     if (activationError) return { error: activationError.message };
 
+    // Release the first batch right away so the participant starts practising
+    // today. next_delivery_at stays on the next cadence day, which brings the
+    // second batch. (Daily plans activated on a weekend still wait for Monday.)
+    const { assigned: releasedNow } = await assignScheduledBatch(
+      { ...sub, track: sub.track as DeliveryTrack, next_delivery_at: nextDeliveryAt },
+      { advanceCadence: false }
+    );
+
     await supabase.from("profiles").update({ self_onboarding_completed_at: new Date().toISOString() }).eq("id", user.id);
 
     // Give each frozen action a random Surprise Box resource. Background and
@@ -667,6 +686,7 @@ export async function activatePersonalActionPlan(): Promise<{ error?: string }> 
             time_of_day_utc: sub.time_of_day_utc,
           },
           nextDeliveryAt,
+          firstBatchReleasedNow: releasedNow > 0,
         })
       );
     }

@@ -216,6 +216,8 @@ const SURPRISE_BOX_GIF = `${EMAIL_ASSETS_URL}/surprise-box.gif`;
 
 const NUDGIE_FALLBACK_LOGO_URL = `${NUDGE_APP_URL}/NudgeableBlack.png`;
 const NUDGIE_SUPPORT_EMAIL = "team@nudgeable.ai";
+/** The address participant emails are sent from (RESEND_FROM_EMAIL). */
+const NUDGIE_SENDER_EMAIL = "team@nudgeable.app";
 
 /** Alternating accent (border, top/left stripe) for stacked action cards. */
 const NUDGIE_CARD_ACCENTS = [
@@ -453,6 +455,7 @@ function renderCredentialsHtml(data: EmailTemplateData): string {
     mascotUrl: NUDGIE_GIF.welcome,
     bodyHtml: `${nudgieCredentialsHtml(str(data, "login_email"), str(data, "temporary_password"))}
           ${nudgieButtonHtml(loginUrl, "Log in")}
+          <p style="${NUDGIE_MUTED_STYLE}">Please mark emails from <strong style="color:#292932;">${NUDGIE_SENDER_EMAIL}</strong> as important so your action reminders don’t end up in spam or Promotions.</p>
           ${nudgieHeadingHtml("How it works")}
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 20px;">${stepsHtml}</table>
           ${nudgieHelpHtml("Need help logging in?", "Email us")}`,

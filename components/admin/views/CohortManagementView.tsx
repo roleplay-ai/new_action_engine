@@ -57,6 +57,7 @@ import {
   BATCH_EMAIL_SUBJECT_MAX,
   BATCH_EMAIL_SUBJECT_OPTIONS,
   BATCH_EMAIL_SUBJECT_VARIABLES,
+  type BatchEmailSubjectKey,
   type BatchEmailSubjects,
 } from "@/lib/batch-email-subjects";
 import { uploadCohortLogo } from "@/lib/cohort-logo-upload";
@@ -895,14 +896,26 @@ function CohortDetailPanel({
     );
   }
 
+  // Fields start filled with the default subject so it can be edited in
+  // place. Text matching the default (or left blank) is saved as "no
+  // override", so the email keeps using its built-in default subject.
+  const subjectFieldValue = (subjects: BatchEmailSubjects | undefined, key: BatchEmailSubjectKey) =>
+    subjects?.[key] ?? BATCH_EMAIL_SUBJECT_OPTIONS[key].defaultSubject;
+  const subjectOverride = (subjects: BatchEmailSubjects | undefined, key: BatchEmailSubjectKey) => {
+    const value = subjectFieldValue(subjects, key).trim();
+    return value === BATCH_EMAIL_SUBJECT_OPTIONS[key].defaultSubject ? "" : value;
+  };
   const emailSubjectsDirty = BATCH_EMAIL_SUBJECT_KEYS.some(
-    (key) => (emailSubjects[key] ?? "").trim() !== (cohort.emailSubjects?.[key] ?? "").trim()
+    (key) => subjectOverride(emailSubjects, key) !== subjectOverride(cohort.emailSubjects, key)
   );
 
   async function handleSaveEmailSubjects() {
+    const overrides = Object.fromEntries(
+      BATCH_EMAIL_SUBJECT_KEYS.map((key) => [key, subjectOverride(emailSubjects, key)])
+    );
     await runMutation(
       "save-email-subjects",
-      () => updateCohort(cohort.id, { emailSubjects }),
+      () => updateCohort(cohort.id, { emailSubjects: overrides }),
       { syncList: true }
     );
   }
@@ -1629,7 +1642,7 @@ function CohortDetailPanel({
                 <div>
                   <h3>Email subjects</h3>
                   <p>
-                    Custom subject lines for this batch's reminder emails. Leave a field blank to keep the default.
+                    Subject lines for this batch's reminder emails, starting from the default. Edit a field to customise it, or use "Reset to default" to go back.
                     Placeholders: {BATCH_EMAIL_SUBJECT_VARIABLES.map((variable, index) => (
                       <span key={variable.key}>{index > 0 && ", "}<code title={variable.label}>{`{{${variable.key}}}`}</code></span>
                     ))}
@@ -1638,7 +1651,8 @@ function CohortDetailPanel({
               </div>
               {BATCH_EMAIL_SUBJECT_KEYS.map((key) => {
                 const option = BATCH_EMAIL_SUBJECT_OPTIONS[key];
-                const value = emailSubjects[key] ?? "";
+                const value = subjectFieldValue(emailSubjects, key);
+                const isDefault = !subjectOverride(emailSubjects, key);
                 return (
                   <div key={key} className="cohort-admin-panel-action">
                     <label className="cohort-admin-field" style={{ flex: 1 }}>
@@ -1648,17 +1662,16 @@ function CohortDetailPanel({
                         onChange={(event) => setEmailSubjects((current) => ({ ...current, [key]: event.target.value }))}
                         disabled={Boolean(busyAction)}
                         maxLength={BATCH_EMAIL_SUBJECT_MAX}
-                        placeholder={option.defaultSubject}
                       />
                     </label>
                     <button
                       type="button"
-                      onClick={() => setEmailSubjects((current) => ({ ...current, [key]: "" }))}
-                      disabled={Boolean(busyAction) || !value}
+                      onClick={() => setEmailSubjects((current) => ({ ...current, [key]: option.defaultSubject }))}
+                      disabled={Boolean(busyAction) || isDefault}
                       className="cohort-admin-button cohort-admin-button--secondary"
-                      title="Clear to use the default subject"
+                      title="Restore the default subject"
                     >
-                      <X size={15} /> Use default
+                      <X size={15} /> Reset to default
                     </button>
                   </div>
                 );

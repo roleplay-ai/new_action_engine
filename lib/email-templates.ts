@@ -249,8 +249,10 @@ function nudgieHelpHtml(prompt: string, linkText: string, after = "."): string {
 }
 
 function nudgieCredentialsHtml(loginEmail: string, password: string): string {
+  const platformHost = NUDGE_APP_URL.replace(/^https?:\/\//, "");
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#fafafa" style="width:100%;background-color:#fafafa;border:1px solid #e7e7e9;border-radius:12px;margin:0 0 20px;">
-            <tr><td style="padding:18px 20px 10px;"><p style="margin:0 0 4px;font-size:12px;line-height:18px;color:#6b6b75;">Login ID</p><p style="margin:0;font-size:16px;line-height:24px;color:#292932;word-break:break-word;">${esc(loginEmail)}</p></td></tr>
+            <tr><td style="padding:18px 20px 10px;"><p style="margin:0 0 4px;font-size:12px;line-height:18px;color:#6b6b75;">Platform link</p><p style="margin:0;font-size:16px;line-height:24px;word-break:break-word;"><a href="${NUDGE_APP_URL}" target="_blank" style="color:#087f46;text-decoration:underline;font-weight:600;">${platformHost}</a></p></td></tr>
+            <tr><td style="padding:0 20px 10px;"><p style="margin:0 0 4px;font-size:12px;line-height:18px;color:#6b6b75;">Login ID</p><p style="margin:0;font-size:16px;line-height:24px;color:#292932;word-break:break-word;">${esc(loginEmail)}</p></td></tr>
             <tr><td style="padding:0 20px 18px;"><p style="margin:0 0 4px;font-size:12px;line-height:18px;color:#6b6b75;">Password</p><p style="margin:0;font-size:16px;line-height:24px;color:#292932;word-break:break-word;">${esc(password)}</p></td></tr>
           </table>`;
 }
@@ -453,9 +455,11 @@ function renderCredentialsHtml(data: EmailTemplateData): string {
     intro: "Log in to create your action plan and start practising at work.",
     mascotCaption: "Let’s get started.",
     mascotUrl: NUDGIE_GIF.welcome,
-    bodyHtml: `${nudgieCredentialsHtml(str(data, "login_email"), str(data, "temporary_password"))}
+    bodyHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#fff8db" style="width:100%;background-color:#fff8db;border:1px solid #f0dc8f;border-left:4px solid #ffcf00;border-radius:10px;margin:0 0 20px;"><tr><td style="padding:14px 18px;">
+            <p style="margin:0;font-size:15px;line-height:23px;color:#3d3420;"><strong style="color:#292932;">Important:</strong> Please mark emails from <strong style="color:#292932;">${NUDGIE_SENDER_EMAIL}</strong> as important so your action reminders don’t end up in spam or Promotions.</p>
+          </td></tr></table>
+          ${nudgieCredentialsHtml(str(data, "login_email"), str(data, "temporary_password"))}
           ${nudgieButtonHtml(loginUrl, "Log in")}
-          <p style="${NUDGIE_MUTED_STYLE}">Please mark emails from <strong style="color:#292932;">${NUDGIE_SENDER_EMAIL}</strong> as important so your action reminders don’t end up in spam or Promotions.</p>
           ${nudgieHeadingHtml("How it works")}
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 20px;">${stepsHtml}</table>
           ${nudgieHelpHtml("Need help logging in?", "Email us")}`,

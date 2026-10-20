@@ -36,7 +36,21 @@ export const BATCH_EMAIL_SUBJECT_VARIABLES = [
   { key: "batch_name", label: "Batch name" },
   { key: "module_name", label: "Module name" },
   { key: "action_count", label: "Number of actions in the email" },
+  { key: "commitment_drop", label: "Participant's commitment score drop since last week (e.g. 12)" },
+  { key: "buddy_commitment_drop", label: "Commitment buddy's score drop since last week (e.g. 12)" },
 ] as const;
+
+/** Placeholders that only make sense when there was a drop: a subject using
+ * one of them is skipped (default subject sent) when that value is missing. */
+const DROP_VARIABLES = new Set(["commitment_drop", "buddy_commitment_drop"]);
+
+/** Whole-point drop in Commitment Score (80 → 68 gives 12), or null when the
+ * score held, rose, or either side is unknown. */
+export function commitmentScoreDrop(previous: number | null | undefined, current: number | null | undefined): number | null {
+  if (typeof previous !== "number" || typeof current !== "number") return null;
+  const drop = Math.round(previous - current);
+  return drop > 0 ? drop : null;
+}
 
 export const BATCH_EMAIL_SUBJECT_MAX = 200;
 
@@ -90,8 +104,16 @@ export function sanitizeBatchEmailSubjects(
 }
 
 /** Fills placeholders for one recipient. Missing values render as empty and
- * leftover separators/whitespace are tidied. */
+ * leftover separators/whitespace are tidied. Returns "" (use the default
+ * subject) when the subject relies on a commitment drop this recipient
+ * doesn't have. */
 export function renderBatchEmailSubject(subject: string, values: Record<string, unknown>): string {
+  const needsMissingDrop = [...subject.matchAll(VARIABLE_PATTERN)].some(([, name]) => {
+    if (!DROP_VARIABLES.has(name)) return false;
+    const value = values[name];
+    return typeof value !== "number" || value <= 0;
+  });
+  if (needsMissingDrop) return "";
   return subject
     .replace(VARIABLE_PATTERN, (_, name: string) => {
       if (!KNOWN_VARIABLES.has(name)) return "";

@@ -52,6 +52,13 @@ import {
   type BuddyMappingMember,
 } from "@/app/actions/commitment-buddies-admin";
 import { nextUpcomingCohortDate } from "@/lib/cohort-dates";
+import {
+  BATCH_EMAIL_SUBJECT_KEYS,
+  BATCH_EMAIL_SUBJECT_MAX,
+  BATCH_EMAIL_SUBJECT_OPTIONS,
+  BATCH_EMAIL_SUBJECT_VARIABLES,
+  type BatchEmailSubjects,
+} from "@/lib/batch-email-subjects";
 import { uploadCohortLogo } from "@/lib/cohort-logo-upload";
 import {
   assignContentToCohort,
@@ -91,6 +98,7 @@ type CohortSummary = {
   programPhases?: ProgramPhase[];
   currentPhaseId?: string | null;
   maxWeeks?: number | null;
+  emailSubjects?: BatchEmailSubjects;
 };
 
 type CompanyUser = { id: string; full_name: string | null; email: string | null };
@@ -576,6 +584,7 @@ function CohortDetailPanel({
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>(cohort.trainerId ?? "");
   const [senderName, setSenderName] = useState<string>(cohort.senderName ?? "");
   const [maxWeeks, setMaxWeeks] = useState<string>(cohort.maxWeeks != null ? String(cohort.maxWeeks) : "");
+  const [emailSubjects, setEmailSubjects] = useState<BatchEmailSubjects>(cohort.emailSubjects ?? {});
   const [notices, setNotices] = useState<CohortNotice[]>([]);
   const [noticeDraft, setNoticeDraft] = useState("");
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
@@ -652,6 +661,7 @@ function CohortDetailPanel({
     setSelectedTrainerId(detailResult.cohort?.trainerId ?? "");
     setSenderName(detailResult.cohort?.senderName ?? "");
     setMaxWeeks(detailResult.cohort?.maxWeeks != null ? String(detailResult.cohort.maxWeeks) : "");
+    setEmailSubjects(detailResult.cohort?.emailSubjects ?? {});
     // Merge (not replace) so a just-created, not-yet-assigned team stays in
     // the list even though it can't come back from the roster itself.
     setCohortTags((current) => mergeTagsFromMembers(detailResult.members ?? [], current));
@@ -704,6 +714,7 @@ function CohortDetailPanel({
         trainerId?: string;
         senderName?: string;
         maxWeeks?: number | null;
+        emailSubjects?: BatchEmailSubjects;
         companyUsers?: CompanyUser[];
         assignedContentIds?: string[];
         libraryItems?: PrepareContentItem[];
@@ -729,6 +740,7 @@ function CohortDetailPanel({
       setSelectedTrainerId(payload.trainerId ?? "");
       setSenderName(payload.senderName ?? "");
       setMaxWeeks(payload.maxWeeks != null ? String(payload.maxWeeks) : "");
+      setEmailSubjects(payload.emailSubjects ?? {});
       setNotices(payload.notices ?? []);
       setFacilitators(payload.facilitators ?? []);
     } catch (caughtError) {
@@ -879,6 +891,18 @@ function CohortDetailPanel({
     await runMutation(
       "save-sender-name",
       () => updateCohort(cohort.id, { senderName }),
+      { syncList: true }
+    );
+  }
+
+  const emailSubjectsDirty = BATCH_EMAIL_SUBJECT_KEYS.some(
+    (key) => (emailSubjects[key] ?? "").trim() !== (cohort.emailSubjects?.[key] ?? "").trim()
+  );
+
+  async function handleSaveEmailSubjects() {
+    await runMutation(
+      "save-email-subjects",
+      () => updateCohort(cohort.id, { emailSubjects }),
       { syncList: true }
     );
   }
@@ -1598,6 +1622,60 @@ function CohortDetailPanel({
               </button>
             </div>
           </section>
+
+          {role === "superadmin" && (
+            <section className="cohort-admin-panel cohort-admin-panel--wide">
+              <div className="cohort-admin-panel-head">
+                <div>
+                  <h3>Email subjects</h3>
+                  <p>
+                    Custom subject lines for this batch's reminder emails. Leave a field blank to keep the default.
+                    Placeholders: {BATCH_EMAIL_SUBJECT_VARIABLES.map((variable, index) => (
+                      <span key={variable.key}>{index > 0 && ", "}<code title={variable.label}>{`{{${variable.key}}}`}</code></span>
+                    ))}
+                  </p>
+                </div>
+              </div>
+              {BATCH_EMAIL_SUBJECT_KEYS.map((key) => {
+                const option = BATCH_EMAIL_SUBJECT_OPTIONS[key];
+                const value = emailSubjects[key] ?? "";
+                return (
+                  <div key={key} className="cohort-admin-panel-action">
+                    <label className="cohort-admin-field" style={{ flex: 1 }}>
+                      <span>{option.label} <em>{option.description}</em></span>
+                      <input
+                        value={value}
+                        onChange={(event) => setEmailSubjects((current) => ({ ...current, [key]: event.target.value }))}
+                        disabled={Boolean(busyAction)}
+                        maxLength={BATCH_EMAIL_SUBJECT_MAX}
+                        placeholder={option.defaultSubject}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setEmailSubjects((current) => ({ ...current, [key]: "" }))}
+                      disabled={Boolean(busyAction) || !value}
+                      className="cohort-admin-button cohort-admin-button--secondary"
+                      title="Clear to use the default subject"
+                    >
+                      <X size={15} /> Use default
+                    </button>
+                  </div>
+                );
+              })}
+              <div className="cohort-admin-panel-action">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveEmailSubjects()}
+                  disabled={Boolean(busyAction) || !emailSubjectsDirty}
+                  className="cohort-admin-button cohort-admin-button--primary"
+                >
+                  {busyAction === "save-email-subjects" ? <Loader2 size={15} className="cohort-admin-spin" /> : <Check size={15} />}
+                  {busyAction === "save-email-subjects" ? "Saving…" : "Save subjects"}
+                </button>
+              </div>
+            </section>
+          )}
 
           <section className="cohort-admin-panel">
             <div className="cohort-admin-panel-head"><div><h3>Maximum plan duration</h3><p>Caps how many weeks a participant can choose when building their action plan for this batch. Leave blank to allow up to the platform default of 24 weeks.</p></div></div>

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Cohort, CohortDate, CohortMember, CohortOption, CompanyBrand, ProgramPhase, Trainer } from "@/lib/types";
 import { parseProgramPhasesJson } from "@/lib/program-phases";
+import { parseBatchEmailSubjects, sanitizeBatchEmailSubjects } from "@/lib/batch-email-subjects";
 
 const COHORT_LOGOS_BUCKET = "cohort-logos";
 
@@ -233,6 +234,10 @@ export async function updateCohort(
     /** Cap (in weeks) on how long a participant's action plan for this batch
      * may run. Null clears it back to the global 2-24 week range. */
     maxWeeks?: number | null;
+    /** Subject overrides keyed by email (daily_reminder, weekly_recap).
+     * Replaces the stored set; blank entries fall back to the default.
+     * Superadmin only. */
+    emailSubjects?: Record<string, string | null | undefined>;
   }
 ): Promise<{ error?: string }> {
   try {
@@ -246,6 +251,9 @@ export async function updateCohort(
       }
       if (params.trainerId !== undefined) {
         return { error: "Only a superadmin can assign this batch's trainer" };
+      }
+      if (params.emailSubjects !== undefined) {
+        return { error: "Only a superadmin can change this batch's email subjects" };
       }
     }
 
@@ -276,6 +284,11 @@ export async function updateCohort(
         return { error: "Maximum plan weeks must be between 2 and 24" };
       }
       updates.max_weeks = params.maxWeeks;
+    }
+    if (params.emailSubjects !== undefined) {
+      const { subjects, error: subjectsError } = sanitizeBatchEmailSubjects(params.emailSubjects);
+      if (subjectsError) return { error: subjectsError };
+      updates.email_subjects = subjects;
     }
 
     const { error } = await supabase.from("cohorts").update(updates).eq("id", id);
@@ -490,7 +503,7 @@ export async function listCohorts(companyId: string): Promise<{
       supabase.from("companies").select("id, name, logo_url").eq("id", companyId).single(),
       supabase
         .from("cohorts")
-        .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, trainer_id, sender_name, locked, program_phases, current_phase_id, max_weeks")
+        .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, trainer_id, sender_name, email_subjects, locked, program_phases, current_phase_id, max_weeks")
         .eq("company_id", companyId)
         .is("archived_at", null)
         .order("created_at", { ascending: false }),
@@ -517,7 +530,7 @@ export async function listCohorts(companyId: string): Promise<{
 
     return {
       company: companyBrand,
-      cohorts: cohorts.map((c: { id: string; name: string; batch_name: string; module_name: string | null; description: string | null; training_content: string | null; business_context: string | null; logo_url: string | null; trainer_id: string | null; sender_name: string | null; locked: boolean; program_phases: ProgramPhase[]; current_phase_id: string | null; max_weeks: number | null }) => ({
+      cohorts: cohorts.map((c: { id: string; name: string; batch_name: string; module_name: string | null; description: string | null; training_content: string | null; business_context: string | null; logo_url: string | null; trainer_id: string | null; sender_name: string | null; email_subjects: unknown; locked: boolean; program_phases: ProgramPhase[]; current_phase_id: string | null; max_weeks: number | null }) => ({
         id: c.id,
         name: c.name,
         batchName: c.batch_name,
@@ -532,6 +545,7 @@ export async function listCohorts(companyId: string): Promise<{
         trainerId: c.trainer_id,
         trainer: c.trainer_id ? trainerMap.get(c.trainer_id) ?? null : null,
         senderName: c.sender_name,
+        emailSubjects: parseBatchEmailSubjects(c.email_subjects),
         locked: c.locked,
         programPhases: c.program_phases ?? [],
         currentPhaseId: c.current_phase_id,
@@ -553,7 +567,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
 
     const { data: cohort } = await supabase
       .from("cohorts")
-      .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, company_id, trainer_id, sender_name, locked, program_phases, current_phase_id, max_weeks")
+      .select("id, name, batch_name, module_name, description, training_content, business_context, logo_url, company_id, trainer_id, sender_name, email_subjects, locked, program_phases, current_phase_id, max_weeks")
       .eq("id", cohortId)
       .single();
     if (!cohort) return { error: "Batch not found" };
@@ -587,6 +601,7 @@ export async function getCohortDetail(cohortId: string): Promise<{
         trainerId: cohort.trainer_id,
         trainer: cohort.trainer_id ? trainerMap.get(cohort.trainer_id) ?? null : null,
         senderName: cohort.sender_name,
+        emailSubjects: parseBatchEmailSubjects(cohort.email_subjects),
         locked: cohort.locked,
         programPhases: cohort.program_phases ?? [],
         currentPhaseId: cohort.current_phase_id,

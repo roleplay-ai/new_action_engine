@@ -13,6 +13,7 @@ import {
   renderNudgeSubject,
   type NudgeKind,
 } from "./nudge-email-content";
+import { renderBatchEmailSubject } from "./batch-email-subjects";
 
 export type EmailTemplateData = Record<string, unknown>;
 
@@ -906,6 +907,16 @@ function renderNudgeEmail(kind: NudgeKind, data: EmailTemplateData): string {
 
 // ─── Registry ───────────────────────────────────────────────────────────────
 
+/** The batch's custom subject (`batch_subject`, set per batch by a superadmin
+ * — see lib/batch-email-subjects.ts) with placeholders filled, or "" to use
+ * the default subject. */
+function batchSubject(data: EmailTemplateData): string {
+  const template = str(data, "batch_subject");
+  if (!template) return "";
+  const actionCount = Array.isArray(data.actions) ? data.actions.length : 0;
+  return renderBatchEmailSubject(template, { ...data, first_name: str(data, "first_name", "there"), action_count: actionCount });
+}
+
 export const EMAIL_TEMPLATES = {
   weekly_challenges: {
     label: "Weekly Challenges",
@@ -935,6 +946,8 @@ export const EMAIL_TEMPLATES = {
   daily_reminder: {
     label: "Action Reminder",
     subject: (data: EmailTemplateData) => {
+      const custom = batchSubject(data);
+      if (custom) return custom;
       const name = str(data, "first_name", "there");
       const company = str(data, "company_name");
       return `Hi ${name} 👋, Your actions are ready${company ? ` — ${company}` : ""}`;
@@ -947,6 +960,8 @@ export const EMAIL_TEMPLATES = {
       const name = str(data, "first_name", "there");
       const count = Array.isArray(data.actions) ? data.actions.length : 0;
       if (count === 0) return `Hi ${name} 👋 — You're all caught up this week`;
+      const custom = batchSubject(data);
+      if (custom) return custom;
       return `Hi ${name} 👋 — ${count} action${count === 1 ? " is" : "s are"} still waiting for your confirmation`;
     },
     render: renderWeeklyRecapHtml,

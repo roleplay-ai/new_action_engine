@@ -13,6 +13,7 @@
  */
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendTemplateToUsers } from "@/lib/email-send";
+import { commitmentScoreDrop } from "@/lib/batch-email-subjects";
 import {
   getCurrentISTDate,
   istToUTCDateTime,
@@ -63,7 +64,52 @@ export type WalletEmailSummary = {
   surpriseBoxesEnabled?: boolean;
   /** Actions in "Pending validation": auto-expired before a check-in and not yet resolved. */
   pendingValidationCount?: number;
+  /** Whole-point Commitment Score drop vs. 7 days ago; null when it didn't drop. */
+  commitmentDrop?: number | null;
+  /** Same, for the recipient's commitment buddy. */
+  buddyCommitmentDrop?: number | null;
 };
+
+/** IST calendar date `days` ago, matching commitment_wallet_score_snapshots.snapshot_date. */
+function istDateDaysAgo(days: number): string {
+  const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+  istNow.setUTCDate(istNow.getUTCDate() - days);
+  return istNow.toISOString().slice(0, 10);
+}
+
+/** Last week's score drops for the recipient and their buddy, read from the
+ * daily score snapshots (same 7-day lookback as the weekly buddy card). */
+async function fetchCommitmentDrops(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  cohortId: string,
+  currentScore: number | null | undefined,
+  buddyScore: number | null | undefined
+): Promise<{ commitmentDrop: number | null; buddyCommitmentDrop: number | null }> {
+  const { data: assignment } = await admin
+    .from("commitment_buddy_assignments")
+    .select("buddy_user_id")
+    .eq("cohort_id", cohortId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const buddyId = (assignment?.buddy_user_id as string | undefined) ?? null;
+
+  const { data: snapshots, error } = await admin
+    .from("commitment_wallet_score_snapshots")
+    .select("user_id, score")
+    .eq("cohort_id", cohortId)
+    .eq("snapshot_date", istDateDaysAgo(7))
+    .in("user_id", buddyId ? [userId, buddyId] : [userId]);
+  if (error) {
+    console.error("[action-reminders] failed to load score snapshots for email", { userId, error: error.message });
+    return { commitmentDrop: null, buddyCommitmentDrop: null };
+  }
+  const previousByUser = new Map((snapshots ?? []).map((row) => [row.user_id as string, Number(row.score)]));
+  return {
+    commitmentDrop: commitmentScoreDrop(previousByUser.get(userId), currentScore),
+    buddyCommitmentDrop: buddyId ? commitmentScoreDrop(previousByUser.get(buddyId), buddyScore) : null,
+  };
+}
 
 /** Live score/rank/buddy data for the reminder email — see get_commitment_wallet_email_summary. */
 export async function fetchWalletEmailSummary(
@@ -98,8 +144,11 @@ export async function fetchWalletEmailSummary(
     });
     return null;
   }
+  const summary = data as unknown as WalletEmailSummary;
+  const drops = await fetchCommitmentDrops(admin, userId, cohortId, summary?.currentScore, summary?.buddyScore);
   return {
-    ...(data as unknown as WalletEmailSummary),
+    ...summary,
+    ...drops,
     surpriseBoxesEnabled: plan?.surprise_boxes_enabled === true,
     pendingValidationCount: pendingValidationCount ?? 0,
   };
@@ -379,6 +428,8 @@ export async function sendDailyActionReminders(
         team_size: walletSummary?.teamMemberCount ?? null,
         buddy_name: walletSummary?.buddyName ?? null,
         buddy_score: walletSummary?.buddyScore ?? null,
+        commitment_drop: walletSummary?.commitmentDrop ?? null,
+        buddy_commitment_drop: walletSummary?.buddyCommitmentDrop ?? null,
         surprise_boxes_enabled: walletSummary?.surpriseBoxesEnabled ?? false,
         pending_validation_count: walletSummary?.pendingValidationCount ?? 0,
       };
@@ -600,6 +651,8 @@ export async function sendWeeklyUnvalidatedRecap(fromEmail: string): Promise<Wee
         team_size: walletSummary?.teamMemberCount ?? null,
         buddy_name: walletSummary?.buddyName ?? null,
         buddy_score: walletSummary?.buddyScore ?? null,
+        commitment_drop: walletSummary?.commitmentDrop ?? null,
+        buddy_commitment_drop: walletSummary?.buddyCommitmentDrop ?? null,
         surprise_boxes_enabled: walletSummary?.surpriseBoxesEnabled ?? false,
         pending_validation_count: walletSummary?.pendingValidationCount ?? 0,
       };

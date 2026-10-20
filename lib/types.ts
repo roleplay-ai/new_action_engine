@@ -140,6 +140,9 @@ export interface Cohort {
    * plan for this batch may run. Null/undefined falls back to the global
    * 2-24 week range enforced in app/actions/ai-actions.ts. */
   maxWeeks?: number | null;
+  /** Superadmin-set subject overrides for this batch's recurring emails
+   * (lib/batch-email-subjects.ts). Missing keys use the default subject. */
+  emailSubjects?: Partial<Record<"daily_reminder" | "weekly_recap", string>>;
 }
 
 /** One row backing Cohort.dates, with the id needed to remove it individually

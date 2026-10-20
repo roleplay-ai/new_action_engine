@@ -633,6 +633,8 @@ export async function bulkSendWeeklyRecap(
               team_size: walletSummary?.teamMemberCount ?? null,
               buddy_name: walletSummary?.buddyName ?? null,
               buddy_score: walletSummary?.buddyScore ?? null,
+              commitment_drop: walletSummary?.commitmentDrop ?? null,
+              buddy_commitment_drop: walletSummary?.buddyCommitmentDrop ?? null,
               surprise_boxes_enabled: walletSummary?.surpriseBoxesEnabled ?? false,
               pending_validation_count: walletSummary?.pendingValidationCount ?? 0,
             };
@@ -780,6 +782,8 @@ export async function bulkSendUpcomingActionReminders(
               team_size: walletSummary?.teamMemberCount ?? null,
               buddy_name: walletSummary?.buddyName ?? null,
               buddy_score: walletSummary?.buddyScore ?? null,
+              commitment_drop: walletSummary?.commitmentDrop ?? null,
+              buddy_commitment_drop: walletSummary?.buddyCommitmentDrop ?? null,
               surprise_boxes_enabled: walletSummary?.surpriseBoxesEnabled ?? false,
               pending_validation_count: walletSummary?.pendingValidationCount ?? 0,
             };

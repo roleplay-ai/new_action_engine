@@ -13,6 +13,7 @@ import {
   renderNudgeSubject,
   type NudgeKind,
 } from "./nudge-email-content";
+import { renderBatchEmailSubject } from "./batch-email-subjects";
 
 export type EmailTemplateData = Record<string, unknown>;
 
@@ -215,6 +216,8 @@ const SURPRISE_BOX_GIF = `${EMAIL_ASSETS_URL}/surprise-box.gif`;
 
 const NUDGIE_FALLBACK_LOGO_URL = `${NUDGE_APP_URL}/NudgeableBlack.png`;
 const NUDGIE_SUPPORT_EMAIL = "team@nudgeable.ai";
+/** The address participant emails are sent from (RESEND_FROM_EMAIL). */
+const NUDGIE_SENDER_EMAIL = "team@nudgeable.app";
 
 /** Alternating accent (border, top/left stripe) for stacked action cards. */
 const NUDGIE_CARD_ACCENTS = [
@@ -246,8 +249,10 @@ function nudgieHelpHtml(prompt: string, linkText: string, after = "."): string {
 }
 
 function nudgieCredentialsHtml(loginEmail: string, password: string): string {
+  const platformHost = NUDGE_APP_URL.replace(/^https?:\/\//, "");
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#fafafa" style="width:100%;background-color:#fafafa;border:1px solid #e7e7e9;border-radius:12px;margin:0 0 20px;">
-            <tr><td style="padding:18px 20px 10px;"><p style="margin:0 0 4px;font-size:12px;line-height:18px;color:#6b6b75;">Login ID</p><p style="margin:0;font-size:16px;line-height:24px;color:#292932;word-break:break-word;">${esc(loginEmail)}</p></td></tr>
+            <tr><td style="padding:18px 20px 10px;"><p style="margin:0 0 4px;font-size:12px;line-height:18px;color:#6b6b75;">Platform link</p><p style="margin:0;font-size:16px;line-height:24px;word-break:break-word;"><a href="${NUDGE_APP_URL}" target="_blank" style="color:#087f46;text-decoration:underline;font-weight:600;">${platformHost}</a></p></td></tr>
+            <tr><td style="padding:0 20px 10px;"><p style="margin:0 0 4px;font-size:12px;line-height:18px;color:#6b6b75;">Login ID</p><p style="margin:0;font-size:16px;line-height:24px;color:#292932;word-break:break-word;">${esc(loginEmail)}</p></td></tr>
             <tr><td style="padding:0 20px 18px;"><p style="margin:0 0 4px;font-size:12px;line-height:18px;color:#6b6b75;">Password</p><p style="margin:0;font-size:16px;line-height:24px;color:#292932;word-break:break-word;">${esc(password)}</p></td></tr>
           </table>`;
 }
@@ -450,7 +455,10 @@ function renderCredentialsHtml(data: EmailTemplateData): string {
     intro: "Log in to create your action plan and start practising at work.",
     mascotCaption: "Let’s get started.",
     mascotUrl: NUDGIE_GIF.welcome,
-    bodyHtml: `${nudgieCredentialsHtml(str(data, "login_email"), str(data, "temporary_password"))}
+    bodyHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#fff8db" style="width:100%;background-color:#fff8db;border:1px solid #f0dc8f;border-left:4px solid #ffcf00;border-radius:10px;margin:0 0 20px;"><tr><td style="padding:14px 18px;">
+            <p style="margin:0;font-size:15px;line-height:23px;color:#3d3420;"><strong style="color:#292932;">Important:</strong> Please mark emails from <strong style="color:#292932;">${NUDGIE_SENDER_EMAIL}</strong> as important so your action reminders don’t end up in spam or Promotions.</p>
+          </td></tr></table>
+          ${nudgieCredentialsHtml(str(data, "login_email"), str(data, "temporary_password"))}
           ${nudgieButtonHtml(loginUrl, "Log in")}
           ${nudgieHeadingHtml("How it works")}
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 20px;">${stepsHtml}</table>
@@ -906,6 +914,16 @@ function renderNudgeEmail(kind: NudgeKind, data: EmailTemplateData): string {
 
 // ─── Registry ───────────────────────────────────────────────────────────────
 
+/** The batch's custom subject (`batch_subject`, set per batch by a superadmin
+ * — see lib/batch-email-subjects.ts) with placeholders filled, or "" to use
+ * the default subject. */
+function batchSubject(data: EmailTemplateData): string {
+  const template = str(data, "batch_subject");
+  if (!template) return "";
+  const actionCount = Array.isArray(data.actions) ? data.actions.length : 0;
+  return renderBatchEmailSubject(template, { ...data, first_name: str(data, "first_name", "there"), action_count: actionCount });
+}
+
 export const EMAIL_TEMPLATES = {
   weekly_challenges: {
     label: "Weekly Challenges",
@@ -935,6 +953,8 @@ export const EMAIL_TEMPLATES = {
   daily_reminder: {
     label: "Action Reminder",
     subject: (data: EmailTemplateData) => {
+      const custom = batchSubject(data);
+      if (custom) return custom;
       const name = str(data, "first_name", "there");
       const company = str(data, "company_name");
       return `Hi ${name} 👋, Your actions are ready${company ? ` — ${company}` : ""}`;
@@ -947,6 +967,8 @@ export const EMAIL_TEMPLATES = {
       const name = str(data, "first_name", "there");
       const count = Array.isArray(data.actions) ? data.actions.length : 0;
       if (count === 0) return `Hi ${name} 👋 — You're all caught up this week`;
+      const custom = batchSubject(data);
+      if (custom) return custom;
       return `Hi ${name} 👋 — ${count} action${count === 1 ? " is" : "s are"} still waiting for your confirmation`;
     },
     render: renderWeeklyRecapHtml,

@@ -7,6 +7,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resend } from "@/lib/resend";
 import { isEmailTemplateKey, renderEmailTemplate, type EmailTemplateKey } from "@/lib/email-templates";
+import { isBatchEmailSubjectKey, parseBatchEmailSubjects, type BatchEmailSubjects } from "@/lib/batch-email-subjects";
 import { getAppUrl } from "@/lib/app-url";
 
 /**
@@ -161,14 +162,17 @@ export async function sendTemplateToUsers({
   )];
   const trainerIdByCohortId = new Map<string, string>();
   const senderNameByCohortId = new Map<string, string>();
+  // Superadmin-set subject overrides per batch (lib/batch-email-subjects.ts).
+  const emailSubjectsByCohortId = new Map<string, BatchEmailSubjects>();
   if (cohortIds.length) {
     const { data: cohortRows } = await admin
       .from("cohorts")
-      .select("id, trainer_id, sender_name")
+      .select("id, trainer_id, sender_name, email_subjects")
       .in("id", cohortIds);
     for (const row of cohortRows ?? []) {
       if (row.trainer_id) trainerIdByCohortId.set(row.id as string, row.trainer_id as string);
       if (row.sender_name) senderNameByCohortId.set(row.id as string, row.sender_name as string);
+      emailSubjectsByCohortId.set(row.id as string, parseBatchEmailSubjects(row.email_subjects));
     }
   }
   const trainerNameById = new Map<string, string>();
@@ -318,6 +322,12 @@ export async function sendTemplateToUsers({
       const cohortSenderName = prof?.cohortId ? senderNameByCohortId.get(prof.cohortId) : undefined;
       const trainerId = prof?.cohortId ? trainerIdByCohortId.get(prof.cohortId) : undefined;
       const senderName = cohortSenderName ?? (trainerId ? trainerNameById.get(trainerId) : undefined) ?? "Nudgeable";
+
+      const batchSubject =
+        prof?.cohortId && isBatchEmailSubjectKey(templateKey)
+          ? emailSubjectsByCohortId.get(prof.cohortId)?.[templateKey]
+          : undefined;
+      if (batchSubject) dynamicTemplateData.batch_subject = batchSubject;
 
       const { subject, html } = renderEmailTemplate(templateKey, dynamicTemplateData);
       const { data: sendData, error: sendError } = await resend.emails.send({

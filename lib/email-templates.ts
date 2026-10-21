@@ -457,7 +457,8 @@ function renderCredentialsHtml(data: EmailTemplateData): string {
     mascotCaption: "Let’s get started.",
     mascotUrl: NUDGIE_GIF.welcome,
     bodyHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#fff8db" style="width:100%;background-color:#fff8db;border:1px solid #f0dc8f;border-left:4px solid #ffcf00;border-radius:10px;margin:0 0 20px;"><tr><td style="padding:14px 18px;">
-            <p style="margin:0;font-size:15px;line-height:23px;color:#3d3420;"><strong style="color:#292932;">Important:</strong> Please mark emails from <strong style="color:#292932;">${NUDGIE_SENDER_EMAIL}</strong> as important so your action reminders don’t end up in spam or Promotions.</p>
+            <p style="margin:0 0 6px;font-size:15px;line-height:23px;font-weight:700;color:#292932;">Using Outlook? Add us as a safe sender:</p>
+            <p style="margin:0;font-size:15px;line-height:23px;color:#3d3420;">1. Click Settings (gear icon) &gt; Mail &gt; Junk email.<br>2. Under Safe senders and domains, select Add safe sender.<br>3. Enter <strong style="color:#292932;">${NUDGIE_SENDER_EMAIL}</strong> and click Save.</p>
           </td></tr></table>
           ${nudgieCredentialsHtml(str(data, "login_email"), str(data, "temporary_password"))}
           ${nudgieButtonHtml(loginUrl, "Log in")}
@@ -605,12 +606,12 @@ function reminderActionCardsHtml(actions: ReminderAction[], loginUrl: string, su
   return actions.map((action, i) => nudgieActionCardHtml(action, i, action.complete_url || loginUrl)).join("") + surpriseHtml;
 }
 
-/** Boxed callout inviting participants to reply with a phone number to get reminders on WhatsApp. */
-function whatsappOptInBoxHtml(): string {
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#effbf3" style="width:100%;background-color:#effbf3;border:1px solid #b7e4c7;border-left:4px solid #25d366;border-radius:10px;margin:0 0 20px;"><tr>
+/** Boxed footer row inviting participants to reply with a phone number to get reminders on WhatsApp. */
+function whatsappOptInRowHtml(): string {
+  return `<tr><td class="content-pad" style="padding:0 32px 22px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#effbf3" style="width:100%;background-color:#effbf3;border:1px solid #b7e4c7;border-left:4px solid #25d366;border-radius:10px;"><tr>
             <td width="56" valign="middle" style="width:56px;padding:14px 0 14px 16px;"><img src="${WHATSAPP_LOGO}" alt="WhatsApp" width="40" height="40" style="display:block;width:40px;height:40px;border:0;border-radius:9px;"></td>
             <td valign="middle" style="padding:14px 18px 14px 14px;font-size:15px;line-height:23px;color:#1f3a2a;">Want reminders and easy confirmation on WhatsApp? Just reply to this email with your phone number.</td>
-          </tr></table>`;
+          </tr></table></td></tr>`;
 }
 
 function renderDailyReminderHtml(data: EmailTemplateData): string {
@@ -627,10 +628,10 @@ function renderDailyReminderHtml(data: EmailTemplateData): string {
     intro: "Mark each action you’ve completed.",
     mascotCaption: "One tap to record it.",
     mascotUrl: NUDGIE_GIF.actionReminder,
-    bodyHtml: (actions.length
+    bodyHtml: actions.length
       ? reminderActionCardsHtml(actions, loginUrl, data.surprise_boxes_enabled === true)
-      : `<p style="${NUDGIE_MUTED_STYLE}">Nothing pending right now. Nice work staying on top of it.</p>`) + whatsappOptInBoxHtml(),
-    extraRowsHtml: nudgieScoresRowHtml(data) + nudgiePendingBannerHtml(data, loginUrl),
+      : `<p style="${NUDGIE_MUTED_STYLE}">Nothing pending right now. Nice work staying on top of it.</p>`,
+    extraRowsHtml: nudgieScoresRowHtml(data) + nudgiePendingBannerHtml(data, loginUrl) + whatsappOptInRowHtml(),
   });
 }
 
@@ -651,7 +652,6 @@ function renderWeeklyRecapHtml(data: EmailTemplateData): string {
           ${nudgieButtonHtml(completeAllUrl, "Confirm all as completed")}
           <p style="${NUDGIE_MUTED_STYLE}">Use this only if you’ve completed every action shown above. For individual actions, use “Mark complete”.</p>`
       : ""}`;
-  const bodyWithOptInHtml = bodyHtml + whatsappOptInBoxHtml();
 
   return nudgieEmailHtml({
     data,
@@ -664,8 +664,8 @@ function renderWeeklyRecapHtml(data: EmailTemplateData): string {
     intro: count === 0 ? "Nothing is waiting for your update." : "If you’ve completed an action, mark it complete below.",
     mascotCaption: "Time for a quick recap.",
     mascotUrl: NUDGIE_GIF.weeklyRecap,
-    bodyHtml: bodyWithOptInHtml,
-    extraRowsHtml: nudgieScoresRowHtml(data) + nudgiePendingBannerHtml(data, loginUrl),
+    bodyHtml,
+    extraRowsHtml: nudgieScoresRowHtml(data) + nudgiePendingBannerHtml(data, loginUrl) + whatsappOptInRowHtml(),
   });
 }
 

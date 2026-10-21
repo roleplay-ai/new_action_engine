@@ -17,9 +17,9 @@ import { commitmentScoreDrop } from "@/lib/batch-email-subjects";
 import {
   getCurrentISTDate,
   istToUTCDateTime,
+  utcToISTDate,
 } from "@/lib/timezone-utils";
-import { getWeekdayIST } from "@/lib/personal-action-generation";
-import { reminderDaysFor } from "@/lib/reminder-days";
+import { dueReminderDate } from "@/lib/reminder-days";
 
 export type ActionReminderRunSummary = {
   sent: number;
@@ -39,6 +39,7 @@ export type ReminderSubscription = {
   days_of_week: number[] | null;
   email_reminders_enabled: boolean;
   last_reminder_sent_date: string | null;
+  created_at?: string | null;
 };
 
 export type ReminderAction = {
@@ -260,11 +261,11 @@ export async function buildReminderActionContext(
 
 export async function sendDailyActionReminders(
   _baseUrl: string,
-  fromEmail: string
+  fromEmail: string,
+  options?: { cohortIds?: string[] }
 ): Promise<ActionReminderRunSummary> {
   const admin = createAdminClient();
   const todayIST = getCurrentISTDate();
-  const todayWeekday = getWeekdayIST(todayIST);
 
   const summary: ActionReminderRunSummary = {
     sent: 0,
@@ -275,12 +276,15 @@ export async function sendDailyActionReminders(
     skippedClaimed: 0,
   };
 
-  const { data: subscriptionRows, error: subscriptionError } = await admin
+  let subscriptionQuery = admin
     .from("personal_action_subscriptions")
-    .select("id, user_id, cohort_id, track, day_of_week, days_of_week, email_reminders_enabled, last_reminder_sent_date")
+    .select("id, user_id, cohort_id, track, day_of_week, days_of_week, email_reminders_enabled, last_reminder_sent_date, created_at")
     .eq("is_active", true)
     .is("archived_at", null)
     .not("cohort_id", "is", null);
+  // Optional scope for a manual rerun limited to specific cohorts.
+  if (options?.cohortIds) subscriptionQuery = subscriptionQuery.in("cohort_id", options.cohortIds);
+  const { data: subscriptionRows, error: subscriptionError } = await subscriptionQuery;
 
   if (subscriptionError) {
     console.error("[action-reminders] failed to load subscriptions", subscriptionError.message);
@@ -290,6 +294,7 @@ export async function sendDailyActionReminders(
   const dueSubscriptions: Array<{
     sub: ReminderSubscription;
     scheduledFor: string;
+    reminderDate: string;
   }> = [];
 
   for (const row of subscriptionRows ?? []) {
@@ -303,14 +308,18 @@ export async function sendDailyActionReminders(
       continue;
     }
 
-    if (!reminderDaysFor(sub).includes(todayWeekday)) {
+    // Today's reminder, or the latest missed one when the cron didn't run on
+    // the participant's reminder day (otherwise it'd wait a whole week).
+    const reminderDate = dueReminderDate(sub, todayIST, sub.created_at ? utcToISTDate(sub.created_at) : null);
+    if (!reminderDate) {
       summary.skippedNotDue += 1;
       continue;
     }
 
     dueSubscriptions.push({
       sub,
-      scheduledFor: istToUTCDateTime(todayIST, FIXED_REMINDER_TIME_IST),
+      reminderDate,
+      scheduledFor: istToUTCDateTime(reminderDate, FIXED_REMINDER_TIME_IST),
     });
   }
 
@@ -329,6 +338,7 @@ export async function sendDailyActionReminders(
     sub: ReminderSubscription;
     actions: ReminderAction[];
     scheduledFor: string;
+    reminderDate: string;
     cohortName: string;
     batchName?: string;
     moduleName?: string;
@@ -354,7 +364,7 @@ export async function sendDailyActionReminders(
         p_subscription_id: due.sub.id,
         p_user_id: due.sub.user_id,
         p_cohort_id: due.sub.cohort_id,
-        p_reminder_date: todayIST,
+        p_reminder_date: due.reminderDate,
         p_scheduled_for: due.scheduledFor,
       }
     );
@@ -451,7 +461,7 @@ export async function sendDailyActionReminders(
         theme: action.theme,
       })),
       action_count: item.actions.length,
-      reminder_date: todayIST,
+      reminder_date: item.reminderDate,
       scheduled_for: item.scheduledFor,
       status: result.success ? "sent" : "failed",
       error_message: result.error ?? null,
@@ -471,7 +481,7 @@ export async function sendDailyActionReminders(
       summary.sent += 1;
       await admin
         .from("personal_action_subscriptions")
-        .update({ last_reminder_sent_date: todayIST })
+        .update({ last_reminder_sent_date: item.reminderDate })
         .eq("id", item.sub.id)
         .eq("cohort_id", item.sub.cohort_id);
     } else {

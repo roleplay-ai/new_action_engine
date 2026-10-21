@@ -457,7 +457,8 @@ function renderCredentialsHtml(data: EmailTemplateData): string {
     mascotCaption: "Let’s get started.",
     mascotUrl: NUDGIE_GIF.welcome,
     bodyHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#fff8db" style="width:100%;background-color:#fff8db;border:1px solid #f0dc8f;border-left:4px solid #ffcf00;border-radius:10px;margin:0 0 20px;"><tr><td style="padding:14px 18px;">
-            <p style="margin:0;font-size:15px;line-height:23px;color:#3d3420;"><strong style="color:#292932;">Important:</strong> Please mark emails from <strong style="color:#292932;">${NUDGIE_SENDER_EMAIL}</strong> as important so your action reminders don’t end up in spam or Promotions.</p>
+            <p style="margin:0 0 6px;font-size:15px;line-height:23px;font-weight:700;color:#292932;">Using Outlook? Add us as a safe sender:</p>
+            <p style="margin:0;font-size:15px;line-height:23px;color:#3d3420;">1. Click Settings (gear icon) &gt; Mail &gt; Junk email.<br>2. Under Safe senders and domains, select Add safe sender.<br>3. Enter <strong style="color:#292932;">${NUDGIE_SENDER_EMAIL}</strong> and click Save.</p>
           </td></tr></table>
           ${nudgieCredentialsHtml(str(data, "login_email"), str(data, "temporary_password"))}
           ${nudgieButtonHtml(loginUrl, "Log in")}
